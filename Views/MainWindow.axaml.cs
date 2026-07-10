@@ -1,5 +1,6 @@
 using Avalonia.Input;
 using FluentAvalonia.UI.Windowing;
+using LittleFancyToolAva.Models;
 using LittleFancyToolAva.Services;
 using LittleFancyToolAva.ViewModels;
 
@@ -44,9 +45,9 @@ namespace LittleFancyToolAva.Views
 
             NavigationService.Instance.SetFrame(FrameView);
 
-            if (ViewModel?.SelectedPage?.Content != null)
+            if (ViewModel?.SelectedPage is PageNavigationItem page && page.Content != null)
             {
-                NavigationService.Instance.NavigateFromContext(ViewModel.SelectedPage.Content);
+                NavigationService.Instance.NavigateFromContext(page.Content);
             }
         }
 

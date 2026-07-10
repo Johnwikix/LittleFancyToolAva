@@ -3,6 +3,7 @@
                  xmlns:vm="using:LittleFancyToolAva.ViewModels"
                  xmlns:models="using:LittleFancyToolAva.Models"
                  xmlns:views="using:LittleFancyToolAva.Views"
+                 xmlns:helpers="using:LittleFancyToolAva.Helpers"
                  xmlns:ui="using:FluentAvalonia.UI.Controls"
                  xmlns:win="using:FluentAvalonia.UI.Windowing"
                  xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -42,13 +43,17 @@
                              IsSettingsVisible="False"
                              OpenPaneLength="220"
                              MenuItemsSource="{Binding Pages}"
+                             FooterMenuItemsSource="{Binding FooterPages}"
                              SelectedItem="{Binding SelectedPage, Mode=TwoWay}"
                              MenuItemTemplate="{StaticResource MenuItemDataTemplate}">
 
             <ui:FANavigationView.Resources>
+                <helpers:InverseBoolConverter x:Key="InverseBoolConverter" />
                 <DataTemplate x:Key="MenuItemDataTemplate" DataType="models:PageNavigationItem">
                     <ui:FANavigationViewItem Content="{Binding Label}"
-                                             IconSource="{Binding IconSource}" />
+                                             IconSource="{Binding IconSource}"
+                                             SelectsOnInvoked="{Binding HasChildren, Converter={StaticResource InverseBoolConverter}}"
+                                             MenuItemsSource="{Binding Children}" />
                 </DataTemplate>
             </ui:FANavigationView.Resources>
 

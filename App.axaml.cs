@@ -75,7 +75,7 @@ namespace LittleFancyToolAva
 
             services.AddTransient<MainWindowViewModel>();
             services.AddTransient<HomeViewModel>();
-            services.AddTransient<SettingsViewModel>();
+            services.AddSingleton<SettingsViewModel>();
             services.AddTransient<AesViewModel>();
             services.AddTransient<DesViewModel>();
             services.AddTransient<Sm4ViewModel>();

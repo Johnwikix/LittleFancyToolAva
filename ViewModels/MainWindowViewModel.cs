@@ -14,45 +14,93 @@ namespace LittleFancyToolAva.ViewModels
 
         public ObservableCollection<PageNavigationItem> Pages { get; }
 
+        public ObservableCollection<PageNavigationItem> FooterPages { get; }
+
         [ObservableProperty]
-        private PageNavigationItem? _selectedPage;
+        private object? _selectedPage;
 
         public MainWindowViewModel(AppObserveModel appObserveModel, IServiceProvider serviceProvider)
         {
             AppObserveModel = appObserveModel;
 
+            FooterPages = new ObservableCollection<PageNavigationItem>
+            {
+                new PageNavigationItem("设置", FASymbol.Setting, serviceProvider.GetRequiredService<SettingsViewModel>())
+            };
+
             Pages = new ObservableCollection<PageNavigationItem>
             {
                 new PageNavigationItem("首页", FASymbol.Home, new HomeViewModel(appObserveModel)),
-                new PageNavigationItem("串口调试", FASymbol.Document, serviceProvider.GetRequiredService<SerialPortViewModel>()),
-                new PageNavigationItem("Modbus Poll", FASymbol.Document, serviceProvider.GetRequiredService<ModbusPollViewModel>()),
-                new PageNavigationItem("Modbus Slave", FASymbol.Document, serviceProvider.GetRequiredService<ModbusSlaveViewModel>()),
-                new PageNavigationItem("Sockets", FASymbol.Message, serviceProvider.GetRequiredService<TcpServerViewModel>()),
-                new PageNavigationItem("RSA", FASymbol.Page2, serviceProvider.GetRequiredService<RsaViewModel>()),
-                new PageNavigationItem("SM2", FASymbol.Page2, serviceProvider.GetRequiredService<Sm2ViewModel>()),
-                new PageNavigationItem("AES", FASymbol.Document, serviceProvider.GetRequiredService<AesViewModel>()),
-                new PageNavigationItem("DES", FASymbol.Document, serviceProvider.GetRequiredService<DesViewModel>()),
-                new PageNavigationItem("SM4", FASymbol.Document, serviceProvider.GetRequiredService<Sm4ViewModel>()),
-                new PageNavigationItem("MD5", FASymbol.Page2, serviceProvider.GetRequiredService<Md5ViewModel>()),
-                new PageNavigationItem("SHA", FASymbol.Page2, serviceProvider.GetRequiredService<ShaViewModel>()),
-                new PageNavigationItem("SM3", FASymbol.Page2, serviceProvider.GetRequiredService<Sm3ViewModel>()),
-                new PageNavigationItem("Base64", FASymbol.Page2, serviceProvider.GetRequiredService<Base64ViewModel>()),
-                new PageNavigationItem("文件加解密", FASymbol.Document, serviceProvider.GetRequiredService<FileEncryptionViewModel>()),
-                new PageNavigationItem("文件夹比较", FASymbol.Document, serviceProvider.GetRequiredService<FolderCompareViewModel>()),
-                new PageNavigationItem("图片转Base64", FASymbol.Page2, serviceProvider.GetRequiredService<Img2Base64ViewModel>()),
-                new PageNavigationItem("图片转ICO", FASymbol.Page2, serviceProvider.GetRequiredService<Img2icoViewModel>()),
-                new PageNavigationItem("图片格式转换", FASymbol.Page2, serviceProvider.GetRequiredService<ImgConvertViewModel>()),
-                new PageNavigationItem("设置", FASymbol.Setting, new SettingsViewModel(appObserveModel)),
+                BuildSerialCategory(serviceProvider),
+                BuildModbusCategory(serviceProvider),
+                BuildNetworkCategory(serviceProvider),
+                BuildEncryptionCategory(serviceProvider),
+                BuildFileCategory(serviceProvider),
+                BuildImageCategory(serviceProvider),
             };
 
             SelectedPage = Pages[0];
         }
 
-        partial void OnSelectedPageChanged(PageNavigationItem? value)
+        private static PageNavigationItem BuildSerialCategory(IServiceProvider sp)
         {
-            if (value?.Content != null)
+            var category = new PageNavigationItem("串口", FASymbol.Remote);
+            category.Children.Add(new PageNavigationItem("串口调试", FASymbol.Document, sp.GetRequiredService<SerialPortViewModel>()));
+            return category;
+        }
+
+        private static PageNavigationItem BuildModbusCategory(IServiceProvider sp)
+        {
+            var category = new PageNavigationItem("Modbus", FASymbol.Switch);
+            category.Children.Add(new PageNavigationItem("Modbus Poll", FASymbol.Document, sp.GetRequiredService<ModbusPollViewModel>()));
+            category.Children.Add(new PageNavigationItem("Modbus Slave", FASymbol.Document, sp.GetRequiredService<ModbusSlaveViewModel>()));
+            return category;
+        }
+
+        private static PageNavigationItem BuildNetworkCategory(IServiceProvider sp)
+        {
+            var category = new PageNavigationItem("网络", FASymbol.Globe);
+            category.Children.Add(new PageNavigationItem("TCP", FASymbol.Message, sp.GetRequiredService<TcpServerViewModel>()));
+            return category;
+        }
+
+        private static PageNavigationItem BuildEncryptionCategory(IServiceProvider sp)
+        {
+            var category = new PageNavigationItem("加密", FASymbol.Permissions);
+            category.Children.Add(new PageNavigationItem("DES", FASymbol.Document, sp.GetRequiredService<DesViewModel>()));
+            category.Children.Add(new PageNavigationItem("AES", FASymbol.Document, sp.GetRequiredService<AesViewModel>()));
+            category.Children.Add(new PageNavigationItem("SM4", FASymbol.Document, sp.GetRequiredService<Sm4ViewModel>()));
+            category.Children.Add(new PageNavigationItem("RSA", FASymbol.Page2, sp.GetRequiredService<RsaViewModel>()));
+            category.Children.Add(new PageNavigationItem("SM2", FASymbol.Page2, sp.GetRequiredService<Sm2ViewModel>()));
+            category.Children.Add(new PageNavigationItem("MD5", FASymbol.Page2, sp.GetRequiredService<Md5ViewModel>()));
+            category.Children.Add(new PageNavigationItem("SHA", FASymbol.Page2, sp.GetRequiredService<ShaViewModel>()));
+            category.Children.Add(new PageNavigationItem("SM3", FASymbol.Page2, sp.GetRequiredService<Sm3ViewModel>()));
+            category.Children.Add(new PageNavigationItem("Base64", FASymbol.Page2, sp.GetRequiredService<Base64ViewModel>()));
+            category.Children.Add(new PageNavigationItem("文件加解密", FASymbol.Document, sp.GetRequiredService<FileEncryptionViewModel>()));
+            return category;
+        }
+
+        private static PageNavigationItem BuildFileCategory(IServiceProvider sp)
+        {
+            var category = new PageNavigationItem("文件处理", FASymbol.Document);
+            category.Children.Add(new PageNavigationItem("文件夹比较", FASymbol.Document, sp.GetRequiredService<FolderCompareViewModel>()));
+            return category;
+        }
+
+        private static PageNavigationItem BuildImageCategory(IServiceProvider sp)
+        {
+            var category = new PageNavigationItem("图片处理", FASymbol.Image);
+            category.Children.Add(new PageNavigationItem("图片转 Base64", FASymbol.Page2, sp.GetRequiredService<Img2Base64ViewModel>()));
+            category.Children.Add(new PageNavigationItem("图片转 ICO", FASymbol.Page2, sp.GetRequiredService<Img2icoViewModel>()));
+            category.Children.Add(new PageNavigationItem("图片格式转换", FASymbol.Page2, sp.GetRequiredService<ImgConvertViewModel>()));
+            return category;
+        }
+
+        partial void OnSelectedPageChanged(object? value)
+        {
+            if (value is PageNavigationItem item && item.Content != null)
             {
-                NavigationService.Instance.NavigateFromContext(value.Content);
+                NavigationService.Instance.NavigateFromContext(item.Content);
             }
         }
     }
