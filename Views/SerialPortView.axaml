@@ -1,0 +1,128 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:LittleFancyToolAva.ViewModels"
+             xmlns:conv="using:Avalonia.Data.Converters"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             x:Class="LittleFancyToolAva.Views.SerialPortView"
+             x:DataType="vm:SerialPortViewModel">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="16" Spacing="10" MaxWidth="900" HorizontalAlignment="Stretch">
+            <TextBlock Text="串口调试"
+                       FontSize="22"
+                       FontWeight="SemiBold" />
+
+            <Border Padding="12" CornerRadius="8"
+                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="端口设置" FontWeight="SemiBold" Margin="0,0,0,4" />
+                    <Grid ColumnDefinitions="80,*,10,80,*">
+                        <TextBlock VerticalAlignment="Center" Text="串口" />
+                        <ComboBox Grid.Column="1"
+                                  ItemsSource="{Binding PortNames}"
+                                  SelectedItem="{Binding SelectedPort, Mode=TwoWay}" />
+                        <TextBlock Grid.Column="3" VerticalAlignment="Center" Text="波特率" />
+                        <ComboBox Grid.Column="4"
+                                  ItemsSource="{Binding BaudRates}"
+                                  SelectedIndex="{Binding BaudRateIndex, Mode=TwoWay}" />
+                    </Grid>
+                    <Grid ColumnDefinitions="80,*,10,80,*">
+                        <TextBlock VerticalAlignment="Center" Text="校验位" />
+                        <ComboBox Grid.Column="1"
+                                  ItemsSource="{Binding Parities}"
+                                  SelectedIndex="{Binding ParityIndex, Mode=TwoWay}" />
+                        <TextBlock Grid.Column="3" VerticalAlignment="Center" Text="数据位" />
+                        <ComboBox Grid.Column="4"
+                                  ItemsSource="{Binding DataBitsList}"
+                                  SelectedIndex="{Binding DataBitsIndex, Mode=TwoWay}" />
+                    </Grid>
+                    <Grid ColumnDefinitions="80,*,10,80,*">
+                        <TextBlock VerticalAlignment="Center" Text="停止位" />
+                        <ComboBox Grid.Column="1"
+                                  ItemsSource="{Binding StopBitsList}"
+                                  SelectedIndex="{Binding StopBitsIndex, Mode=TwoWay}" />
+                        <TextBlock Grid.Column="3" VerticalAlignment="Center" Text="编码" />
+                        <ComboBox Grid.Column="4"
+                                  ItemsSource="{Binding Encodings}"
+                                  SelectedIndex="{Binding EncodingIndex, Mode=TwoWay}" />
+                    </Grid>
+                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
+                        <Button Command="{Binding RefreshPortsCommand}" Content="刷新端口" />
+                        <Button Command="{Binding ConnectCommand}" Content="连接" IsEnabled="{Binding IsConnected, Converter={x:Static conv:BoolConverters.Not}}" />
+                        <Button Command="{Binding DisconnectCommand}" Content="断开" IsEnabled="{Binding IsConnected}" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <Border Padding="12" CornerRadius="8"
+                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="选项" FontWeight="SemiBold" Margin="0,0,0,4" />
+                    <Grid ColumnDefinitions="Auto,Auto,Auto,Auto">
+                        <CheckBox Content="HEX 发送" IsChecked="{Binding IsHexSend, Mode=TwoWay}" />
+                        <CheckBox Grid.Column="1" Content="HEX 显示" IsChecked="{Binding IsHexDisplay, Mode=TwoWay}" Margin="16,0,0,0" />
+                        <CheckBox Grid.Column="2" Content="RTS" IsChecked="{Binding IsRtsEnabled, Mode=TwoWay}" Margin="16,0,0,0" Command="{Binding ToggleRtsCommand}" />
+                        <CheckBox Grid.Column="3" Content="DTR" IsChecked="{Binding IsDtrEnabled, Mode=TwoWay}" Margin="16,0,0,0" Command="{Binding ToggleDtrCommand}" />
+                    </Grid>
+                    <Grid ColumnDefinitions="Auto,*,10,Auto,*">
+                        <TextBlock VerticalAlignment="Center" Text="帧间隔(ms)" />
+                        <NumericUpDown Grid.Column="1" Minimum="10" Maximum="500"
+                                       Value="{Binding FrameBreakInterval, Mode=TwoWay}" />
+                        <TextBlock Grid.Column="3" VerticalAlignment="Center" Text="轮询间隔(ms)" />
+                        <NumericUpDown Grid.Column="4" Minimum="100" Maximum="60000"
+                                       Value="{Binding PollInterval, Mode=TwoWay}" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <Grid ColumnDefinitions="*,10,*">
+                <Border Grid.Column="0" Padding="12" CornerRadius="8"
+                        Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1">
+                    <StackPanel Spacing="8">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Text="接收" FontWeight="SemiBold" />
+                            <Button Grid.Column="1" Command="{Binding ClearCommand}" Content="清空" FontSize="12" />
+                        </Grid>
+                        <TextBox IsReadOnly="True" AcceptsReturn="True" MinHeight="200"
+                                 Text="{Binding ReceivedText, Mode=OneWay}" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Command="{Binding SaveDataCommand}" Content="保存数据" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="2" Padding="12" CornerRadius="8"
+                        Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="发送" FontWeight="SemiBold" />
+                        <TextBox AcceptsReturn="True" MinHeight="200"
+                                 Text="{Binding SendText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                            <Button Command="{Binding SendCommand}" Content="发送" />
+                            <Button Command="{Binding StartPollingCommand}" Content="定时发送"
+                                    IsEnabled="{Binding IsPolling, Converter={x:Static conv:BoolConverters.Not}}" />
+                            <Button Command="{Binding StopPollingCommand}" Content="停止"
+                                    IsEnabled="{Binding IsPolling}" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <Border Padding="12" CornerRadius="8"
+                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1">
+                <TextBlock Text="{Binding StatusText}" Opacity="0.7" />
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

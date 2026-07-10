@@ -1,0 +1,88 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:LittleFancyToolAva.ViewModels"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             x:Class="LittleFancyToolAva.Views.RsaView"
+             x:DataType="vm:RsaViewModel">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <Grid Margin="16" ColumnDefinitions="*,10,*">
+            <StackPanel Grid.Column="0" Spacing="10">
+                <TextBlock FontSize="16" FontWeight="SemiBold" Text="RSA 加解密" />
+
+                <Border Padding="12" CornerRadius="8"
+                        Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1">
+                    <StackPanel Spacing="8">
+                        <Grid ColumnDefinitions="100,*">
+                            <TextBlock VerticalAlignment="Center" Text="输入" />
+                            <TextBox Grid.Column="1" AcceptsReturn="True" MinHeight="60"
+                                     Text="{Binding InputText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                        </Grid>
+                        <Grid ColumnDefinitions="100,*">
+                            <TextBlock VerticalAlignment="Center" Text="公钥" />
+                            <TextBox Grid.Column="1" AcceptsReturn="True" MinHeight="120"
+                                     Text="{Binding PublicKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                        </Grid>
+                        <Grid ColumnDefinitions="100,*">
+                            <TextBlock VerticalAlignment="Center" Text="私钥" />
+                            <TextBox Grid.Column="1" AcceptsReturn="True" MinHeight="120"
+                                     Text="{Binding PrivateKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <Border Padding="12" CornerRadius="8"
+                        Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1">
+                    <StackPanel Spacing="8">
+                        <TextBlock FontWeight="SemiBold" Text="参数" />
+                        <Grid ColumnDefinitions="100,*,10,100,*">
+                            <TextBlock VerticalAlignment="Center" Text="填充模式" />
+                            <ComboBox Grid.Column="1" SelectedIndex="{Binding PaddingIndex, Mode=TwoWay}">
+                                <ComboBoxItem Content="Pkcs1" />
+                                <ComboBoxItem Content="OaepSHA1" />
+                                <ComboBoxItem Content="OaepSHA256" />
+                                <ComboBoxItem Content="OaepSHA384" />
+                                <ComboBoxItem Content="OaepSHA512" />
+                            </ComboBox>
+                            <TextBlock Grid.Column="3" VerticalAlignment="Center" Text="密钥长度" />
+                            <ComboBox Grid.Column="4" SelectedIndex="{Binding KeyLengthIndex, Mode=TwoWay}">
+                                <ComboBoxItem Content="1024" />
+                                <ComboBoxItem Content="2048" />
+                                <ComboBoxItem Content="4096" />
+                            </ComboBox>
+                        </Grid>
+                        <Grid ColumnDefinitions="100,*">
+                            <TextBlock VerticalAlignment="Center" Text="密钥格式" />
+                            <ComboBox Grid.Column="1" SelectedIndex="{Binding KeyFormatIndex, Mode=TwoWay}">
+                                <ComboBoxItem Content="PKCS#1" />
+                                <ComboBoxItem Content="PKCS#8" />
+                            </ComboBox>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                    <Button Command="{Binding GenerateKeyPairCommand}" Content="生成密钥对" />
+                    <Button Command="{Binding EncryptCommand}" Content="加密 >>" />
+                    <Button Command="{Binding DecryptCommand}" Content="解密 &lt;&lt;" />
+                </StackPanel>
+            </StackPanel>
+
+            <StackPanel Grid.Column="2" Spacing="10">
+                <TextBlock FontSize="16" FontWeight="SemiBold" Text="输出" />
+                <Border Padding="12" CornerRadius="8"
+                        Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1">
+                    <TextBox IsReadOnly="True" AcceptsReturn="True" MinHeight="200"
+                             Text="{Binding OutputText, Mode=OneWay}" />
+                </Border>
+            </StackPanel>
+        </Grid>
+    </ScrollViewer>
+</UserControl>

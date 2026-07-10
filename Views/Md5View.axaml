@@ -1,0 +1,63 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:LittleFancyToolAva.ViewModels"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             x:Class="LittleFancyToolAva.Views.Md5View"
+             x:DataType="vm:Md5ViewModel">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <Grid Margin="16" ColumnDefinitions="*,10,*">
+            <StackPanel Grid.Column="0" Spacing="10">
+                <TextBlock FontSize="16" FontWeight="SemiBold" Text="MD5 哈希" />
+
+                <Border Padding="12" CornerRadius="8"
+                        Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1">
+                    <StackPanel Spacing="8">
+                        <Grid ColumnDefinitions="100,*">
+                            <TextBlock VerticalAlignment="Center" Text="输入" />
+                            <TextBox Grid.Column="1" AcceptsReturn="True" MinHeight="100"
+                                     Text="{Binding InputText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <Border Padding="12" CornerRadius="8"
+                        Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1">
+                    <StackPanel Spacing="8">
+                        <TextBlock FontWeight="SemiBold" Text="参数" />
+                        <Grid ColumnDefinitions="100,*,10,100,*">
+                            <TextBlock VerticalAlignment="Center" Text="大小写" />
+                            <ComboBox Grid.Column="1" SelectedIndex="{Binding CaseIndex, Mode=TwoWay}">
+                                <ComboBoxItem Content="UPPER" />
+                                <ComboBoxItem Content="lower" />
+                            </ComboBox>
+                            <TextBlock Grid.Column="3" VerticalAlignment="Center" Text="输出长度" />
+                            <ComboBox Grid.Column="4" SelectedIndex="{Binding OutputLengthIndex, Mode=TwoWay}">
+                                <ComboBoxItem Content="32" />
+                                <ComboBoxItem Content="16" />
+                            </ComboBox>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <Button Command="{Binding EncryptCommand}" Content="生成 MD5" HorizontalAlignment="Right" />
+            </StackPanel>
+
+            <StackPanel Grid.Column="2" Spacing="10">
+                <TextBlock FontSize="16" FontWeight="SemiBold" Text="输出" />
+                <Border Padding="12" CornerRadius="8"
+                        Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1">
+                    <TextBox IsReadOnly="True" AcceptsReturn="True" MinHeight="100"
+                             Text="{Binding OutputText, Mode=OneWay}" />
+                </Border>
+            </StackPanel>
+        </Grid>
+    </ScrollViewer>
+</UserControl>

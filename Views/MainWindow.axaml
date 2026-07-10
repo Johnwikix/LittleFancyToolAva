@@ -1,0 +1,58 @@
+<win:FAAppWindow xmlns="https://github.com/avaloniaui"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:vm="using:LittleFancyToolAva.ViewModels"
+                 xmlns:models="using:LittleFancyToolAva.Models"
+                 xmlns:views="using:LittleFancyToolAva.Views"
+                 xmlns:ui="using:FluentAvalonia.UI.Controls"
+                 xmlns:win="using:FluentAvalonia.UI.Windowing"
+                 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                 mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="800"
+                 x:Class="LittleFancyToolAva.Views.MainWindow"
+                 x:DataType="vm:MainWindowViewModel"
+                 Icon="/Assets/storeIcon.ico"
+                 Title="妙妙小工具"
+                 MinWidth="900" MinHeight="600">
+
+    <Grid RowDefinitions="48,*">
+        <!-- 自定义标题栏 -->
+        <Grid x:Name="AppTitleBar"
+              Grid.Row="0"
+              Height="48"
+              ColumnDefinitions="Auto,*,Auto"
+              Background="Transparent"
+              PointerPressed="AppTitleBar_OnPointerPressed">
+            <Image Grid.Column="0"
+                   Source="/Assets/storeIcon.ico"
+                   Width="20" Height="20"
+                   Margin="16,0,8,0"
+                   VerticalAlignment="Center" />
+            <TextBlock Grid.Column="1"
+                       Text="妙妙小工具"
+                       VerticalAlignment="Center"
+                       FontSize="14"
+                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+            <ContentControl Grid.Column="2" Width="150" />
+        </Grid>
+
+        <!-- 主体 FANavigationView -->
+        <ui:FANavigationView Grid.Row="1"
+                             PaneDisplayMode="Auto"
+                             IsBackButtonVisible="False"
+                             IsSettingsVisible="False"
+                             OpenPaneLength="220"
+                             MenuItemsSource="{Binding Pages}"
+                             SelectedItem="{Binding SelectedPage, Mode=TwoWay}"
+                             MenuItemTemplate="{StaticResource MenuItemDataTemplate}">
+
+            <ui:FANavigationView.Resources>
+                <DataTemplate x:Key="MenuItemDataTemplate" DataType="models:PageNavigationItem">
+                    <ui:FANavigationViewItem Content="{Binding Label}"
+                                             IconSource="{Binding IconSource}" />
+                </DataTemplate>
+            </ui:FANavigationView.Resources>
+
+            <ui:FAFrame Name="FrameView" />
+        </ui:FANavigationView>
+    </Grid>
+</win:FAAppWindow>

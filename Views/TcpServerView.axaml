@@ -1,0 +1,96 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:LittleFancyToolAva.ViewModels"
+             xmlns:conv="using:Avalonia.Data.Converters"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             x:Class="LittleFancyToolAva.Views.TcpServerView"
+             x:DataType="vm:TcpServerViewModel">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="16" Spacing="10" MaxWidth="900" HorizontalAlignment="Stretch">
+            <TextBlock Text="TCP 调试"
+                       FontSize="22"
+                       FontWeight="SemiBold" />
+
+            <Border Padding="12" CornerRadius="8"
+                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="模式" FontWeight="SemiBold" Margin="0,0,0,4" />
+                    <ComboBox ItemsSource="{Binding Modes}"
+                              SelectedIndex="{Binding ModeIndex, Mode=TwoWay}" />
+                </StackPanel>
+            </Border>
+
+            <Border Padding="12" CornerRadius="8"
+                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="连接设置" FontWeight="SemiBold" Margin="0,0,0,4" />
+                    <Grid ColumnDefinitions="80,*,10,80,*">
+                        <TextBlock VerticalAlignment="Center" Text="地址" />
+                        <TextBox Grid.Column="1" Text="{Binding Address, Mode=TwoWay}" />
+                        <TextBlock Grid.Column="3" VerticalAlignment="Center" Text="端口" />
+                        <TextBox Grid.Column="4" Text="{Binding Port, Mode=TwoWay}" />
+                    </Grid>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Command="{Binding StartCommand}" Content="启动/连接" />
+                        <Button Command="{Binding StopCommand}" Content="停止" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <Border Padding="12" CornerRadius="8"
+                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    IsVisible="{Binding ModeIndex, Converter={x:Static conv:BoolConverters.Not}}">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="已连接客户端" FontWeight="SemiBold" />
+                    <ListBox ItemsSource="{Binding ConnectedClients}"
+                             SelectedItem="{Binding SelectedClient, Mode=TwoWay}"
+                             MaxHeight="120" />
+                </StackPanel>
+            </Border>
+
+            <Grid ColumnDefinitions="*,10,*">
+                <Border Grid.Column="0" Padding="12" CornerRadius="8"
+                        Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1">
+                    <StackPanel Spacing="8">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Text="接收" FontWeight="SemiBold" />
+                            <Button Grid.Column="1" Command="{Binding ClearCommand}" Content="清空" FontSize="12" />
+                        </Grid>
+                        <TextBox IsReadOnly="True" AcceptsReturn="True" MinHeight="200"
+                                 Text="{Binding ReceivedText, Mode=OneWay}" />
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="2" Padding="12" CornerRadius="8"
+                        Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="发送" FontWeight="SemiBold" />
+                        <TextBox AcceptsReturn="True" MinHeight="200"
+                                 Text="{Binding SendText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                        <CheckBox Content="HEX 发送" IsChecked="{Binding IsHexSend, Mode=TwoWay}" />
+                        <Button Command="{Binding SendCommand}" Content="发送" HorizontalAlignment="Right" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <Border Padding="12" CornerRadius="8"
+                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1">
+                <TextBlock Text="{Binding StatusText}" Opacity="0.7" />
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

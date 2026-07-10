@@ -1,0 +1,70 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:LittleFancyToolAva.ViewModels"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             x:Class="LittleFancyToolAva.Views.Img2Base64View"
+             x:DataType="vm:Img2Base64ViewModel">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="16" Spacing="12">
+            <TextBlock FontSize="16" FontWeight="SemiBold" Text="图片 ↔ Base64" />
+
+            <Border Padding="12" CornerRadius="8"
+                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1">
+                <StackPanel Spacing="8">
+                    <Grid ColumnDefinitions="100,*">
+                        <TextBlock VerticalAlignment="Center" Text="选择图片" />
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                            <Button Command="{Binding UploadImageCommand}" Content="上传图片" />
+                            <TextBlock VerticalAlignment="Center" Text="{Binding ImagePath}" />
+                        </StackPanel>
+                    </Grid>
+                    <Border CornerRadius="4"
+                            Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                            BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                            BorderThickness="1"
+                            Height="200">
+                        <Image Source="{Binding ImagePreview}" Stretch="Uniform" />
+                    </Border>
+                </StackPanel>
+            </Border>
+
+            <Button Command="{Binding EncodeCommand}" Content="编码为 Base64" HorizontalAlignment="Right" />
+
+            <Border Padding="12" CornerRadius="8"
+                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1">
+                <StackPanel Spacing="8">
+                    <TextBlock FontWeight="SemiBold" Text="Base64 字符串" />
+                    <TextBox AcceptsReturn="True" MinHeight="100"
+                             Text="{Binding Base64Output, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                </StackPanel>
+            </Border>
+
+            <Button Command="{Binding DecodeCommand}" Content="解码 Base64" HorizontalAlignment="Right" />
+
+            <Border Padding="12" CornerRadius="8"
+                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1">
+                <StackPanel Spacing="8">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock FontWeight="SemiBold" Text="解码预览" VerticalAlignment="Center" />
+                        <Button Grid.Column="1" Command="{Binding SaveDecodedImageCommand}" Content="保存图片" />
+                    </Grid>
+                    <Border CornerRadius="4"
+                            Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                            BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                            BorderThickness="1"
+                            Height="200">
+                        <Image Source="{Binding DecodedImagePreview}" Stretch="Uniform" />
+                    </Border>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

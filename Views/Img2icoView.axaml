@@ -1,0 +1,67 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:LittleFancyToolAva.ViewModels"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             x:Class="LittleFancyToolAva.Views.Img2icoView"
+             x:DataType="vm:Img2icoViewModel">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="16" Spacing="12">
+            <TextBlock FontSize="16" FontWeight="SemiBold" Text="图片转 ICO" />
+
+            <Border Padding="12" CornerRadius="8"
+                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1">
+                <StackPanel Spacing="8">
+                    <Grid ColumnDefinitions="100,*">
+                        <TextBlock VerticalAlignment="Center" Text="选择图片" />
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                            <Button Command="{Binding UploadImageCommand}" Content="上传图片" />
+                            <TextBlock VerticalAlignment="Center" Text="{Binding ImagePath}" />
+                        </StackPanel>
+                    </Grid>
+                    <Border CornerRadius="4"
+                            Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                            BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                            BorderThickness="1"
+                            Height="200">
+                        <Image Source="{Binding ImagePreview}" Stretch="Uniform" />
+                    </Border>
+                </StackPanel>
+            </Border>
+
+            <Border Padding="12" CornerRadius="8"
+                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1">
+                <Grid ColumnDefinitions="100,*,Auto">
+                    <TextBlock VerticalAlignment="Center" Text="ICO 尺寸" />
+                    <ComboBox Grid.Column="1" ItemsSource="{Binding AvailableSizes}"
+                              SelectedIndex="{Binding SelectedSizeIndex, Mode=TwoWay}" Margin="0,0,8,0" />
+                    <Button Grid.Column="2" Command="{Binding ConvertCommand}" Content="转换为 ICO" />
+                </Grid>
+            </Border>
+
+            <Border Padding="12" CornerRadius="8"
+                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1">
+                <StackPanel Spacing="8">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock FontWeight="SemiBold" Text="ICO 预览" VerticalAlignment="Center" />
+                        <Button Grid.Column="1" Command="{Binding SaveIcoCommand}" Content="保存 ICO" />
+                    </Grid>
+                    <Border CornerRadius="4"
+                            Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                            BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                            BorderThickness="1"
+                            Height="200">
+                        <Image Source="{Binding IcoPreview}" Stretch="Uniform" />
+                    </Border>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

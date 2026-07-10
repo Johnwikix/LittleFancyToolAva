@@ -1,0 +1,91 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:LittleFancyToolAva.ViewModels"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             x:Class="LittleFancyToolAva.Views.Sm4View"
+             x:DataType="vm:Sm4ViewModel">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <Grid Margin="16" ColumnDefinitions="*,10,*">
+            <StackPanel Grid.Column="0" Spacing="10">
+                <TextBlock FontSize="16" FontWeight="SemiBold" Text="SM4 加解密" />
+
+                <Border Padding="12" CornerRadius="8"
+                        Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1">
+                    <StackPanel Spacing="8">
+                        <Grid ColumnDefinitions="100,*">
+                            <TextBlock VerticalAlignment="Center" Text="输入" />
+                            <TextBox Grid.Column="1" AcceptsReturn="True" MinHeight="60"
+                                     Text="{Binding InputText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                        </Grid>
+                        <Grid ColumnDefinitions="100,*">
+                            <TextBlock VerticalAlignment="Center" Text="Key" />
+                            <TextBox Grid.Column="1"
+                                     Text="{Binding Key, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                        </Grid>
+                        <Grid ColumnDefinitions="100,*">
+                            <TextBlock VerticalAlignment="Center" Text="IV" />
+                            <TextBox Grid.Column="1"
+                                     Text="{Binding Iv, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                        </Grid>
+                        <Button Command="{Binding GenerateNewKeyCommand}" Content="生成 Key/IV" HorizontalAlignment="Right" />
+                    </StackPanel>
+                </Border>
+
+                <Border Padding="12" CornerRadius="8"
+                        Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1">
+                    <StackPanel Spacing="8">
+                        <TextBlock FontWeight="SemiBold" Text="参数" />
+                        <Grid ColumnDefinitions="100,*,10,100,*">
+                            <TextBlock VerticalAlignment="Center" Text="填充模式" />
+                            <ComboBox Grid.Column="1" SelectedIndex="{Binding PaddingIndex, Mode=TwoWay}">
+                                <ComboBoxItem Content="PKCS7" />
+                                <ComboBoxItem Content="ISO10126" />
+                                <ComboBoxItem Content="ZEROBYTE" />
+                            </ComboBox>
+                            <TextBlock Grid.Column="3" VerticalAlignment="Center" Text="加密模式" />
+                            <ComboBox Grid.Column="4" SelectedIndex="{Binding EncryptModeIndex, Mode=TwoWay}">
+                                <ComboBoxItem Content="ECB" />
+                                <ComboBoxItem Content="CBC" />
+                            </ComboBox>
+                        </Grid>
+                        <Grid ColumnDefinitions="100,*,10,100,*">
+                            <TextBlock VerticalAlignment="Center" Text="输出格式" />
+                            <ComboBox Grid.Column="1" SelectedIndex="{Binding OutputTypeIndex, Mode=TwoWay}">
+                                <ComboBoxItem Content="Base64" />
+                                <ComboBoxItem Content="Hex" />
+                            </ComboBox>
+                            <TextBlock Grid.Column="3" VerticalAlignment="Center" Text="Key/IV 格式" />
+                            <ComboBox Grid.Column="4" SelectedIndex="{Binding KeyIvTypeIndex, Mode=TwoWay}">
+                                <ComboBoxItem Content="Text" />
+                                <ComboBoxItem Content="Base64" />
+                                <ComboBoxItem Content="Hex" />
+                            </ComboBox>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                    <Button Command="{Binding EncryptCommand}" Content="加密 >>" />
+                    <Button Command="{Binding DecryptCommand}" Content="解密 &lt;&lt;" />
+                </StackPanel>
+            </StackPanel>
+
+            <StackPanel Grid.Column="2" Spacing="10">
+                <TextBlock FontSize="16" FontWeight="SemiBold" Text="输出" />
+                <Border Padding="12" CornerRadius="8"
+                        Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1">
+                    <TextBox IsReadOnly="True" AcceptsReturn="True" MinHeight="200"
+                             Text="{Binding OutputText, Mode=OneWay}" />
+                </Border>
+            </StackPanel>
+        </Grid>
+    </ScrollViewer>
+</UserControl>

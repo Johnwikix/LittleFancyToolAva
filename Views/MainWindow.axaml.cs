@@ -1,0 +1,68 @@
+using Avalonia.Input;
+using FluentAvalonia.UI.Windowing;
+using LittleFancyToolAva.Services;
+using LittleFancyToolAva.ViewModels;
+
+namespace LittleFancyToolAva.Views
+{
+    public partial class MainWindow : FAAppWindow
+    {
+        public MainWindowViewModel? ViewModel { get; }
+
+        public MainWindow()
+        {
+            InitializeComponent();
+            if (DataContext is MainWindowViewModel vm)
+            {
+                ViewModel = vm;
+            }
+
+            if (App.Current is App app && app.TryGetService<NavigationFactory>() is { } navFactory)
+            {
+                navFactory.Register<HomeViewModel, HomeView>();
+                navFactory.Register<AesViewModel, AesView>();
+                navFactory.Register<DesViewModel, DesView>();
+                navFactory.Register<Sm4ViewModel, Sm4View>();
+                navFactory.Register<RsaViewModel, RsaView>();
+                navFactory.Register<Sm2ViewModel, Sm2View>();
+                navFactory.Register<Md5ViewModel, Md5View>();
+                navFactory.Register<ShaViewModel, ShaView>();
+                navFactory.Register<Sm3ViewModel, Sm3View>();
+                navFactory.Register<Base64ViewModel, Base64View>();
+                navFactory.Register<SerialPortViewModel, SerialPortView>();
+                navFactory.Register<ModbusPollViewModel, ModbusPollView>();
+                navFactory.Register<ModbusSlaveViewModel, ModbusSlaveView>();
+                navFactory.Register<TcpServerViewModel, TcpServerView>();
+                navFactory.Register<SettingsViewModel, SettingsView>();
+                navFactory.Register<FileEncryptionViewModel, FileEncryptionView>();
+                navFactory.Register<FolderCompareViewModel, FolderCompareView>();
+                navFactory.Register<Img2Base64ViewModel, Img2Base64View>();
+                navFactory.Register<Img2icoViewModel, Img2icoView>();
+                navFactory.Register<ImgConvertViewModel, ImgConvertView>();
+                FrameView.NavigationPageFactory = navFactory;
+            }
+
+            NavigationService.Instance.SetFrame(FrameView);
+
+            if (ViewModel?.SelectedPage?.Content != null)
+            {
+                NavigationService.Instance.NavigateFromContext(ViewModel.SelectedPage.Content);
+            }
+        }
+
+        protected override void OnApplyTemplate(Avalonia.Controls.Primitives.TemplateAppliedEventArgs e)
+        {
+            base.OnApplyTemplate(e);
+            TitleBar.ExtendsContentIntoTitleBar = true;
+            TitleBar.Height = 48;
+        }
+
+        private void AppTitleBar_OnPointerPressed(object? sender, PointerPressedEventArgs e)
+        {
+            if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+            {
+                BeginMoveDrag(e);
+            }
+        }
+    }
+}

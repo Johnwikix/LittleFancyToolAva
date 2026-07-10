@@ -1,0 +1,79 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:LittleFancyToolAva.ViewModels"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             x:Class="LittleFancyToolAva.Views.FileEncryptionView"
+             x:DataType="vm:FileEncryptionViewModel">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="16" Spacing="12">
+            <TextBlock FontSize="16" FontWeight="SemiBold" Text="文件加解密" />
+
+            <Border Padding="12" CornerRadius="8"
+                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1">
+                <StackPanel Spacing="8">
+                    <Grid ColumnDefinitions="100,*">
+                        <TextBlock VerticalAlignment="Center" Text="选择文件" />
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                            <Button Command="{Binding SelectFilesCommand}" Content="选择文件" />
+                            <TextBlock VerticalAlignment="Center" Text="{Binding SelectedFilesDisplay}" />
+                        </StackPanel>
+                    </Grid>
+                    <Grid ColumnDefinitions="100,*">
+                        <TextBlock VerticalAlignment="Center" Text="输出目录" />
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                            <Button Command="{Binding SelectOutputDirectoryCommand}" Content="选择目录" />
+                            <TextBlock VerticalAlignment="Center" Text="{Binding OutputDirectory}" />
+                        </StackPanel>
+                    </Grid>
+                    <Grid ColumnDefinitions="100,*">
+                        <TextBlock VerticalAlignment="Center" Text="Key" />
+                        <TextBox Grid.Column="1" Text="{Binding Key, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                    </Grid>
+                    <Grid ColumnDefinitions="100,*">
+                        <TextBlock VerticalAlignment="Center" Text="IV" />
+                        <TextBox Grid.Column="1" Text="{Binding Iv, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                    </Grid>
+                    <Grid ColumnDefinitions="100,*,100,*">
+                        <TextBlock VerticalAlignment="Center" Text="Key 长度" />
+                        <ComboBox Grid.Column="1" SelectedIndex="{Binding KeyLengthIndex, Mode=TwoWay}">
+                            <ComboBoxItem Content="128" />
+                            <ComboBoxItem Content="192" />
+                            <ComboBoxItem Content="256" />
+                        </ComboBox>
+                        <Button Grid.Column="3" Command="{Binding GenerateKeyCommand}" Content="生成 Key/IV" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                <Button Command="{Binding EncryptCommand}" Content="加密" />
+                <Button Command="{Binding DecryptCommand}" Content="解密" />
+            </StackPanel>
+
+            <Border Padding="12" CornerRadius="8"
+                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1">
+                <StackPanel Spacing="8">
+                    <TextBlock FontWeight="SemiBold" Text="进度" />
+                    <ProgressBar Value="{Binding ProgressValue}" Minimum="0" Maximum="1" Height="20" />
+                </StackPanel>
+            </Border>
+
+            <Border Padding="12" CornerRadius="8"
+                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1">
+                <StackPanel Spacing="8">
+                    <TextBlock FontWeight="SemiBold" Text="输出日志" />
+                    <TextBox IsReadOnly="True" AcceptsReturn="True" MinHeight="150"
+                             Text="{Binding OutputLog, Mode=OneWay}" />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

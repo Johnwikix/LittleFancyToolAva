@@ -1,0 +1,99 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:LittleFancyToolAva.ViewModels"
+             xmlns:helpers="using:LittleFancyToolAva.Helpers"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             x:Class="LittleFancyToolAva.Views.SettingsView"
+             x:DataType="vm:SettingsViewModel">
+
+    <UserControl.Resources>
+        <helpers:IntEqualsToBoolConverter x:Key="IntEq" />
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="32" Spacing="20" MaxWidth="900" HorizontalAlignment="Stretch">
+            <TextBlock Text="设置"
+                       FontSize="22"
+                       FontWeight="SemiBold" />
+
+            <TextBlock Text="外观"
+                       FontSize="13"
+                       FontWeight="SemiBold"
+                       Opacity="0.8" />
+
+            <Border Padding="16" CornerRadius="8"
+                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1">
+                <StackPanel Spacing="4">
+                    <TextBlock Text="主题模式" FontWeight="SemiBold" Margin="0,0,0,8" />
+                    <RadioButton Content="跟随系统"
+                                 GroupName="ThemeMode"
+                                 IsChecked="{Binding App.Preferences.ThemeIndex, Mode=TwoWay, Converter={StaticResource IntEq}, ConverterParameter=0}" />
+                    <RadioButton Content="浅色"
+                                 GroupName="ThemeMode"
+                                 IsChecked="{Binding App.Preferences.ThemeIndex, Mode=TwoWay, Converter={StaticResource IntEq}, ConverterParameter=1}" />
+                    <RadioButton Content="深色"
+                                 GroupName="ThemeMode"
+                                 IsChecked="{Binding App.Preferences.ThemeIndex, Mode=TwoWay, Converter={StaticResource IntEq}, ConverterParameter=2}" />
+                </StackPanel>
+            </Border>
+
+            <TextBlock Text="基础设置"
+                       FontSize="13"
+                       FontWeight="SemiBold"
+                       Opacity="0.8" />
+
+            <Border Padding="16" CornerRadius="8"
+                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1">
+                <StackPanel Spacing="12">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock VerticalAlignment="Center" Text="启用动画" />
+                        <ToggleSwitch Grid.Column="1"
+                                      IsChecked="{Binding App.Preferences.IsAnimationOn, Mode=TwoWay}" />
+                    </Grid>
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock VerticalAlignment="Center" Text="启用阴影" />
+                        <ToggleSwitch Grid.Column="1"
+                                      IsChecked="{Binding App.Preferences.IsShadowOn, Mode=TwoWay}" />
+                    </Grid>
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock VerticalAlignment="Center" Text="隐藏滚动条" />
+                        <ToggleSwitch Grid.Column="1"
+                                      IsChecked="{Binding App.Preferences.IsScrollBarHidden, Mode=TwoWay}" />
+                    </Grid>
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock VerticalAlignment="Center" Text="在窗口中显示消息" />
+                        <ToggleSwitch Grid.Column="1"
+                                      IsChecked="{Binding App.Preferences.IsMessageInWindow, Mode=TwoWay}" />
+                    </Grid>
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock VerticalAlignment="Center" Text="通知窗口偏移" />
+                        <NumericUpDown Grid.Column="1" Width="120"
+                                       Value="{Binding App.Preferences.NoticeWindowOffsetXY, Mode=TwoWay}"
+                                       Minimum="0" Maximum="500" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <TextBlock Text="关于"
+                       FontSize="13"
+                       FontWeight="SemiBold"
+                       Opacity="0.8" />
+
+            <Border Padding="16" CornerRadius="8"
+                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1">
+                <StackPanel Spacing="4">
+                    <TextBlock Text="妙妙小工具 LittleFancyTool" FontWeight="SemiBold" />
+                    <TextBlock Text="基于 Avalonia 12 + FluentAvalonia 3" Opacity="0.7" />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

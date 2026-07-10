@@ -1,0 +1,36 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:LittleFancyToolAva.ViewModels"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             x:Class="LittleFancyToolAva.Views.HomeView"
+             x:DataType="vm:HomeViewModel">
+
+    <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
+        <Border CornerRadius="16" Padding="48"
+                Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                BorderThickness="1">
+            <StackPanel Spacing="32" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Image Source="/Assets/storeIcon.ico"
+                       Width="128" Height="128"
+                       Cursor="Hand"
+                       PointerPressed="Image_OnPointerPressed">
+                    <Image.RenderTransform>
+                        <RotateTransform Angle="{Binding RotationAngle}" />
+                    </Image.RenderTransform>
+                </Image>
+                <TextBlock FontSize="28" FontWeight="SemiBold"
+                           HorizontalAlignment="Center"
+                           Text="妙妙小工具" />
+                <TextBlock FontSize="14" Opacity="0.6"
+                           HorizontalAlignment="Center"
+                           Text="LittleFancyTool" />
+                <TextBlock FontSize="12" Opacity="0.4"
+                           HorizontalAlignment="Center"
+                           Text="点击图标旋转" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>
