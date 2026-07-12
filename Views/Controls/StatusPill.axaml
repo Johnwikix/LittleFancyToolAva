@@ -1,0 +1,34 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:helpers="using:LittleFancyToolAva.Helpers"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             d:DesignWidth="240" d:DesignHeight="32"
+             mc:Ignorable="d"
+             x:Class="LittleFancyToolAva.Views.Controls.StatusPill"
+             x:Name="Root">
+    <UserControl.Resources>
+        <helpers:ConnectionStatusToBrushConverter x:Key="StatusToBrushConverter" />
+    </UserControl.Resources>
+
+    <Border Background="{DynamicResource SubtleFillColorSecondaryBrush}"
+            CornerRadius="12"
+            Padding="10,4"
+            VerticalAlignment="Center">
+        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+            <Ellipse Width="8" Height="8"
+                     VerticalAlignment="Center"
+                     Fill="{Binding #Root.Status, Converter={StaticResource StatusToBrushConverter}}" />
+            <TextBlock Text="{Binding #Root.Text}"
+                       FontSize="12"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                       VerticalAlignment="Center" />
+            <TextBlock Text="{Binding #Root.Detail}"
+                       IsVisible="{Binding #Root.Detail, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                       FontSize="12"
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                       VerticalAlignment="Center" />
+        </StackPanel>
+    </Border>
+</UserControl>

@@ -1,7 +1,10 @@
 using System.Collections.ObjectModel;
 using System.IO.Ports;
+using System.Text;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using LittleFancyToolAva.Models;
 using LittleFancyToolAva.Services;
 using LittleFancyToolAva.Utils;
 
@@ -12,6 +15,8 @@ namespace LittleFancyToolAva.ViewModels
         private readonly ISerialPortService _serialPortService;
         private readonly INotificationService _notificationService;
         private CancellationTokenSource? _pollCts;
+        private DispatcherTimer? _elapsedTimer;
+        private DateTime? _connectedAt;
 
         public ObservableCollection<string> PortNames { get; } = [];
         public ObservableCollection<string> BaudRates { get; } =
@@ -27,6 +32,8 @@ namespace LittleFancyToolAva.ViewModels
             ["1", "1.5", "2"];
         public ObservableCollection<string> Encodings { get; } =
             ["Auto", "UTF8", "ASCII", "GB2312"];
+
+        public LogBuffer Log { get; } = new();
 
         [ObservableProperty]
         private string _selectedPort = string.Empty;
@@ -45,9 +52,6 @@ namespace LittleFancyToolAva.ViewModels
 
         [ObservableProperty]
         private int _encodingIndex;
-
-        [ObservableProperty]
-        private string _receivedText = string.Empty;
 
         [ObservableProperty]
         private string _sendText = string.Empty;
@@ -79,37 +83,115 @@ namespace LittleFancyToolAva.ViewModels
         [ObservableProperty]
         private bool _isConnected;
 
+        [ObservableProperty]
+        private ConnectionStatus _connectionStatus = ConnectionStatus.Idle;
+
+        [ObservableProperty]
+        private int _rxCount;
+
+        [ObservableProperty]
+        private int _txCount;
+
+        [ObservableProperty]
+        private string _elapsedText = "00:00:00";
+
+        [ObservableProperty]
+        private string _statusDetail = string.Empty;
+
         public SerialPortViewModel(ISerialPortService serialPortService, INotificationService notificationService)
         {
             _serialPortService = serialPortService;
             _notificationService = notificationService;
-            _serialPortService.DataReceived += OnDataReceived;
+            _serialPortService.BytesReceived += OnBytesReceived;
             _serialPortService.StatusChanged += OnStatusChanged;
             RefreshPorts();
         }
 
-        private void OnDataReceived(string data)
+        private void OnBytesReceived(byte[] bytes)
         {
-            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            Dispatcher.UIThread.Post(() =>
             {
                 if (IsHexDisplay)
                 {
-                    byte[] bytes = ToolMethod.GetEncodedData(data, ToolMethod.EncodingMode.UTF8);
-                    ReceivedText += ToolMethod.ByteArrayToHexString(bytes) + "\n";
+                    Log.Append(LogKind.Rx, ToolMethod.ByteArrayToHexString(bytes));
                 }
                 else
                 {
-                    ReceivedText += data;
+                    Log.AppendLine(LogKind.Rx, DecodeBytes(bytes));
                 }
+                RxCount++;
             });
+        }
+
+        private string DecodeBytes(byte[] bytes)
+        {
+            string encoding = Encodings[EncodingIndex];
+            try
+            {
+                return ToolMethod.GetEncoding(ParseEncodingMode(encoding)).GetString(bytes);
+            }
+            catch
+            {
+                return ToolMethod.ByteArrayToHexString(bytes);
+            }
+        }
+
+        private static ToolMethod.EncodingMode ParseEncodingMode(string encoding)
+        {
+            return encoding switch
+            {
+                "UTF8" => ToolMethod.EncodingMode.UTF8,
+                "ASCII" => ToolMethod.EncodingMode.ASCII,
+                "GB2312" => ToolMethod.EncodingMode.GB2312,
+                _ => ToolMethod.EncodingMode.Auto
+            };
         }
 
         private void OnStatusChanged(string status)
         {
-            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            Dispatcher.UIThread.Post(() =>
             {
                 StatusText = status;
             });
+        }
+
+        partial void OnIsConnectedChanged(bool value)
+        {
+            if (value)
+            {
+                ConnectionStatus = ConnectionStatus.Connected;
+                StatusDetail = $"{SelectedPort} @ {BaudRates[BaudRateIndex]}";
+                _connectedAt = DateTime.Now;
+                StartElapsedTimer();
+            }
+            else
+            {
+                ConnectionStatus = ConnectionStatus.Idle;
+                StatusDetail = string.Empty;
+                StopElapsedTimer();
+                _connectedAt = null;
+                ElapsedText = "00:00:00";
+            }
+        }
+
+        private void StartElapsedTimer()
+        {
+            StopElapsedTimer();
+            _elapsedTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+            _elapsedTimer.Tick += (_, _) =>
+            {
+                if (_connectedAt is { } start)
+                {
+                    ElapsedText = (DateTime.Now - start).ToString(@"hh\:mm\:ss");
+                }
+            };
+            _elapsedTimer.Start();
+        }
+
+        private void StopElapsedTimer()
+        {
+            _elapsedTimer?.Stop();
+            _elapsedTimer = null;
         }
 
         [RelayCommand]
@@ -117,7 +199,7 @@ namespace LittleFancyToolAva.ViewModels
         {
             if (string.IsNullOrEmpty(SelectedPort))
             {
-                _notificationService.ShowWarn("请选择串口");
+                _notificationService.ShowWarn("未选择串口，请先在端口设置中选择串口。");
                 return;
             }
 
@@ -126,8 +208,7 @@ namespace LittleFancyToolAva.ViewModels
                 int baudRate = int.Parse(BaudRates[BaudRateIndex]);
                 Parity parity = (Parity)ParityIndex;
                 int dataBits = int.Parse(DataBitsList[DataBitsIndex]);
-                int stopBitsIndex = StopBitsIndex;
-                StopBits stopBits = stopBitsIndex switch
+                StopBits stopBits = StopBitsIndex switch
                 {
                     0 => StopBits.One,
                     1 => StopBits.OnePointFive,
@@ -135,11 +216,18 @@ namespace LittleFancyToolAva.ViewModels
                     _ => StopBits.One
                 };
 
+                ConnectionStatus = ConnectionStatus.Connecting;
                 await _serialPortService.OpenAsync(SelectedPort, baudRate, parity, dataBits, stopBits);
                 IsConnected = _serialPortService.IsOpen;
+                if (IsConnected)
+                {
+                    Log.Append(LogKind.System, $"已连接到 {SelectedPort} @ {baudRate}");
+                }
             }
             catch (Exception ex)
             {
+                ConnectionStatus = ConnectionStatus.Error;
+                Log.Append(LogKind.Error, $"连接失败: {ex.Message}");
                 _notificationService.ShowError($"连接失败: {ex.Message}");
             }
         }
@@ -151,6 +239,7 @@ namespace LittleFancyToolAva.ViewModels
             _serialPortService.Close();
             IsConnected = _serialPortService.IsOpen;
             IsPolling = false;
+            Log.Append(LogKind.System, "已断开连接");
         }
 
         [RelayCommand]
@@ -158,13 +247,35 @@ namespace LittleFancyToolAva.ViewModels
         {
             if (string.IsNullOrEmpty(SendText)) return;
             string encoding = Encodings[EncodingIndex];
-            await _serialPortService.SendAsync(SendText, IsHexSend, encoding);
+            try
+            {
+                await _serialPortService.SendAsync(SendText, IsHexSend, encoding);
+                if (IsHexDisplay)
+                {
+                    byte[] bytes = IsHexSend
+                        ? ToolMethod.HexStringToBytes(SendText)
+                        : ToolMethod.GetEncodedData(SendText, ParseEncodingMode(encoding));
+                    Log.Append(LogKind.Tx, ToolMethod.ByteArrayToHexString(bytes));
+                }
+                else
+                {
+                    Log.Append(LogKind.Tx, SendText);
+                }
+                TxCount++;
+            }
+            catch (Exception ex)
+            {
+                Log.Append(LogKind.Error, $"发送失败: {ex.Message}");
+                _notificationService.ShowError($"发送失败: {ex.Message}");
+            }
         }
 
         [RelayCommand]
         private void Clear()
         {
-            ReceivedText = string.Empty;
+            Log.Clear();
+            RxCount = 0;
+            TxCount = 0;
         }
 
         [RelayCommand]
@@ -175,26 +286,30 @@ namespace LittleFancyToolAva.ViewModels
             {
                 PortNames.Add(port);
             }
+            if (PortNames.Count > 0 && string.IsNullOrEmpty(SelectedPort))
+            {
+                SelectedPort = PortNames[0];
+            }
         }
 
         [RelayCommand]
         private void ToggleRts()
         {
-            _notificationService.ShowInfo($"RTS: {(IsRtsEnabled ? "启用" : "禁用")}");
+            _notificationService.ShowInfo($"RTS: {(IsRtsEnabled ? "已启用" : "已禁用")}");
         }
 
         [RelayCommand]
         private void ToggleDtr()
         {
-            _notificationService.ShowInfo($"DTR: {(IsDtrEnabled ? "启用" : "禁用")}");
+            _notificationService.ShowInfo($"DTR: {(IsDtrEnabled ? "已启用" : "已禁用")}");
         }
 
         [RelayCommand]
         private async Task SaveData()
         {
-            if (string.IsNullOrEmpty(ReceivedText))
+            if (Log.Count == 0)
             {
-                _notificationService.ShowWarn("没有可保存的数据");
+                _notificationService.ShowWarn("没有可保存的接收数据。");
                 return;
             }
 
@@ -205,8 +320,9 @@ namespace LittleFancyToolAva.ViewModels
             string? path = await dialog.PickSaveFileAsync("保存接收数据", "received.txt");
             if (path != null)
             {
-                await File.WriteAllTextAsync(path, ReceivedText);
-                _notificationService.ShowSuccess("数据已保存");
+                var lines = Log.Entries.Select(e => $"{e.TimestampText} {e.Tag}: {e.Text}");
+                await File.WriteAllLinesAsync(path, lines);
+                _notificationService.ShowSuccess($"数据已保存到 {path}");
             }
         }
 
@@ -215,7 +331,7 @@ namespace LittleFancyToolAva.ViewModels
         {
             if (!IsConnected)
             {
-                _notificationService.ShowWarn("请先连接串口");
+                _notificationService.ShowWarn("请先连接串口。");
                 return;
             }
 
@@ -227,6 +343,10 @@ namespace LittleFancyToolAva.ViewModels
                 await _serialPortService.SendWithIntervalAsync(SendText, IsHexSend, encoding, PollInterval, _pollCts.Token);
             }
             catch (TaskCanceledException) { }
+            catch (Exception ex)
+            {
+                Log.Append(LogKind.Error, $"轮询错误: {ex.Message}");
+            }
             finally
             {
                 IsPolling = false;

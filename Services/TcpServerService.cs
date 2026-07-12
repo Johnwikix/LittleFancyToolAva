@@ -21,6 +21,7 @@ namespace LittleFancyToolAva.Services
 
         public ObservableCollection<string> ConnectedClients { get; } = [];
 
+        public event Action<byte[]>? BytesReceived;
         public event Action<string>? DataReceived;
         public event Action<string>? StatusChanged;
 
@@ -226,10 +227,10 @@ namespace LittleFancyToolAva.Services
                     byte[] data = new byte[read];
                     Array.Copy(buffer, data, read);
 
+                    string endpoint = client.Client.RemoteEndPoint?.ToString() ?? "未知";
+                    BytesReceived?.Invoke(data);
                     string hex = ToolMethod.ByteArrayToHexString(data);
                     string text = Encoding.UTF8.GetString(data);
-
-                    string endpoint = client.Client.RemoteEndPoint?.ToString() ?? "未知";
                     StatusChanged?.Invoke($"接收 ({endpoint}): {read} 字节 [{hex}]");
                     DataReceived?.Invoke($"[{endpoint}] {text}");
                 }

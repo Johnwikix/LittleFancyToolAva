@@ -21,20 +21,18 @@ namespace LittleFancyToolAva.Services
 
         public async Task StartAsync(string portName, int baudRate, Parity parity, int dataBits, StopBits stopBits, byte slaveId, ushort coilCount, ushort registerCount)
         {
-            await Task.Run(() =>
-            {
-                _serialPort = new SerialPort(portName, baudRate, parity, dataBits, stopBits);
-                _serialPort.Open();
+            _serialPort = new SerialPort(portName, baudRate, parity, dataBits, stopBits);
+            _serialPort.Open();
 
-                var store = DataStoreFactory.CreateDefaultDataStore(coilCount, 0, registerCount, 0);
-                _slave = ModbusSerialSlave.CreateRtu(slaveId, _serialPort);
-                _slave.DataStore = store;
+            var store = DataStoreFactory.CreateDefaultDataStore(coilCount, 0, registerCount, 0);
+            _slave = ModbusSerialSlave.CreateRtu(slaveId, _serialPort);
+            _slave.DataStore = store;
 
-                IsRunning = true;
-                StatusChanged?.Invoke("Modbus Slave 已启动");
+            IsRunning = true;
+            StatusChanged?.Invoke("Modbus Slave 已启动");
 
-                _slave.Listen();
-            });
+            _ = Task.Run(() => _slave.Listen());
+            await Task.CompletedTask;
         }
 
         public void Stop()

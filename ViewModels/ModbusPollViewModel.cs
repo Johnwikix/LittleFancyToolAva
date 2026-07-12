@@ -1,9 +1,11 @@
 using System.Collections.ObjectModel;
 using System.IO.Ports;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using LittleFancyToolAva.Models;
 using LittleFancyToolAva.Services;
+using LittleFancyToolAva.Utils;
 
 namespace LittleFancyToolAva.ViewModels
 {
@@ -12,6 +14,8 @@ namespace LittleFancyToolAva.ViewModels
         private readonly IModbusPollService _pollService;
         private readonly INotificationService _notificationService;
         private CancellationTokenSource? _pollCts;
+        private DispatcherTimer? _elapsedTimer;
+        private DateTime? _startedAt;
         private readonly Dictionary<ushort, PollTableRow> _rowMap = [];
 
         public ObservableCollection<string> PortNames { get; } = [];
@@ -27,6 +31,7 @@ namespace LittleFancyToolAva.ViewModels
             ["01 读线圈", "02 读离散输入", "03 读保持寄存器", "04 读输入寄存器"];
 
         public ObservableCollection<PollTableRow> PollRows { get; } = [];
+        public LogBuffer Log { get; } = new();
 
         [ObservableProperty]
         private string _selectedPort = string.Empty;
@@ -62,9 +67,6 @@ namespace LittleFancyToolAva.ViewModels
         private string _statusText = "就绪";
 
         [ObservableProperty]
-        private string _logText = string.Empty;
-
-        [ObservableProperty]
         private bool _isConnected;
 
         [ObservableProperty]
@@ -82,6 +84,15 @@ namespace LittleFancyToolAva.ViewModels
         [ObservableProperty]
         private string _writeValue = "0";
 
+        [ObservableProperty]
+        private ConnectionStatus _connectionStatus = ConnectionStatus.Idle;
+
+        [ObservableProperty]
+        private string _elapsedText = "00:00:00";
+
+        [ObservableProperty]
+        private string _statusDetail = string.Empty;
+
         public ModbusPollViewModel(IModbusPollService pollService, INotificationService notificationService)
         {
             _pollService = pollService;
@@ -95,23 +106,20 @@ namespace LittleFancyToolAva.ViewModels
 
         private void OnLogReceived(string log)
         {
-            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            Dispatcher.UIThread.Post(() =>
             {
-                LogText += $"[{DateTime.Now:HH:mm:ss}] {log}\n";
+                Log.AppendLine(LogKind.System, log);
             });
         }
 
         private void OnStatusChanged(string status)
         {
-            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-            {
-                StatusText = status;
-            });
+            Dispatcher.UIThread.Post(() => StatusText = status);
         }
 
         private void OnValueRefreshed(ushort address, ushort value, byte functionCode)
         {
-            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            Dispatcher.UIThread.Post(() =>
             {
                 if (_rowMap.TryGetValue(address, out var row))
                 {
@@ -124,11 +132,58 @@ namespace LittleFancyToolAva.ViewModels
 
         private void OnStatsUpdated()
         {
-            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            Dispatcher.UIThread.Post(() =>
             {
                 TxCount = _pollService.TxCount;
                 ErrorCount = _pollService.ErrorCount;
             });
+        }
+
+        partial void OnIsConnectedChanged(bool value)
+        {
+            if (value)
+            {
+                ConnectionStatus = ConnectionStatus.Connected;
+                StatusDetail = $"{SelectedPort} @ {BaudRates[BaudRateIndex]}";
+            }
+            else
+            {
+                ConnectionStatus = ConnectionStatus.Idle;
+                StatusDetail = string.Empty;
+                StopElapsedTimer();
+            }
+        }
+
+        partial void OnIsPollingChanged(bool value)
+        {
+            if (value) StartElapsedTimer();
+            else StopElapsedTimer();
+        }
+
+        private void StartElapsedTimer()
+        {
+            StopElapsedTimer();
+            _startedAt = DateTime.Now;
+            _elapsedTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+            _elapsedTimer.Tick += (_, _) =>
+            {
+                if (_startedAt is { } start)
+                {
+                    ElapsedText = (DateTime.Now - start).ToString(@"hh\:mm\:ss");
+                }
+            };
+            _elapsedTimer.Start();
+        }
+
+        private void StopElapsedTimer()
+        {
+            if (!IsPolling)
+            {
+                _elapsedTimer?.Stop();
+                _elapsedTimer = null;
+                _startedAt = null;
+                ElapsedText = "00:00:00";
+            }
         }
 
         [RelayCommand]
@@ -136,7 +191,7 @@ namespace LittleFancyToolAva.ViewModels
         {
             if (string.IsNullOrEmpty(SelectedPort))
             {
-                _notificationService.ShowWarn("请选择串口");
+                _notificationService.ShowWarn("请先选择串口。");
                 return;
             }
 
@@ -145,8 +200,7 @@ namespace LittleFancyToolAva.ViewModels
                 int baudRate = int.Parse(BaudRates[BaudRateIndex]);
                 Parity parity = (Parity)ParityIndex;
                 int dataBits = int.Parse(DataBitsList[DataBitsIndex]);
-                int stopBitsIndex = StopBitsIndex;
-                StopBits stopBits = stopBitsIndex switch
+                StopBits stopBits = StopBitsIndex switch
                 {
                     0 => StopBits.One,
                     1 => StopBits.OnePointFive,
@@ -154,12 +208,19 @@ namespace LittleFancyToolAva.ViewModels
                     _ => StopBits.One
                 };
 
+                ConnectionStatus = ConnectionStatus.Connecting;
                 await _pollService.ConnectAsync(SelectedPort, baudRate, parity, dataBits, stopBits);
                 IsConnected = _pollService.IsConnected;
-                BuildTableRows();
+                if (IsConnected)
+                {
+                    BuildTableRows();
+                    Log.Append(LogKind.System, $"已连接 {SelectedPort} @ {baudRate}");
+                }
             }
             catch (Exception ex)
             {
+                ConnectionStatus = ConnectionStatus.Error;
+                Log.Append(LogKind.Error, $"连接失败: {ex.Message}");
                 _notificationService.ShowError($"连接失败: {ex.Message}");
             }
         }
@@ -171,6 +232,7 @@ namespace LittleFancyToolAva.ViewModels
             _pollService.Disconnect();
             IsConnected = _pollService.IsConnected;
             IsPolling = false;
+            Log.Append(LogKind.System, "已断开连接");
         }
 
         [RelayCommand]
@@ -178,7 +240,7 @@ namespace LittleFancyToolAva.ViewModels
         {
             if (!IsConnected)
             {
-                _notificationService.ShowWarn("请先连接");
+                _notificationService.ShowWarn("请先连接串口。");
                 return;
             }
 
@@ -187,7 +249,7 @@ namespace LittleFancyToolAva.ViewModels
                 !ushort.TryParse(Quantity, out ushort qty) ||
                 !int.TryParse(ScanTime, out int scanMs))
             {
-                _notificationService.ShowWarn("参数格式错误");
+                _notificationService.ShowWarn("请检查从站 ID / 地址 / 数量 / 扫描时间。");
                 return;
             }
 
@@ -196,6 +258,7 @@ namespace LittleFancyToolAva.ViewModels
             byte functionCode = (byte)(FunctionCodeIndex + 1);
 
             BuildTableRows();
+            Log.Append(LogKind.System, $"开始轮询 FC{functionCode:D2} 从站 {slaveId} 地址 {startAddr} 数量 {qty}");
 
             try
             {
@@ -204,6 +267,7 @@ namespace LittleFancyToolAva.ViewModels
             catch (TaskCanceledException) { }
             catch (Exception ex)
             {
+                Log.Append(LogKind.Error, $"轮询错误: {ex.Message}");
                 _notificationService.ShowError($"轮询错误: {ex.Message}");
             }
             finally
@@ -217,6 +281,7 @@ namespace LittleFancyToolAva.ViewModels
         {
             _pollCts?.Cancel();
             IsPolling = false;
+            Log.Append(LogKind.System, "停止轮询");
         }
 
         [RelayCommand]
@@ -226,12 +291,19 @@ namespace LittleFancyToolAva.ViewModels
             if (!ushort.TryParse(WriteAddress, out ushort addr) ||
                 !ushort.TryParse(WriteValue, out ushort val))
             {
-                _notificationService.ShowWarn("地址或值格式错误");
+                _notificationService.ShowWarn("地址或值格式错误。");
                 return;
             }
-
             if (!byte.TryParse(SlaveId, out byte slaveId)) return;
-            await _pollService.WriteSingleCoilAsync(slaveId, addr, val != 0);
+            try
+            {
+                await _pollService.WriteSingleCoilAsync(slaveId, addr, val != 0);
+                Log.Append(LogKind.Tx, $"写线圈 FC05 从站 {slaveId} 地址 {addr} = {val}");
+            }
+            catch (Exception ex)
+            {
+                Log.Append(LogKind.Error, $"写线圈失败: {ex.Message}");
+            }
         }
 
         [RelayCommand]
@@ -241,18 +313,27 @@ namespace LittleFancyToolAva.ViewModels
             if (!ushort.TryParse(WriteAddress, out ushort addr) ||
                 !ushort.TryParse(WriteValue, out ushort val))
             {
-                _notificationService.ShowWarn("地址或值格式错误");
+                _notificationService.ShowWarn("地址或值格式错误。");
                 return;
             }
-
             if (!byte.TryParse(SlaveId, out byte slaveId)) return;
-            await _pollService.WriteSingleRegisterAsync(slaveId, addr, val);
+            try
+            {
+                await _pollService.WriteSingleRegisterAsync(slaveId, addr, val);
+                Log.Append(LogKind.Tx, $"写寄存器 FC06 从站 {slaveId} 地址 {addr} = {val}");
+            }
+            catch (Exception ex)
+            {
+                Log.Append(LogKind.Error, $"写寄存器失败: {ex.Message}");
+            }
         }
 
         [RelayCommand]
         private void ClearLog()
         {
-            LogText = string.Empty;
+            Log.Clear();
+            TxCount = 0;
+            ErrorCount = 0;
         }
 
         [RelayCommand]
@@ -262,6 +343,10 @@ namespace LittleFancyToolAva.ViewModels
             foreach (var port in System.IO.Ports.SerialPort.GetPortNames())
             {
                 PortNames.Add(port);
+            }
+            if (PortNames.Count > 0 && string.IsNullOrEmpty(SelectedPort))
+            {
+                SelectedPort = PortNames[0];
             }
         }
 

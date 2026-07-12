@@ -1,81 +1,78 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:LittleFancyToolAva.ViewModels"
+             xmlns:controls="using:LittleFancyToolAva.Views.Controls"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             xmlns:models="using:LittleFancyToolAva.Models"
              mc:Ignorable="d"
              x:Class="LittleFancyToolAva.Views.FolderCompareView"
              x:DataType="vm:FolderCompareViewModel">
-    <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <StackPanel Margin="16" Spacing="12">
-            <TextBlock FontSize="16" FontWeight="SemiBold" Text="文件夹比较" />
-
-            <Border Padding="12" CornerRadius="8"
-                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
-                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
-                    BorderThickness="1">
-                <StackPanel Spacing="8">
-                    <Grid ColumnDefinitions="100,*">
-                        <TextBlock VerticalAlignment="Center" Text="源文件夹" />
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
-                            <Button Command="{Binding SelectSourceFolderCommand}" Content="选择文件夹" />
-                            <TextBlock VerticalAlignment="Center" Text="{Binding SourceFolder}" />
+    <Grid RowDefinitions="Auto,*,Auto" Margin="{StaticResource PageMargin}">
+        <controls:ToolPageHeader Grid.Row="0" Title="文件夹比较" Subtitle="比较两个文件夹的文件差异" />
+        <Grid Grid.Row="1" ColumnDefinitions="*,16,*" Margin="0,16,0,0">
+            <Grid Grid.Column="0" RowDefinitions="Auto,16,Auto,16,*">
+                <Border Grid.Row="0" Classes="ToolCard">
+                    <StackPanel Classes="ToolCardContent">
+                        <TextBlock Classes="SectionHeader" Text="文件夹" />
+                        <Grid Classes="FormRow" ColumnDefinitions="80,*,12,Auto">
+                            <TextBlock Classes="FieldLabel" Text="源" />
+                            <TextBlock Grid.Column="1" Text="{Binding SourceFolder}" TextTrimming="CharacterEllipsis" />
+                            <Button Grid.Column="3" Command="{Binding SelectSourceFolderCommand}" Content="选择" />
+                        </Grid>
+                        <Grid Classes="FormRow" ColumnDefinitions="80,*,12,Auto">
+                            <TextBlock Classes="FieldLabel" Text="目标" />
+                            <TextBlock Grid.Column="1" Text="{Binding TargetFolder}" TextTrimming="CharacterEllipsis" />
+                            <Button Grid.Column="3" Command="{Binding SelectTargetFolderCommand}" Content="选择" />
+                        </Grid>
+                        <StackPanel Orientation="Horizontal" Spacing="16">
+                            <CheckBox Content="Hash 比较 (MD5)" IsChecked="{Binding UseHashComparison}" />
+                            <CheckBox Content="音乐标题比较" IsChecked="{Binding UseMusicTitleComparison}" />
                         </StackPanel>
-                    </Grid>
-                    <Grid ColumnDefinitions="100,*">
-                        <TextBlock VerticalAlignment="Center" Text="目标文件夹" />
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
-                            <Button Command="{Binding SelectTargetFolderCommand}" Content="选择文件夹" />
-                            <TextBlock VerticalAlignment="Center" Text="{Binding TargetFolder}" />
-                        </StackPanel>
-                    </Grid>
-                    <CheckBox IsChecked="{Binding UseHashComparison}" Content="Hash 比较 (MD5)" />
-                    <CheckBox IsChecked="{Binding UseMusicTitleComparison}" Content="音乐标题比较" />
-                </StackPanel>
-            </Border>
-
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
-                <Button Command="{Binding CompareCommand}" Content="开始比较" />
-            </StackPanel>
-
-            <Border Padding="12" CornerRadius="8"
-                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
-                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
-                    BorderThickness="1">
-                <StackPanel Spacing="8">
-                    <TextBlock FontWeight="SemiBold" Text="进度" />
-                    <ProgressBar Value="{Binding ProgressValue}" Minimum="0" Maximum="1" Height="20" />
-                    <TextBlock Text="{Binding StatusText}" />
-                </StackPanel>
-            </Border>
-
-            <Border Padding="12" CornerRadius="8"
-                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
-                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
-                    BorderThickness="1">
-                <StackPanel Spacing="8">
-                    <TextBlock FontWeight="SemiBold" Text="比较结果" />
-                    <ItemsControl ItemsSource="{Binding CompareResults}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="models:FolderCompareResult">
-                                <Border Padding="8" Margin="0,2" CornerRadius="4"
-                                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
-                                        BorderThickness="1">
-                                    <Grid ColumnDefinitions="*,Auto">
+                    </StackPanel>
+                </Border>
+                <Border Grid.Row="2" Classes="ToolCard" IsVisible="{Binding IsComparing}">
+                    <StackPanel Classes="ToolCardContent">
+                        <TextBlock Classes="SectionHeader" Text="进度" />
+                        <ProgressBar Value="{Binding ProgressValue}" Minimum="0" Maximum="1" Height="8" />
+                        <TextBlock Text="{Binding StatusText}" Classes="Caption" />
+                    </StackPanel>
+                </Border>
+                <Border Grid.Row="4" Classes="ToolCard" Padding="0">
+                    <Grid RowDefinitions="Auto,*">
+                        <TextBlock Grid.Row="0" Classes="SectionHeader" Text="比较结果" Margin="16,12,16,4" />
+                        <ListBox Grid.Row="1" Margin="8,0,8,8"
+                                 ItemsSource="{Binding CompareResults}">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Classes="ToolCardTight" Margin="2,2">
                                         <StackPanel>
-                                            <TextBlock Text="{Binding RelativePath}" FontWeight="SemiBold" />
-                                            <TextBlock Text="{Binding State}" FontSize="11" Opacity="0.7" />
-                                            <TextBlock Text="{Binding SourceDetail}" FontSize="11" Opacity="0.5" />
-                                            <TextBlock Text="{Binding TargetDetail}" FontSize="11" Opacity="0.5" />
+                                            <TextBlock Text="{Binding RelativePath}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{Binding State}" Classes="Caption" />
+                                            <TextBlock Text="{Binding SourceDetail}" Classes="Caption" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{Binding TargetDetail}" Classes="Caption" TextTrimming="CharacterEllipsis" />
                                         </StackPanel>
-                                    </Grid>
-                                </Border>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </Grid>
+                </Border>
+            </Grid>
+            <Border Grid.Column="2" Classes="ToolCard" Padding="0">
+                <Grid RowDefinitions="Auto,*">
+                    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="16,12,16,8">
+                        <TextBlock Classes="SectionHeader" Grid.Column="0" Text="状态" />
+                        <TextBlock Classes="Caption" Grid.Column="1" Text="{Binding StatusText}" />
+                    </Grid>
+                    <StackPanel Grid.Row="1" Margin="16,0,16,12" Spacing="12">
+                        <TextBlock Classes="Caption" Text="提示" />
+                        <TextBlock TextWrapping="Wrap" Text="选择源文件夹与目标文件夹后，点击下方「开始比较」按钮。比较结果会显示在左侧列表中。&#x0a;&#x0a;勾选 Hash 比较会按 MD5 比较内容，勾选音乐标题比较会按音频标签的标题比较（适用于音乐库）。" />
+                    </StackPanel>
+                </Grid>
             </Border>
+        </Grid>
+        <StackPanel Grid.Row="2" Classes="ActionBar">
+            <Button Command="{Binding CompareCommand}" Classes="Primary" Content="开始比较" />
         </StackPanel>
-    </ScrollViewer>
+    </Grid>
 </UserControl>

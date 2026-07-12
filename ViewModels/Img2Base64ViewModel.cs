@@ -25,7 +25,10 @@ public partial class Img2Base64ViewModel : ViewModelBase
     private string _decodedImagePath = string.Empty;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasDecodedImage))]
     private Bitmap? _decodedImagePreview;
+
+    public bool HasDecodedImage => DecodedImagePreview != null;
 
     public Img2Base64ViewModel(
         IImageConversionService imageConversionService,

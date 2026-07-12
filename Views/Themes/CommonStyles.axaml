@@ -1,0 +1,270 @@
+<Styles xmlns="https://github.com/avaloniaui"
+       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+       xmlns:sys="clr-namespace:System;assembly=mscorlib"
+       xmlns:helpers="using:LittleFancyToolAva.Helpers"
+       xmlns:models="using:LittleFancyToolAva.Models">
+
+    <Styles.Resources>
+        <!-- ============ Typography ============ -->
+        <FontFamily x:Key="MonoFontFamily">Cascadia Mono, Consolas, Courier New, monospace</FontFamily>
+
+        <sys:Double x:Key="PageTitleFontSize">28</sys:Double>
+        <sys:Double x:Key="PageSubtitleFontSize">13</sys:Double>
+        <sys:Double x:Key="SectionHeaderFontSize">14</sys:Double>
+        <sys:Double x:Key="BodyFontSize">14</sys:Double>
+        <sys:Double x:Key="CaptionFontSize">12</sys:Double>
+        <sys:Double x:Key="MonoFontSize">13</sys:Double>
+
+        <Thickness x:Key="PageMargin">24,16,24,16</Thickness>
+        <Thickness x:Key="PageHeaderMargin">0,0,0,16</Thickness>
+        <Thickness x:Key="CardPadding">16,12</Thickness>
+        <Thickness x:Key="CardPaddingTight">12,8</Thickness>
+        <Thickness x:Key="FieldSpacing">0,8</Thickness>
+        <Thickness x:Key="RowSpacing">0,12</Thickness>
+
+        <sys:Double x:Key="CardSpacing">12</sys:Double>
+        <sys:Double x:Key="StackSpacing">8</sys:Double>
+        <sys:Double x:Key="FieldLabelColumnWidth">100</sys:Double>
+
+        <CornerRadius x:Key="CardCornerRadius">8</CornerRadius>
+        <CornerRadius x:Key="SubtleCornerRadius">4</CornerRadius>
+
+        <sys:Double x:Key="TerminalMinHeight">220</sys:Double>
+        <sys:Double x:Key="LogListMinHeight">240</sys:Double>
+
+        <!-- ============ Converters ============ -->
+        <helpers:LogKindToBrushConverter x:Key="LogKindToBrushConverter" />
+        <helpers:ConnectionStatusToTextConverter x:Key="StatusTextConverter" />
+        <helpers:IntEqualsToBoolConverter x:Key="IntEq" />
+
+    </Styles.Resources>
+
+    <!-- ============ Styles ============ -->
+
+    <!-- Page title (used by ToolPageHeader) -->
+    <Style Selector="TextBlock.PageTitle">
+        <Setter Property="FontSize" Value="{StaticResource PageTitleFontSize}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+    </Style>
+
+    <Style Selector="TextBlock.PageSubtitle">
+        <Setter Property="FontSize" Value="{StaticResource PageSubtitleFontSize}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+        <Setter Property="Margin" Value="0,4,0,0" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <!-- Section header (inside cards) -->
+    <Style Selector="TextBlock.SectionHeader">
+        <Setter Property="FontSize" Value="{StaticResource SectionHeaderFontSize}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="Margin" Value="0,0,0,8" />
+    </Style>
+
+    <!-- Group header (above SettingsCard stack) -->
+    <Style Selector="TextBlock.GroupHeader">
+        <Setter Property="FontSize" Value="{StaticResource SectionHeaderFontSize}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+        <Setter Property="Margin" Value="0,8,0,8" />
+    </Style>
+
+    <!-- Field label (left column of a label/value grid) -->
+    <Style Selector="TextBlock.FieldLabel">
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+    </Style>
+
+    <!-- Caption / muted status text -->
+    <Style Selector="TextBlock.Caption">
+        <Setter Property="FontSize" Value="{StaticResource CaptionFontSize}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorTertiaryBrush}" />
+    </Style>
+
+    <!-- ============ ToolCard (replaces ad-hoc Border+CardBackground pattern) ============ -->
+    <Style Selector="Border.ToolCard">
+        <Setter Property="Padding" Value="{StaticResource CardPadding}" />
+        <Setter Property="CornerRadius" Value="{StaticResource CardCornerRadius}" />
+        <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+    </Style>
+
+    <Style Selector="Border.ToolCardTight">
+        <Setter Property="Padding" Value="{StaticResource CardPaddingTight}" />
+        <Setter Property="CornerRadius" Value="{StaticResource CardCornerRadius}" />
+        <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+    </Style>
+
+    <!-- Compact horizontal row for compact toolbars / connection bars -->
+    <Style Selector="Border.ToolRow">
+        <Setter Property="Padding" Value="12,4" />
+        <Setter Property="CornerRadius" Value="{StaticResource CardCornerRadius}" />
+        <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="MinHeight" Value="36" />
+    </Style>
+
+    <!-- Compact form controls for toolbars -->
+    <Style Selector="ComboBox.Compact">
+        <Setter Property="MinHeight" Value="28" />
+        <Setter Property="Padding" Value="8,2" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+
+    <Style Selector="TextBox.Compact">
+        <Setter Property="MinHeight" Value="28" />
+        <Setter Property="Padding" Value="8,2" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+
+    <Style Selector="Button.Compact">
+        <Setter Property="MinHeight" Value="28" />
+        <Setter Property="Padding" Value="12,2" />
+    </Style>
+
+    <!-- Terminal box: monospace, theme-aware bg -->
+    <Style Selector="TextBox.TerminalBox">
+        <Setter Property="FontFamily" Value="{StaticResource MonoFontFamily}" />
+        <Setter Property="FontSize" Value="{StaticResource MonoFontSize}" />
+        <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
+        <Setter Property="AcceptsReturn" Value="True" />
+        <Setter Property="TextWrapping" Value="NoWrap" />
+        <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Auto" />
+        <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto" />
+    </Style>
+
+    <Style Selector="TextBox.TerminalBoxReadOnly">
+        <Setter Property="FontFamily" Value="{StaticResource MonoFontFamily}" />
+        <Setter Property="FontSize" Value="{StaticResource MonoFontSize}" />
+        <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
+        <Setter Property="IsReadOnly" Value="True" />
+        <Setter Property="AcceptsReturn" Value="True" />
+        <Setter Property="TextWrapping" Value="NoWrap" />
+        <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Auto" />
+        <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto" />
+    </Style>
+
+    <!-- Terminal input (editable) -->
+    <Style Selector="TextBox.TerminalInput">
+        <Setter Property="FontFamily" Value="{StaticResource MonoFontFamily}" />
+        <Setter Property="FontSize" Value="{StaticResource MonoFontSize}" />
+        <Setter Property="AcceptsReturn" Value="True" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+        <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto" />
+    </Style>
+
+    <!-- Log list (terminal receive area) -->
+    <Style Selector="ListBox.TerminalLogList">
+        <Setter Property="FontFamily" Value="{StaticResource MonoFontFamily}" />
+        <Setter Property="FontSize" Value="{StaticResource MonoFontSize}" />
+        <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="8,4" />
+        <Setter Property="MinHeight" Value="{StaticResource LogListMinHeight}" />
+        <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Auto" />
+        <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto" />
+        <Setter Property="SelectionMode" Value="Single" />
+    </Style>
+
+    <Style Selector="ListBox.TerminalLogList ListBoxItem">
+        <Setter Property="Padding" Value="4,1" />
+        <Setter Property="MinHeight" Value="0" />
+    </Style>
+
+    <Style Selector="ListBox.TerminalLogList ListBoxItem:selected /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+    </Style>
+
+    <!-- Page root layout: outer margin + vertical stack -->
+    <Style Selector="StackPanel.PageRoot">
+        <Setter Property="Margin" Value="{StaticResource PageMargin}" />
+        <Setter Property="Spacing" Value="{StaticResource CardSpacing}" />
+    </Style>
+
+    <Style Selector="StackPanel.ToolCardContent">
+        <Setter Property="Spacing" Value="{StaticResource StackSpacing}" />
+    </Style>
+
+    <!-- Form row: label + control. ColumnDefinitions must be set inline because
+         Avalonia doesn't support string-based ColumnDefinitions via Setter. -->
+    <Style Selector="Grid.FormRow">
+        <Setter Property="Margin" Value="{StaticResource FieldSpacing}" />
+    </Style>
+
+    <Style Selector="Grid.FormRowTight">
+        <Setter Property="Margin" Value="0,4" />
+    </Style>
+
+    <!-- Two-column form row -->
+    <Style Selector="Grid.FormRow2">
+        <Setter Property="Margin" Value="{StaticResource FieldSpacing}" />
+    </Style>
+
+    <!-- Action bar at the bottom of a card -->
+    <Style Selector="StackPanel.ActionBar">
+        <Setter Property="Orientation" Value="Horizontal" />
+        <Setter Property="Spacing" Value="8" />
+        <Setter Property="HorizontalAlignment" Value="Right" />
+        <Setter Property="Margin" Value="0,8,0,0" />
+    </Style>
+
+    <!-- Primary button emphasis (uses accent) -->
+    <Style Selector="Button.Primary">
+        <Setter Property="Background" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="16,8" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <Style Selector="Button.Primary:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource AccentFillColorSecondaryBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
+    </Style>
+
+    <Style Selector="Button.Primary:pressed /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource AccentFillColorTertiaryBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
+    </Style>
+
+    <Style Selector="Button.Primary:disabled /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource AccentFillColorDisabledBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextOnAccentFillColorDisabledBrush}" />
+    </Style>
+
+    <!-- Danger button (Disconnect, Stop) -->
+    <Style Selector="Button.Danger">
+        <Setter Property="Background" Value="{DynamicResource SystemFillColorCriticalBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="16,8" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <!-- Quiet button (inline link-like) -->
+    <Style Selector="Button.Quiet">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="8,4" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+    </Style>
+
+    <Style Selector="Button.Quiet:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+    </Style>
+
+</Styles>

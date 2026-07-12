@@ -1,12 +1,11 @@
 using System.IO.Ports;
 
-using System.IO.Ports;
-
 namespace LittleFancyToolAva.Services
 {
     public interface ISerialPortService
     {
         bool IsOpen { get; }
+        event Action<byte[]>? BytesReceived;
         event Action<string>? DataReceived;
         event Action<string>? StatusChanged;
         Task OpenAsync(string portName, int baudRate, Parity parity, int dataBits, StopBits stopBits);

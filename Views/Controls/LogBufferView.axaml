@@ -1,0 +1,44 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:models="using:LittleFancyToolAva.Models"
+             xmlns:helpers="using:LittleFancyToolAva.Helpers"
+             d:DesignWidth="600" d:DesignHeight="320"
+             mc:Ignorable="d"
+             x:Class="LittleFancyToolAva.Views.Controls.LogBufferView"
+             x:Name="Root">
+
+    <UserControl.Resources>
+        <helpers:LogKindToBrushConverter x:Key="LogKindToBrushConverter" />
+    </UserControl.Resources>
+
+    <ListBox x:Name="LogList"
+             Classes="TerminalLogList"
+             ItemsSource="{Binding #Root.Entries}"
+             SelectionMode="Single">
+        <ListBox.ItemTemplate>
+            <DataTemplate DataType="models:LogEntry">
+                <Grid ColumnDefinitions="Auto,Auto,Auto,*" Margin="0,1">
+                    <TextBlock Grid.Column="0"
+                               Text="{Binding TimestampText}"
+                               Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                               Margin="0,0,8,0" />
+                    <TextBlock Grid.Column="1"
+                               Text="{Binding Tag}"
+                               Margin="0,0,8,0"
+                               FontWeight="SemiBold"
+                               Foreground="{Binding Kind, Converter={StaticResource LogKindToBrushConverter}}" />
+                    <TextBlock Grid.Column="2"
+                               Text=":"
+                               Margin="0,0,8,0"
+                               Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                    <TextBlock Grid.Column="3"
+                               Text="{Binding Text}"
+                               TextTrimming="CharacterEllipsis"
+                               Foreground="{Binding Kind, Converter={StaticResource LogKindToBrushConverter}}" />
+                </Grid>
+            </DataTemplate>
+        </ListBox.ItemTemplate>
+    </ListBox>
+</UserControl>

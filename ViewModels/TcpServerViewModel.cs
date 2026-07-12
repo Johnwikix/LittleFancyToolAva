@@ -1,7 +1,11 @@
 using System.Collections.ObjectModel;
+using System.Text;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using LittleFancyToolAva.Models;
 using LittleFancyToolAva.Services;
+using LittleFancyToolAva.Utils;
 
 namespace LittleFancyToolAva.ViewModels
 {
@@ -10,9 +14,13 @@ namespace LittleFancyToolAva.ViewModels
         private readonly ITcpServerService _tcpService;
         private readonly INotificationService _notificationService;
         private CancellationTokenSource? _cts;
+        private DispatcherTimer? _elapsedTimer;
+        private DateTime? _startedAt;
 
         public ObservableCollection<string> Modes { get; } = ["服务器模式", "客户端模式"];
         public ObservableCollection<string> ConnectedClients => _tcpService.ConnectedClients;
+
+        public LogBuffer Log { get; } = new();
 
         [ObservableProperty]
         private int _modeIndex;
@@ -22,9 +30,6 @@ namespace LittleFancyToolAva.ViewModels
 
         [ObservableProperty]
         private string _port = "8080";
-
-        [ObservableProperty]
-        private string _receivedText = string.Empty;
 
         [ObservableProperty]
         private string _sendText = string.Empty;
@@ -47,28 +52,103 @@ namespace LittleFancyToolAva.ViewModels
         [ObservableProperty]
         private bool _isConnected;
 
+        public bool IsAnyActive => IsRunning || IsConnected;
+
+        [ObservableProperty]
+        private ConnectionStatus _connectionStatus = ConnectionStatus.Idle;
+
+        [ObservableProperty]
+        private int _rxCount;
+
+        [ObservableProperty]
+        private int _txCount;
+
+        [ObservableProperty]
+        private string _elapsedText = "00:00:00";
+
+        [ObservableProperty]
+        private string _statusDetail = string.Empty;
+
         public TcpServerViewModel(ITcpServerService tcpService, INotificationService notificationService)
         {
             _tcpService = tcpService;
             _notificationService = notificationService;
-            _tcpService.DataReceived += OnDataReceived;
+            _tcpService.BytesReceived += OnBytesReceived;
             _tcpService.StatusChanged += OnStatusChanged;
         }
 
-        private void OnDataReceived(string data)
+        private void OnBytesReceived(byte[] bytes)
         {
-            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            Dispatcher.UIThread.Post(() =>
             {
-                ReceivedText += data + "\n";
+                if (IsHexDisplay)
+                {
+                    Log.Append(LogKind.Rx, ToolMethod.ByteArrayToHexString(bytes));
+                }
+                else
+                {
+                    Log.AppendLine(LogKind.Rx, Encoding.UTF8.GetString(bytes));
+                }
+                RxCount++;
             });
         }
 
         private void OnStatusChanged(string status)
         {
-            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            Dispatcher.UIThread.Post(() => StatusText = status);
+        }
+
+        private void StartElapsedTimer()
+        {
+            StopElapsedTimer();
+            _startedAt = DateTime.Now;
+            _elapsedTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+            _elapsedTimer.Tick += (_, _) =>
             {
-                StatusText = status;
-            });
+                if (_startedAt is { } start)
+                {
+                    ElapsedText = (DateTime.Now - start).ToString(@"hh\:mm\:ss");
+                }
+            };
+            _elapsedTimer.Start();
+        }
+
+        private void StopElapsedTimer()
+        {
+            _elapsedTimer?.Stop();
+            _elapsedTimer = null;
+            _startedAt = null;
+            ElapsedText = "00:00:00";
+        }
+
+        partial void OnIsRunningChanged(bool value)
+        {
+            OnPropertyChanged(nameof(IsAnyActive));
+            UpdateConnectionState();
+        }
+        partial void OnIsConnectedChanged(bool value)
+        {
+            OnPropertyChanged(nameof(IsAnyActive));
+            UpdateConnectionState();
+        }
+
+        private void UpdateConnectionState()
+        {
+            bool active = IsRunning || IsConnected;
+            if (active)
+            {
+                ConnectionStatus = ConnectionStatus.Connected;
+                StatusDetail = ModeIndex == 0
+                    ? $"服务器 {Address}:{Port}"
+                    : $"客户端 {Address}:{Port}";
+                StartElapsedTimer();
+            }
+            else
+            {
+                ConnectionStatus = ConnectionStatus.Idle;
+                StatusDetail = string.Empty;
+                StopElapsedTimer();
+            }
         }
 
         [RelayCommand]
@@ -76,13 +156,14 @@ namespace LittleFancyToolAva.ViewModels
         {
             if (!int.TryParse(Port, out int portNum) || portNum < 1 || portNum > 65535)
             {
-                _notificationService.ShowWarn("端口号无效 (1-65535)");
+                _notificationService.ShowWarn("端口号须在 1-65535 之间。");
                 return;
             }
 
             try
             {
                 _cts = new CancellationTokenSource();
+                ConnectionStatus = ConnectionStatus.Connecting;
 
                 if (ModeIndex == 0)
                 {
@@ -94,9 +175,16 @@ namespace LittleFancyToolAva.ViewModels
                     await _tcpService.ConnectClientAsync(Address, portNum, _cts.Token);
                     IsConnected = true;
                 }
+
+                if (IsRunning || IsConnected)
+                {
+                    Log.Append(LogKind.System, $"{(ModeIndex == 0 ? "服务器" : "客户端")}已启动 {Address}:{portNum}");
+                }
             }
             catch (Exception ex)
             {
+                ConnectionStatus = ConnectionStatus.Error;
+                Log.Append(LogKind.Error, $"启动失败: {ex.Message}");
                 _notificationService.ShowError($"启动失败: {ex.Message}");
             }
         }
@@ -115,6 +203,7 @@ namespace LittleFancyToolAva.ViewModels
                 _tcpService.DisconnectClient();
                 IsConnected = false;
             }
+            Log.Append(LogKind.System, "已停止");
         }
 
         [RelayCommand]
@@ -124,12 +213,12 @@ namespace LittleFancyToolAva.ViewModels
 
             if (ModeIndex == 0 && !IsRunning)
             {
-                _notificationService.ShowWarn("服务器未运行");
+                _notificationService.ShowWarn("请先启动服务器。");
                 return;
             }
             if (ModeIndex != 0 && !IsConnected)
             {
-                _notificationService.ShowWarn("未连接");
+                _notificationService.ShowWarn("请先连接服务器。");
                 return;
             }
 
@@ -139,13 +228,35 @@ namespace LittleFancyToolAva.ViewModels
                 target = null;
             }
 
-            await _tcpService.SendAsync(SendText, IsHexSend, target);
+            try
+            {
+                await _tcpService.SendAsync(SendText, IsHexSend, target);
+                if (IsHexDisplay)
+                {
+                    byte[] bytes = IsHexSend
+                        ? ToolMethod.HexStringToBytes(SendText)
+                        : Encoding.UTF8.GetBytes(SendText);
+                    Log.Append(LogKind.Tx, ToolMethod.ByteArrayToHexString(bytes));
+                }
+                else
+                {
+                    Log.Append(LogKind.Tx, SendText);
+                }
+                TxCount++;
+            }
+            catch (Exception ex)
+            {
+                Log.Append(LogKind.Error, $"发送失败: {ex.Message}");
+                _notificationService.ShowError($"发送失败: {ex.Message}");
+            }
         }
 
         [RelayCommand]
         private void Clear()
         {
-            ReceivedText = string.Empty;
+            Log.Clear();
+            RxCount = 0;
+            TxCount = 0;
         }
 
         partial void OnModeIndexChanged(int value)

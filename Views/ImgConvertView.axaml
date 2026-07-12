@@ -1,64 +1,49 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:LittleFancyToolAva.ViewModels"
+             xmlns:controls="using:LittleFancyToolAva.Views.Controls"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d"
              x:Class="LittleFancyToolAva.Views.ImgConvertView"
              x:DataType="vm:ImgConvertViewModel">
-    <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <StackPanel Margin="16" Spacing="12">
-            <TextBlock FontSize="16" FontWeight="SemiBold" Text="图片格式转换" />
-
-            <Border Padding="12" CornerRadius="8"
-                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
-                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
-                    BorderThickness="1">
-                <StackPanel Spacing="8">
-                    <Grid ColumnDefinitions="100,*">
-                        <TextBlock VerticalAlignment="Center" Text="选择图片" />
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
-                            <Button Command="{Binding UploadImageCommand}" Content="上传图片" />
-                            <TextBlock VerticalAlignment="Center" Text="{Binding ImagePath}" />
-                        </StackPanel>
+    <Grid RowDefinitions="Auto,*,Auto" Margin="{StaticResource PageMargin}">
+        <controls:ToolPageHeader Grid.Row="0" Title="图片格式转换" Subtitle="PNG / JPG / WebP / BMP 等格式互转" />
+        <Grid Grid.Row="1" ColumnDefinitions="*,16,*" Margin="0,16,0,0">
+            <Grid Grid.Column="0" RowDefinitions="Auto,16,*">
+                <Border Grid.Row="0" Classes="ToolCard">
+                    <StackPanel Classes="ToolCardContent">
+                        <Grid Classes="FormRow" ColumnDefinitions="80,*,12,Auto">
+                            <TextBlock Classes="FieldLabel" Text="源图片" />
+                            <TextBlock Grid.Column="1" Text="{Binding ImagePath}" TextTrimming="CharacterEllipsis" />
+                            <Button Grid.Column="3" Command="{Binding UploadImageCommand}" Content="上传" />
+                        </Grid>
+                        <Grid Classes="FormRow" ColumnDefinitions="80,*,12,Auto">
+                            <TextBlock Classes="FieldLabel" Text="目标格式" />
+                            <ComboBox Grid.Column="1" HorizontalAlignment="Stretch"
+                                      ItemsSource="{Binding AvailableFormats}"
+                                      SelectedIndex="{Binding FormatIndex, Mode=TwoWay}" />
+                            <Button Grid.Column="3" Command="{Binding ConvertAndSaveCommand}" Classes="Primary" Content="转换并保存" />
+                        </Grid>
+                    </StackPanel>
+                </Border>
+                <Border Grid.Row="2" Classes="ToolCard" Padding="0">
+                    <Grid RowDefinitions="Auto,*">
+                        <TextBlock Grid.Row="0" Classes="SectionHeader" Text="源图预览" Margin="16,12,16,4" />
+                        <Border Grid.Row="1" Classes="ToolCardTight" Margin="16,0,16,12" MinHeight="200">
+                            <Image Source="{Binding ImagePreview}" Stretch="Uniform" />
+                        </Border>
                     </Grid>
-                    <Border CornerRadius="4"
-                            Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
-                            BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
-                            BorderThickness="1"
-                            Height="200">
+                </Border>
+            </Grid>
+            <Border Grid.Column="2" Classes="ToolCard" Padding="0">
+                <Grid RowDefinitions="Auto,*">
+                    <TextBlock Grid.Row="0" Classes="SectionHeader" Text="转换预览" Margin="16,12,16,4" />
+                    <Border Grid.Row="1" Classes="ToolCardTight" Margin="16,0,16,12" MinHeight="200">
                         <Image Source="{Binding ImagePreview}" Stretch="Uniform" />
                     </Border>
-                </StackPanel>
-            </Border>
-
-            <Border Padding="12" CornerRadius="8"
-                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
-                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
-                    BorderThickness="1">
-                <Grid ColumnDefinitions="100,*,Auto">
-                    <TextBlock VerticalAlignment="Center" Text="目标格式" />
-                    <ComboBox Grid.Column="1" ItemsSource="{Binding AvailableFormats}"
-                              SelectedIndex="{Binding FormatIndex, Mode=TwoWay}" Margin="0,0,8,0" />
-                    <Button Grid.Column="2" Command="{Binding ConvertAndSaveCommand}" Content="转换并保存" />
                 </Grid>
             </Border>
-
-            <Border Padding="12" CornerRadius="8"
-                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
-                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
-                    BorderThickness="1">
-                <StackPanel Spacing="8">
-                    <TextBlock FontWeight="SemiBold" Text="转换预览" />
-                    <Border CornerRadius="4"
-                            Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
-                            BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
-                            BorderThickness="1"
-                            Height="200">
-                        <Image Source="{Binding ImagePreview}" Stretch="Uniform" />
-                    </Border>
-                </StackPanel>
-            </Border>
-        </StackPanel>
-    </ScrollViewer>
+        </Grid>
+    </Grid>
 </UserControl>

@@ -1,191 +1,189 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:LittleFancyToolAva.ViewModels"
-             xmlns:conv="using:Avalonia.Data.Converters"
+             xmlns:controls="using:LittleFancyToolAva.Views.Controls"
+             xmlns:helpers="using:LittleFancyToolAva.Helpers"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d"
              x:Class="LittleFancyToolAva.Views.ModbusSlaveView"
              x:DataType="vm:ModbusSlaveViewModel">
-    <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <StackPanel Margin="16" Spacing="10" MaxWidth="900" HorizontalAlignment="Stretch">
-            <TextBlock Text="Modbus Slave"
-                       FontSize="22"
-                       FontWeight="SemiBold" />
 
-            <Border Padding="12" CornerRadius="8"
-                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
-                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
-                    BorderThickness="1">
-                <StackPanel Spacing="8">
-                    <TextBlock Text="连接设置" FontWeight="SemiBold" Margin="0,0,0,4" />
-                    <Grid ColumnDefinitions="80,*,10,80,*">
-                        <TextBlock VerticalAlignment="Center" Text="串口" />
-                        <ComboBox Grid.Column="1"
-                                  ItemsSource="{Binding PortNames}"
-                                  SelectedItem="{Binding SelectedPort, Mode=TwoWay}" />
-                        <TextBlock Grid.Column="3" VerticalAlignment="Center" Text="波特率" />
-                        <ComboBox Grid.Column="4"
-                                  ItemsSource="{Binding BaudRates}"
-                                  SelectedIndex="{Binding BaudRateIndex, Mode=TwoWay}" />
-                    </Grid>
-                    <Grid ColumnDefinitions="80,*,10,80,*">
-                        <TextBlock VerticalAlignment="Center" Text="校验位" />
-                        <ComboBox Grid.Column="1"
-                                  ItemsSource="{Binding Parities}"
-                                  SelectedIndex="{Binding ParityIndex, Mode=TwoWay}" />
-                        <TextBlock Grid.Column="3" VerticalAlignment="Center" Text="数据位" />
-                        <ComboBox Grid.Column="4"
-                                  ItemsSource="{Binding DataBitsList}"
-                                  SelectedIndex="{Binding DataBitsIndex, Mode=TwoWay}" />
-                    </Grid>
-                    <Grid ColumnDefinitions="80,*,10,80,*">
-                        <TextBlock VerticalAlignment="Center" Text="停止位" />
-                        <ComboBox Grid.Column="1"
-                                  ItemsSource="{Binding StopBitsList}"
-                                  SelectedIndex="{Binding StopBitsIndex, Mode=TwoWay}" />
-                        <TextBlock Grid.Column="3" VerticalAlignment="Center" Text="Slave ID" />
-                        <TextBox Grid.Column="4" Text="{Binding SlaveId, Mode=TwoWay}" />
-                    </Grid>
-                    <Grid ColumnDefinitions="80,*,10,80,*">
-                        <TextBlock VerticalAlignment="Center" Text="线圈数" />
-                        <TextBox Grid.Column="1" Text="{Binding CoilCount, Mode=TwoWay}" />
-                        <TextBlock Grid.Column="3" VerticalAlignment="Center" Text="寄存器数" />
-                        <TextBox Grid.Column="4" Text="{Binding RegisterCount, Mode=TwoWay}" />
-                    </Grid>
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <Button Command="{Binding StartCommand}" Content="启动"
-                                IsEnabled="{Binding IsRunning, Converter={x:Static conv:BoolConverters.Not}}" />
-                        <Button Command="{Binding StopCommand}" Content="停止"
-                                IsEnabled="{Binding IsRunning}" />
-                        <Button Command="{Binding RefreshPortsCommand}" Content="刷新端口" />
-                    </StackPanel>
+    <UserControl.Resources>
+        <helpers:InverseBoolConverter x:Key="Inv" />
+    </UserControl.Resources>
+
+    <Grid RowDefinitions="Auto,Auto,*,Auto"
+          Margin="{StaticResource PageMargin}">
+
+        <controls:ToolPageHeader Grid.Row="0"
+                                Title="Modbus Slave"
+                                Subtitle="Modbus 从站模拟器，响应主站读写请求">
+            <controls:ToolPageHeader.Actions>
+                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <controls:StatusPill Status="{Binding ConnectionStatus}"
+                                         Text="{Binding ConnectionStatus, Converter={StaticResource StatusTextConverter}}"
+                                         Detail="{Binding StatusDetail}" />
                 </StackPanel>
-            </Border>
+            </controls:ToolPageHeader.Actions>
+        </controls:ToolPageHeader>
 
-            <Grid ColumnDefinitions="*,10,*">
-                <Border Grid.Column="0" Padding="12" CornerRadius="8"
-                        Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
-                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
-                        BorderThickness="1">
-                    <StackPanel Spacing="8">
-                        <TextBlock Text="线圈 (Coils)" FontWeight="SemiBold" />
-                        <Grid ColumnDefinitions="*,*,*,*">
-                            <Border Padding="8,4" BorderThickness="0,0,0,1"
-                                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
-                                <TextBlock Text="索引" FontWeight="SemiBold" />
-                            </Border>
-                            <Border Grid.Column="1" Padding="8,4" BorderThickness="0,0,0,1"
-                                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
-                                <TextBlock Text="状态" FontWeight="SemiBold" />
-                            </Border>
-                            <Border Grid.Column="2" Padding="8,4" BorderThickness="0,0,0,1"
-                                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
-                                <TextBlock Text="启用" FontWeight="SemiBold" />
-                            </Border>
-                            <Border Grid.Column="3" Padding="8,4" BorderThickness="0,0,0,1"
-                                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
-                                <TextBlock Text="更新" FontWeight="SemiBold" />
-                            </Border>
-                        </Grid>
-                        <ItemsControl ItemsSource="{Binding Coils}" MaxHeight="200">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Grid ColumnDefinitions="*,*,*,*">
-                                        <TextBlock Padding="8,2" Text="{Binding Address}" />
-                                        <TextBlock Grid.Column="1" Padding="8,2" Text="{Binding Value}" />
-                                        <TextBlock Grid.Column="2" Padding="8,2" Text="{Binding Enabled}" />
-                                        <TextBlock Grid.Column="3" Padding="8,2" Text="{Binding LastUpdate}" />
-                                    </Grid>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </StackPanel>
-                </Border>
-
-                <Border Grid.Column="2" Padding="12" CornerRadius="8"
-                        Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
-                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
-                        BorderThickness="1">
-                    <StackPanel Spacing="8">
-                        <TextBlock Text="保持寄存器 (Holding Registers)" FontWeight="SemiBold" />
-                        <Grid ColumnDefinitions="*,*,*,*">
-                            <Border Padding="8,4" BorderThickness="0,0,0,1"
-                                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
-                                <TextBlock Text="索引" FontWeight="SemiBold" />
-                            </Border>
-                            <Border Grid.Column="1" Padding="8,4" BorderThickness="0,0,0,1"
-                                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
-                                <TextBlock Text="值" FontWeight="SemiBold" />
-                            </Border>
-                            <Border Grid.Column="2" Padding="8,4" BorderThickness="0,0,0,1"
-                                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
-                                <TextBlock Text="启用" FontWeight="SemiBold" />
-                            </Border>
-                            <Border Grid.Column="3" Padding="8,4" BorderThickness="0,0,0,1"
-                                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
-                                <TextBlock Text="更新" FontWeight="SemiBold" />
-                            </Border>
-                        </Grid>
-                        <ItemsControl ItemsSource="{Binding HoldingRegisters}" MaxHeight="200">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Grid ColumnDefinitions="*,*,*,*">
-                                        <TextBlock Padding="8,2" Text="{Binding Address}" />
-                                        <TextBlock Grid.Column="1" Padding="8,2" Text="{Binding Value}" />
-                                        <TextBlock Grid.Column="2" Padding="8,2" Text="{Binding Enabled}" />
-                                        <TextBlock Grid.Column="3" Padding="8,2" Text="{Binding LastUpdate}" />
-                                    </Grid>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </StackPanel>
-                </Border>
+        <!-- Compact connection bar -->
+        <Border Grid.Row="1" Classes="ToolRow" Margin="0,8,0,0">
+            <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
+                <TextBlock Classes="FieldLabel" Grid.Column="0" Text="串口" VerticalAlignment="Center" Margin="0,0,8,0" />
+                <ComboBox Grid.Column="1" Classes="Compact" HorizontalAlignment="Stretch" Width="120"
+                          ItemsSource="{Binding PortNames}" SelectedItem="{Binding SelectedPort, Mode=TwoWay}" />
+                <TextBlock Classes="FieldLabel" Grid.Column="2" Text="波特率" VerticalAlignment="Center" Margin="12,0,8,0" />
+                <ComboBox Grid.Column="3" Classes="Compact" HorizontalAlignment="Stretch" Width="100"
+                          ItemsSource="{Binding BaudRates}" SelectedIndex="{Binding BaudRateIndex, Mode=TwoWay}" />
+                <TextBlock Classes="FieldLabel" Grid.Column="4" Text="校验" VerticalAlignment="Center" Margin="12,0,8,0" />
+                <ComboBox Grid.Column="5" Classes="Compact" HorizontalAlignment="Stretch" Width="80"
+                          ItemsSource="{Binding Parities}" SelectedIndex="{Binding ParityIndex, Mode=TwoWay}" />
+                <TextBlock Classes="FieldLabel" Grid.Column="6" Text="数据" VerticalAlignment="Center" Margin="12,0,8,0" />
+                <ComboBox Grid.Column="7" Classes="Compact" HorizontalAlignment="Stretch" Width="80"
+                          ItemsSource="{Binding DataBitsList}" SelectedIndex="{Binding DataBitsIndex, Mode=TwoWay}" />
+                <TextBlock Classes="FieldLabel" Grid.Column="8" Text="停止" VerticalAlignment="Center" Margin="12,0,8,0" />
+                <ComboBox Grid.Column="9" Classes="Compact" HorizontalAlignment="Stretch" Width="80"
+                          ItemsSource="{Binding StopBitsList}" SelectedIndex="{Binding StopBitsIndex, Mode=TwoWay}" />
+                <TextBlock Classes="FieldLabel" Grid.Column="10" Text="从站" VerticalAlignment="Center" Margin="12,0,8,0" />
+                <TextBox Grid.Column="11" Classes="Compact" Text="{Binding SlaveId, Mode=TwoWay}" Width="60" />
+                <TextBlock Classes="FieldLabel" Grid.Column="12" Text="线圈" VerticalAlignment="Center" Margin="12,0,8,0" />
+                <TextBox Grid.Column="13" Classes="Compact" Text="{Binding CoilCount, Mode=TwoWay}" Width="60" />
+                <TextBlock Classes="FieldLabel" Grid.Column="14" Text="寄存器" VerticalAlignment="Center" Margin="12,0,8,0" />
+                <TextBox Grid.Column="15" Classes="Compact" Text="{Binding RegisterCount, Mode=TwoWay}" Width="60" />
+                <StackPanel Grid.Column="16" Orientation="Horizontal" Spacing="6" Margin="12,0,0,0" VerticalAlignment="Center">
+                    <Button Classes="Compact" Command="{Binding RefreshPortsCommand}" Content="刷新" />
+                    <Button Classes="Compact Primary" Command="{Binding StartCommand}" Content="启动"
+                            IsEnabled="{Binding IsRunning, Converter={StaticResource Inv}}" />
+                    <Button Classes="Compact Danger" Command="{Binding StopCommand}" Content="停止"
+                            IsEnabled="{Binding IsRunning}" />
+                </StackPanel>
             </Grid>
+        </Border>
 
-            <Border Padding="12" CornerRadius="8"
-                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
-                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
-                    BorderThickness="1">
-                <StackPanel Spacing="8">
-                    <TextBlock Text="写入控制" FontWeight="SemiBold" Margin="0,0,0,4" />
-                    <Grid ColumnDefinitions="80,*,Auto">
-                        <TextBlock VerticalAlignment="Center" Text="线圈索引" />
-                        <TextBox Grid.Column="1" Text="{Binding SelectedCoilIndex, Mode=TwoWay}" />
-                        <CheckBox Grid.Column="2" Content="ON" IsChecked="{Binding SelectedCoilValue, Mode=TwoWay}"
-                                  Margin="8,0,0,0" />
+        <!-- Coils + Holding Registers side by side, virtualized -->
+        <Grid Grid.Row="2" ColumnDefinitions="*,8,*" Margin="0,8,0,0">
+
+            <Border Grid.Column="0" Classes="ToolCard" Padding="0">
+                <Grid RowDefinitions="Auto,Auto,*">
+                    <TextBlock Grid.Row="0" Classes="SectionHeader" Text="线圈 (Coils)" Margin="16,12,16,4" />
+                    <Grid Grid.Row="1" ColumnDefinitions="*,*,*,*" Margin="16,0,16,4">
+                        <Border BorderThickness="0,0,0,1" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
+                            <TextBlock FontWeight="SemiBold" Text="索引" />
+                        </Border>
+                        <Border Grid.Column="1" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
+                            <TextBlock FontWeight="SemiBold" Text="状态" />
+                        </Border>
+                        <Border Grid.Column="2" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
+                            <TextBlock FontWeight="SemiBold" Text="启用" />
+                        </Border>
+                        <Border Grid.Column="3" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
+                            <TextBlock FontWeight="SemiBold" Text="更新" />
+                        </Border>
                     </Grid>
-                    <Button Command="{Binding UpdateCoilCommand}" Content="更新线圈" HorizontalAlignment="Right" />
-                    <Grid ColumnDefinitions="80,*,80,*">
-                        <TextBlock VerticalAlignment="Center" Text="寄存器索引" />
-                        <TextBox Grid.Column="1" Text="{Binding SelectedRegisterIndex, Mode=TwoWay}" />
-                        <TextBlock Grid.Column="2" VerticalAlignment="Center" Text="值" />
-                        <TextBox Grid.Column="3" Text="{Binding SelectedRegisterValue, Mode=TwoWay}" />
+                    <ListBox Grid.Row="2" Margin="8,0,8,8"
+                             ItemsSource="{Binding Coils}"
+                             SelectionMode="Single">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Grid ColumnDefinitions="*,*,*,*">
+                                    <TextBlock Padding="8,4" Text="{Binding Address}" />
+                                    <TextBlock Grid.Column="1" Padding="8,4" Text="{Binding Value}" />
+                                    <TextBlock Grid.Column="2" Padding="8,4" Text="{Binding Enabled}" />
+                                    <TextBlock Grid.Column="3" Padding="8,4" Text="{Binding LastUpdate}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Grid>
+            </Border>
+
+            <Border Grid.Column="2" Classes="ToolCard" Padding="0">
+                <Grid RowDefinitions="Auto,Auto,*">
+                    <TextBlock Grid.Row="0" Classes="SectionHeader" Text="保持寄存器 (Holding Registers)" Margin="16,12,16,4" />
+                    <Grid Grid.Row="1" ColumnDefinitions="*,*,*,*" Margin="16,0,16,4">
+                        <Border BorderThickness="0,0,0,1" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
+                            <TextBlock FontWeight="SemiBold" Text="索引" />
+                        </Border>
+                        <Border Grid.Column="1" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
+                            <TextBlock FontWeight="SemiBold" Text="值" />
+                        </Border>
+                        <Border Grid.Column="2" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
+                            <TextBlock FontWeight="SemiBold" Text="启用" />
+                        </Border>
+                        <Border Grid.Column="3" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
+                            <TextBlock FontWeight="SemiBold" Text="更新" />
+                        </Border>
                     </Grid>
-                    <Button Command="{Binding UpdateRegisterCommand}" Content="更新寄存器" HorizontalAlignment="Right" />
+                    <ListBox Grid.Row="2" Margin="8,0,8,8"
+                             ItemsSource="{Binding HoldingRegisters}"
+                             SelectionMode="Single">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Grid ColumnDefinitions="*,*,*,*">
+                                    <TextBlock Padding="8,4" Text="{Binding Address}" />
+                                    <TextBlock Grid.Column="1" Padding="8,4" Text="{Binding Value}" />
+                                    <TextBlock Grid.Column="2" Padding="8,4" Text="{Binding Enabled}" />
+                                    <TextBlock Grid.Column="3" Padding="8,4" Text="{Binding LastUpdate}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- Write controls + Log side by side -->
+        <Grid Grid.Row="3" ColumnDefinitions="*,8,2*" Margin="0,8,0,0">
+
+            <Border Grid.Column="0" Classes="ToolCard">
+                <StackPanel Classes="ToolCardContent">
+                    <TextBlock Classes="SectionHeader" Text="写入控制" />
+                    <Grid Classes="FormRow" ColumnDefinitions="80,*,16,Auto">
+                        <TextBlock Classes="FieldLabel" Text="线圈索引" />
+                        <TextBox Grid.Column="1" Classes="Compact" Text="{Binding SelectedCoilIndex, Mode=TwoWay}" />
+                        <CheckBox Grid.Column="3" Content="ON"
+                                  IsChecked="{Binding SelectedCoilValue, Mode=TwoWay}"
+                                  VerticalAlignment="Center" />
+                    </Grid>
+                    <StackPanel Classes="ActionBar">
+                        <Button Classes="Compact" Command="{Binding UpdateCoilCommand}" Content="更新线圈" />
+                    </StackPanel>
+                    <Grid Classes="FormRow" ColumnDefinitions="80,*">
+                        <TextBlock Classes="FieldLabel" Text="寄存器索引" />
+                        <TextBox Grid.Column="1" Classes="Compact" Text="{Binding SelectedRegisterIndex, Mode=TwoWay}" />
+                    </Grid>
+                    <Grid Classes="FormRow" ColumnDefinitions="80,*">
+                        <TextBlock Classes="FieldLabel" Text="寄存器值" />
+                        <TextBox Grid.Column="1" Classes="Compact" Text="{Binding SelectedRegisterValue, Mode=TwoWay}" />
+                    </Grid>
+                    <StackPanel Classes="ActionBar">
+                        <Button Classes="Compact" Command="{Binding UpdateRegisterCommand}" Content="更新寄存器" />
+                    </StackPanel>
                 </StackPanel>
             </Border>
 
-            <Border Padding="12" CornerRadius="8"
-                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
-                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
-                    BorderThickness="1">
-                <StackPanel Spacing="8">
-                    <Grid ColumnDefinitions="*,Auto">
-                        <TextBlock Text="日志" FontWeight="SemiBold" />
-                        <Button Grid.Column="1" Command="{Binding ClearLogCommand}" Content="清空" FontSize="12" />
+            <Border Grid.Column="2" Classes="ToolCard" Padding="0">
+                <Grid RowDefinitions="Auto,*,Auto">
+                    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="16,12,16,4">
+                        <TextBlock Classes="SectionHeader" Grid.Column="0" Text="日志" />
+                        <Button Grid.Column="1" Classes="Quiet Compact"
+                                Command="{Binding ClearLogCommand}" Content="清空" />
                     </Grid>
-                    <TextBox IsReadOnly="True" AcceptsReturn="True" MinHeight="120"
-                             Text="{Binding LogText, Mode=OneWay}" />
-                </StackPanel>
+                    <controls:LogBufferView Grid.Row="1" Margin="8,0,8,0" Entries="{Binding Log.Entries}" />
+                    <Border Grid.Row="2" Background="{DynamicResource SubtleFillColorTertiaryBrush}"
+                            Padding="16,6" Margin="16,0,16,12" CornerRadius="4">
+                        <TextBlock Classes="Caption">
+                            <Run Text="缓冲区: " />
+                            <Run Text="{Binding Log.Count}" />
+                            <Run Text=" / " />
+                            <Run Text="{Binding Log.MaxLines}" />
+                            <Run Text=" 行" />
+                        </TextBlock>
+                    </Border>
+                </Grid>
             </Border>
-
-            <Border Padding="12" CornerRadius="8"
-                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
-                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
-                    BorderThickness="1">
-                <TextBlock Text="{Binding StatusText}" Opacity="0.7" />
-            </Border>
-        </StackPanel>
-    </ScrollViewer>
+        </Grid>
+    </Grid>
 </UserControl>

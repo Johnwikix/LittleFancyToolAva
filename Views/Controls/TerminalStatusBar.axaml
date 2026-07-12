@@ -1,0 +1,35 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             d:DesignWidth="600" d:DesignHeight="32"
+             mc:Ignorable="d"
+             x:Class="LittleFancyToolAva.Views.Controls.TerminalStatusBar"
+             x:Name="Root">
+    <Border Background="{DynamicResource SubtleFillColorTertiaryBrush}"
+            CornerRadius="4"
+            Padding="12,6">
+        <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,*">
+            <TextBlock Grid.Column="0" FontSize="12" VerticalAlignment="Center">
+                <Run Text="RX " FontWeight="SemiBold" />
+                <Run Text="{Binding #Root.RxCount}" />
+            </TextBlock>
+            <TextBlock Grid.Column="1" Margin="16,0,0,0" FontSize="12" VerticalAlignment="Center">
+                <Run Text="TX " FontWeight="SemiBold" />
+                <Run Text="{Binding #Root.TxCount}" />
+            </TextBlock>
+            <TextBlock Grid.Column="2" Margin="16,0,0,0" FontSize="12" VerticalAlignment="Center"
+                       IsVisible="{Binding #Root.ErrorCount, Converter={x:Static ObjectConverters.IsNotNull}}">
+                <Run Text="错误 " FontWeight="SemiBold" />
+                <Run Text="{Binding #Root.ErrorCount}" />
+            </TextBlock>
+            <TextBlock Grid.Column="3" Margin="16,0,0,0" FontSize="12" VerticalAlignment="Center">
+                <Run Text="耗时 " FontWeight="SemiBold" />
+                <Run Text="{Binding #Root.ElapsedText}" />
+            </TextBlock>
+            <TextBlock Grid.Column="4" Margin="16,0,0,0" FontSize="12" VerticalAlignment="Center"
+                       HorizontalAlignment="Right"
+                       Text="{Binding #Root.RightDetail}" />
+        </Grid>
+    </Border>
+</UserControl>

@@ -6,5 +6,6 @@
 
     <Application.Styles>
         <sty:FluentAvaloniaTheme />
+        <StyleInclude Source="avares://LittleFancyToolAva/Views/Themes/CommonStyles.axaml" />
     </Application.Styles>
 </Application>

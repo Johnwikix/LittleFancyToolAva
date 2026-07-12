@@ -14,6 +14,7 @@ namespace LittleFancyToolAva.Services
 
         public bool IsOpen => _serialPort?.IsOpen ?? false;
 
+        public event Action<byte[]>? BytesReceived;
         public event Action<string>? DataReceived;
         public event Action<string>? StatusChanged;
 
@@ -195,10 +196,29 @@ namespace LittleFancyToolAva.Services
                 _receiveBuffer.Clear();
             }
 
-            string text = DetectEncoding(bytes);
             string hex = ToolMethod.ByteArrayToHexString(bytes);
             StatusChanged?.Invoke($"接收: {bytes.Length} 字节 [{hex}]");
-            DataReceived?.Invoke(text);
+            BytesReceived?.Invoke(bytes);
+            DataReceived?.Invoke(DecodeBytes(bytes, "Auto"));
+        }
+
+        private static string DecodeBytes(byte[] bytes, string encoding)
+        {
+            var mode = encoding switch
+            {
+                "UTF8" => ToolMethod.EncodingMode.UTF8,
+                "ASCII" => ToolMethod.EncodingMode.ASCII,
+                "GB2312" or "GB18030" => ToolMethod.EncodingMode.GB2312,
+                _ => ToolMethod.EncodingMode.Auto
+            };
+            try
+            {
+                return ToolMethod.GetEncoding(mode).GetString(bytes);
+            }
+            catch
+            {
+                return ToolMethod.ByteArrayToHexString(bytes);
+            }
         }
 
         private static string DetectEncoding(byte[] bytes)
