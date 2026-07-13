@@ -219,8 +219,7 @@ namespace LittleFancyToolAva.Services
                         catch { }
                     }
                     DataSent?.Invoke(bytes);
-                    string hexStr = ToolMethod.ByteArrayToHexString(bytes);
-                    StatusChanged?.Invoke($"服务器发送: {bytes.Length} 字节 [{hexStr}]");
+                    StatusChanged?.Invoke($"服务器发送: {bytes.Length} 字节");
                 }
                 else if (_client?.Connected == true)
                 {
@@ -228,8 +227,7 @@ namespace LittleFancyToolAva.Services
                     await stream.WriteAsync(bytes);
                     await stream.FlushAsync();
                     DataSent?.Invoke(bytes);
-                    string hexStr = ToolMethod.ByteArrayToHexString(bytes);
-                    StatusChanged?.Invoke($"发送: {bytes.Length} 字节 [{hexStr}]");
+                    StatusChanged?.Invoke($"发送: {bytes.Length} 字节");
                 }
                 else
                 {
@@ -370,9 +368,8 @@ namespace LittleFancyToolAva.Services
             }
 
             BytesReceived?.Invoke(bytes);
-            string hex = ToolMethod.ByteArrayToHexString(bytes);
             string text = Encoding.UTF8.GetString(bytes);
-            StatusChanged?.Invoke($"接收 ({endpoint}): {bytes.Length} 字节 [{hex}]");
+            StatusChanged?.Invoke($"接收 ({endpoint}): {bytes.Length} 字节");
             DataReceived?.Invoke($"[{endpoint}] {text}");
         }
 

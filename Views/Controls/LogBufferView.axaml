@@ -33,10 +33,10 @@
                                Text=":"
                                Margin="0,0,8,0"
                                Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
-                    <TextBlock Grid.Column="3"
-                               Text="{Binding Text}"
-                               TextTrimming="CharacterEllipsis"
-                               Foreground="{Binding Kind, Converter={StaticResource LogKindToBrushConverter}}" />
+                    <SelectableTextBlock Grid.Column="3"
+                                         Text="{Binding Text}"
+                                         TextTrimming="CharacterEllipsis"
+                                         Foreground="{Binding Kind, Converter={StaticResource LogKindToBrushConverter}}" />
                 </Grid>
             </DataTemplate>
         </ListBox.ItemTemplate>

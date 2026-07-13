@@ -10,11 +10,7 @@ namespace LittleFancyToolAva.Services
         private UdpClient? _udpClient;
         private CancellationTokenSource? _cts;
         private bool _disposed;
-        private int _frameBreakInterval = 20;
         private readonly List<byte> _receiveBuffer = [];
-        private Timer? _frameTimer;
-        private int _timerGen;
-        private readonly object _timerLock = new();
 
         public bool IsRunning => _udpClient != null;
 
@@ -64,7 +60,6 @@ namespace LittleFancyToolAva.Services
                 _udpClient = null;
 
                 lock (_receiveBuffer) { _receiveBuffer.Clear(); }
-                lock (_timerLock) { _frameTimer?.Dispose(); _frameTimer = null; }
 
                 StatusChanged?.Invoke("UDP 已停止");
             }
@@ -99,7 +94,7 @@ namespace LittleFancyToolAva.Services
                 await _udpClient!.SendAsync(bytes, bytes.Length, endpoint);
                 DataSent?.Invoke(bytes);
                 string hexStr = ToolMethod.ByteArrayToHexString(bytes);
-                StatusChanged?.Invoke($"发送: {bytes.Length} 字节 [{hexStr}]");
+                StatusChanged?.Invoke($"发送: {bytes.Length} 字节");
             }
             catch (Exception ex)
             {
@@ -109,7 +104,6 @@ namespace LittleFancyToolAva.Services
 
         public void SetFrameBreakInterval(int ms)
         {
-            _frameBreakInterval = Math.Max(10, ms);
         }
 
         public async Task SendWithIntervalAsync(string data, bool isHex, string remoteAddress, int remotePort, int intervalMs, CancellationToken ct)
@@ -152,33 +146,8 @@ namespace LittleFancyToolAva.Services
             lock (_receiveBuffer)
             {
                 _receiveBuffer.AddRange(data);
-                int gen;
-                lock (_timerLock)
-                {
-                    gen = ++_timerGen;
-                    _frameTimer?.Dispose();
-                    _frameTimer = new Timer(OnTimerTick, gen, _frameBreakInterval, Timeout.Infinite);
-                }
             }
-        }
-
-        private void OnTimerTick(object? state)
-        {
-            try
-            {
-                int gen = (int)state!;
-                lock (_timerLock)
-                {
-                    if (gen != _timerGen) return;
-                    _frameTimer?.Dispose();
-                    _frameTimer = null;
-                }
-                FlushReceiveBuffer();
-            }
-            catch (Exception ex)
-            {
-                StatusChanged?.Invoke($"帧定时器异常: {ex.Message}");
-            }
+            FlushReceiveBuffer();
         }
 
         private void FlushReceiveBuffer()
@@ -191,9 +160,7 @@ namespace LittleFancyToolAva.Services
                 _receiveBuffer.Clear();
             }
             BytesReceived?.Invoke(bytes);
-            string hex = ToolMethod.ByteArrayToHexString(bytes);
-            string text = Encoding.UTF8.GetString(bytes);
-            StatusChanged?.Invoke($"接收: {bytes.Length} 字节 [{hex}]");
+            StatusChanged?.Invoke($"接收: {bytes.Length} 字节");
         }
 
         public void Dispose()

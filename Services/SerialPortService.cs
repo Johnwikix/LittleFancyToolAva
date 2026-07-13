@@ -103,8 +103,7 @@ namespace LittleFancyToolAva.Services
                 await _serialPort.BaseStream.WriteAsync(bytes);
                 await _serialPort.BaseStream.FlushAsync();
 
-                string hexStr = ToolMethod.ByteArrayToHexString(bytes);
-                StatusChanged?.Invoke($"发送: {bytes.Length} 字节 [{hexStr}]");
+                StatusChanged?.Invoke($"发送: {bytes.Length} 字节");
             }
             catch (Exception ex)
             {
@@ -213,8 +212,7 @@ namespace LittleFancyToolAva.Services
                 _receiveBuffer.Clear();
             }
 
-            string hex = ToolMethod.ByteArrayToHexString(bytes);
-            StatusChanged?.Invoke($"接收: {bytes.Length} 字节 [{hex}]");
+            StatusChanged?.Invoke($"接收: {bytes.Length} 字节");
             BytesReceived?.Invoke(bytes);
             DataReceived?.Invoke(DecodeBytes(bytes, "Auto"));
         }
