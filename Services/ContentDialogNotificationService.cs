@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
+using FluentAvalonia.UI.Controls;
 using System;
 
 namespace LittleFancyToolAva.Services
@@ -14,24 +15,29 @@ namespace LittleFancyToolAva.Services
 
         private static async void Show(string message, string title)
         {
-            if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop
-                && desktop.MainWindow is Window window)
+            try
             {
-                var dialog = new Window
+                if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop
+                    && desktop.MainWindow is Window window)
                 {
-                    Title = title,
-                    Content = new TextBlock { Text = message, Margin = new(20), TextWrapping = Avalonia.Media.TextWrapping.Wrap },
-                    Width = 400,
-                    Height = 200,
-                    WindowStartupLocation = WindowStartupLocation.CenterOwner,
-                    CanResize = false,
-                    SizeToContent = SizeToContent.WidthAndHeight,
-                };
-                dialog.KeyDown += (_, e) =>
-                {
-                    if (e.Key == Avalonia.Input.Key.Escape) dialog.Close();
-                };
-                await dialog.ShowDialog(window);
+                    var dialog = new FAContentDialog
+                    {
+                        Title = title,
+                        Content = new TextBlock
+                        {
+                            Text = message,
+                            Margin = new(20),
+                            TextWrapping = Avalonia.Media.TextWrapping.Wrap
+                        },
+                        CloseButtonText = "确定",
+                        DefaultButton = FAContentDialogButton.Close,
+                    };
+                    await dialog.ShowAsync();
+                }
+            }
+            catch
+            {
+                // 静默失败——错误弹框本身出错时不再递归
             }
         }
     }

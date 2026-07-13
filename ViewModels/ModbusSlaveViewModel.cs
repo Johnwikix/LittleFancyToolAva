@@ -9,7 +9,7 @@ using LittleFancyToolAva.Utils;
 
 namespace LittleFancyToolAva.ViewModels
 {
-    public partial class ModbusSlaveViewModel : ViewModelBase
+    public partial class ModbusSlaveViewModel : ViewModelBase, IDisposable
     {
         private readonly IModbusSlaveService _slaveService;
         private readonly INotificationService _notificationService;
@@ -17,6 +17,7 @@ namespace LittleFancyToolAva.ViewModels
         private DateTime? _startedAt;
         private int _requestCount;
         private int _errorCount;
+        private bool _disposed;
 
         public ObservableCollection<string> PortNames { get; } = [];
         public ObservableCollection<string> BaudRates { get; } =
@@ -96,6 +97,16 @@ namespace LittleFancyToolAva.ViewModels
             _slaveService.LogReceived += OnLogReceived;
             _slaveService.StatusChanged += OnStatusChanged;
             RefreshPorts();
+        }
+
+        public void Dispose()
+        {
+            if (_disposed) return;
+            _disposed = true;
+            _slaveService.LogReceived -= OnLogReceived;
+            _slaveService.StatusChanged -= OnStatusChanged;
+            _elapsedTimer?.Stop();
+            _elapsedTimer = null;
         }
 
         private void OnLogReceived(string log)

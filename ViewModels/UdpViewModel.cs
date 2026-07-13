@@ -1,4 +1,3 @@
-using System.Collections.ObjectModel;
 using System.Text;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -9,9 +8,9 @@ using LittleFancyToolAva.Utils;
 
 namespace LittleFancyToolAva.ViewModels
 {
-    public partial class TcpServerViewModel : ViewModelBase, IDisposable
+    public partial class UdpViewModel : ViewModelBase, IDisposable
     {
-        private readonly ITcpServerService _tcpService;
+        private readonly IUdpService _udpService;
         private readonly INotificationService _notificationService;
         private CancellationTokenSource? _cts;
         private CancellationTokenSource? _pollCts;
@@ -19,19 +18,28 @@ namespace LittleFancyToolAva.ViewModels
         private DateTime? _startedAt;
         private bool _disposed;
 
-        public ObservableCollection<string> Modes { get; } = ["服务器模式", "客户端模式"];
-        public ObservableCollection<string> ConnectedClients => _tcpService.ConnectedClients;
-
         public LogBuffer Log { get; } = new();
 
         [ObservableProperty]
         private int _modeIndex;
 
         [ObservableProperty]
-        private string _address = "127.0.0.1";
+        private string _localAddress = "0.0.0.0";
 
         [ObservableProperty]
-        private string _port = "8080";
+        private string _localPort = "8080";
+
+        [ObservableProperty]
+        private string _multicastAddress = "239.0.0.1";
+
+        [ObservableProperty]
+        private string _multicastPort = "8080";
+
+        [ObservableProperty]
+        private string _remoteAddress = "127.0.0.1";
+
+        [ObservableProperty]
+        private string _remotePort = "9090";
 
         [ObservableProperty]
         private string _sendText = string.Empty;
@@ -46,15 +54,9 @@ namespace LittleFancyToolAva.ViewModels
         private bool _isHexDisplay;
 
         [ObservableProperty]
-        private string _selectedClient = string.Empty;
-
-        [ObservableProperty]
         private bool _isRunning;
 
-        [ObservableProperty]
-        private bool _isConnected;
-
-        public bool IsAnyActive => IsRunning || IsConnected;
+        public bool IsAnyActive => IsRunning;
 
         [ObservableProperty]
         private ConnectionStatus _connectionStatus = ConnectionStatus.Idle;
@@ -80,22 +82,22 @@ namespace LittleFancyToolAva.ViewModels
         [ObservableProperty]
         private bool _isPolling;
 
-        public TcpServerViewModel(ITcpServerService tcpService, INotificationService notificationService)
+        public UdpViewModel(IUdpService udpService, INotificationService notificationService)
         {
-            _tcpService = tcpService;
+            _udpService = udpService;
             _notificationService = notificationService;
-            _tcpService.BytesReceived += OnBytesReceived;
-            _tcpService.DataSent += OnDataSent;
-            _tcpService.StatusChanged += OnStatusChanged;
+            _udpService.BytesReceived += OnBytesReceived;
+            _udpService.DataSent += OnDataSent;
+            _udpService.StatusChanged += OnStatusChanged;
         }
 
         public void Dispose()
         {
             if (_disposed) return;
             _disposed = true;
-            _tcpService.BytesReceived -= OnBytesReceived;
-            _tcpService.DataSent -= OnDataSent;
-            _tcpService.StatusChanged -= OnStatusChanged;
+            _udpService.BytesReceived -= OnBytesReceived;
+            _udpService.DataSent -= OnDataSent;
+            _udpService.StatusChanged -= OnStatusChanged;
             _cts?.Cancel();
             _cts?.Dispose();
             _pollCts?.Cancel();
@@ -166,23 +168,10 @@ namespace LittleFancyToolAva.ViewModels
         partial void OnIsRunningChanged(bool value)
         {
             OnPropertyChanged(nameof(IsAnyActive));
-            UpdateConnectionState();
-        }
-        partial void OnIsConnectedChanged(bool value)
-        {
-            OnPropertyChanged(nameof(IsAnyActive));
-            UpdateConnectionState();
-        }
-
-        private void UpdateConnectionState()
-        {
-            bool active = IsRunning || IsConnected;
-            if (active)
+            if (value)
             {
                 ConnectionStatus = ConnectionStatus.Connected;
-                StatusDetail = ModeIndex == 0
-                    ? $"服务器 {Address}:{Port}"
-                    : $"客户端 {Address}:{Port}";
+                StatusDetail = $"{LocalAddress}:{LocalPort}";
                 StartElapsedTimer();
             }
             else
@@ -196,9 +185,9 @@ namespace LittleFancyToolAva.ViewModels
         [RelayCommand]
         private async Task Start()
         {
-            if (!int.TryParse(Port, out int portNum) || portNum < 1 || portNum > 65535)
+            if (!int.TryParse(LocalPort, out int localPort) || localPort < 1 || localPort > 65535)
             {
-                _notificationService.ShowWarn("端口号须在 1-65535 之间。");
+                _notificationService.ShowWarn("本地端口须在 1-65535 之间。");
                 return;
             }
 
@@ -207,21 +196,19 @@ namespace LittleFancyToolAva.ViewModels
                 _cts = new CancellationTokenSource();
                 ConnectionStatus = ConnectionStatus.Connecting;
 
-                if (ModeIndex == 0)
+                string? multicastAddr = ModeIndex == 1 ? MulticastAddress : null;
+                int? multicastPort = ModeIndex == 1 && int.TryParse(MulticastPort, out int mp) ? mp : null;
+
+                if (ModeIndex == 1 && !string.IsNullOrEmpty(multicastAddr) && !System.Net.IPAddress.TryParse(multicastAddr, out _))
                 {
-                    await _tcpService.StartServerAsync(Address, portNum, _cts.Token);
-                    IsRunning = _tcpService.IsRunning;
-                }
-                else
-                {
-                    await _tcpService.ConnectClientAsync(Address, portNum, _cts.Token);
-                    IsConnected = true;
+                    _notificationService.ShowWarn("组播地址格式无效。");
+                    return;
                 }
 
-                if (IsRunning || IsConnected)
-                {
-                    Log.Append(LogKind.System, $"{(ModeIndex == 0 ? "服务器" : "客户端")}已启动 {Address}:{portNum}");
-                }
+                await _udpService.StartAsync(LocalAddress, localPort, multicastAddr, multicastPort, _cts.Token);
+                IsRunning = true;
+
+                Log.Append(LogKind.System, $"UDP 已启动 {LocalAddress}:{localPort}");
             }
             catch (Exception ex)
             {
@@ -237,69 +224,29 @@ namespace LittleFancyToolAva.ViewModels
             _pollCts?.Cancel();
             _cts?.Cancel();
             IsPolling = false;
-            if (ModeIndex == 0)
-            {
-                _tcpService.StopServer();
-                IsRunning = false;
-            }
-            else
-            {
-                _tcpService.DisconnectClient();
-                IsConnected = false;
-            }
-            Log.Append(LogKind.System, "已停止");
-        }
-
-        [RelayCommand]
-        private void DisconnectClient()
-        {
-            if (string.IsNullOrEmpty(SelectedClient))
-            {
-                _notificationService.ShowWarn("请先选择一个客户端。");
-                return;
-            }
-            _tcpService.DisconnectClient(SelectedClient);
-            Log.Append(LogKind.System, $"已断开客户端: {SelectedClient}");
-            SelectedClient = string.Empty;
+            _udpService.Stop();
+            IsRunning = false;
+            Log.Append(LogKind.System, "UDP 已停止");
         }
 
         [RelayCommand]
         private async Task Send()
         {
             if (string.IsNullOrEmpty(SendText)) return;
-
-            if (ModeIndex == 0 && !IsRunning)
+            if (!IsRunning)
             {
-                _notificationService.ShowWarn("请先启动服务器。");
-                return;
-            }
-            if (ModeIndex != 0 && !IsConnected)
-            {
-                _notificationService.ShowWarn("请先连接服务器。");
+                _notificationService.ShowWarn("请先启动 UDP。");
                 return;
             }
 
-            string? target = ModeIndex == 0 ? SelectedClient : null;
-            if (ModeIndex == 0 && string.IsNullOrEmpty(target) && ConnectedClients.Count > 0)
-            {
-                target = null;
-            }
+            string targetAddr = ModeIndex == 1 ? MulticastAddress : RemoteAddress;
+            int targetPort = ModeIndex == 1
+                ? (int.TryParse(MulticastPort, out int mp) ? mp : int.Parse(LocalPort))
+                : (int.TryParse(RemotePort, out int rp) ? rp : 9090);
 
             try
             {
-                await _tcpService.SendAsync(SendText, IsHexSend, target);
-                if (IsHexDisplay)
-                {
-                    byte[] bytes = IsHexSend
-                        ? ToolMethod.HexStringToBytes(SendText)
-                        : Encoding.UTF8.GetBytes(SendText);
-                    Log.Append(LogKind.Tx, ToolMethod.ByteArrayToHexString(bytes));
-                }
-                else
-                {
-                    Log.Append(LogKind.Tx, SendText);
-                }
-                TxCount++;
+                await _udpService.SendAsync(SendText, IsHexSend, targetAddr, targetPort);
             }
             catch (Exception ex)
             {
@@ -319,17 +266,22 @@ namespace LittleFancyToolAva.ViewModels
         [RelayCommand]
         private async Task StartPolling()
         {
-            if (!IsRunning && !IsConnected)
+            if (!IsRunning)
             {
-                _notificationService.ShowWarn("请先启动服务器或连接客户端。");
+                _notificationService.ShowWarn("请先启动 UDP。");
                 return;
             }
 
             IsPolling = true;
             _pollCts = new CancellationTokenSource();
+            string targetAddr = ModeIndex == 1 ? MulticastAddress : RemoteAddress;
+            int targetPort = ModeIndex == 1
+                ? (int.TryParse(MulticastPort, out int mp) ? mp : int.Parse(LocalPort))
+                : (int.TryParse(RemotePort, out int rp) ? rp : 9090);
+
             try
             {
-                await _tcpService.SendWithIntervalAsync(SendText, IsHexSend, PollInterval, _pollCts.Token);
+                await _udpService.SendWithIntervalAsync(SendText, IsHexSend, targetAddr, targetPort, PollInterval, _pollCts.Token);
             }
             catch (TaskCanceledException) { }
             catch (Exception ex)
@@ -351,23 +303,7 @@ namespace LittleFancyToolAva.ViewModels
 
         partial void OnFrameBreakIntervalChanged(int value)
         {
-            _tcpService.SetFrameBreakInterval(value);
-        }
-
-        partial void OnModeIndexChanged(int value)
-        {
-            if (value == 0)
-            {
-                _tcpService.DisconnectClient();
-                IsConnected = false;
-                StatusText = "就绪 (服务器模式)";
-            }
-            else
-            {
-                _tcpService.StopServer();
-                IsRunning = false;
-                StatusText = "就绪 (客户端模式)";
-            }
+            _udpService.SetFrameBreakInterval(value);
         }
     }
 }

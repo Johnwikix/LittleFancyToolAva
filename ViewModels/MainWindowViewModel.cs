@@ -61,6 +61,7 @@ namespace LittleFancyToolAva.ViewModels
         {
             var category = new PageNavigationItem("网络", FASymbol.Globe);
             category.Children.Add(new PageNavigationItem("TCP", FASymbol.Message, sp.GetRequiredService<TcpServerViewModel>()));
+            category.Children.Add(new PageNavigationItem("UDP", FASymbol.Message, sp.GetRequiredService<UdpViewModel>()));
             return category;
         }
 

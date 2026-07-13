@@ -48,7 +48,7 @@ namespace LittleFancyToolAva.Services
         {
             try
             {
-                StopFrameTimer();
+                lock (_timerLock) { _frameTimer?.Dispose(); _frameTimer = null; }
                 if (_serialPort != null)
                 {
                     _serialPort.DataReceived -= OnSerialDataReceived;
@@ -170,20 +170,37 @@ namespace LittleFancyToolAva.Services
             StatusChanged?.Invoke($"串口错误: {e.EventType}");
         }
 
+        private int _timerGen;
+        private readonly object _timerLock = new();
+
         private void ResetFrameTimer()
         {
-            StopFrameTimer();
-            _frameTimer = new Timer(_ =>
+            int gen;
+            lock (_timerLock)
             {
-                FlushReceiveBuffer();
-                StopFrameTimer();
-            }, null, _frameBreakInterval, Timeout.Infinite);
+                gen = ++_timerGen;
+                _frameTimer?.Dispose();
+                _frameTimer = new Timer(OnTimerTick, gen, _frameBreakInterval, Timeout.Infinite);
+            }
         }
 
-        private void StopFrameTimer()
+        private void OnTimerTick(object? state)
         {
-            _frameTimer?.Dispose();
-            _frameTimer = null;
+            try
+            {
+                int gen = (int)state!;
+                lock (_timerLock)
+                {
+                    if (gen != _timerGen) return;
+                    _frameTimer?.Dispose();
+                    _frameTimer = null;
+                }
+                FlushReceiveBuffer();
+            }
+            catch (Exception ex)
+            {
+                StatusChanged?.Invoke($"帧定时器异常: {ex.Message}");
+            }
         }
 
         private void FlushReceiveBuffer()

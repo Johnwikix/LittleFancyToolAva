@@ -60,7 +60,9 @@ namespace LittleFancyToolAva
             services.AddSingleton<NavigationService>();
             services.AddSingleton<NavigationFactory>();
 
-            services.AddSingleton<IEncryptionSymmetric, AESEncryption>();
+            services.AddKeyedSingleton<IEncryptionSymmetric, AESEncryption>("AES");
+            services.AddKeyedSingleton<IEncryptionSymmetric, DESEncryption>("DES");
+            services.AddKeyedSingleton<IEncryptionSymmetric, SM4Encryption>("SM4");
             services.AddSingleton<IEncryptionCode, Base64Encryption>();
             services.AddSingleton<IEncryptionAbstract, SHAEncrpytion>();
             services.AddSingleton<INotificationService, ContentDialogNotificationService>();
@@ -68,10 +70,9 @@ namespace LittleFancyToolAva
             services.AddSingleton<IFileDialogService, FileDialogService>();
             services.AddSingleton<ISerialPortService, SerialPortService>();
             services.AddSingleton<ITcpServerService, TcpServerService>();
-            services.AddSingleton<ISerialPortService, SerialPortService>();
             services.AddSingleton<IModbusPollService, ModbusPollService>();
             services.AddSingleton<IModbusSlaveService, ModbusSlaveService>();
-            services.AddSingleton<ITcpServerService, TcpServerService>();
+            services.AddSingleton<IUdpService, UdpService>();
 
             services.AddTransient<MainWindowViewModel>();
             services.AddTransient<HomeViewModel>();
@@ -89,10 +90,7 @@ namespace LittleFancyToolAva
             services.AddTransient<ModbusPollViewModel>();
             services.AddTransient<ModbusSlaveViewModel>();
             services.AddTransient<TcpServerViewModel>();
-            services.AddTransient<SerialPortViewModel>();
-            services.AddTransient<ModbusPollViewModel>();
-            services.AddTransient<ModbusSlaveViewModel>();
-            services.AddTransient<TcpServerViewModel>();
+            services.AddTransient<UdpViewModel>();
 
             services.AddSingleton<IFileEncryptionService, FileEncryptionService>();
             services.AddSingleton<IFolderCompareService, FolderCompareService>();

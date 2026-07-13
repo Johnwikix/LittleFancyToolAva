@@ -1,13 +1,13 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:LittleFancyToolAva.ViewModels"
-             xmlns:helpers="using:LittleFancyToolAva.Helpers"
              xmlns:controls="using:LittleFancyToolAva.Views.Controls"
+             xmlns:helpers="using:LittleFancyToolAva.Helpers"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d"
-             x:Class="LittleFancyToolAva.Views.SerialPortView"
-             x:DataType="vm:SerialPortViewModel">
+             x:Class="LittleFancyToolAva.Views.UdpView"
+             x:DataType="vm:UdpViewModel">
 
     <UserControl.Resources>
         <helpers:InverseBoolConverter x:Key="Inv" />
@@ -16,10 +16,9 @@
     <Grid RowDefinitions="Auto,*,Auto"
           Margin="{StaticResource PageMargin}">
 
-        <!-- Row 0: Header + StatusPill in actions slot -->
         <controls:ToolPageHeader Grid.Row="0"
-                                Title="串口调试"
-                                Subtitle="串行端口数据收发与轮询">
+                                Title="UDP 调试"
+                                Subtitle="UDP 数据收发与组播通信">
             <controls:ToolPageHeader.Actions>
                 <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                     <controls:StatusPill Status="{Binding ConnectionStatus}"
@@ -29,69 +28,55 @@
             </controls:ToolPageHeader.Actions>
         </controls:ToolPageHeader>
 
-        <!-- Row 1: Main split — settings sidebar | receive/send -->
         <Grid Grid.Row="1" ColumnDefinitions="320,3*" Margin="0,8,0,0">
 
             <!-- Left: settings sidebar -->
-            <ScrollViewer Grid.Column="0"
-                          VerticalScrollBarVisibility="Auto"
-                          Margin="0,0,12,0">
+            <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto" Margin="0,0,12,0">
                 <StackPanel Spacing="4">
                     <Border Classes="ToolCard">
                         <StackPanel Classes="ToolCardContent" Spacing="4">
-                            <TextBlock Classes="SectionHeader" Text="端口设置" />
+                            <TextBlock Classes="SectionHeader" Text="连接设置" />
+                            <StackPanel Spacing="4">
+                                <RadioButton Content="普通模式"
+                                             GroupName="UdpMode"
+                                             IsChecked="{Binding ModeIndex, Mode=TwoWay, Converter={StaticResource IntEq}, ConverterParameter=0}" />
+                                <RadioButton Content="组播模式"
+                                             GroupName="UdpMode"
+                                             IsChecked="{Binding ModeIndex, Mode=TwoWay, Converter={StaticResource IntEq}, ConverterParameter=1}" />
+                            </StackPanel>
                             <Grid Classes="FormRow" ColumnDefinitions="100,*">
-                                <TextBlock Classes="FieldLabel" Text="串口" />
-                                <ComboBox Grid.Column="1"
-                                          HorizontalAlignment="Stretch"
-                                          ItemsSource="{Binding PortNames}"
-                                          SelectedItem="{Binding SelectedPort, Mode=TwoWay}" />
+                                <TextBlock Classes="FieldLabel" Text="本地地址" />
+                                <TextBox Grid.Column="1" Text="{Binding LocalAddress, Mode=TwoWay}" />
                             </Grid>
                             <Grid Classes="FormRow" ColumnDefinitions="100,*">
-                                <TextBlock Classes="FieldLabel" Text="波特率" />
-                                <ComboBox Grid.Column="1"
-                                          HorizontalAlignment="Stretch"
-                                          ItemsSource="{Binding BaudRates}"
-                                          SelectedIndex="{Binding BaudRateIndex, Mode=TwoWay}" />
+                                <TextBlock Classes="FieldLabel" Text="本地端口" />
+                                <TextBox Grid.Column="1" Text="{Binding LocalPort, Mode=TwoWay}" />
                             </Grid>
-                            <Grid Classes="FormRow" ColumnDefinitions="100,*">
-                                <TextBlock Classes="FieldLabel" Text="校验位" />
-                                <ComboBox Grid.Column="1"
-                                          HorizontalAlignment="Stretch"
-                                          ItemsSource="{Binding Parities}"
-                                          SelectedIndex="{Binding ParityIndex, Mode=TwoWay}" />
+                            <Grid Classes="FormRow" ColumnDefinitions="100,*"
+                                  IsVisible="{Binding ModeIndex, Converter={StaticResource IntEq}, ConverterParameter=1}">
+                                <TextBlock Classes="FieldLabel" Text="组播地址" />
+                                <TextBox Grid.Column="1" Text="{Binding MulticastAddress, Mode=TwoWay}" />
                             </Grid>
-                            <Grid Classes="FormRow" ColumnDefinitions="100,*">
-                                <TextBlock Classes="FieldLabel" Text="数据位" />
-                                <ComboBox Grid.Column="1"
-                                          HorizontalAlignment="Stretch"
-                                          ItemsSource="{Binding DataBitsList}"
-                                          SelectedIndex="{Binding DataBitsIndex, Mode=TwoWay}" />
+                            <Grid Classes="FormRow" ColumnDefinitions="100,*"
+                                  IsVisible="{Binding ModeIndex, Converter={StaticResource IntEq}, ConverterParameter=1}">
+                                <TextBlock Classes="FieldLabel" Text="组播端口" />
+                                <TextBox Grid.Column="1" Text="{Binding MulticastPort, Mode=TwoWay}" />
                             </Grid>
-                            <Grid Classes="FormRow" ColumnDefinitions="100,*">
-                                <TextBlock Classes="FieldLabel" Text="停止位" />
-                                <ComboBox Grid.Column="1"
-                                          HorizontalAlignment="Stretch"
-                                          ItemsSource="{Binding StopBitsList}"
-                                          SelectedIndex="{Binding StopBitsIndex, Mode=TwoWay}" />
+                            <Grid Classes="FormRow" ColumnDefinitions="100,*"
+                                  IsVisible="{Binding ModeIndex, Converter={StaticResource IntEq}, ConverterParameter=0}">
+                                <TextBlock Classes="FieldLabel" Text="远程地址" />
+                                <TextBox Grid.Column="1" Text="{Binding RemoteAddress, Mode=TwoWay}" />
                             </Grid>
-                            <Grid Classes="FormRow" ColumnDefinitions="100,*">
-                                <TextBlock Classes="FieldLabel" Text="编码" />
-                                <ComboBox Grid.Column="1"
-                                          HorizontalAlignment="Stretch"
-                                          ItemsSource="{Binding Encodings}"
-                                          SelectedIndex="{Binding EncodingIndex, Mode=TwoWay}" />
+                            <Grid Classes="FormRow" ColumnDefinitions="100,*"
+                                  IsVisible="{Binding ModeIndex, Converter={StaticResource IntEq}, ConverterParameter=0}">
+                                <TextBlock Classes="FieldLabel" Text="远程端口" />
+                                <TextBox Grid.Column="1" Text="{Binding RemotePort, Mode=TwoWay}" />
                             </Grid>
                             <StackPanel Classes="ActionBar">
-                                <Button Command="{Binding RefreshPortsCommand}" Content="刷新端口" />
-                                <Button Command="{Binding ConnectCommand}"
-                                        Classes="Primary"
-                                        Content="连接"
-                                        IsEnabled="{Binding IsConnected, Converter={StaticResource Inv}}" />
-                                <Button Command="{Binding DisconnectCommand}"
-                                        Classes="Danger"
-                                        Content="断开"
-                                        IsEnabled="{Binding IsConnected}" />
+                                <Button Command="{Binding StartCommand}" Classes="Primary" Content="启动"
+                                        IsEnabled="{Binding IsAnyActive, Converter={StaticResource Inv}}" />
+                                <Button Command="{Binding StopCommand}" Classes="Danger" Content="停止"
+                                        IsEnabled="{Binding IsAnyActive}" />
                             </StackPanel>
                         </StackPanel>
                     </Border>
@@ -101,10 +86,6 @@
                             <TextBlock Classes="SectionHeader" Text="选项" />
                             <CheckBox Content="HEX 发送" IsChecked="{Binding IsHexSend, Mode=TwoWay}" />
                             <CheckBox Content="HEX 显示" IsChecked="{Binding IsHexDisplay, Mode=TwoWay}" />
-                            <CheckBox Content="RTS" IsChecked="{Binding IsRtsEnabled, Mode=TwoWay}"
-                                      Command="{Binding ToggleRtsCommand}" />
-                            <CheckBox Content="DTR" IsChecked="{Binding IsDtrEnabled, Mode=TwoWay}"
-                                      Command="{Binding ToggleDtrCommand}" />
                             <Grid Classes="FormRow" ColumnDefinitions="100,*">
                                 <TextBlock Classes="FieldLabel" Text="帧间隔 (ms)" />
                                 <NumericUpDown Grid.Column="1"
@@ -117,23 +98,29 @@
                                                Minimum="100" Maximum="60000"
                                                Value="{Binding PollInterval, Mode=TwoWay}" />
                             </Grid>
+                            <StackPanel Classes="ActionBar">
+                                <Button Command="{Binding StartPollingCommand}"
+                                        Content="定时发送"
+                                        IsEnabled="{Binding IsPolling, Converter={StaticResource Inv}}" />
+                                <Button Command="{Binding StopPollingCommand}"
+                                        Classes="Danger"
+                                        Content="停止"
+                                        IsEnabled="{Binding IsPolling}" />
+                            </StackPanel>
                         </StackPanel>
                     </Border>
                 </StackPanel>
             </ScrollViewer>
 
-            <!-- Right: receive / send stacked, 60/40 -->
+            <!-- Right: receive / send stacked -->
             <Grid Grid.Column="1" RowDefinitions="3*,8,2*" Margin="12,0,0,0">
 
-                <!-- Receive (60%) -->
                 <Border Grid.Row="0" Classes="ToolCard" Padding="0">
                     <Grid RowDefinitions="Auto,*,Auto">
                         <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="16,12,16,8">
                             <TextBlock Classes="SectionHeader" Grid.Column="0" Text="接收" />
-                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
-                                <Button Classes="Quiet" Command="{Binding ClearCommand}" Content="清空" />
-                                <Button Classes="Quiet" Command="{Binding SaveDataCommand}" Content="保存数据" />
-                            </StackPanel>
+                            <Button Grid.Column="1" Classes="Quiet"
+                                    Command="{Binding ClearCommand}" Content="清空" />
                         </Grid>
                         <controls:LogBufferView Grid.Row="1" Margin="12,0,12,0" Entries="{Binding Log.Entries}" />
                         <Border Grid.Row="2" Background="{DynamicResource SubtleFillColorTertiaryBrush}"
@@ -149,7 +136,6 @@
                     </Grid>
                 </Border>
 
-                <!-- Send (40%) -->
                 <Border Grid.Row="2" Classes="ToolCard" Padding="0">
                     <Grid RowDefinitions="Auto,*,Auto">
                         <TextBlock Grid.Row="0" Classes="SectionHeader" Text="发送" Margin="16,12,16,8" />
@@ -158,24 +144,13 @@
                                  Margin="16,0,16,8"
                                  Text="{Binding SendText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                         <StackPanel Grid.Row="2" Classes="ActionBar" Margin="16,0,16,12">
-                            <Button Command="{Binding SendCommand}"
-                                    Classes="Primary"
-                                    Content="发送"
-                                    IsEnabled="{Binding IsConnected}" />
-                            <Button Command="{Binding StartPollingCommand}"
-                                    Content="定时发送"
-                                    IsEnabled="{Binding IsPolling, Converter={StaticResource Inv}}" />
-                            <Button Command="{Binding StopPollingCommand}"
-                                    Classes="Danger"
-                                    Content="停止"
-                                    IsEnabled="{Binding IsPolling}" />
+                            <Button Command="{Binding SendCommand}" Classes="Primary" Content="发送" />
                         </StackPanel>
                     </Grid>
                 </Border>
             </Grid>
         </Grid>
 
-        <!-- Row 3: Status bar -->
         <controls:TerminalStatusBar Grid.Row="2"
                                     RxCount="{Binding RxCount}"
                                     TxCount="{Binding TxCount}"

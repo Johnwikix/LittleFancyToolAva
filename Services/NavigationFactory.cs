@@ -10,6 +10,7 @@ namespace LittleFancyToolAva.Services
     public class NavigationFactory : IFANavigationPageFactory
     {
         private readonly Dictionary<Type, Func<Control>> _map = new();
+        private object? _previousDataContext;
 
         public void Register<TViewModel, TView>()
             where TViewModel : class
@@ -25,6 +26,12 @@ namespace LittleFancyToolAva.Services
 
         public Control GetPageFromObject(object target)
         {
+            if (_previousDataContext is IDisposable disposable && _previousDataContext != target)
+            {
+                disposable.Dispose();
+            }
+            _previousDataContext = target;
+
             if (_map.TryGetValue(target.GetType(), out var factory))
             {
                 var page = factory();

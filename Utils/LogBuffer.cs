@@ -1,10 +1,13 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using LittleFancyToolAva.Models;
 
 namespace LittleFancyToolAva.Utils
 {
-    public sealed class LogBuffer
+    public sealed class LogBuffer : INotifyPropertyChanged
     {
+        public event PropertyChangedEventHandler? PropertyChanged;
+
         public ObservableCollection<LogEntry> Entries { get; } = new();
 
         public int MaxLines { get; set; } = 5000;
@@ -16,6 +19,7 @@ namespace LittleFancyToolAva.Utils
             if (string.IsNullOrEmpty(text)) return;
             Entries.Add(new LogEntry(kind, text));
             Trim();
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Count)));
         }
 
         public void AppendLine(LogKind kind, string text)
@@ -29,6 +33,7 @@ namespace LittleFancyToolAva.Utils
         public void Clear()
         {
             Entries.Clear();
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Count)));
         }
 
         private void Trim()
@@ -40,6 +45,7 @@ namespace LittleFancyToolAva.Utils
                 {
                     Entries.RemoveAt(0);
                 }
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Count)));
             }
         }
 

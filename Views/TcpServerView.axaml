@@ -28,15 +28,15 @@
             </controls:ToolPageHeader.Actions>
         </controls:ToolPageHeader>
 
-        <Grid Grid.Row="1" ColumnDefinitions="280,3*" Margin="0,8,0,0">
+        <Grid Grid.Row="1" ColumnDefinitions="320,3*" Margin="0,8,0,0">
 
             <!-- Left: settings sidebar -->
             <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto" Margin="0,0,12,0">
-                <StackPanel Spacing="12">
+                <StackPanel Spacing="4">
                     <Border Classes="ToolCard">
-                        <StackPanel Classes="ToolCardContent">
+                        <StackPanel Classes="ToolCardContent" Spacing="4">
                             <TextBlock Classes="SectionHeader" Text="连接模式" />
-                            <StackPanel Spacing="6">
+                            <StackPanel Spacing="4">
                                 <RadioButton Content="服务器模式"
                                              GroupName="TcpMode"
                                              IsChecked="{Binding ModeIndex, Mode=TwoWay, Converter={StaticResource IntEq}, ConverterParameter=0}" />
@@ -44,11 +44,11 @@
                                              GroupName="TcpMode"
                                              IsChecked="{Binding ModeIndex, Mode=TwoWay, Converter={StaticResource IntEq}, ConverterParameter=1}" />
                             </StackPanel>
-                            <Grid Classes="FormRow" ColumnDefinitions="80,*">
+                            <Grid Classes="FormRow" ColumnDefinitions="100,*">
                                 <TextBlock Classes="FieldLabel" Text="地址" />
                                 <TextBox Grid.Column="1" Text="{Binding Address, Mode=TwoWay}" />
                             </Grid>
-                            <Grid Classes="FormRow" ColumnDefinitions="80,*">
+                            <Grid Classes="FormRow" ColumnDefinitions="100,*">
                                 <TextBlock Classes="FieldLabel" Text="端口" />
                                 <TextBox Grid.Column="1" Text="{Binding Port, Mode=TwoWay}" />
                             </Grid>
@@ -61,14 +61,51 @@
                         </StackPanel>
                     </Border>
 
-                    <Border Classes="ToolCard"
-                            IsVisible="{Binding IsRunning}">
-                        <StackPanel Classes="ToolCardContent">
-                            <TextBlock Classes="SectionHeader" Text="已连接客户端" />
-                            <ListBox ItemsSource="{Binding ConnectedClients}"
-                                     SelectedItem="{Binding SelectedClient, Mode=TwoWay}"
-                                     MaxHeight="200" />
+                    <Border Classes="ToolCard">
+                        <StackPanel Classes="ToolCardContent" Spacing="4">
+                            <TextBlock Classes="SectionHeader" Text="选项" />
+                            <CheckBox Content="HEX 发送" IsChecked="{Binding IsHexSend, Mode=TwoWay}" />
+                            <CheckBox Content="HEX 显示" IsChecked="{Binding IsHexDisplay, Mode=TwoWay}" />
+                            <Grid Classes="FormRow" ColumnDefinitions="100,*">
+                                <TextBlock Classes="FieldLabel" Text="帧间隔 (ms)" />
+                                <NumericUpDown Grid.Column="1"
+                                               Minimum="10" Maximum="500"
+                                               Value="{Binding FrameBreakInterval, Mode=TwoWay}" />
+                            </Grid>
+                            <Grid Classes="FormRow" ColumnDefinitions="100,*">
+                                <TextBlock Classes="FieldLabel" Text="轮询间隔 (ms)" />
+                                <NumericUpDown Grid.Column="1"
+                                               Minimum="100" Maximum="60000"
+                                               Value="{Binding PollInterval, Mode=TwoWay}" />
+                            </Grid>
+                            <StackPanel Classes="ActionBar">
+                                <Button Command="{Binding StartPollingCommand}"
+                                        Content="定时发送"
+                                        IsEnabled="{Binding IsPolling, Converter={StaticResource Inv}}" />
+                                <Button Command="{Binding StopPollingCommand}"
+                                        Classes="Danger"
+                                        Content="停止"
+                                        IsEnabled="{Binding IsPolling}" />
+                            </StackPanel>
                         </StackPanel>
+                    </Border>
+
+                    <Border Classes="ToolCard" MaxHeight="200">
+                        <Grid RowDefinitions="Auto,*,Auto">
+                            <TextBlock Classes="SectionHeader" Text="已连接客户端"
+                                       IsVisible="{Binding IsRunning}" />
+                            <ListBox Grid.Row="1"
+                                     ItemsSource="{Binding ConnectedClients}"
+                                     SelectedItem="{Binding SelectedClient, Mode=TwoWay}"
+                                     IsVisible="{Binding IsRunning}"
+                                     Margin="0,4,0,0" />
+                            <Button Grid.Row="2"
+                                    Command="{Binding DisconnectClientCommand}"
+                                    Classes="Danger"
+                                    Content="断开选中客户端"
+                                    IsEnabled="{Binding IsRunning}"
+                                    Margin="0,4,0,0" />
+                        </Grid>
                     </Border>
                 </StackPanel>
             </ScrollViewer>
@@ -105,14 +142,6 @@
                                  Margin="16,0,16,8"
                                  Text="{Binding SendText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                         <StackPanel Grid.Row="2" Classes="ActionBar" Margin="16,0,16,12">
-                            <CheckBox Content="HEX 显示"
-                                      IsChecked="{Binding IsHexDisplay, Mode=TwoWay}"
-                                      VerticalAlignment="Center"
-                                      Margin="0,0,8,0" />
-                            <CheckBox Content="HEX 发送"
-                                      IsChecked="{Binding IsHexSend, Mode=TwoWay}"
-                                      VerticalAlignment="Center"
-                                      Margin="0,0,12,0" />
                             <Button Command="{Binding SendCommand}" Classes="Primary" Content="发送" />
                         </StackPanel>
                     </Grid>

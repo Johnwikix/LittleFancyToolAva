@@ -10,10 +10,11 @@ using System.Threading.Tasks;
 
 namespace LittleFancyToolAva.Services
 {
-    public class ModbusPollService : IModbusPollService
+    public class ModbusPollService : IModbusPollService, IDisposable
     {
         private SerialPort? _serialPort;
         private ModbusSerialMaster? _master;
+        private bool _disposed;
 
         public bool IsConnected { get; private set; }
         public int TxCount { get; private set; }
@@ -39,10 +40,20 @@ namespace LittleFancyToolAva.Services
         {
             IsConnected = false;
             _master?.Dispose();
-            _serialPort?.Close();
+            if (_serialPort?.IsOpen == true)
+                _serialPort?.Close();
+            _serialPort?.Dispose();
             _master = null;
             _serialPort = null;
             StatusChanged?.Invoke("已断开");
+        }
+
+        public void Dispose()
+        {
+            if (_disposed) return;
+            _disposed = true;
+            Disconnect();
+            GC.SuppressFinalize(this);
         }
 
         public async Task StartPollingAsync(byte slaveId, byte functionCode, ushort startAddress, ushort quantity, int scanTimeMs, CancellationToken ct)

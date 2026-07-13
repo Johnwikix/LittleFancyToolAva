@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
 using System.Net;
 using System.Net.Sockets;
@@ -14,6 +15,8 @@ namespace LittleFancyToolAva.Services
         private CancellationTokenSource? _cts;
         private bool _isServerMode;
         private bool _disposed;
+        private int _frameBreakInterval = 20;
+        private readonly ConcurrentDictionary<string, ClientBuffer> _clientBuffers = [];
 
         public bool IsRunning => _isServerMode ? _listener != null : IsConnected;
 
@@ -22,6 +25,7 @@ namespace LittleFancyToolAva.Services
         public ObservableCollection<string> ConnectedClients { get; } = [];
 
         public event Action<byte[]>? BytesReceived;
+        public event Action<byte[]>? DataSent;
         public event Action<string>? DataReceived;
         public event Action<string>? StatusChanged;
 
@@ -66,6 +70,7 @@ namespace LittleFancyToolAva.Services
                     _clients.Clear();
                 }
                 ConnectedClients.Clear();
+                CleanupAllClientBuffers();
 
                 _listener?.Stop();
                 _listener = null;
@@ -122,6 +127,60 @@ namespace LittleFancyToolAva.Services
             }
         }
 
+        public void DisconnectClient(string endpoint)
+        {
+            try
+            {
+                TcpClient? target = null;
+                lock (_clients)
+                {
+                    target = _clients.FirstOrDefault(c =>
+                        c.Client.RemoteEndPoint?.ToString() == endpoint);
+                    if (target != null)
+                    {
+                        _clients.Remove(target);
+                    }
+                }
+
+                if (target != null)
+                {
+                    CleanupClientBuffer(endpoint);
+                    try { target.Close(); } catch { }
+                    Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+                    {
+                        ConnectedClients.Remove(endpoint);
+                    });
+                    StatusChanged?.Invoke($"已断开客户端: {endpoint}");
+                }
+            }
+            catch (Exception ex)
+            {
+                StatusChanged?.Invoke($"断开客户端异常: {ex.Message}");
+            }
+        }
+
+        public void SetFrameBreakInterval(int ms)
+        {
+            _frameBreakInterval = Math.Max(10, ms);
+        }
+
+        public async Task SendWithIntervalAsync(string data, bool isHex, int intervalMs, CancellationToken ct)
+        {
+            try
+            {
+                while (!ct.IsCancellationRequested)
+                {
+                    await SendAsync(data, isHex, null);
+                    await Task.Delay(intervalMs, ct);
+                }
+            }
+            catch (TaskCanceledException) { }
+            catch (Exception ex)
+            {
+                StatusChanged?.Invoke($"定时发送异常: {ex.Message}");
+            }
+        }
+
         public async Task SendAsync(string data, bool isHex, string? targetClient = null)
         {
             try
@@ -143,21 +202,23 @@ namespace LittleFancyToolAva.Services
 
                 if (_isServerMode)
                 {
+                    List<TcpClient> targets;
                     lock (_clients)
                     {
-                        var targets = _clients.Where(c => c.Connected).ToList();
+                        targets = _clients.Where(c => c.Connected).ToList();
                         if (targetClient != null)
                             targets = targets.Where(c => c.Client.RemoteEndPoint?.ToString() == targetClient).ToList();
-                        foreach (var c in targets)
-                        {
-                            try
-                            {
-                                var stream = c.GetStream();
-                                stream.Write(bytes, 0, bytes.Length);
-                            }
-                            catch { }
-                        }
                     }
+                    foreach (var c in targets)
+                    {
+                        try
+                        {
+                            var stream = c.GetStream();
+                            await stream.WriteAsync(bytes);
+                        }
+                        catch { }
+                    }
+                    DataSent?.Invoke(bytes);
                     string hexStr = ToolMethod.ByteArrayToHexString(bytes);
                     StatusChanged?.Invoke($"服务器发送: {bytes.Length} 字节 [{hexStr}]");
                 }
@@ -166,6 +227,7 @@ namespace LittleFancyToolAva.Services
                     var stream = _client.GetStream();
                     await stream.WriteAsync(bytes);
                     await stream.FlushAsync();
+                    DataSent?.Invoke(bytes);
                     string hexStr = ToolMethod.ByteArrayToHexString(bytes);
                     StatusChanged?.Invoke($"发送: {bytes.Length} 字节 [{hexStr}]");
                 }
@@ -214,6 +276,7 @@ namespace LittleFancyToolAva.Services
 
         private async Task ReceiveLoopAsync(TcpClient client, CancellationToken ct)
         {
+            var endpoint = client.Client.RemoteEndPoint?.ToString() ?? "未知";
             try
             {
                 var buffer = new byte[4096];
@@ -227,12 +290,7 @@ namespace LittleFancyToolAva.Services
                     byte[] data = new byte[read];
                     Array.Copy(buffer, data, read);
 
-                    string endpoint = client.Client.RemoteEndPoint?.ToString() ?? "未知";
-                    BytesReceived?.Invoke(data);
-                    string hex = ToolMethod.ByteArrayToHexString(data);
-                    string text = Encoding.UTF8.GetString(data);
-                    StatusChanged?.Invoke($"接收 ({endpoint}): {read} 字节 [{hex}]");
-                    DataReceived?.Invoke($"[{endpoint}] {text}");
+                    AppendToClientBuffer(endpoint, data);
                 }
             }
             catch (OperationCanceledException) { }
@@ -243,15 +301,97 @@ namespace LittleFancyToolAva.Services
             }
             finally
             {
-                string ep = client.Client.RemoteEndPoint?.ToString() ?? "未知";
+                FlushClientBuffer(endpoint);
                 await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
                 {
-                    ConnectedClients.Remove(ep);
+                    ConnectedClients.Remove(endpoint);
                 });
                 lock (_clients) { _clients.Remove(client); }
+                CleanupClientBuffer(endpoint);
                 try { client.Close(); } catch { }
-                StatusChanged?.Invoke($"客户端断开: {ep}");
+                StatusChanged?.Invoke($"客户端断开: {endpoint}");
             }
+        }
+
+        private class ClientBuffer
+        {
+            public List<byte> Buffer { get; } = [];
+            public Timer? Timer { get; set; }
+            public int TimerGen { get; set; }
+        }
+
+        private ClientBuffer GetOrCreateClientBuffer(string endpoint)
+        {
+            return _clientBuffers.GetOrAdd(endpoint, _ => new ClientBuffer());
+        }
+
+        private void AppendToClientBuffer(string endpoint, byte[] data)
+        {
+            var cb = GetOrCreateClientBuffer(endpoint);
+            lock (cb.Buffer)
+            {
+                cb.Buffer.AddRange(data);
+                int gen = ++cb.TimerGen;
+                cb.Timer?.Dispose();
+                var capturedGen = gen;
+                cb.Timer = new Timer(OnClientTimerTick, (endpoint, capturedGen), _frameBreakInterval, Timeout.Infinite);
+            }
+        }
+
+        private void OnClientTimerTick(object? state)
+        {
+            try
+            {
+                var (endpoint, gen) = ((string, int))state!;
+                if (!_clientBuffers.TryGetValue(endpoint, out var cb)) return;
+                lock (cb.Buffer)
+                {
+                    if (gen != cb.TimerGen) return;
+                    cb.Timer?.Dispose();
+                    cb.Timer = null;
+                }
+                FlushClientBuffer(endpoint);
+            }
+            catch (Exception ex)
+            {
+                StatusChanged?.Invoke($"客户端帧定时器异常: {ex.Message}");
+            }
+        }
+
+        private void FlushClientBuffer(string endpoint)
+        {
+            if (!_clientBuffers.TryGetValue(endpoint, out var cb)) return;
+            byte[] bytes;
+            lock (cb.Buffer)
+            {
+                if (cb.Buffer.Count == 0) return;
+                bytes = [.. cb.Buffer];
+                cb.Buffer.Clear();
+            }
+
+            BytesReceived?.Invoke(bytes);
+            string hex = ToolMethod.ByteArrayToHexString(bytes);
+            string text = Encoding.UTF8.GetString(bytes);
+            StatusChanged?.Invoke($"接收 ({endpoint}): {bytes.Length} 字节 [{hex}]");
+            DataReceived?.Invoke($"[{endpoint}] {text}");
+        }
+
+        private void CleanupClientBuffer(string endpoint)
+        {
+            if (_clientBuffers.TryRemove(endpoint, out var cb))
+            {
+                cb.Timer?.Dispose();
+                lock (cb.Buffer) { cb.Buffer.Clear(); }
+            }
+        }
+
+        private void CleanupAllClientBuffers()
+        {
+            foreach (var kvp in _clientBuffers)
+            {
+                kvp.Value.Timer?.Dispose();
+            }
+            _clientBuffers.Clear();
         }
 
         public void Dispose()

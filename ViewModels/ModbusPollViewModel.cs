@@ -9,7 +9,7 @@ using LittleFancyToolAva.Utils;
 
 namespace LittleFancyToolAva.ViewModels
 {
-    public partial class ModbusPollViewModel : ViewModelBase
+    public partial class ModbusPollViewModel : ViewModelBase, IDisposable
     {
         private readonly IModbusPollService _pollService;
         private readonly INotificationService _notificationService;
@@ -17,6 +17,7 @@ namespace LittleFancyToolAva.ViewModels
         private DispatcherTimer? _elapsedTimer;
         private DateTime? _startedAt;
         private readonly Dictionary<ushort, PollTableRow> _rowMap = [];
+        private bool _disposed;
 
         public ObservableCollection<string> PortNames { get; } = [];
         public ObservableCollection<string> BaudRates { get; } =
@@ -102,6 +103,20 @@ namespace LittleFancyToolAva.ViewModels
             _pollService.ValueRefreshed += OnValueRefreshed;
             _pollService.StatsUpdated += OnStatsUpdated;
             RefreshPorts();
+        }
+
+        public void Dispose()
+        {
+            if (_disposed) return;
+            _disposed = true;
+            _pollService.LogReceived -= OnLogReceived;
+            _pollService.StatusChanged -= OnStatusChanged;
+            _pollService.ValueRefreshed -= OnValueRefreshed;
+            _pollService.StatsUpdated -= OnStatsUpdated;
+            _pollCts?.Cancel();
+            _pollCts?.Dispose();
+            _elapsedTimer?.Stop();
+            _elapsedTimer = null;
         }
 
         private void OnLogReceived(string log)

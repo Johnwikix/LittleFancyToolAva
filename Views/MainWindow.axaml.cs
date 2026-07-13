@@ -34,6 +34,7 @@ namespace LittleFancyToolAva.Views
                 navFactory.Register<ModbusPollViewModel, ModbusPollView>();
                 navFactory.Register<ModbusSlaveViewModel, ModbusSlaveView>();
                 navFactory.Register<TcpServerViewModel, TcpServerView>();
+                navFactory.Register<UdpViewModel, UdpView>();
                 navFactory.Register<SettingsViewModel, SettingsView>();
                 navFactory.Register<FileEncryptionViewModel, FileEncryptionView>();
                 navFactory.Register<FolderCompareViewModel, FolderCompareView>();

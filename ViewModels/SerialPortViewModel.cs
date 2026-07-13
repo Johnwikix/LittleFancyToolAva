@@ -10,7 +10,7 @@ using LittleFancyToolAva.Utils;
 
 namespace LittleFancyToolAva.ViewModels
 {
-    public partial class SerialPortViewModel : ViewModelBase
+    public partial class SerialPortViewModel : ViewModelBase, IDisposable
     {
         private readonly ISerialPortService _serialPortService;
         private readonly INotificationService _notificationService;
@@ -105,6 +105,15 @@ namespace LittleFancyToolAva.ViewModels
             _serialPortService.BytesReceived += OnBytesReceived;
             _serialPortService.StatusChanged += OnStatusChanged;
             RefreshPorts();
+        }
+
+        public void Dispose()
+        {
+            _serialPortService.BytesReceived -= OnBytesReceived;
+            _serialPortService.StatusChanged -= OnStatusChanged;
+            _pollCts?.Cancel();
+            _pollCts?.Dispose();
+            StopElapsedTimer();
         }
 
         private void OnBytesReceived(byte[] bytes)
@@ -358,6 +367,11 @@ namespace LittleFancyToolAva.ViewModels
         {
             _pollCts?.Cancel();
             IsPolling = false;
+        }
+
+        partial void OnFrameBreakIntervalChanged(int value)
+        {
+            _serialPortService.SetFrameBreakInterval(value);
         }
 
         partial void OnEncodingIndexChanged(int value)
