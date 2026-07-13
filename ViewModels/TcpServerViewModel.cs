@@ -288,18 +288,6 @@ namespace LittleFancyToolAva.ViewModels
             try
             {
                 await _tcpService.SendAsync(SendText, IsHexSend, target);
-                if (IsHexDisplay)
-                {
-                    byte[] bytes = IsHexSend
-                        ? ToolMethod.HexStringToBytes(SendText)
-                        : Encoding.UTF8.GetBytes(SendText);
-                    Log.Append(LogKind.Tx, ToolMethod.ByteArrayToHexString(bytes));
-                }
-                else
-                {
-                    Log.Append(LogKind.Tx, SendText);
-                }
-                TxCount++;
             }
             catch (Exception ex)
             {

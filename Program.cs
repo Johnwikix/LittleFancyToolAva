@@ -1,6 +1,7 @@
 ﻿using Avalonia;
 using System;
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace LittleFancyToolAva
 {
@@ -12,6 +13,8 @@ namespace LittleFancyToolAva
         [STAThread]
         public static void Main(string[] args)
         {
+            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+
             AppDomain.CurrentDomain.UnhandledException += (s, e) =>
             {
                 var ex = e.ExceptionObject as Exception;

@@ -10,7 +10,13 @@
     <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == '' AND $([MSBuild]::IsOSPlatform('windows'))">win-x64</RuntimeIdentifier>
     <ApplicationIcon>Assets\storeIcon.ico</ApplicationIcon>
     <NoWarn>$(NoWarn);NU1701;CS8767;CS8625;CS8602;CS8600;CS8604</NoWarn>
+    <PublishTrimmed>true</PublishTrimmed>
   </PropertyGroup>
+
+  <ItemGroup>
+    <TrimmerRootAssembly Include="BouncyCastle.Cryptography" />
+    <TrimmerRootAssembly Include="TagLibSharp" />
+  </ItemGroup>
 
   <ItemGroup>
     <Using Include="System.IO.Ports" />
