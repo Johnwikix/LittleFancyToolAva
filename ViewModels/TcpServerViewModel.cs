@@ -108,18 +108,21 @@ namespace LittleFancyToolAva.ViewModels
 
         private void OnDataSent(byte[] bytes)
         {
-            Dispatcher.UIThread.Post(() =>
+        }
+
+        private void AppendTxLog(string text)
+        {
+            if (IsHexDisplay)
             {
-                if (IsHexDisplay)
-                {
-                    Log.Append(LogKind.Tx, ToolMethod.ByteArrayToHexString(bytes));
-                }
-                else
-                {
-                    Log.Append(LogKind.Tx, Encoding.UTF8.GetString(bytes));
-                }
-                TxCount++;
-            });
+                byte[] bytes = IsHexSend
+                    ? ToolMethod.HexStringToBytes(text)
+                    : Encoding.UTF8.GetBytes(text);
+                Log.Append(LogKind.Tx, ToolMethod.ByteArrayToHexString(bytes));
+            }
+            else
+            {
+                Log.Append(LogKind.Tx, text);
+            }
         }
 
         private void OnBytesReceived(byte[] bytes)
@@ -298,6 +301,8 @@ namespace LittleFancyToolAva.ViewModels
             try
             {
                 await _tcpService.SendAsync(SendText, IsHexSend, target);
+                AppendTxLog(SendText);
+                TxCount++;
             }
             catch (Exception ex)
             {
@@ -327,7 +332,13 @@ namespace LittleFancyToolAva.ViewModels
             _pollCts = new CancellationTokenSource();
             try
             {
-                await _tcpService.SendWithIntervalAsync(SendText, IsHexSend, PollInterval, _pollCts.Token);
+                while (!_pollCts.Token.IsCancellationRequested)
+                {
+                    await _tcpService.SendAsync(SendText, IsHexSend, null);
+                    AppendTxLog(SendText);
+                    TxCount++;
+                    await Task.Delay(PollInterval, _pollCts.Token);
+                }
             }
             catch (TaskCanceledException) { }
             catch (Exception ex)
