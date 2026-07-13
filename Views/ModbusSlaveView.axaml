@@ -173,7 +173,7 @@
                     </Grid>
                     <controls:LogBufferView Grid.Row="1" Margin="8,0,8,0" Entries="{Binding Log.Entries}" />
                     <Border Grid.Row="2" Background="{DynamicResource SubtleFillColorTertiaryBrush}"
-                            Padding="16,6" Margin="16,0,16,12" CornerRadius="4">
+                            Padding="16,6" Margin="8,0,8,12" CornerRadius="4">
                         <TextBlock Classes="Caption">
                             <Run Text="缓冲区: " />
                             <Run Text="{Binding Log.Count}" />
