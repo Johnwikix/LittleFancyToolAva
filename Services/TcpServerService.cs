@@ -16,6 +16,7 @@ namespace LittleFancyToolAva.Services
         private bool _isServerMode;
         private bool _disposed;
         private int _frameBreakInterval = 20;
+        private bool _enableFrameBreak;
         private readonly ConcurrentDictionary<string, ClientBuffer> _clientBuffers = [];
 
         public bool IsRunning => _isServerMode ? _listener != null : IsConnected;
@@ -156,6 +157,20 @@ namespace LittleFancyToolAva.Services
             catch (Exception ex)
             {
                 StatusChanged?.Invoke($"断开客户端异常: {ex.Message}");
+            }
+        }
+
+        public bool EnableFrameBreak
+        {
+            get => _enableFrameBreak;
+            set
+            {
+                if (_enableFrameBreak == value) return;
+                _enableFrameBreak = value;
+                if (!value)
+                {
+                    FlushAllBuffers();
+                }
             }
         }
 
@@ -307,7 +322,15 @@ namespace LittleFancyToolAva.Services
                 lock (_clients) { _clients.Remove(client); }
                 CleanupClientBuffer(endpoint);
                 try { client.Close(); } catch { }
-                StatusChanged?.Invoke($"客户端断开: {endpoint}");
+                if (!_isServerMode)
+                {
+                    _client = null;
+                    StatusChanged?.Invoke("连接已断开");
+                }
+                else
+                {
+                    StatusChanged?.Invoke($"客户端断开: {endpoint}");
+                }
             }
         }
 
@@ -325,14 +348,42 @@ namespace LittleFancyToolAva.Services
 
         private void AppendToClientBuffer(string endpoint, byte[] data)
         {
+            bool shouldFlush = false;
             var cb = GetOrCreateClientBuffer(endpoint);
             lock (cb.Buffer)
             {
                 cb.Buffer.AddRange(data);
-                int gen = ++cb.TimerGen;
-                cb.Timer?.Dispose();
-                var capturedGen = gen;
-                cb.Timer = new Timer(OnClientTimerTick, (endpoint, capturedGen), _frameBreakInterval, Timeout.Infinite);
+                if (_enableFrameBreak)
+                {
+                    int gen = ++cb.TimerGen;
+                    cb.Timer?.Dispose();
+                    var capturedGen = gen;
+                    cb.Timer = new Timer(OnClientTimerTick, (endpoint, capturedGen), _frameBreakInterval, Timeout.Infinite);
+                }
+                else
+                {
+                    shouldFlush = true;
+                }
+            }
+            if (shouldFlush)
+            {
+                FlushClientBuffer(endpoint);
+            }
+        }
+
+        private void FlushAllBuffers()
+        {
+            foreach (var endpoint in _clientBuffers.Keys.ToArray())
+            {
+                if (_clientBuffers.TryGetValue(endpoint, out var cb))
+                {
+                    lock (cb.Buffer)
+                    {
+                        cb.Timer?.Dispose();
+                        cb.Timer = null;
+                    }
+                }
+                FlushClientBuffer(endpoint);
             }
         }
 

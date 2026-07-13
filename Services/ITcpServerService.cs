@@ -16,6 +16,7 @@ namespace LittleFancyToolAva.Services
         void DisconnectClient();
         void DisconnectClient(string endpoint);
         Task SendAsync(string data, bool isHex, string? targetClient = null);
+        bool EnableFrameBreak { get; set; }
         void SetFrameBreakInterval(int ms);
         Task SendWithIntervalAsync(string data, bool isHex, int intervalMs, CancellationToken ct);
     }

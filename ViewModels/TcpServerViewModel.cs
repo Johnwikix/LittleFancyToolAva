@@ -75,6 +75,9 @@ namespace LittleFancyToolAva.ViewModels
         private int _frameBreakInterval = 20;
 
         [ObservableProperty]
+        private bool _enableFrameBreak;
+
+        [ObservableProperty]
         private int _pollInterval = 1000;
 
         [ObservableProperty]
@@ -137,7 +140,14 @@ namespace LittleFancyToolAva.ViewModels
 
         private void OnStatusChanged(string status)
         {
-            Dispatcher.UIThread.Post(() => StatusText = status);
+            Dispatcher.UIThread.Post(() =>
+            {
+                StatusText = status;
+                if (status == "连接已断开")
+                {
+                    IsConnected = false;
+                }
+            });
         }
 
         private void StartElapsedTimer()
@@ -340,6 +350,11 @@ namespace LittleFancyToolAva.ViewModels
         partial void OnFrameBreakIntervalChanged(int value)
         {
             _tcpService.SetFrameBreakInterval(value);
+        }
+
+        partial void OnEnableFrameBreakChanged(bool value)
+        {
+            _tcpService.EnableFrameBreak = value;
         }
 
         partial void OnModeIndexChanged(int value)

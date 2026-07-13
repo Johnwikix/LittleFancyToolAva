@@ -58,13 +58,16 @@ namespace LittleFancyToolAva.Views.Controls
                 var scrollViewer = LogList.FindDescendantOfType<ScrollViewer>();
                 if (scrollViewer is null) return;
 
-                bool atBottom = scrollViewer.Offset.Y
-                    >= scrollViewer.Extent.Height - scrollViewer.Viewport.Height - StickinessThreshold;
-
-                if (atBottom)
+                _ = Dispatcher.UIThread.InvokeAsync(() =>
                 {
-                    scrollViewer.ScrollToEnd();
-                }
+                    bool atBottom = scrollViewer.Offset.Y
+                        >= scrollViewer.Extent.Height - scrollViewer.Viewport.Height - StickinessThreshold;
+
+                    if (atBottom)
+                    {
+                        scrollViewer.ScrollToEnd();
+                    }
+                }, DispatcherPriority.Render);
             });
         }
     }

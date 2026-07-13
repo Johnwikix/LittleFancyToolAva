@@ -114,7 +114,6 @@
                             <Grid Classes="FormRow" ColumnDefinitions="100,*">
                                 <TextBlock Classes="FieldLabel" Text="轮询间隔 (ms)" />
                                 <NumericUpDown Grid.Column="1"
-                                               Minimum="100" Maximum="60000"
                                                Value="{Binding PollInterval, Mode=TwoWay}" />
                             </Grid>
                         </StackPanel>

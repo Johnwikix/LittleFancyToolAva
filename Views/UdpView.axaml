@@ -87,15 +87,8 @@
                             <CheckBox Content="HEX 发送" IsChecked="{Binding IsHexSend, Mode=TwoWay}" />
                             <CheckBox Content="HEX 显示" IsChecked="{Binding IsHexDisplay, Mode=TwoWay}" />
                             <Grid Classes="FormRow" ColumnDefinitions="100,*">
-                                <TextBlock Classes="FieldLabel" Text="帧间隔 (ms)" />
-                                <NumericUpDown Grid.Column="1"
-                                               Minimum="10" Maximum="500"
-                                               Value="{Binding FrameBreakInterval, Mode=TwoWay}" />
-                            </Grid>
-                            <Grid Classes="FormRow" ColumnDefinitions="100,*">
                                 <TextBlock Classes="FieldLabel" Text="轮询间隔 (ms)" />
                                 <NumericUpDown Grid.Column="1"
-                                               Minimum="100" Maximum="60000"
                                                Value="{Binding PollInterval, Mode=TwoWay}" />
                             </Grid>
                             <StackPanel Classes="ActionBar">

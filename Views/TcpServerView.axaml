@@ -66,7 +66,9 @@
                             <TextBlock Classes="SectionHeader" Text="选项" />
                             <CheckBox Content="HEX 发送" IsChecked="{Binding IsHexSend, Mode=TwoWay}" />
                             <CheckBox Content="HEX 显示" IsChecked="{Binding IsHexDisplay, Mode=TwoWay}" />
-                            <Grid Classes="FormRow" ColumnDefinitions="100,*">
+                            <CheckBox Content="启用帧间隔" IsChecked="{Binding EnableFrameBreak, Mode=TwoWay}" />
+                            <Grid Classes="FormRow" ColumnDefinitions="100,*"
+                                  IsVisible="{Binding EnableFrameBreak}">
                                 <TextBlock Classes="FieldLabel" Text="帧间隔 (ms)" />
                                 <NumericUpDown Grid.Column="1"
                                                Minimum="10" Maximum="500"
@@ -75,7 +77,6 @@
                             <Grid Classes="FormRow" ColumnDefinitions="100,*">
                                 <TextBlock Classes="FieldLabel" Text="轮询间隔 (ms)" />
                                 <NumericUpDown Grid.Column="1"
-                                               Minimum="100" Maximum="60000"
                                                Value="{Binding PollInterval, Mode=TwoWay}" />
                             </Grid>
                             <StackPanel Classes="ActionBar">
@@ -103,6 +104,7 @@
                                     Command="{Binding DisconnectClientCommand}"
                                     Classes="Danger"
                                     Content="断开选中客户端"
+                                    IsVisible="{Binding IsRunning}"
                                     IsEnabled="{Binding IsRunning}"
                                     Margin="0,4,0,0" />
                         </Grid>
