@@ -77,7 +77,6 @@ namespace LittleFancyToolAva.ViewModels
             category.Children.Add(new PageNavigationItem("SHA", FASymbol.Page2, sp.GetRequiredService<ShaViewModel>()));
             category.Children.Add(new PageNavigationItem("SM3", FASymbol.Page2, sp.GetRequiredService<Sm3ViewModel>()));
             category.Children.Add(new PageNavigationItem("Base64", FASymbol.Page2, sp.GetRequiredService<Base64ViewModel>()));
-            category.Children.Add(new PageNavigationItem("文件加解密", FASymbol.Document, sp.GetRequiredService<FileEncryptionViewModel>()));
             return category;
         }
 
@@ -85,6 +84,7 @@ namespace LittleFancyToolAva.ViewModels
         {
             var category = new PageNavigationItem("文件处理", FASymbol.Document);
             category.Children.Add(new PageNavigationItem("文件夹比较", FASymbol.Document, sp.GetRequiredService<FolderCompareViewModel>()));
+            category.Children.Add(new PageNavigationItem("文件加解密", FASymbol.Document, sp.GetRequiredService<FileEncryptionViewModel>()));
             return category;
         }
 
