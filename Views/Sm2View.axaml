@@ -60,8 +60,8 @@
             </Grid>
         </Grid>
         <StackPanel Grid.Row="2" Classes="ActionBar">
-            <Button Command="{Binding EncryptCommand}" Classes="Primary" Content="加密 &gt;&gt;" />
-            <Button Command="{Binding DecryptCommand}" Classes="Danger" Content="解密 &lt;&lt;" />
+            <Button Command="{Binding EncryptCommand}" Classes="Primary" Content="加密" />
+            <Button Command="{Binding DecryptCommand}" Classes="Danger" Content="解密" />
         </StackPanel>
     </Grid>
 </UserControl>
