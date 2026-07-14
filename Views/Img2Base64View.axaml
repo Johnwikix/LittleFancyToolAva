@@ -7,18 +7,19 @@
              mc:Ignorable="d"
              x:Class="LittleFancyToolAva.Views.Img2Base64View"
              x:DataType="vm:Img2Base64ViewModel">
-    <Grid RowDefinitions="Auto,*,Auto" Margin="{StaticResource PageMargin}">
+    <Grid RowDefinitions="Auto,*" Margin="{StaticResource PageMargin}">
         <controls:ToolPageHeader Grid.Row="0" Title="图片 ↔ Base64"
                                 Subtitle="图片编码为 Base64 字符串，或将 Base64 解码为图片" />
 
         <Grid Grid.Row="1" ColumnDefinitions="*,16,*" Margin="0,16,0,0">
 
-            <!-- Left column: 图片 → Base64 -->
+            <!-- Left column: 图片 ↔ Base64 预览 -->
             <Border Grid.Column="0" Classes="ToolCard" Padding="0">
                 <Grid RowDefinitions="Auto,*,Auto">
-                    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="16,12,16,8">
-                        <TextBlock Classes="SectionHeader" Grid.Column="0" Text="图片输入" />
-                        <Button Grid.Column="1" Command="{Binding UploadImageCommand}" Content="上传图片" />
+                    <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto" Margin="16,12,16,8">
+                        <TextBlock Classes="SectionHeader" Grid.Column="0" Text="图片预览" />
+                        <Button Grid.Column="1" Command="{Binding UploadImageCommand}" Content="上传" Margin="0,0,6,0" />
+                        <Button Grid.Column="2" Command="{Binding SaveDecodedImageCommand}" Classes="Quiet" Content="保存" />
                     </Grid>
                     <Grid Grid.Row="1" Margin="16,0,16,8">
                         <Grid.RowDefinitions>
@@ -39,39 +40,47 @@
                 </Grid>
             </Border>
 
-            <!-- Right column: Base64 → 图片 -->
+            <!-- Right column: Base64 输入 / 输出 -->
             <Border Grid.Column="2" Classes="ToolCard" Padding="0">
-                <Grid RowDefinitions="Auto,*,Auto">
-                    <TextBlock Grid.Row="0" Classes="SectionHeader" Text="Base64 字符串"
+                <Grid RowDefinitions="Auto,*,Auto,Auto,Auto,Auto">
+                    <!-- 输入区 -->
+                    <TextBlock Grid.Row="0" Classes="SectionHeader" Text="Base64 输入"
                                Margin="16,12,16,8" />
                     <TextBox Grid.Row="1"
                              Margin="16,0,16,8"
                              AcceptsReturn="True" TextWrapping="Wrap"
                              FontFamily="{StaticResource MonoFontFamily}"
-                             Text="{Binding Base64Output, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                    <StackPanel Grid.Row="2" Classes="ActionBar" Margin="16,0,16,12">
-                        <Button Command="{Binding DecodeCommand}" Classes="Danger" Content="← 解码 Base64" />
+                             Text="{Binding Base64Input, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                             PlaceholderText="在此粘贴 Base64 字符串..." />
+                    <StackPanel Grid.Row="2" Classes="ActionBar" Margin="16,0,16,4">
+                        <Button Command="{Binding DecodeCommand}" Classes="Danger" Content="解码 Base64" />
+                        <Button Command="{Binding DecodeFromClipboardCommand}" Classes="Quiet" Content="从剪贴板解码" />
+                        <Button Command="{Binding DecodeFromFileCommand}" Classes="Quiet" Content="从文件导入" />
+                    </StackPanel>
+
+                    <!-- 输出区 -->
+                    <Grid Grid.Row="3" ColumnDefinitions="*,Auto" Margin="16,12,16,4">
+                        <TextBlock Classes="SectionHeader" Grid.Column="0" Text="Base64 输出" />
+                        <TextBlock Grid.Column="1"
+                                   Text="{Binding Base64Length}"
+                                   Classes="Caption"
+                                   VerticalAlignment="Center" />
+                    </Grid>
+                    <Border Grid.Row="4" Classes="ToolCardTight" Margin="16,0,16,4"
+                            MinHeight="60" MaxHeight="120" ClipToBounds="True">
+                        <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                                      VerticalScrollBarVisibility="Auto">
+                            <TextBlock Text="{Binding Base64Preview}"
+                                       FontFamily="{StaticResource MonoFontFamily}"
+                                       TextWrapping="Wrap" />
+                        </ScrollViewer>
+                    </Border>
+                    <StackPanel Grid.Row="5" Classes="ActionBar" Margin="16,0,16,12">
+                        <Button Command="{Binding CopyBase64Command}" Classes="Quiet"
+                                Content="复制到剪贴板" />
                     </StackPanel>
                 </Grid>
             </Border>
-        </Grid>
-
-        <Grid Grid.Row="2" Margin="0,12,0,0" ColumnDefinitions="*,Auto">
-            <Border Grid.Column="0" Classes="ToolCard" Padding="0"
-                    IsVisible="{Binding HasDecodedImage}">
-                <Grid RowDefinitions="Auto,*" Margin="16,12,16,12">
-                    <TextBlock Grid.Row="0" Classes="SectionHeader" Text="解码预览" Margin="0,0,0,8" />
-                    <Border Grid.Row="1" Classes="ToolCardTight" MinHeight="160">
-                        <Image Source="{Binding DecodedImagePreview}" Stretch="Uniform" />
-                    </Border>
-                </Grid>
-            </Border>
-            <StackPanel Grid.Column="1" Classes="ActionBar" Margin="16,0,0,0" VerticalAlignment="Top">
-                <Button Command="{Binding SaveDecodedImageCommand}"
-                        Classes="Quiet"
-                        Content="保存解码图片"
-                        IsEnabled="{Binding HasDecodedImage}" />
-            </StackPanel>
         </Grid>
     </Grid>
 </UserControl>

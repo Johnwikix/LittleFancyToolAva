@@ -12,6 +12,7 @@ public partial class Img2icoViewModel : ViewModelBase
     private readonly IImageConversionService _imageConversionService;
     private readonly IFileDialogService _fileDialogService;
     private readonly INotificationService _notificationService;
+    private byte[]? _icoBytes;
 
     [ObservableProperty]
     private string _imagePath = string.Empty;
@@ -21,9 +22,6 @@ public partial class Img2icoViewModel : ViewModelBase
 
     [ObservableProperty]
     private int _selectedSizeIndex = 2;
-
-    [ObservableProperty]
-    private string _icoPath = string.Empty;
 
     [ObservableProperty]
     private Bitmap? _icoPreview;
@@ -51,7 +49,7 @@ public partial class Img2icoViewModel : ViewModelBase
 
         ImagePath = path;
         ImagePreview = await _imageConversionService.LoadImageAsync(path);
-        IcoPath = string.Empty;
+        _icoBytes = null;
         IcoPreview = null;
     }
 
@@ -65,17 +63,13 @@ public partial class Img2icoViewModel : ViewModelBase
         }
 
         int size = AvailableSizes[SelectedSizeIndex];
-        string icoSavePath = Path.ChangeExtension(ImagePath, ".ico");
 
         try
         {
-            bool saved = await _iconConversionService.SaveAsIcoAsync(ImagePath, icoSavePath, size);
-            if (saved)
-            {
-                IcoPath = icoSavePath;
-                IcoPreview = await _imageConversionService.LoadImageAsync(icoSavePath);
-                _notificationService.ShowSuccess($"ICO 已生成: {icoSavePath}");
-            }
+            _icoBytes = await _iconConversionService.CreateIcoBytesAsync(ImagePath, size);
+            using MemoryStream ms = new(_icoBytes);
+            IcoPreview = new Bitmap(ms);
+            _notificationService.ShowSuccess("转换完成，可在右侧预览");
         }
         catch (Exception ex)
         {
@@ -86,9 +80,9 @@ public partial class Img2icoViewModel : ViewModelBase
     [RelayCommand]
     private async Task SaveIco()
     {
-        if (string.IsNullOrEmpty(IcoPath))
+        if (_icoBytes == null)
         {
-            _notificationService.ShowWarn("没有可保存的 ICO 文件");
+            _notificationService.ShowWarn("请先转换图片");
             return;
         }
 
@@ -97,7 +91,7 @@ public partial class Img2icoViewModel : ViewModelBase
 
         try
         {
-            File.Copy(IcoPath, savePath, true);
+            await File.WriteAllBytesAsync(savePath, _icoBytes);
             _notificationService.ShowSuccess($"ICO 已保存到: {savePath}");
         }
         catch (Exception ex)

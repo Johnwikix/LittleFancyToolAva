@@ -16,12 +16,12 @@ public class ImageConversionService : IImageConversionService
     public async Task<string?> ImageToBase64Async(string imagePath)
     {
         byte[] bytes = await File.ReadAllBytesAsync(imagePath);
-        return Convert.ToBase64String(bytes);
+        return await Task.Run(() => Convert.ToBase64String(bytes));
     }
 
     public async Task<Bitmap?> Base64ToBitmapAsync(string base64)
     {
-        byte[] bytes = Convert.FromBase64String(base64);
+        byte[] bytes = await Task.Run(() => Convert.FromBase64String(base64));
         using MemoryStream ms = new(bytes);
         return await Task.Run(() => new Bitmap(ms));
     }

@@ -1,3 +1,6 @@
+using Avalonia;
+using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Input;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -8,6 +11,7 @@ namespace LittleFancyToolAva.ViewModels;
 
 public partial class Img2Base64ViewModel : ViewModelBase
 {
+    private const int MaxTextBoxChars = 50000;
     private readonly IImageConversionService _imageConversionService;
     private readonly IFileDialogService _fileDialogService;
     private readonly INotificationService _notificationService;
@@ -19,16 +23,18 @@ public partial class Img2Base64ViewModel : ViewModelBase
     private Bitmap? _imagePreview;
 
     [ObservableProperty]
+    private string _base64Input = string.Empty;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Base64Preview))]
+    [NotifyPropertyChangedFor(nameof(Base64Length))]
     private string _base64Output = string.Empty;
 
-    [ObservableProperty]
-    private string _decodedImagePath = string.Empty;
+    public string Base64Preview => TruncateBase64(Base64Output);
 
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasDecodedImage))]
-    private Bitmap? _decodedImagePreview;
-
-    public bool HasDecodedImage => DecodedImagePreview != null;
+    public string Base64Length => string.IsNullOrEmpty(Base64Output)
+        ? string.Empty
+        : $"共 {Base64Output.Length:N0} 字符";
 
     public Img2Base64ViewModel(
         IImageConversionService imageConversionService,
@@ -49,6 +55,7 @@ public partial class Img2Base64ViewModel : ViewModelBase
 
         ImagePath = path;
         ImagePreview = await _imageConversionService.LoadImageAsync(path);
+        Base64Input = string.Empty;
         Base64Output = string.Empty;
     }
 
@@ -65,23 +72,30 @@ public partial class Img2Base64ViewModel : ViewModelBase
         if (base64 != null)
         {
             Base64Output = base64;
-            _notificationService.ShowSuccess("编码完成");
+            await SetClipboardAsync(base64);
+            _notificationService.ShowSuccess($"编码完成，已复制到剪贴板（共 {base64.Length:N0} 字符）");
         }
     }
 
     [RelayCommand]
     private async Task Decode()
     {
-        if (string.IsNullOrEmpty(Base64Output))
+        if (string.IsNullOrEmpty(Base64Input))
         {
             _notificationService.ShowWarn("请先输入 Base64 字符串");
             return;
         }
 
+        if (Base64Input.Length > MaxTextBoxChars)
+        {
+            _notificationService.ShowWarn(
+                $"Base64 字符串过长（{Base64Input.Length:N0} 字符），建议使用「从剪贴板解码」或「从文件导入」以避免界面卡顿");
+            return;
+        }
+
         try
         {
-            DecodedImagePreview = await _imageConversionService.Base64ToBitmapAsync(Base64Output);
-            DecodedImagePath = string.Empty;
+            ImagePreview = await _imageConversionService.Base64ToBitmapAsync(Base64Input);
             _notificationService.ShowSuccess("解码完成");
         }
         catch
@@ -91,9 +105,94 @@ public partial class Img2Base64ViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    private async Task DecodeFromClipboard()
+    {
+        if (Application.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop
+            || desktop.MainWindow?.Clipboard is not { } clipboard)
+        {
+            _notificationService.ShowError("无法访问剪贴板");
+            return;
+        }
+
+        IAsyncDataTransfer? data = await clipboard.TryGetDataAsync();
+        if (data is null)
+        {
+            _notificationService.ShowWarn("剪贴板中没有数据");
+            return;
+        }
+
+        using (data)
+        {
+            IAsyncDataTransferItem? textItem = data.Items
+                .FirstOrDefault(i => i.Formats.Contains(DataFormat.Text));
+
+            if (textItem is null)
+            {
+                _notificationService.ShowWarn("剪贴板中没有文本数据");
+                return;
+            }
+
+            object? raw = await textItem.TryGetRawAsync(DataFormat.Text);
+            if (raw is not string text || string.IsNullOrWhiteSpace(text))
+            {
+                _notificationService.ShowWarn("剪贴板文本为空");
+                return;
+            }
+
+            try
+            {
+                ImagePreview = await _imageConversionService.Base64ToBitmapAsync(text);
+                _notificationService.ShowSuccess("解码完成");
+            }
+            catch
+            {
+                _notificationService.ShowError("Base64 解码失败，请检查剪贴板内容是否为有效的 Base64 编码");
+            }
+        }
+    }
+
+    [RelayCommand]
+    private async Task DecodeFromFile()
+    {
+        IReadOnlyList<FilePickerFileType> filters = [new("Base64 Files") { Patterns = ["*.txt", "*.b64", "*.base64", "*.b64txt"] }];
+        string? path = await _fileDialogService.PickOpenFileAsync("选择 Base64 文件", filters);
+        if (path == null) return;
+
+        try
+        {
+            string text = await File.ReadAllTextAsync(path);
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                _notificationService.ShowWarn("文件内容为空");
+                return;
+            }
+
+            ImagePreview = await _imageConversionService.Base64ToBitmapAsync(text.Trim());
+            _notificationService.ShowSuccess("解码完成");
+        }
+        catch
+        {
+            _notificationService.ShowError("Base64 解码失败，请检查文件内容是否为有效的 Base64 编码");
+        }
+    }
+
+    [RelayCommand]
+    private async Task CopyBase64()
+    {
+        if (string.IsNullOrEmpty(Base64Output))
+        {
+            _notificationService.ShowWarn("没有可复制的 Base64 字符串");
+            return;
+        }
+
+        await SetClipboardAsync(Base64Output);
+        _notificationService.ShowSuccess("已复制到剪贴板");
+    }
+
+    [RelayCommand]
     private async Task SaveDecodedImage()
     {
-        if (DecodedImagePreview == null)
+        if (ImagePreview == null)
         {
             _notificationService.ShowWarn("没有可保存的图片");
             return;
@@ -105,13 +204,32 @@ public partial class Img2Base64ViewModel : ViewModelBase
 
         try
         {
-            DecodedImagePreview.Save(path);
-            DecodedImagePath = path;
+            ImagePreview.Save(path);
             _notificationService.ShowSuccess($"图片已保存到: {path}");
         }
         catch (Exception ex)
         {
             _notificationService.ShowError($"保存失败: {ex.Message}");
         }
+    }
+
+    private static async Task SetClipboardAsync(string text)
+    {
+        if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop
+            && desktop.MainWindow?.Clipboard is { } clipboard)
+        {
+            var dataTransfer = new DataTransfer();
+            dataTransfer.Add(DataTransferItem.CreateText(text));
+            await clipboard.SetDataAsync(dataTransfer);
+        }
+    }
+
+    private static string TruncateBase64(string base64)
+    {
+        const int edgeChars = 80;
+        if (string.IsNullOrEmpty(base64) || base64.Length <= edgeChars * 2 + 3)
+            return base64 ?? string.Empty;
+
+        return base64[..edgeChars] + "\n...\n" + base64[^edgeChars..];
     }
 }
