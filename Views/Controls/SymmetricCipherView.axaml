@@ -1,0 +1,91 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:LittleFancyToolAva.Views.Controls"
+             xmlns:vm="using:LittleFancyToolAva.ViewModels"
+             x:Class="LittleFancyToolAva.Views.Controls.SymmetricCipherView"
+             x:DataType="vm:SymmetricCipherViewModelBase">
+
+    <Grid RowDefinitions="Auto,*,Auto"
+          Margin="{StaticResource PageMargin}">
+
+        <controls:ToolPageHeader Grid.Row="0"
+                                Title="{Binding DisplayTitle}"
+                                Subtitle="{Binding DisplaySubtitle}" />
+
+        <Grid Grid.Row="1" ColumnDefinitions="*,16,*" Margin="0,16,0,0">
+            <Grid Grid.Column="0" RowDefinitions="Auto,16,*">
+                <Border Grid.Row="0" Classes="ToolCard">
+                    <StackPanel Classes="ToolCardContent">
+                        <TextBlock Classes="SectionHeader" Text="参数" />
+                        <Grid Classes="FormRow2" ColumnDefinitions="80,*,12,80,*">
+                            <TextBlock Classes="FieldLabel" Text="填充模式" />
+                            <ComboBox Grid.Column="1" HorizontalAlignment="Stretch"
+                                      ItemsSource="{Binding Paddings}"
+                                      SelectedIndex="{Binding PaddingIndex, Mode=TwoWay}" />
+                            <TextBlock Grid.Column="3" Classes="FieldLabel" Text="加密模式" />
+                            <ComboBox Grid.Column="4" HorizontalAlignment="Stretch"
+                                      SelectedIndex="{Binding EncryptModeIndex, Mode=TwoWay}">
+                                <ComboBoxItem Content="ECB" />
+                                <ComboBoxItem Content="CBC" />
+                            </ComboBox>
+                        </Grid>
+                        <Grid Classes="FormRow2" ColumnDefinitions="80,*,12,80,*">
+                            <TextBlock Classes="FieldLabel" Text="输出格式" />
+                            <ComboBox Grid.Column="1" HorizontalAlignment="Stretch"
+                                      SelectedIndex="{Binding OutputTypeIndex, Mode=TwoWay}">
+                                <ComboBoxItem Content="Base64" />
+                                <ComboBoxItem Content="Hex" />
+                            </ComboBox>
+                            <TextBlock Grid.Column="3" Classes="FieldLabel" Text="Key/IV 格式" />
+                            <ComboBox Grid.Column="4" HorizontalAlignment="Stretch"
+                                      SelectedIndex="{Binding KeyIvTypeIndex, Mode=TwoWay}">
+                                <ComboBoxItem Content="Text" />
+                                <ComboBoxItem Content="Base64" />
+                                <ComboBoxItem Content="Hex" />
+                            </ComboBox>
+                        </Grid>
+                        <Grid Classes="FormRow" ColumnDefinitions="80,*,12,Auto">
+                            <TextBlock Classes="FieldLabel" Text="Key" />
+                            <TextBox Grid.Column="1"
+                                     Text="{Binding Key, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                            <Button Grid.Column="3"
+                                    Command="{Binding GenerateNewKeyCommand}"
+                                    Content="生成 Key/IV" />
+                        </Grid>
+                        <Grid Classes="FormRow" ColumnDefinitions="80,*"
+                              IsEnabled="{Binding EncryptModeIndex, Converter={StaticResource IntEq}, ConverterParameter=1}">
+                            <TextBlock Classes="FieldLabel" Text="IV" />
+                            <TextBox Grid.Column="1"
+                                     Text="{Binding Iv, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Row="2" Classes="ToolCard" Padding="0">
+                    <Grid RowDefinitions="Auto,*">
+                        <TextBlock Grid.Row="0" Classes="SectionHeader" Text="输入" Margin="16,12,16,8" />
+                        <TextBox Grid.Row="1"
+                                 Margin="16,0,16,12"
+                                 AcceptsReturn="True" TextWrapping="Wrap"
+                                 Text="{Binding InputText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <Border Grid.Column="2" Classes="ToolCard" Padding="0">
+                <Grid RowDefinitions="Auto,*">
+                    <TextBlock Grid.Row="0" Classes="SectionHeader" Text="输出" Margin="16,12,16,8" />
+                    <TextBox Grid.Row="1"
+                             Margin="16,0,16,12"
+                             IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap"
+                             Text="{Binding OutputText, Mode=OneWay}" />
+                </Grid>
+            </Border>
+        </Grid>
+
+        <StackPanel Grid.Row="2" Classes="ActionBar">
+            <Button Command="{Binding EncryptCommand}" Classes="Primary" Content="加密 &gt;&gt;" />
+            <Button Command="{Binding DecryptCommand}" Classes="Danger" Content="解密 &lt;&lt;" />
+        </StackPanel>
+    </Grid>
+</UserControl>

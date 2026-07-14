@@ -5,26 +5,24 @@ using LittleFancyToolAva.Algorithms.Encryption;
 
 namespace LittleFancyToolAva.ViewModels
 {
-    public partial class Md5ViewModel : ViewModelBase
+    public partial class Md5ViewModel : HashViewModelBase
     {
-        private readonly IEncryptionAbstract _encryption;
-        [ObservableProperty] private string _inputText = string.Empty;
-        [ObservableProperty] private string _outputText = string.Empty;
-        [ObservableProperty] private int _caseIndex;
-        [ObservableProperty] private int _outputLengthIndex;
+        [ObservableProperty]
+        private int _outputLengthIndex;
 
-        public Md5ViewModel()
+        private readonly int[] _lengths = [32, 16];
+
+        public Md5ViewModel() : base(new Md5Encryption())
         {
-            _encryption = new Md5Encryption();
+            DisplayTitle = "MD5 哈希";
+            DisplaySubtitle = "MD5 消息摘要算法 (128-bit)";
         }
 
         [RelayCommand]
         private void Encrypt()
         {
             if (string.IsNullOrEmpty(InputText)) return;
-            string[] cases = ["UPPER", "lower"];
-            int[] lengths = [32, 16];
-            OutputText = _encryption.Encrypt(InputText, cases[CaseIndex], lengths[OutputLengthIndex]);
+            OutputText = _encryption.Encrypt(InputText, Cases[CaseIndex], _lengths[OutputLengthIndex]);
         }
     }
 }

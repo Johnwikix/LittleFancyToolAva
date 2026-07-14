@@ -5,18 +5,17 @@ using LittleFancyToolAva.Algorithms.Encryption;
 
 namespace LittleFancyToolAva.ViewModels
 {
-    public partial class Sm2ViewModel : ViewModelBase
+    public partial class Sm2ViewModel : AsymmetricCipherViewModelBase
     {
-        private readonly IEncryptionAsymmetric _encryption;
-        [ObservableProperty] private string _inputText = string.Empty;
-        [ObservableProperty] private string _outputText = string.Empty;
-        [ObservableProperty] private string _publicKey = string.Empty;
-        [ObservableProperty] private string _privateKey = string.Empty;
-        [ObservableProperty] private int _modeIndex;
+        [ObservableProperty]
+        private int _modeIndex;
 
-        public Sm2ViewModel()
+        private readonly string[] _modes = ["C1C2C3", "C1C3C2"];
+
+        public Sm2ViewModel() : base(new SM2Encryption())
         {
-            _encryption = new SM2Encryption();
+            DisplayTitle = "SM2 加解密";
+            DisplaySubtitle = "国密 SM2 非对称椭圆曲线密码算法";
             GenerateKeyPair();
         }
 
@@ -24,16 +23,14 @@ namespace LittleFancyToolAva.ViewModels
         private void Encrypt()
         {
             if (string.IsNullOrEmpty(InputText)) return;
-            string[] modes = ["C1C2C3", "C1C3C2"];
-            OutputText = _encryption.Encrypt(InputText, PublicKey, modes[ModeIndex]);
+            OutputText = _encryption.Encrypt(InputText, PublicKey, _modes[ModeIndex]);
         }
 
         [RelayCommand]
         private void Decrypt()
         {
             if (string.IsNullOrEmpty(OutputText)) return;
-            string[] modes = ["C1C2C3", "C1C3C2"];
-            InputText = _encryption.Decrypt(OutputText, PrivateKey, modes[ModeIndex]);
+            InputText = _encryption.Decrypt(OutputText, PrivateKey, _modes[ModeIndex]);
         }
 
         [RelayCommand]

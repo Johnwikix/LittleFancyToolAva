@@ -5,26 +5,24 @@ using LittleFancyToolAva.Algorithms.Encryption;
 
 namespace LittleFancyToolAva.ViewModels
 {
-    public partial class ShaViewModel : ViewModelBase
+    public partial class ShaViewModel : HashViewModelBase
     {
-        private readonly IEncryptionAbstract _encryption;
-        [ObservableProperty] private string _inputText = string.Empty;
-        [ObservableProperty] private string _outputText = string.Empty;
-        [ObservableProperty] private int _caseIndex;
-        [ObservableProperty] private int _modeIndex;
+        [ObservableProperty]
+        private int _modeIndex;
 
-        public ShaViewModel()
+        private readonly string[] _modes = ["SHA1", "SHA256", "SHA384", "SHA512"];
+
+        public ShaViewModel() : base(new SHAEncrpytion())
         {
-            _encryption = new SHAEncrpytion();
+            DisplayTitle = "SHA 哈希";
+            DisplaySubtitle = "SHA-1 / SHA-256 / SHA-384 / SHA-512 安全散列算法";
         }
 
         [RelayCommand]
         private void Encrypt()
         {
             if (string.IsNullOrEmpty(InputText)) return;
-            string[] cases = ["UPPER", "lower"];
-            string[] modes = ["SHA1", "SHA256", "SHA384", "SHA512"];
-            OutputText = _encryption.Encrypt(InputText, cases[CaseIndex], 0, modes[ModeIndex]);
+            OutputText = _encryption.Encrypt(InputText, Cases[CaseIndex], 0, _modes[ModeIndex]);
         }
     }
 }
