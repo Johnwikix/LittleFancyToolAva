@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Specialized;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using LittleFancyToolAva.Models;
@@ -16,7 +17,9 @@ namespace LittleFancyToolAva.Views.Controls
         public static readonly StyledProperty<bool> AutoScrollToEndProperty =
             AvaloniaProperty.Register<LogBufferView, bool>(nameof(AutoScrollToEnd), true);
 
-        private const double StickinessThreshold = 24.0;
+        private ScrollViewer? _scrollViewer;
+        private bool _scrollPending;
+        private bool _mouseInside;
 
         public IEnumerable Entries
         {
@@ -33,6 +36,8 @@ namespace LittleFancyToolAva.Views.Controls
         public LogBufferView()
         {
             InitializeComponent();
+            AttachedToVisualTree += OnAttachedToVisualTree;
+            DetachedFromVisualTree += OnDetachedFromVisualTree;
         }
 
         protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
@@ -48,27 +53,60 @@ namespace LittleFancyToolAva.Views.Controls
             }
         }
 
+        private void OnAttachedToVisualTree(object? sender, VisualTreeAttachmentEventArgs e)
+        {
+            Dispatcher.UIThread.Post(HookScrollViewer, DispatcherPriority.Loaded);
+        }
+
+        private void OnDetachedFromVisualTree(object? sender, VisualTreeAttachmentEventArgs e)
+        {
+            UnhookScrollViewer();
+        }
+
+        private void HookScrollViewer()
+        {
+            if (_scrollViewer != null) return;
+            _scrollViewer = LogList?.FindDescendantOfType<ScrollViewer>();
+            if (_scrollViewer is null) return;
+
+            _scrollViewer.AddHandler(PointerEnteredEvent, OnPointerEntered, handledEventsToo: true);
+            _scrollViewer.AddHandler(PointerExitedEvent, OnPointerExited, handledEventsToo: true);
+        }
+
+        private void UnhookScrollViewer()
+        {
+            if (_scrollViewer is null) return;
+            _scrollViewer.RemoveHandler(PointerEnteredEvent, OnPointerEntered);
+            _scrollViewer.RemoveHandler(PointerExitedEvent, OnPointerExited);
+            _scrollViewer = null;
+            _mouseInside = false;
+        }
+
+        private void OnPointerEntered(object? sender, PointerEventArgs e)
+        {
+            _mouseInside = true;
+        }
+
+        private void OnPointerExited(object? sender, PointerEventArgs e)
+        {
+            _mouseInside = false;
+        }
+
         private void OnEntriesChanged(object? sender, NotifyCollectionChangedEventArgs e)
         {
             if (!AutoScrollToEnd) return;
-            if (LogList is null) return;
+            if (_mouseInside) return;
+            if (_scrollPending) return;
+            _scrollPending = true;
 
-            Dispatcher.UIThread.Post(() =>
+            Dispatcher.UIThread.InvokeAsync(() =>
             {
-                var scrollViewer = LogList.FindDescendantOfType<ScrollViewer>();
-                if (scrollViewer is null) return;
-
-                _ = Dispatcher.UIThread.InvokeAsync(() =>
-                {
-                    bool atBottom = scrollViewer.Offset.Y
-                        >= scrollViewer.Extent.Height - scrollViewer.Viewport.Height - StickinessThreshold;
-
-                    if (atBottom)
-                    {
-                        scrollViewer.ScrollToEnd();
-                    }
-                }, DispatcherPriority.Render);
-            });
+                _scrollPending = false;
+                if (_mouseInside) return;
+                var sv = _scrollViewer ?? LogList?.FindDescendantOfType<ScrollViewer>();
+                if (sv is null) return;
+                sv.ScrollToEnd();
+            }, DispatcherPriority.Render);
         }
     }
 }

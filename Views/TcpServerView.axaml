@@ -91,20 +91,19 @@
                         </StackPanel>
                     </Border>
 
-                    <Border Classes="ToolCard" MaxHeight="200">
+                    <Border Classes="ToolCard"
+                            MaxHeight="200"
+                            IsVisible="{Binding IsRunning}">
                         <Grid RowDefinitions="Auto,*,Auto">
-                            <TextBlock Classes="SectionHeader" Text="已连接客户端"
-                                       IsVisible="{Binding IsRunning}" />
+                            <TextBlock Classes="SectionHeader" Text="已连接客户端" />
                             <ListBox Grid.Row="1"
                                      ItemsSource="{Binding ConnectedClients}"
                                      SelectedItem="{Binding SelectedClient, Mode=TwoWay}"
-                                     IsVisible="{Binding IsRunning}"
                                      Margin="0,4,0,0" />
                             <Button Grid.Row="2"
                                     Command="{Binding DisconnectClientCommand}"
                                     Classes="Danger"
                                     Content="断开选中客户端"
-                                    IsVisible="{Binding IsRunning}"
                                     IsEnabled="{Binding IsRunning}"
                                     Margin="0,4,0,0" />
                         </Grid>
