@@ -1,5 +1,4 @@
 using System.Globalization;
-using Avalonia;
 using Avalonia.Data.Converters;
 using Avalonia.Media;
 using LittleFancyToolAva.Models;
@@ -11,20 +10,13 @@ namespace LittleFancyToolAva.Helpers
         public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
         {
             if (value is not ConnectionStatus status) return Brushes.Gray;
-            var key = status switch
+            return status switch
             {
-                ConnectionStatus.Connected => "SystemAccentColor",
-                ConnectionStatus.Connecting => "SystemAccentColor",
-                ConnectionStatus.Error => "SystemFillColorCriticalColor",
-                _ => "TextFillColorSecondaryColor"
+                ConnectionStatus.Connected => new SolidColorBrush(Color.FromUInt32(0xFF4CAF50)),
+                ConnectionStatus.Connecting => new SolidColorBrush(Color.FromUInt32(0xFFFFC107)),
+                ConnectionStatus.Error => new SolidColorBrush(Color.FromUInt32(0xFFF44336)),
+                _ => new SolidColorBrush(Color.FromUInt32(0xFF9E9E9E))
             };
-
-            if (Application.Current?.Resources.TryGetResource(key, null, out var res) == true)
-            {
-                if (res is Color c) return new SolidColorBrush(c);
-                if (res is IBrush b) return b;
-            }
-            return Brushes.Gray;
         }
 
         public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
