@@ -106,23 +106,6 @@ namespace LittleFancyToolAva.Services
         {
         }
 
-        public async Task SendWithIntervalAsync(string data, bool isHex, string remoteAddress, int remotePort, int intervalMs, CancellationToken ct)
-        {
-            try
-            {
-                while (!ct.IsCancellationRequested)
-                {
-                    await SendAsync(data, isHex, remoteAddress, remotePort);
-                    await Task.Delay(intervalMs, ct);
-                }
-            }
-            catch (TaskCanceledException) { }
-            catch (Exception ex)
-            {
-                StatusChanged?.Invoke($"定时发送异常: {ex.Message}");
-            }
-        }
-
         private async Task ReceiveLoopAsync(CancellationToken ct)
         {
             try

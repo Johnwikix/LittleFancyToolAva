@@ -327,17 +327,19 @@ namespace LittleFancyToolAva.ViewModels
                 _notificationService.ShowWarn("请先启动服务器或连接客户端。");
                 return;
             }
+            if (IsPolling) return;
 
+            var localCts = new CancellationTokenSource();
+            _pollCts = localCts;
             IsPolling = true;
-            _pollCts = new CancellationTokenSource();
             try
             {
-                while (!_pollCts.Token.IsCancellationRequested)
+                while (!localCts.Token.IsCancellationRequested)
                 {
                     await _tcpService.SendAsync(SendText, IsHexSend, null);
                     AppendTxLog(SendText);
                     TxCount++;
-                    await Task.Delay(PollInterval, _pollCts.Token);
+                    await Task.Delay(PollInterval, localCts.Token);
                 }
             }
             catch (TaskCanceledException) { }
@@ -347,7 +349,10 @@ namespace LittleFancyToolAva.ViewModels
             }
             finally
             {
-                IsPolling = false;
+                if (ReferenceEquals(_pollCts, localCts))
+                {
+                    IsPolling = false;
+                }
             }
         }
 
@@ -355,7 +360,6 @@ namespace LittleFancyToolAva.ViewModels
         private void StopPolling()
         {
             _pollCts?.Cancel();
-            IsPolling = false;
         }
 
         partial void OnFrameBreakIntervalChanged(int value)

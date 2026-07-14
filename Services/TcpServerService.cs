@@ -179,23 +179,6 @@ namespace LittleFancyToolAva.Services
             _frameBreakInterval = Math.Max(10, ms);
         }
 
-        public async Task SendWithIntervalAsync(string data, bool isHex, int intervalMs, CancellationToken ct)
-        {
-            try
-            {
-                while (!ct.IsCancellationRequested)
-                {
-                    await SendAsync(data, isHex, null);
-                    await Task.Delay(intervalMs, ct);
-                }
-            }
-            catch (TaskCanceledException) { }
-            catch (Exception ex)
-            {
-                StatusChanged?.Invoke($"定时发送异常: {ex.Message}");
-            }
-        }
-
         public async Task SendAsync(string data, bool isHex, string? targetClient = null)
         {
             try

@@ -259,23 +259,28 @@ namespace LittleFancyToolAva.ViewModels
             try
             {
                 await _serialPortService.SendAsync(SendText, IsHexSend, encoding);
-                if (IsHexDisplay)
-                {
-                    byte[] bytes = IsHexSend
-                        ? ToolMethod.HexStringToBytes(SendText)
-                        : ToolMethod.GetEncodedData(SendText, ParseEncodingMode(encoding));
-                    Log.Append(LogKind.Tx, ToolMethod.ByteArrayToHexString(bytes));
-                }
-                else
-                {
-                    Log.Append(LogKind.Tx, SendText);
-                }
+                AppendTxLog(SendText, encoding);
                 TxCount++;
             }
             catch (Exception ex)
             {
                 Log.Append(LogKind.Error, $"发送失败: {ex.Message}");
                 _notificationService.ShowError($"发送失败: {ex.Message}");
+            }
+        }
+
+        private void AppendTxLog(string text, string encoding)
+        {
+            if (IsHexDisplay)
+            {
+                byte[] bytes = IsHexSend
+                    ? ToolMethod.HexStringToBytes(text)
+                    : ToolMethod.GetEncodedData(text, ParseEncodingMode(encoding));
+                Log.Append(LogKind.Tx, ToolMethod.ByteArrayToHexString(bytes));
+            }
+            else
+            {
+                Log.Append(LogKind.Tx, text);
             }
         }
 
@@ -343,22 +348,33 @@ namespace LittleFancyToolAva.ViewModels
                 _notificationService.ShowWarn("请先连接串口。");
                 return;
             }
+            if (IsPolling) return;
 
+            var localCts = new CancellationTokenSource();
+            _pollCts = localCts;
             IsPolling = true;
-            _pollCts = new CancellationTokenSource();
             string encoding = Encodings[EncodingIndex];
             try
             {
-                await _serialPortService.SendWithIntervalAsync(SendText, IsHexSend, encoding, PollInterval, _pollCts.Token);
+                while (!localCts.Token.IsCancellationRequested)
+                {
+                    await _serialPortService.SendAsync(SendText, IsHexSend, encoding);
+                    AppendTxLog(SendText, encoding);
+                    TxCount++;
+                    await Task.Delay(PollInterval, localCts.Token);
+                }
             }
             catch (TaskCanceledException) { }
             catch (Exception ex)
             {
-                Log.Append(LogKind.Error, $"轮询错误: {ex.Message}");
+                Log.Append(LogKind.Error, $"定时发送错误: {ex.Message}");
             }
             finally
             {
-                IsPolling = false;
+                if (ReferenceEquals(_pollCts, localCts))
+                {
+                    IsPolling = false;
+                }
             }
         }
 
@@ -366,7 +382,6 @@ namespace LittleFancyToolAva.ViewModels
         private void StopPolling()
         {
             _pollCts?.Cancel();
-            IsPolling = false;
         }
 
         partial void OnFrameBreakIntervalChanged(int value)

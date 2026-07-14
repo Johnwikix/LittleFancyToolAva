@@ -10,6 +10,5 @@ namespace LittleFancyToolAva.Services
         void Stop();
         Task SendAsync(string data, bool isHex, string remoteAddress, int remotePort);
         void SetFrameBreakInterval(int ms);
-        Task SendWithIntervalAsync(string data, bool isHex, string remoteAddress, int remotePort, int intervalMs, CancellationToken ct);
     }
 }

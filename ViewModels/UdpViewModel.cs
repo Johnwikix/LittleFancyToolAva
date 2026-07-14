@@ -107,18 +107,6 @@ namespace LittleFancyToolAva.ViewModels
 
         private void OnDataSent(byte[] bytes)
         {
-            Dispatcher.UIThread.Post(() =>
-            {
-                if (IsHexDisplay)
-                {
-                    Log.Append(LogKind.Tx, ToolMethod.ByteArrayToHexString(bytes));
-                }
-                else
-                {
-                    Log.Append(LogKind.Tx, Encoding.UTF8.GetString(bytes));
-                }
-                TxCount++;
-            });
         }
 
         private void OnBytesReceived(byte[] bytes)
@@ -271,17 +259,25 @@ namespace LittleFancyToolAva.ViewModels
                 _notificationService.ShowWarn("请先启动 UDP。");
                 return;
             }
+            if (IsPolling) return;
 
+            var localCts = new CancellationTokenSource();
+            _pollCts = localCts;
             IsPolling = true;
-            _pollCts = new CancellationTokenSource();
             string targetAddr = ModeIndex == 1 ? MulticastAddress : RemoteAddress;
             int targetPort = ModeIndex == 1
                 ? (int.TryParse(MulticastPort, out int mp) ? mp : int.Parse(LocalPort))
                 : (int.TryParse(RemotePort, out int rp) ? rp : 9090);
-
+            string targetEncoding = Encoding.UTF8.WebName;
             try
             {
-                await _udpService.SendWithIntervalAsync(SendText, IsHexSend, targetAddr, targetPort, PollInterval, _pollCts.Token);
+                while (!localCts.Token.IsCancellationRequested)
+                {
+                    await _udpService.SendAsync(SendText, IsHexSend, targetAddr, targetPort);
+                    AppendTxLog(SendText);
+                    TxCount++;
+                    await Task.Delay(PollInterval, localCts.Token);
+                }
             }
             catch (TaskCanceledException) { }
             catch (Exception ex)
@@ -290,7 +286,10 @@ namespace LittleFancyToolAva.ViewModels
             }
             finally
             {
-                IsPolling = false;
+                if (ReferenceEquals(_pollCts, localCts))
+                {
+                    IsPolling = false;
+                }
             }
         }
 
@@ -298,7 +297,21 @@ namespace LittleFancyToolAva.ViewModels
         private void StopPolling()
         {
             _pollCts?.Cancel();
-            IsPolling = false;
+        }
+
+        private void AppendTxLog(string text)
+        {
+            if (IsHexDisplay)
+            {
+                byte[] bytes = IsHexSend
+                    ? ToolMethod.HexStringToBytes(text)
+                    : Encoding.UTF8.GetBytes(text);
+                Log.Append(LogKind.Tx, ToolMethod.ByteArrayToHexString(bytes));
+            }
+            else
+            {
+                Log.Append(LogKind.Tx, text);
+            }
         }
 
         partial void OnFrameBreakIntervalChanged(int value)

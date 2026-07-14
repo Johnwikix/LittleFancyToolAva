@@ -116,6 +116,15 @@
                                 <NumericUpDown Grid.Column="1"
                                                Value="{Binding PollInterval, Mode=TwoWay}" />
                             </Grid>
+                            <StackPanel Classes="ActionBar">
+                                <Button Command="{Binding StartPollingCommand}"
+                                        Content="定时发送"
+                                        IsEnabled="{Binding IsPolling, Converter={StaticResource Inv}}" />
+                                <Button Command="{Binding StopPollingCommand}"
+                                        Classes="Danger"
+                                        Content="停止"
+                                        IsEnabled="{Binding IsPolling}" />
+                            </StackPanel>
                         </StackPanel>
                     </Border>
                 </StackPanel>
@@ -161,13 +170,6 @@
                                     Classes="Primary"
                                     Content="发送"
                                     IsEnabled="{Binding IsConnected}" />
-                            <Button Command="{Binding StartPollingCommand}"
-                                    Content="定时发送"
-                                    IsEnabled="{Binding IsPolling, Converter={StaticResource Inv}}" />
-                            <Button Command="{Binding StopPollingCommand}"
-                                    Classes="Danger"
-                                    Content="停止"
-                                    IsEnabled="{Binding IsPolling}" />
                         </StackPanel>
                     </Grid>
                 </Border>
