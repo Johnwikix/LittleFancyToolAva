@@ -2,21 +2,41 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using LittleFancyToolAva.Algorithms;
 using LittleFancyToolAva.Algorithms.Encryption;
+using LittleFancyToolAva.Models.ViewStates;
+using LittleFancyToolAva.Services;
 
 namespace LittleFancyToolAva.ViewModels
 {
-    public partial class Sm2ViewModel : AsymmetricCipherViewModelBase
+    public partial class Sm2ViewModel : AsymmetricCipherViewModelBase, IViewState
     {
         [ObservableProperty]
         private int _modeIndex;
 
         private readonly string[] _modes = ["C1C2C3", "C1C3C2"];
 
-        public Sm2ViewModel() : base(new SM2Encryption())
+        string IViewState.ViewName => "sm2View";
+
+        public Sm2ViewModel(IViewStateService viewStateService) : base(new SM2Encryption())
         {
             DisplayTitle = "SM2 加解密";
             DisplaySubtitle = "国密 SM2 非对称椭圆曲线密码算法";
             GenerateKeyPair();
+            viewStateService.Register(this);
+        }
+
+        object IViewState.CaptureState() => new Sm2ViewState
+        {
+            InputText = InputText,
+            ModeIndex = ModeIndex
+        };
+
+        void IViewState.RestoreState(object state)
+        {
+            if (state is Sm2ViewState s)
+            {
+                InputText = s.InputText;
+                ModeIndex = s.ModeIndex;
+            }
         }
 
         [RelayCommand]

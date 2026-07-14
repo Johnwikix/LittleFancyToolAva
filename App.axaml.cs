@@ -37,6 +37,7 @@ namespace LittleFancyToolAva
                 _appObserveModel = _serviceProvider.GetRequiredService<AppObserveModel>();
                 var host = _serviceProvider.GetRequiredService<ApplicationHostService>();
                 host.LoadState();
+                host.LoadViewStates();
 
                 RequestedThemeVariant = _appObserveModel.Preferences.ToAvalonia();
 
@@ -56,6 +57,7 @@ namespace LittleFancyToolAva
             services.AddSingleton<AppObserveModel>();
             services.AddSingleton<AppPreferences>(sp => sp.GetRequiredService<AppObserveModel>().Preferences);
             services.AddSingleton<FileService>();
+            services.AddSingleton<IViewStateService, ViewStateService>();
             services.AddSingleton<ApplicationHostService>();
             services.AddSingleton<NavigationService>();
             services.AddSingleton<NavigationFactory>();

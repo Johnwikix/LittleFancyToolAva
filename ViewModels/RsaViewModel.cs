@@ -2,10 +2,12 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using LittleFancyToolAva.Algorithms;
 using LittleFancyToolAva.Algorithms.Encryption;
+using LittleFancyToolAva.Models.ViewStates;
+using LittleFancyToolAva.Services;
 
 namespace LittleFancyToolAva.ViewModels
 {
-    public partial class RsaViewModel : AsymmetricCipherViewModelBase
+    public partial class RsaViewModel : AsymmetricCipherViewModelBase, IViewState
     {
         [ObservableProperty]
         private int _paddingIndex;
@@ -20,11 +22,33 @@ namespace LittleFancyToolAva.ViewModels
         private readonly string[] _paddings = ["Pkcs1", "OaepSHA1", "OaepSHA256", "OaepSHA384", "OaepSHA512"];
         private readonly string[] _keyFormats = ["PKCS#1", "PKCS#8"];
 
-        public RsaViewModel() : base(new RSAEncryption())
+        string IViewState.ViewName => "rsaView";
+
+        public RsaViewModel(IViewStateService viewStateService) : base(new RSAEncryption())
         {
             DisplayTitle = "RSA 加解密";
             DisplaySubtitle = "RSA 非对称加密算法，支持多种填充模式";
             GenerateKeyPair();
+            viewStateService.Register(this);
+        }
+
+        object IViewState.CaptureState() => new RsaViewState
+        {
+            InputText = InputText,
+            PaddingIndex = PaddingIndex,
+            KeyLengthIndex = KeyLengthIndex,
+            KeyFormatIndex = KeyFormatIndex
+        };
+
+        void IViewState.RestoreState(object state)
+        {
+            if (state is RsaViewState s)
+            {
+                InputText = s.InputText;
+                PaddingIndex = s.PaddingIndex;
+                KeyLengthIndex = s.KeyLengthIndex;
+                KeyFormatIndex = s.KeyFormatIndex;
+            }
         }
 
         [RelayCommand]

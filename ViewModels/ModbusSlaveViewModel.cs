@@ -4,15 +4,17 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using LittleFancyToolAva.Models;
+using LittleFancyToolAva.Models.ViewStates;
 using LittleFancyToolAva.Services;
 using LittleFancyToolAva.Utils;
 
 namespace LittleFancyToolAva.ViewModels
 {
-    public partial class ModbusSlaveViewModel : ViewModelBase, IDisposable
+    public partial class ModbusSlaveViewModel : ViewModelBase, IDisposable, IViewState, IViewLifecycle
     {
         private readonly IModbusSlaveService _slaveService;
         private readonly INotificationService _notificationService;
+        private readonly IViewStateService _viewStateService;
         private DispatcherTimer? _elapsedTimer;
         private DateTime? _startedAt;
         private int _requestCount;
@@ -90,23 +92,87 @@ namespace LittleFancyToolAva.ViewModels
         [ObservableProperty]
         private int _errorCountDisplay;
 
-        public ModbusSlaveViewModel(IModbusSlaveService slaveService, INotificationService notificationService)
+        string IViewState.ViewName => "modbusSlaveView";
+
+        public ModbusSlaveViewModel(IModbusSlaveService slaveService, INotificationService notificationService, IViewStateService viewStateService)
         {
             _slaveService = slaveService;
             _notificationService = notificationService;
-            _slaveService.LogReceived += OnLogReceived;
-            _slaveService.StatusChanged += OnStatusChanged;
+            _viewStateService = viewStateService;
             RefreshPorts();
+            _viewStateService.Register(this);
         }
 
         public void Dispose()
         {
             if (_disposed) return;
             _disposed = true;
+            ((IViewLifecycle)this).OnNavigatedFrom();
+            _viewStateService.Unregister(this);
+        }
+
+        void IViewLifecycle.OnNavigatedTo()
+        {
+            _slaveService.LogReceived += OnLogReceived;
+            _slaveService.StatusChanged += OnStatusChanged;
+            if (IsRunning)
+            {
+                StartTimer();
+            }
+        }
+
+        void IViewLifecycle.OnNavigatedFrom()
+        {
             _slaveService.LogReceived -= OnLogReceived;
             _slaveService.StatusChanged -= OnStatusChanged;
+            StopTimer();
+        }
+
+        private void StartTimer()
+        {
+            _startedAt = DateTime.Now;
+            _elapsedTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+            _elapsedTimer.Tick += (_, _) =>
+            {
+                if (_startedAt is { } start)
+                    ElapsedText = (DateTime.Now - start).ToString(@"hh\:mm\:ss");
+            };
+            _elapsedTimer.Start();
+        }
+
+        private void StopTimer()
+        {
             _elapsedTimer?.Stop();
             _elapsedTimer = null;
+            _startedAt = null;
+            ElapsedText = "00:00:00";
+        }
+
+        object IViewState.CaptureState() => new ModbusSlaveViewState
+        {
+            SelectedPort = SelectedPort,
+            BaudRateIndex = BaudRateIndex,
+            ParityIndex = ParityIndex,
+            DataBitsIndex = DataBitsIndex,
+            StopBitsIndex = StopBitsIndex,
+            SlaveId = SlaveId,
+            CoilCount = CoilCount,
+            RegisterCount = RegisterCount
+        };
+
+        void IViewState.RestoreState(object state)
+        {
+            if (state is ModbusSlaveViewState s)
+            {
+                SelectedPort = s.SelectedPort;
+                BaudRateIndex = s.BaudRateIndex;
+                ParityIndex = s.ParityIndex;
+                DataBitsIndex = s.DataBitsIndex;
+                StopBitsIndex = s.StopBitsIndex;
+                SlaveId = s.SlaveId;
+                CoilCount = s.CoilCount;
+                RegisterCount = s.RegisterCount;
+            }
         }
 
         private void OnLogReceived(string log)
@@ -132,23 +198,13 @@ namespace LittleFancyToolAva.ViewModels
             {
                 ConnectionStatus = ConnectionStatus.Connected;
                 StatusDetail = $"{SelectedPort} @ {BaudRates[BaudRateIndex]}";
-                _startedAt = DateTime.Now;
-                _elapsedTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-                _elapsedTimer.Tick += (_, _) =>
-                {
-                    if (_startedAt is { } start)
-                        ElapsedText = (DateTime.Now - start).ToString(@"hh\:mm\:ss");
-                };
-                _elapsedTimer.Start();
+                StartTimer();
             }
             else
             {
                 ConnectionStatus = ConnectionStatus.Idle;
                 StatusDetail = string.Empty;
-                _elapsedTimer?.Stop();
-                _elapsedTimer = null;
-                _startedAt = null;
-                ElapsedText = "00:00:00";
+                StopTimer();
             }
         }
 

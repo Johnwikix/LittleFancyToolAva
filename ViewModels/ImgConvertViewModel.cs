@@ -2,15 +2,19 @@ using Avalonia.Media.Imaging;
 using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using LittleFancyToolAva.Models.ViewStates;
 using LittleFancyToolAva.Services;
 
 namespace LittleFancyToolAva.ViewModels;
 
-public partial class ImgConvertViewModel : ViewModelBase
+public partial class ImgConvertViewModel : ViewModelBase, IViewState
 {
     private readonly IImageConversionService _imageConversionService;
     private readonly IFileDialogService _fileDialogService;
     private readonly INotificationService _notificationService;
+    private readonly IViewStateService _viewStateService;
+
+    string IViewState.ViewName => "imgConvertView";
 
     [ObservableProperty]
     private string _imagePath = string.Empty;
@@ -29,11 +33,27 @@ public partial class ImgConvertViewModel : ViewModelBase
     public ImgConvertViewModel(
         IImageConversionService imageConversionService,
         IFileDialogService fileDialogService,
-        INotificationService notificationService)
+        INotificationService notificationService,
+        IViewStateService viewStateService)
     {
         _imageConversionService = imageConversionService;
         _fileDialogService = fileDialogService;
         _notificationService = notificationService;
+        _viewStateService = viewStateService;
+        _viewStateService.Register(this);
+    }
+
+    object IViewState.CaptureState() => new ImgConvertViewState
+    {
+        FormatIndex = FormatIndex
+    };
+
+    void IViewState.RestoreState(object state)
+    {
+        if (state is ImgConvertViewState s)
+        {
+            FormatIndex = s.FormatIndex;
+        }
     }
 
     [RelayCommand]

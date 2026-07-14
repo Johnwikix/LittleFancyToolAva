@@ -4,15 +4,17 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using LittleFancyToolAva.Models;
+using LittleFancyToolAva.Models.ViewStates;
 using LittleFancyToolAva.Services;
 using LittleFancyToolAva.Utils;
 
 namespace LittleFancyToolAva.ViewModels
 {
-    public partial class TcpServerViewModel : ViewModelBase, IDisposable
+    public partial class TcpServerViewModel : ViewModelBase, IDisposable, IViewState, IViewLifecycle
     {
         private readonly ITcpServerService _tcpService;
         private readonly INotificationService _notificationService;
+        private readonly IViewStateService _viewStateService;
         private CancellationTokenSource? _cts;
         private CancellationTokenSource? _pollCts;
         private DispatcherTimer? _elapsedTimer;
@@ -83,27 +85,76 @@ namespace LittleFancyToolAva.ViewModels
         [ObservableProperty]
         private bool _isPolling;
 
-        public TcpServerViewModel(ITcpServerService tcpService, INotificationService notificationService)
+        string IViewState.ViewName => "tcpServerView";
+
+        public TcpServerViewModel(ITcpServerService tcpService, INotificationService notificationService, IViewStateService viewStateService)
         {
             _tcpService = tcpService;
             _notificationService = notificationService;
-            _tcpService.BytesReceived += OnBytesReceived;
-            _tcpService.DataSent += OnDataSent;
-            _tcpService.StatusChanged += OnStatusChanged;
+            _viewStateService = viewStateService;
+            _viewStateService.Register(this);
         }
 
         public void Dispose()
         {
             if (_disposed) return;
             _disposed = true;
+            ((IViewLifecycle)this).OnNavigatedFrom();
+            _viewStateService.Unregister(this);
+        }
+
+        void IViewLifecycle.OnNavigatedTo()
+        {
+            _tcpService.BytesReceived += OnBytesReceived;
+            _tcpService.DataSent += OnDataSent;
+            _tcpService.StatusChanged += OnStatusChanged;
+            if (IsRunning || IsConnected)
+            {
+                StartElapsedTimer();
+            }
+        }
+
+        void IViewLifecycle.OnNavigatedFrom()
+        {
             _tcpService.BytesReceived -= OnBytesReceived;
             _tcpService.DataSent -= OnDataSent;
             _tcpService.StatusChanged -= OnStatusChanged;
             _cts?.Cancel();
             _cts?.Dispose();
+            _cts = null;
             _pollCts?.Cancel();
             _pollCts?.Dispose();
+            _pollCts = null;
             StopElapsedTimer();
+        }
+
+        object IViewState.CaptureState() => new TcpServerViewState
+        {
+            ModeIndex = ModeIndex,
+            Address = Address,
+            Port = Port,
+            SendText = SendText,
+            IsHexSend = IsHexSend,
+            IsHexDisplay = IsHexDisplay,
+            EnableFrameBreak = EnableFrameBreak,
+            FrameBreakInterval = FrameBreakInterval,
+            PollInterval = PollInterval
+        };
+
+        void IViewState.RestoreState(object state)
+        {
+            if (state is TcpServerViewState s)
+            {
+                ModeIndex = s.ModeIndex;
+                Address = s.Address;
+                Port = s.Port;
+                SendText = s.SendText;
+                IsHexSend = s.IsHexSend;
+                IsHexDisplay = s.IsHexDisplay;
+                EnableFrameBreak = s.EnableFrameBreak;
+                FrameBreakInterval = s.FrameBreakInterval;
+                PollInterval = s.PollInterval;
+            }
         }
 
         private void OnDataSent(byte[] bytes)

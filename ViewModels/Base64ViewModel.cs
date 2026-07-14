@@ -2,18 +2,36 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using LittleFancyToolAva.Algorithms;
 using LittleFancyToolAva.Algorithms.Encryption;
+using LittleFancyToolAva.Models.ViewStates;
+using LittleFancyToolAva.Services;
 
 namespace LittleFancyToolAva.ViewModels
 {
-    public partial class Base64ViewModel : ViewModelBase
+    public partial class Base64ViewModel : ViewModelBase, IViewState
     {
         private readonly IEncryptionCode _encryption;
         [ObservableProperty] private string _inputText = string.Empty;
         [ObservableProperty] private string _outputText = string.Empty;
 
-        public Base64ViewModel()
+        string IViewState.ViewName => "base64View";
+
+        public Base64ViewModel(IViewStateService viewStateService)
         {
             _encryption = new Base64Encryption();
+            viewStateService.Register(this);
+        }
+
+        object IViewState.CaptureState() => new Base64ViewState
+        {
+            InputText = InputText
+        };
+
+        void IViewState.RestoreState(object state)
+        {
+            if (state is Base64ViewState s)
+            {
+                InputText = s.InputText;
+            }
         }
 
         [RelayCommand]

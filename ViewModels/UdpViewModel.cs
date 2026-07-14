@@ -3,15 +3,17 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using LittleFancyToolAva.Models;
+using LittleFancyToolAva.Models.ViewStates;
 using LittleFancyToolAva.Services;
 using LittleFancyToolAva.Utils;
 
 namespace LittleFancyToolAva.ViewModels
 {
-    public partial class UdpViewModel : ViewModelBase, IDisposable
+    public partial class UdpViewModel : ViewModelBase, IDisposable, IViewState, IViewLifecycle
     {
         private readonly IUdpService _udpService;
         private readonly INotificationService _notificationService;
+        private readonly IViewStateService _viewStateService;
         private CancellationTokenSource? _cts;
         private CancellationTokenSource? _pollCts;
         private DispatcherTimer? _elapsedTimer;
@@ -82,27 +84,82 @@ namespace LittleFancyToolAva.ViewModels
         [ObservableProperty]
         private bool _isPolling;
 
-        public UdpViewModel(IUdpService udpService, INotificationService notificationService)
+        string IViewState.ViewName => "udpView";
+
+        public UdpViewModel(IUdpService udpService, INotificationService notificationService, IViewStateService viewStateService)
         {
             _udpService = udpService;
             _notificationService = notificationService;
-            _udpService.BytesReceived += OnBytesReceived;
-            _udpService.DataSent += OnDataSent;
-            _udpService.StatusChanged += OnStatusChanged;
+            _viewStateService = viewStateService;
+            _viewStateService.Register(this);
         }
 
         public void Dispose()
         {
             if (_disposed) return;
             _disposed = true;
+            ((IViewLifecycle)this).OnNavigatedFrom();
+            _viewStateService.Unregister(this);
+        }
+
+        void IViewLifecycle.OnNavigatedTo()
+        {
+            _udpService.BytesReceived += OnBytesReceived;
+            _udpService.DataSent += OnDataSent;
+            _udpService.StatusChanged += OnStatusChanged;
+            if (IsRunning)
+            {
+                StartElapsedTimer();
+            }
+        }
+
+        void IViewLifecycle.OnNavigatedFrom()
+        {
             _udpService.BytesReceived -= OnBytesReceived;
             _udpService.DataSent -= OnDataSent;
             _udpService.StatusChanged -= OnStatusChanged;
             _cts?.Cancel();
             _cts?.Dispose();
+            _cts = null;
             _pollCts?.Cancel();
             _pollCts?.Dispose();
+            _pollCts = null;
             StopElapsedTimer();
+        }
+
+        object IViewState.CaptureState() => new UdpViewState
+        {
+            ModeIndex = ModeIndex,
+            LocalAddress = LocalAddress,
+            LocalPort = LocalPort,
+            MulticastAddress = MulticastAddress,
+            MulticastPort = MulticastPort,
+            RemoteAddress = RemoteAddress,
+            RemotePort = RemotePort,
+            SendText = SendText,
+            IsHexSend = IsHexSend,
+            IsHexDisplay = IsHexDisplay,
+            FrameBreakInterval = FrameBreakInterval,
+            PollInterval = PollInterval
+        };
+
+        void IViewState.RestoreState(object state)
+        {
+            if (state is UdpViewState s)
+            {
+                ModeIndex = s.ModeIndex;
+                LocalAddress = s.LocalAddress;
+                LocalPort = s.LocalPort;
+                MulticastAddress = s.MulticastAddress;
+                MulticastPort = s.MulticastPort;
+                RemoteAddress = s.RemoteAddress;
+                RemotePort = s.RemotePort;
+                SendText = s.SendText;
+                IsHexSend = s.IsHexSend;
+                IsHexDisplay = s.IsHexDisplay;
+                FrameBreakInterval = s.FrameBreakInterval;
+                PollInterval = s.PollInterval;
+            }
         }
 
         private void OnDataSent(byte[] bytes)

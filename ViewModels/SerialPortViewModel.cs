@@ -5,18 +5,21 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using LittleFancyToolAva.Models;
+using LittleFancyToolAva.Models.ViewStates;
 using LittleFancyToolAva.Services;
 using LittleFancyToolAva.Utils;
 
 namespace LittleFancyToolAva.ViewModels
 {
-    public partial class SerialPortViewModel : ViewModelBase, IDisposable
+    public partial class SerialPortViewModel : ViewModelBase, IDisposable, IViewState, IViewLifecycle
     {
         private readonly ISerialPortService _serialPortService;
         private readonly INotificationService _notificationService;
+        private readonly IViewStateService _viewStateService;
         private CancellationTokenSource? _pollCts;
         private DispatcherTimer? _elapsedTimer;
         private DateTime? _connectedAt;
+        private bool _disposed;
 
         public ObservableCollection<string> PortNames { get; } = [];
         public ObservableCollection<string> BaudRates { get; } =
@@ -98,22 +101,80 @@ namespace LittleFancyToolAva.ViewModels
         [ObservableProperty]
         private string _statusDetail = string.Empty;
 
-        public SerialPortViewModel(ISerialPortService serialPortService, INotificationService notificationService)
+        string IViewState.ViewName => "serialPortView";
+
+        public SerialPortViewModel(ISerialPortService serialPortService, INotificationService notificationService, IViewStateService viewStateService)
         {
             _serialPortService = serialPortService;
             _notificationService = notificationService;
-            _serialPortService.BytesReceived += OnBytesReceived;
-            _serialPortService.StatusChanged += OnStatusChanged;
+            _viewStateService = viewStateService;
             RefreshPorts();
+            _viewStateService.Register(this);
         }
 
         public void Dispose()
+        {
+            if (_disposed) return;
+            _disposed = true;
+            ((IViewLifecycle)this).OnNavigatedFrom();
+            _viewStateService.Unregister(this);
+        }
+
+        void IViewLifecycle.OnNavigatedTo()
+        {
+            _serialPortService.BytesReceived += OnBytesReceived;
+            _serialPortService.StatusChanged += OnStatusChanged;
+            if (IsConnected)
+            {
+                StartElapsedTimer();
+            }
+        }
+
+        void IViewLifecycle.OnNavigatedFrom()
         {
             _serialPortService.BytesReceived -= OnBytesReceived;
             _serialPortService.StatusChanged -= OnStatusChanged;
             _pollCts?.Cancel();
             _pollCts?.Dispose();
+            _pollCts = null;
             StopElapsedTimer();
+        }
+
+        object IViewState.CaptureState() => new SerialPortViewState
+        {
+            SelectedPort = SelectedPort,
+            BaudRateIndex = BaudRateIndex,
+            ParityIndex = ParityIndex,
+            DataBitsIndex = DataBitsIndex,
+            StopBitsIndex = StopBitsIndex,
+            EncodingIndex = EncodingIndex,
+            SendText = SendText,
+            IsHexSend = IsHexSend,
+            IsHexDisplay = IsHexDisplay,
+            IsRtsEnabled = IsRtsEnabled,
+            IsDtrEnabled = IsDtrEnabled,
+            PollInterval = PollInterval,
+            FrameBreakInterval = FrameBreakInterval
+        };
+
+        void IViewState.RestoreState(object state)
+        {
+            if (state is SerialPortViewState s)
+            {
+                SelectedPort = s.SelectedPort;
+                BaudRateIndex = s.BaudRateIndex;
+                ParityIndex = s.ParityIndex;
+                DataBitsIndex = s.DataBitsIndex;
+                StopBitsIndex = s.StopBitsIndex;
+                EncodingIndex = s.EncodingIndex;
+                SendText = s.SendText;
+                IsHexSend = s.IsHexSend;
+                IsHexDisplay = s.IsHexDisplay;
+                IsRtsEnabled = s.IsRtsEnabled;
+                IsDtrEnabled = s.IsDtrEnabled;
+                PollInterval = s.PollInterval;
+                FrameBreakInterval = s.FrameBreakInterval;
+            }
         }
 
         private void OnBytesReceived(byte[] bytes)

@@ -4,15 +4,17 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using LittleFancyToolAva.Models;
+using LittleFancyToolAva.Models.ViewStates;
 using LittleFancyToolAva.Services;
 using LittleFancyToolAva.Utils;
 
 namespace LittleFancyToolAva.ViewModels
 {
-    public partial class ModbusPollViewModel : ViewModelBase, IDisposable
+    public partial class ModbusPollViewModel : ViewModelBase, IDisposable, IViewState, IViewLifecycle
     {
         private readonly IModbusPollService _pollService;
         private readonly INotificationService _notificationService;
+        private readonly IViewStateService _viewStateService;
         private CancellationTokenSource? _pollCts;
         private DispatcherTimer? _elapsedTimer;
         private DateTime? _startedAt;
@@ -94,29 +96,82 @@ namespace LittleFancyToolAva.ViewModels
         [ObservableProperty]
         private string _statusDetail = string.Empty;
 
-        public ModbusPollViewModel(IModbusPollService pollService, INotificationService notificationService)
+        string IViewState.ViewName => "modbusPollView";
+
+        public ModbusPollViewModel(IModbusPollService pollService, INotificationService notificationService, IViewStateService viewStateService)
         {
             _pollService = pollService;
             _notificationService = notificationService;
-            _pollService.LogReceived += OnLogReceived;
-            _pollService.StatusChanged += OnStatusChanged;
-            _pollService.ValueRefreshed += OnValueRefreshed;
-            _pollService.StatsUpdated += OnStatsUpdated;
+            _viewStateService = viewStateService;
             RefreshPorts();
+            _viewStateService.Register(this);
         }
 
         public void Dispose()
         {
             if (_disposed) return;
             _disposed = true;
+            ((IViewLifecycle)this).OnNavigatedFrom();
+            _viewStateService.Unregister(this);
+        }
+
+        void IViewLifecycle.OnNavigatedTo()
+        {
+            _pollService.LogReceived += OnLogReceived;
+            _pollService.StatusChanged += OnStatusChanged;
+            _pollService.ValueRefreshed += OnValueRefreshed;
+            _pollService.StatsUpdated += OnStatsUpdated;
+            if (IsConnected)
+            {
+                StartElapsedTimer();
+            }
+        }
+
+        void IViewLifecycle.OnNavigatedFrom()
+        {
             _pollService.LogReceived -= OnLogReceived;
             _pollService.StatusChanged -= OnStatusChanged;
             _pollService.ValueRefreshed -= OnValueRefreshed;
             _pollService.StatsUpdated -= OnStatsUpdated;
             _pollCts?.Cancel();
             _pollCts?.Dispose();
-            _elapsedTimer?.Stop();
-            _elapsedTimer = null;
+            _pollCts = null;
+            StopElapsedTimer();
+        }
+
+        object IViewState.CaptureState() => new ModbusPollViewState
+        {
+            SelectedPort = SelectedPort,
+            BaudRateIndex = BaudRateIndex,
+            ParityIndex = ParityIndex,
+            DataBitsIndex = DataBitsIndex,
+            StopBitsIndex = StopBitsIndex,
+            FunctionCodeIndex = FunctionCodeIndex,
+            SlaveId = SlaveId,
+            StartAddress = StartAddress,
+            Quantity = Quantity,
+            ScanTime = ScanTime,
+            WriteAddress = WriteAddress,
+            WriteValue = WriteValue
+        };
+
+        void IViewState.RestoreState(object state)
+        {
+            if (state is ModbusPollViewState s)
+            {
+                SelectedPort = s.SelectedPort;
+                BaudRateIndex = s.BaudRateIndex;
+                ParityIndex = s.ParityIndex;
+                DataBitsIndex = s.DataBitsIndex;
+                StopBitsIndex = s.StopBitsIndex;
+                FunctionCodeIndex = s.FunctionCodeIndex;
+                SlaveId = s.SlaveId;
+                StartAddress = s.StartAddress;
+                Quantity = s.Quantity;
+                ScanTime = s.ScanTime;
+                WriteAddress = s.WriteAddress;
+                WriteValue = s.WriteValue;
+            }
         }
 
         private void OnLogReceived(string log)

@@ -8,11 +8,13 @@ namespace LittleFancyToolAva.Services
     {
         private readonly FileService _fileService;
         private readonly AppObserveModel _appObserveModel;
+        private readonly IViewStateService _viewStateService;
 
-        public ApplicationHostService(FileService fileService, AppObserveModel appObserveModel)
+        public ApplicationHostService(FileService fileService, AppObserveModel appObserveModel, IViewStateService viewStateService)
         {
             _fileService = fileService;
             _appObserveModel = appObserveModel;
+            _viewStateService = viewStateService;
         }
 
         public void LoadState()
@@ -31,11 +33,24 @@ namespace LittleFancyToolAva.Services
             }
         }
 
+        public void LoadViewStates()
+        {
+            try
+            {
+                _viewStateService.LoadAll();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[AppHost] LoadViewStates failed: {ex.Message}");
+            }
+        }
+
         public void SaveState()
         {
             try
             {
                 _fileService.SaveState(_appObserveModel);
+                _viewStateService.SaveAll();
             }
             catch (Exception ex)
             {

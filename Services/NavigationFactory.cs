@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using FluentAvalonia.UI.Controls;
+using LittleFancyToolAva.Models.ViewStates;
 using LittleFancyToolAva.ViewModels;
 using LittleFancyToolAva.Views;
 using System;
@@ -26,9 +27,14 @@ namespace LittleFancyToolAva.Services
 
         public Control GetPageFromObject(object target)
         {
-            if (_previousDataContext is IDisposable disposable && _previousDataContext != target)
+            if (_previousDataContext is IViewLifecycle lifecycle && _previousDataContext != target)
             {
-                disposable.Dispose();
+                lifecycle.OnNavigatedFrom();
+            }
+
+            if (_previousDataContext != target && target is IViewLifecycle lifecycle2)
+            {
+                lifecycle2.OnNavigatedTo();
             }
             _previousDataContext = target;
 

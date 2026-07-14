@@ -2,15 +2,19 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using LittleFancyToolAva.Models;
+using LittleFancyToolAva.Models.ViewStates;
 using LittleFancyToolAva.Services;
 
 namespace LittleFancyToolAva.ViewModels;
 
-public partial class FolderCompareViewModel : ViewModelBase
+public partial class FolderCompareViewModel : ViewModelBase, IViewState
 {
     private readonly IFolderCompareService _folderCompareService;
     private readonly IFileDialogService _fileDialogService;
     private readonly INotificationService _notificationService;
+    private readonly IViewStateService _viewStateService;
+
+    string IViewState.ViewName => "folderCompareView";
 
     [ObservableProperty]
     private string _sourceFolder = string.Empty;
@@ -39,11 +43,33 @@ public partial class FolderCompareViewModel : ViewModelBase
     public FolderCompareViewModel(
         IFolderCompareService folderCompareService,
         IFileDialogService fileDialogService,
-        INotificationService notificationService)
+        INotificationService notificationService,
+        IViewStateService viewStateService)
     {
         _folderCompareService = folderCompareService;
         _fileDialogService = fileDialogService;
         _notificationService = notificationService;
+        _viewStateService = viewStateService;
+        _viewStateService.Register(this);
+    }
+
+    object IViewState.CaptureState() => new FolderCompareViewState
+    {
+        SourceFolder = SourceFolder,
+        TargetFolder = TargetFolder,
+        UseHashComparison = UseHashComparison,
+        UseMusicTitleComparison = UseMusicTitleComparison
+    };
+
+    void IViewState.RestoreState(object state)
+    {
+        if (state is FolderCompareViewState s)
+        {
+            SourceFolder = s.SourceFolder;
+            TargetFolder = s.TargetFolder;
+            UseHashComparison = s.UseHashComparison;
+            UseMusicTitleComparison = s.UseMusicTitleComparison;
+        }
     }
 
     [RelayCommand]

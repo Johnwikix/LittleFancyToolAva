@@ -3,16 +3,20 @@ using System.Collections.ObjectModel;
 using System.Text;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using LittleFancyToolAva.Models.ViewStates;
 using LittleFancyToolAva.Services;
 using LittleFancyToolAva.Utils;
 
 namespace LittleFancyToolAva.ViewModels;
 
-public partial class FileEncryptionViewModel : ViewModelBase
+public partial class FileEncryptionViewModel : ViewModelBase, IViewState
 {
     private readonly IFileEncryptionService _fileEncryptionService;
     private readonly IFileDialogService _fileDialogService;
     private readonly INotificationService _notificationService;
+    private readonly IViewStateService _viewStateService;
+
+    string IViewState.ViewName => "fileEncryptionView";
 
     [ObservableProperty]
     private ObservableCollection<string> _selectedFiles = [];
@@ -44,12 +48,28 @@ public partial class FileEncryptionViewModel : ViewModelBase
     public FileEncryptionViewModel(
         IFileEncryptionService fileEncryptionService,
         IFileDialogService fileDialogService,
-        INotificationService notificationService)
+        INotificationService notificationService,
+        IViewStateService viewStateService)
     {
         _fileEncryptionService = fileEncryptionService;
         _fileDialogService = fileDialogService;
         _notificationService = notificationService;
+        _viewStateService = viewStateService;
         GenerateKey();
+        _viewStateService.Register(this);
+    }
+
+    object IViewState.CaptureState() => new FileEncryptionViewState
+    {
+        KeyLengthIndex = KeyLengthIndex
+    };
+
+    void IViewState.RestoreState(object state)
+    {
+        if (state is FileEncryptionViewState s)
+        {
+            KeyLengthIndex = s.KeyLengthIndex;
+        }
     }
 
     [RelayCommand]
