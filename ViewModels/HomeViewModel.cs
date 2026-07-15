@@ -16,11 +16,17 @@ namespace LittleFancyToolAva.ViewModels
         private readonly Random _random = new();
         private SoundPlayer? _player;
 
-        [ObservableProperty]
-        private double _rotationAngle;
+        public double RotationAngle
+        {
+            get;
+            set => SetProperty(ref field, value);
+        }
 
-        [ObservableProperty]
-        private bool _isRotating;
+        public bool IsRotating
+        {
+            get;
+            set => SetProperty(ref field, value);
+        }
 
         public HomeViewModel(AppObserveModel appObserveModel)
         {

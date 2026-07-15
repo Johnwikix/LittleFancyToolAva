@@ -8,8 +8,17 @@ namespace LittleFancyToolAva.ViewModels
 {
     public partial class AesViewModel : SymmetricCipherViewModelBase, IViewState
     {
-        [ObservableProperty]
-        private int _keyLengthIndex;
+        public new int KeyLengthIndex
+        {
+            get;
+            set
+            {
+                if (SetProperty(ref field, value))
+                {
+                    OnKeyLengthIndexChanged(value);
+                }
+            }
+        }
 
         public override int KeyBitLength => KeyLengthIndex switch
         {
@@ -53,7 +62,7 @@ namespace LittleFancyToolAva.ViewModels
             }
         }
 
-        partial void OnKeyLengthIndexChanged(int value)
+        private void OnKeyLengthIndexChanged(int value)
         {
             GenerateSymmetricKey();
         }

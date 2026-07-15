@@ -11,38 +11,71 @@ namespace LittleFancyToolAva.ViewModels
         protected readonly IEncryptionSymmetric _encryption;
         protected readonly INotificationService _notificationService;
 
-        [ObservableProperty]
-        private string _inputText = string.Empty;
+        public string InputText
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = string.Empty;
 
-        [ObservableProperty]
-        private string _outputText = string.Empty;
+        public string OutputText
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = string.Empty;
 
-        [ObservableProperty]
-        private string _key = string.Empty;
+        public string Key
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = string.Empty;
 
-        [ObservableProperty]
-        private string _iv = string.Empty;
+        public string Iv
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = string.Empty;
 
-        [ObservableProperty]
-        private int _paddingIndex;
+        public int PaddingIndex
+        {
+            get;
+            set => SetProperty(ref field, value);
+        }
 
-        [ObservableProperty]
-        private int _encryptModeIndex;
+        public int EncryptModeIndex
+        {
+            get;
+            set => SetProperty(ref field, value);
+        }
 
-        [ObservableProperty]
-        private int _outputTypeIndex;
+        public int OutputTypeIndex
+        {
+            get;
+            set => SetProperty(ref field, value);
+        }
 
-        [ObservableProperty]
-        private int _keyIvTypeIndex;
+        public int KeyIvTypeIndex
+        {
+            get;
+            set => SetProperty(ref field, value);
+        }
 
-        [ObservableProperty]
-        private string _displayTitle = string.Empty;
+        public string DisplayTitle
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = string.Empty;
 
-        [ObservableProperty]
-        private string _displaySubtitle = string.Empty;
+        public string DisplaySubtitle
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = string.Empty;
 
-        [ObservableProperty]
-        private int _keyLengthIndex;
+        public int KeyLengthIndex
+        {
+            get;
+            set => SetProperty(ref field, value);
+        }
 
         public string[] Paddings { get; protected set; } = [];
 

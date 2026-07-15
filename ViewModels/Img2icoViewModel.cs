@@ -18,17 +18,29 @@ public partial class Img2icoViewModel : ViewModelBase, IViewState
     string IViewState.ViewName => "img2icoView";
     private byte[]? _icoBytes;
 
-    [ObservableProperty]
-    private string _imagePath = string.Empty;
+        public string ImagePath
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = string.Empty;
 
-    [ObservableProperty]
-    private Bitmap? _imagePreview;
+        public Bitmap? ImagePreview
+        {
+            get;
+            set => SetProperty(ref field, value);
+        }
 
-    [ObservableProperty]
-    private int _selectedSizeIndex = 2;
+        public int SelectedSizeIndex
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = 2;
 
-    [ObservableProperty]
-    private Bitmap? _icoPreview;
+        public Bitmap? IcoPreview
+        {
+            get;
+            set => SetProperty(ref field, value);
+        }
 
     public List<int> AvailableSizes { get; } = [16, 32, 48, 64, 128, 256];
 

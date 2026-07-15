@@ -4,7 +4,10 @@ namespace LittleFancyToolAva.Models
 {
     public partial class AppObserveModel : ObservableObject
     {
-        [ObservableProperty]
-        private AppPreferences _preferences = new();
+        public AppPreferences Preferences
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = new();
     }
 }

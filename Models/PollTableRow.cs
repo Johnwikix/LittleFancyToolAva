@@ -4,16 +4,28 @@ namespace LittleFancyToolAva.Models
 {
     public partial class PollTableRow : ObservableObject
     {
-        [ObservableProperty]
-        private string _address = string.Empty;
+        public string Address
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = string.Empty;
 
-        [ObservableProperty]
-        private string _valueDec = string.Empty;
+        public string ValueDec
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = string.Empty;
 
-        [ObservableProperty]
-        private string _valueHex = string.Empty;
+        public string ValueHex
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = string.Empty;
 
-        [ObservableProperty]
-        private string _lastUpdate = string.Empty;
+        public string LastUpdate
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = string.Empty;
     }
 }

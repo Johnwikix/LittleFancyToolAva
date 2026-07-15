@@ -36,65 +36,137 @@ namespace LittleFancyToolAva.ViewModels
         public ObservableCollection<PollTableRow> PollRows { get; } = [];
         public LogBuffer Log { get; } = new();
 
-        [ObservableProperty]
-        private string _selectedPort = string.Empty;
+        public string SelectedPort
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = string.Empty;
 
-        [ObservableProperty]
-        private int _baudRateIndex = 4;
+        public int BaudRateIndex
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = 4;
 
-        [ObservableProperty]
-        private int _parityIndex;
+        public int ParityIndex
+        {
+            get;
+            set => SetProperty(ref field, value);
+        }
 
-        [ObservableProperty]
-        private int _dataBitsIndex = 3;
+        public int DataBitsIndex
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = 3;
 
-        [ObservableProperty]
-        private int _stopBitsIndex;
+        public int StopBitsIndex
+        {
+            get;
+            set => SetProperty(ref field, value);
+        }
 
-        [ObservableProperty]
-        private int _functionCodeIndex = 2;
+        public int FunctionCodeIndex
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = 2;
 
-        [ObservableProperty]
-        private string _slaveId = "1";
+        public string SlaveId
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = "1";
 
-        [ObservableProperty]
-        private string _startAddress = "0";
+        public string StartAddress
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = "0";
 
-        [ObservableProperty]
-        private string _quantity = "10";
+        public string Quantity
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = "10";
 
-        [ObservableProperty]
-        private string _scanTime = "1000";
+        public string ScanTime
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = "1000";
 
-        [ObservableProperty]
-        private string _statusText = "就绪";
+        public string StatusText
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = "就绪";
 
-        [ObservableProperty]
-        private bool _isConnected;
+        public bool IsConnected
+        {
+            get;
+            set
+            {
+                if (SetProperty(ref field, value))
+                {
+                    OnIsConnectedChanged(value);
+                }
+            }
+        }
 
-        [ObservableProperty]
-        private bool _isPolling;
+        public bool IsPolling
+        {
+            get;
+            set
+            {
+                if (SetProperty(ref field, value))
+                {
+                    OnIsPollingChanged(value);
+                }
+            }
+        }
 
-        [ObservableProperty]
-        private int _txCount;
+        public int TxCount
+        {
+            get;
+            set => SetProperty(ref field, value);
+        }
 
-        [ObservableProperty]
-        private int _errorCount;
+        public int ErrorCount
+        {
+            get;
+            set => SetProperty(ref field, value);
+        }
 
-        [ObservableProperty]
-        private string _writeAddress = "0";
+        public string WriteAddress
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = "0";
 
-        [ObservableProperty]
-        private string _writeValue = "0";
+        public string WriteValue
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = "0";
 
-        [ObservableProperty]
-        private ConnectionStatus _connectionStatus = ConnectionStatus.Idle;
+        public ConnectionStatus ConnectionStatus
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = ConnectionStatus.Idle;
 
-        [ObservableProperty]
-        private string _elapsedText = "00:00:00";
+        public string ElapsedText
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = "00:00:00";
 
-        [ObservableProperty]
-        private string _statusDetail = string.Empty;
+        public string StatusDetail
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = string.Empty;
 
         string IViewState.ViewName => "modbusPollView";
 
@@ -209,7 +281,7 @@ namespace LittleFancyToolAva.ViewModels
             });
         }
 
-        partial void OnIsConnectedChanged(bool value)
+        private void OnIsConnectedChanged(bool value)
         {
             if (value)
             {
@@ -224,7 +296,7 @@ namespace LittleFancyToolAva.ViewModels
             }
         }
 
-        partial void OnIsPollingChanged(bool value)
+        private void OnIsPollingChanged(bool value)
         {
             if (value) StartElapsedTimer();
             else StopElapsedTimer();

@@ -16,17 +16,29 @@ public partial class ImgConvertViewModel : ViewModelBase, IViewState
 
     string IViewState.ViewName => "imgConvertView";
 
-    [ObservableProperty]
-    private string _imagePath = string.Empty;
+        public string ImagePath
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = string.Empty;
 
-    [ObservableProperty]
-    private Bitmap? _imagePreview;
+        public Bitmap? ImagePreview
+        {
+            get;
+            set => SetProperty(ref field, value);
+        }
 
-    [ObservableProperty]
-    private int _formatIndex;
+        public int FormatIndex
+        {
+            get;
+            set => SetProperty(ref field, value);
+        }
 
-    [ObservableProperty]
-    private string _convertedPath = string.Empty;
+        public string ConvertedPath
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = string.Empty;
 
     public List<string> AvailableFormats { get; } = ["jpg", "png", "gif", "bmp", "webp", "tiff"];
 

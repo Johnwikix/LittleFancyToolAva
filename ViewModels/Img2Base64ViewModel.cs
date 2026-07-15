@@ -16,19 +16,36 @@ public partial class Img2Base64ViewModel : ViewModelBase
     private readonly IFileDialogService _fileDialogService;
     private readonly INotificationService _notificationService;
 
-    [ObservableProperty]
-    private string _imagePath = string.Empty;
+    public string ImagePath
+    {
+        get;
+        set => SetProperty(ref field, value);
+    } = string.Empty;
 
-    [ObservableProperty]
-    private Bitmap? _imagePreview;
+    public Bitmap? ImagePreview
+    {
+        get;
+        set => SetProperty(ref field, value);
+    }
 
-    [ObservableProperty]
-    private string _base64Input = string.Empty;
+    public string Base64Input
+    {
+        get;
+        set => SetProperty(ref field, value);
+    } = string.Empty;
 
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(Base64Preview))]
-    [NotifyPropertyChangedFor(nameof(Base64Length))]
-    private string _base64Output = string.Empty;
+    public string Base64Output
+    {
+        get;
+        set
+        {
+            if (SetProperty(ref field, value))
+            {
+                OnPropertyChanged(nameof(Base64Preview));
+                OnPropertyChanged(nameof(Base64Length));
+            }
+        }
+    } = string.Empty;
 
     public string Base64Preview => TruncateBase64(Base64Output);
 

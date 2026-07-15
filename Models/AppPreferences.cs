@@ -13,25 +13,49 @@ namespace LittleFancyToolAva.Models
 
     public partial class AppPreferences : ObservableObject
     {
-        [ObservableProperty]
-        private int _themeIndex = (int)ThemeMode.System;
+        public int ThemeIndex
+        {
+            get;
+            set
+            {
+                if (SetProperty(ref field, value))
+                {
+                    OnThemeIndexChanged(value);
+                }
+            }
+        } = (int)ThemeMode.System;
 
-        [ObservableProperty]
-        private bool _isAnimationOn = true;
+        public bool IsAnimationOn
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = true;
 
-        [ObservableProperty]
-        private bool _isShadowOn = true;
+        public bool IsShadowOn
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = true;
 
-        [ObservableProperty]
-        private bool _isScrollBarHidden;
+        public bool IsScrollBarHidden
+        {
+            get;
+            set => SetProperty(ref field, value);
+        }
 
-        [ObservableProperty]
-        private bool _isMessageInWindow = true;
+        public bool IsMessageInWindow
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = true;
 
-        [ObservableProperty]
-        private int _noticeWindowOffsetXY = 50;
+        public int NoticeWindowOffsetXY
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = 50;
 
-        partial void OnThemeIndexChanged(int value)
+        private void OnThemeIndexChanged(int value)
         {
             if (Application.Current is { } app)
             {

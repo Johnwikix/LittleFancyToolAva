@@ -7,20 +7,35 @@ namespace LittleFancyToolAva.ViewModels
     {
         protected readonly IEncryptionAbstract _encryption;
 
-        [ObservableProperty]
-        private string _inputText = string.Empty;
+        public string InputText
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = string.Empty;
 
-        [ObservableProperty]
-        private string _outputText = string.Empty;
+        public string OutputText
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = string.Empty;
 
-        [ObservableProperty]
-        private int _caseIndex;
+        public int CaseIndex
+        {
+            get;
+            set => SetProperty(ref field, value);
+        }
 
-        [ObservableProperty]
-        private string _displayTitle = string.Empty;
+        public string DisplayTitle
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = string.Empty;
 
-        [ObservableProperty]
-        private string _displaySubtitle = string.Empty;
+        public string DisplaySubtitle
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = string.Empty;
 
         public string[] Cases { get; } = ["UPPER", "lower"];
 

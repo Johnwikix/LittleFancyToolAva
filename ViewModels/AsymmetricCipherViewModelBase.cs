@@ -7,23 +7,41 @@ namespace LittleFancyToolAva.ViewModels
     {
         protected readonly IEncryptionAsymmetric _encryption;
 
-        [ObservableProperty]
-        private string _inputText = string.Empty;
+        public string InputText
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = string.Empty;
 
-        [ObservableProperty]
-        private string _outputText = string.Empty;
+        public string OutputText
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = string.Empty;
 
-        [ObservableProperty]
-        private string _publicKey = string.Empty;
+        public string PublicKey
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = string.Empty;
 
-        [ObservableProperty]
-        private string _privateKey = string.Empty;
+        public string PrivateKey
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = string.Empty;
 
-        [ObservableProperty]
-        private string _displayTitle = string.Empty;
+        public string DisplayTitle
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = string.Empty;
 
-        [ObservableProperty]
-        private string _displaySubtitle = string.Empty;
+        public string DisplaySubtitle
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = string.Empty;
 
         protected AsymmetricCipherViewModelBase(IEncryptionAsymmetric encryption)
         {

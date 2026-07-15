@@ -18,32 +18,65 @@ public partial class FileEncryptionViewModel : ViewModelBase, IViewState
 
     string IViewState.ViewName => "fileEncryptionView";
 
-    [ObservableProperty]
-    private ObservableCollection<string> _selectedFiles = [];
+        public ObservableCollection<string> SelectedFiles
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = [];
 
-    [ObservableProperty]
-    private string _selectedFilesDisplay = string.Empty;
+        public string SelectedFilesDisplay
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = string.Empty;
 
-    [ObservableProperty]
-    private string _outputDirectory = string.Empty;
+        public string OutputDirectory
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = string.Empty;
 
-    [ObservableProperty]
-    private string _key = string.Empty;
+        public string Key
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = string.Empty;
 
-    [ObservableProperty]
-    private string _iv = string.Empty;
+        public string Iv
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = string.Empty;
 
-    [ObservableProperty]
-    private int _keyLengthIndex;
+        public int KeyLengthIndex
+        {
+            get;
+            set
+            {
+                if (SetProperty(ref field, value))
+                {
+                    OnKeyLengthIndexChanged(value);
+                }
+            }
+        }
 
-    [ObservableProperty]
-    private double _progressValue;
+        public double ProgressValue
+        {
+            get;
+            set => SetProperty(ref field, value);
+        }
 
-    [ObservableProperty]
-    private bool _isProcessing;
+        public bool IsProcessing
+        {
+            get;
+            set => SetProperty(ref field, value);
+        }
 
-    [ObservableProperty]
-    private string _outputLog = string.Empty;
+        public string OutputLog
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = string.Empty;
 
     public FileEncryptionViewModel(
         IFileEncryptionService fileEncryptionService,
@@ -103,7 +136,7 @@ public partial class FileEncryptionViewModel : ViewModelBase, IViewState
         Iv = ToolMethod.GenerateSymmetricKey(128, "hex");
     }
 
-    partial void OnKeyLengthIndexChanged(int value)
+    private void OnKeyLengthIndexChanged(int value)
     {
         GenerateKey();
     }

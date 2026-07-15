@@ -9,24 +9,33 @@ namespace LittleFancyToolAva.Models
     {
         public PageNavigationItem(string label, FASymbol icon)
         {
-            _label = label;
-            _iconSource = new FASymbolIconSource { Symbol = icon };
+            Label = label;
+            IconSource = new FASymbolIconSource { Symbol = icon };
         }
 
         public PageNavigationItem(string label, FASymbol icon, ViewModelBase content)
             : this(label, icon)
         {
-            _content = content;
+            Content = content;
         }
 
-        [ObservableProperty]
-        private string _label = string.Empty;
+        public string Label
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = string.Empty;
 
-        [ObservableProperty]
-        private FAIconSource _iconSource;
+        public FAIconSource IconSource
+        {
+            get;
+            set => SetProperty(ref field, value);
+        }
 
-        [ObservableProperty]
-        private ViewModelBase? _content;
+        public ViewModelBase? Content
+        {
+            get;
+            set => SetProperty(ref field, value);
+        }
 
         public ObservableCollection<PageNavigationItem> Children { get; } = new();
 

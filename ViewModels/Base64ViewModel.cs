@@ -10,8 +10,17 @@ namespace LittleFancyToolAva.ViewModels
     public partial class Base64ViewModel : ViewModelBase, IViewState
     {
         private readonly IEncryptionCode _encryption;
-        [ObservableProperty] private string _inputText = string.Empty;
-        [ObservableProperty] private string _outputText = string.Empty;
+        public string InputText
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = string.Empty;
+
+        public string OutputText
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = string.Empty;
 
         string IViewState.ViewName => "base64View";
 

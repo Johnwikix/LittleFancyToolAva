@@ -9,8 +9,11 @@ namespace LittleFancyToolAva.ViewModels
 {
     public partial class ShaViewModel : HashViewModelBase, IViewState
     {
-        [ObservableProperty]
-        private int _modeIndex;
+        public int ModeIndex
+        {
+            get;
+            set => SetProperty(ref field, value);
+        }
 
         private readonly string[] _modes = ["SHA1", "SHA256", "SHA384", "SHA512"];
 

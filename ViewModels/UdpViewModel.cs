@@ -22,67 +22,139 @@ namespace LittleFancyToolAva.ViewModels
 
         public LogBuffer Log { get; } = new();
 
-        [ObservableProperty]
-        private int _modeIndex;
+        public int ModeIndex
+        {
+            get;
+            set => SetProperty(ref field, value);
+        }
 
-        [ObservableProperty]
-        private string _localAddress = "0.0.0.0";
+        public string LocalAddress
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = "0.0.0.0";
 
-        [ObservableProperty]
-        private string _localPort = "8080";
+        public string LocalPort
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = "8080";
 
-        [ObservableProperty]
-        private string _multicastAddress = "239.0.0.1";
+        public string MulticastAddress
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = "239.0.0.1";
 
-        [ObservableProperty]
-        private string _multicastPort = "8080";
+        public string MulticastPort
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = "8080";
 
-        [ObservableProperty]
-        private string _remoteAddress = "127.0.0.1";
+        public string RemoteAddress
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = "127.0.0.1";
 
-        [ObservableProperty]
-        private string _remotePort = "9090";
+        public string RemotePort
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = "9090";
 
-        [ObservableProperty]
-        private string _sendText = string.Empty;
+        public string SendText
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = string.Empty;
 
-        [ObservableProperty]
-        private string _statusText = "就绪";
+        public string StatusText
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = "就绪";
 
-        [ObservableProperty]
-        private bool _isHexSend;
+        public bool IsHexSend
+        {
+            get;
+            set => SetProperty(ref field, value);
+        }
 
-        [ObservableProperty]
-        private bool _isHexDisplay;
+        public bool IsHexDisplay
+        {
+            get;
+            set => SetProperty(ref field, value);
+        }
 
-        [ObservableProperty]
-        private bool _isRunning;
+        public bool IsRunning
+        {
+            get;
+            set
+            {
+                if (SetProperty(ref field, value))
+                {
+                    OnIsRunningChanged(value);
+                }
+            }
+        }
 
         public bool IsAnyActive => IsRunning;
 
-        [ObservableProperty]
-        private ConnectionStatus _connectionStatus = ConnectionStatus.Idle;
+        public ConnectionStatus ConnectionStatus
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = ConnectionStatus.Idle;
 
-        [ObservableProperty]
-        private int _rxCount;
+        public int RxCount
+        {
+            get;
+            set => SetProperty(ref field, value);
+        }
 
-        [ObservableProperty]
-        private int _txCount;
+        public int TxCount
+        {
+            get;
+            set => SetProperty(ref field, value);
+        }
 
-        [ObservableProperty]
-        private string _elapsedText = "00:00:00";
+        public string ElapsedText
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = "00:00:00";
 
-        [ObservableProperty]
-        private string _statusDetail = string.Empty;
+        public string StatusDetail
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = string.Empty;
 
-        [ObservableProperty]
-        private int _frameBreakInterval = 20;
+        public int FrameBreakInterval
+        {
+            get;
+            set
+            {
+                if (SetProperty(ref field, value))
+                {
+                    OnFrameBreakIntervalChanged(value);
+                }
+            }
+        } = 20;
 
-        [ObservableProperty]
-        private int _pollInterval = 1000;
+        public int PollInterval
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = 1000;
 
-        [ObservableProperty]
-        private bool _isPolling;
+        public bool IsPolling
+        {
+            get;
+            set => SetProperty(ref field, value);
+        }
 
         string IViewState.ViewName => "udpView";
 
@@ -210,7 +282,7 @@ namespace LittleFancyToolAva.ViewModels
             ElapsedText = "00:00:00";
         }
 
-        partial void OnIsRunningChanged(bool value)
+        private void OnIsRunningChanged(bool value)
         {
             OnPropertyChanged(nameof(IsAnyActive));
             if (value)
@@ -330,6 +402,7 @@ namespace LittleFancyToolAva.ViewModels
             {
                 while (!localCts.Token.IsCancellationRequested)
                 {
+                    if (!IsRunning) break;
                     await _udpService.SendAsync(SendText, IsHexSend, targetAddr, targetPort);
                     AppendTxLog(SendText);
                     TxCount++;
@@ -371,7 +444,7 @@ namespace LittleFancyToolAva.ViewModels
             }
         }
 
-        partial void OnFrameBreakIntervalChanged(int value)
+        private void OnFrameBreakIntervalChanged(int value)
         {
             _udpService.SetFrameBreakInterval(value);
         }

@@ -9,8 +9,11 @@ namespace LittleFancyToolAva.ViewModels
 {
     public partial class Md5ViewModel : HashViewModelBase, IViewState
     {
-        [ObservableProperty]
-        private int _outputLengthIndex;
+        public int OutputLengthIndex
+        {
+            get;
+            set => SetProperty(ref field, value);
+        }
 
         private readonly int[] _lengths = [32, 16];
 

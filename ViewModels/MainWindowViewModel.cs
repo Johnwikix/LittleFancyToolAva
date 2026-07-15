@@ -16,8 +16,17 @@ namespace LittleFancyToolAva.ViewModels
 
         public ObservableCollection<PageNavigationItem> FooterPages { get; }
 
-        [ObservableProperty]
-        private object? _selectedPage;
+        public object? SelectedPage
+        {
+            get;
+            set
+            {
+                if (SetProperty(ref field, value))
+                {
+                    OnSelectedPageChanged(value);
+                }
+            }
+        }
 
         public MainWindowViewModel(AppObserveModel appObserveModel, IServiceProvider serviceProvider)
         {
@@ -97,7 +106,7 @@ namespace LittleFancyToolAva.ViewModels
             return category;
         }
 
-        partial void OnSelectedPageChanged(object? value)
+        private void OnSelectedPageChanged(object? value)
         {
             if (value is PageNavigationItem item && item.Content != null)
             {

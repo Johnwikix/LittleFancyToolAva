@@ -38,68 +38,149 @@ namespace LittleFancyToolAva.ViewModels
 
         public LogBuffer Log { get; } = new();
 
-        [ObservableProperty]
-        private string _selectedPort = string.Empty;
+        public string SelectedPort
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = string.Empty;
 
-        [ObservableProperty]
-        private int _baudRateIndex;
+        public int BaudRateIndex
+        {
+            get;
+            set => SetProperty(ref field, value);
+        }
 
-        [ObservableProperty]
-        private int _parityIndex;
+        public int ParityIndex
+        {
+            get;
+            set => SetProperty(ref field, value);
+        }
 
-        [ObservableProperty]
-        private int _dataBitsIndex = 3;
+        public int DataBitsIndex
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = 3;
 
-        [ObservableProperty]
-        private int _stopBitsIndex;
+        public int StopBitsIndex
+        {
+            get;
+            set => SetProperty(ref field, value);
+        }
 
-        [ObservableProperty]
-        private int _encodingIndex;
+        public int EncodingIndex
+        {
+            get;
+            set
+            {
+                if (SetProperty(ref field, value))
+                {
+                    OnEncodingIndexChanged(value);
+                }
+            }
+        }
 
-        [ObservableProperty]
-        private string _sendText = string.Empty;
+        public string SendText
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = string.Empty;
 
-        [ObservableProperty]
-        private string _statusText = "就绪";
+        public string StatusText
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = "就绪";
 
-        [ObservableProperty]
-        private bool _isHexSend;
+        public bool IsHexSend
+        {
+            get;
+            set => SetProperty(ref field, value);
+        }
 
-        [ObservableProperty]
-        private bool _isHexDisplay;
+        public bool IsHexDisplay
+        {
+            get;
+            set => SetProperty(ref field, value);
+        }
 
-        [ObservableProperty]
-        private bool _isPolling;
+        public bool IsPolling
+        {
+            get;
+            set => SetProperty(ref field, value);
+        }
 
-        [ObservableProperty]
-        private int _pollInterval = 1000;
+        public int PollInterval
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = 1000;
 
-        [ObservableProperty]
-        private int _frameBreakInterval = 20;
+        public int FrameBreakInterval
+        {
+            get;
+            set
+            {
+                if (SetProperty(ref field, value))
+                {
+                    OnFrameBreakIntervalChanged(value);
+                }
+            }
+        } = 20;
 
-        [ObservableProperty]
-        private bool _isRtsEnabled;
+        public bool IsRtsEnabled
+        {
+            get;
+            set => SetProperty(ref field, value);
+        }
 
-        [ObservableProperty]
-        private bool _isDtrEnabled;
+        public bool IsDtrEnabled
+        {
+            get;
+            set => SetProperty(ref field, value);
+        }
 
-        [ObservableProperty]
-        private bool _isConnected;
+        public bool IsConnected
+        {
+            get;
+            set
+            {
+                if (SetProperty(ref field, value))
+                {
+                    OnIsConnectedChanged(value);
+                }
+            }
+        }
 
-        [ObservableProperty]
-        private ConnectionStatus _connectionStatus = ConnectionStatus.Idle;
+        public ConnectionStatus ConnectionStatus
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = ConnectionStatus.Idle;
 
-        [ObservableProperty]
-        private int _rxCount;
+        public int RxCount
+        {
+            get;
+            set => SetProperty(ref field, value);
+        }
 
-        [ObservableProperty]
-        private int _txCount;
+        public int TxCount
+        {
+            get;
+            set => SetProperty(ref field, value);
+        }
 
-        [ObservableProperty]
-        private string _elapsedText = "00:00:00";
+        public string ElapsedText
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = "00:00:00";
 
-        [ObservableProperty]
-        private string _statusDetail = string.Empty;
+        public string StatusDetail
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = string.Empty;
 
         string IViewState.ViewName => "serialPortView";
 
@@ -225,7 +306,7 @@ namespace LittleFancyToolAva.ViewModels
             });
         }
 
-        partial void OnIsConnectedChanged(bool value)
+        private void OnIsConnectedChanged(bool value)
         {
             if (value)
             {
@@ -419,6 +500,7 @@ namespace LittleFancyToolAva.ViewModels
             {
                 while (!localCts.Token.IsCancellationRequested)
                 {
+                    if (!IsConnected) break;
                     await _serialPortService.SendAsync(SendText, IsHexSend, encoding);
                     AppendTxLog(SendText, encoding);
                     TxCount++;
@@ -445,12 +527,12 @@ namespace LittleFancyToolAva.ViewModels
             _pollCts?.Cancel();
         }
 
-        partial void OnFrameBreakIntervalChanged(int value)
+        private void OnFrameBreakIntervalChanged(int value)
         {
             _serialPortService.SetFrameBreakInterval(value);
         }
 
-        partial void OnEncodingIndexChanged(int value)
+        private void OnEncodingIndexChanged(int value)
         {
             if (value == 0)
             {

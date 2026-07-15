@@ -4,16 +4,28 @@ namespace LittleFancyToolAva.Models
 {
     public partial class SlaveTableRow : ObservableObject
     {
-        [ObservableProperty]
-        private string _address = string.Empty;
+        public string Address
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = string.Empty;
 
-        [ObservableProperty]
-        private string _value = string.Empty;
+        public string Value
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = string.Empty;
 
-        [ObservableProperty]
-        private bool _enabled;
+        public bool Enabled
+        {
+            get;
+            set => SetProperty(ref field, value);
+        }
 
-        [ObservableProperty]
-        private string _lastUpdate = string.Empty;
+        public string LastUpdate
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = string.Empty;
     }
 }

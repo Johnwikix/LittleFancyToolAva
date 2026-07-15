@@ -16,29 +16,53 @@ public partial class FolderCompareViewModel : ViewModelBase, IViewState
 
     string IViewState.ViewName => "folderCompareView";
 
-    [ObservableProperty]
-    private string _sourceFolder = string.Empty;
+    public string SourceFolder
+    {
+        get;
+        set => SetProperty(ref field, value);
+    } = string.Empty;
 
-    [ObservableProperty]
-    private string _targetFolder = string.Empty;
+    public string TargetFolder
+    {
+        get;
+        set => SetProperty(ref field, value);
+    } = string.Empty;
 
-    [ObservableProperty]
-    private bool _useHashComparison = true;
+    public bool UseHashComparison
+    {
+        get;
+        set => SetProperty(ref field, value);
+    } = true;
 
-    [ObservableProperty]
-    private bool _useMusicTitleComparison;
+    public bool UseMusicTitleComparison
+    {
+        get;
+        set => SetProperty(ref field, value);
+    }
 
-    [ObservableProperty]
-    private bool _isComparing;
+    public bool IsComparing
+    {
+        get;
+        set => SetProperty(ref field, value);
+    }
 
-    [ObservableProperty]
-    private double _progressValue;
+    public double ProgressValue
+    {
+        get;
+        set => SetProperty(ref field, value);
+    }
 
-    [ObservableProperty]
-    private ObservableCollection<FolderCompareResult> _compareResults = [];
+    public ObservableCollection<FolderCompareResult> CompareResults
+    {
+        get;
+        set => SetProperty(ref field, value);
+    } = [];
 
-    [ObservableProperty]
-    private string _statusText = string.Empty;
+    public string StatusText
+    {
+        get;
+        set => SetProperty(ref field, value);
+    } = string.Empty;
 
     public FolderCompareViewModel(
         IFolderCompareService folderCompareService,

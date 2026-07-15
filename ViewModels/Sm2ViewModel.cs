@@ -9,8 +9,11 @@ namespace LittleFancyToolAva.ViewModels
 {
     public partial class Sm2ViewModel : AsymmetricCipherViewModelBase, IViewState
     {
-        [ObservableProperty]
-        private int _modeIndex;
+        public int ModeIndex
+        {
+            get;
+            set => SetProperty(ref field, value);
+        }
 
         private readonly string[] _modes = ["C1C2C3", "C1C3C2"];
 

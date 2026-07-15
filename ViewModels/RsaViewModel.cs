@@ -9,14 +9,23 @@ namespace LittleFancyToolAva.ViewModels
 {
     public partial class RsaViewModel : AsymmetricCipherViewModelBase, IViewState
     {
-        [ObservableProperty]
-        private int _paddingIndex;
+        public int PaddingIndex
+        {
+            get;
+            set => SetProperty(ref field, value);
+        }
 
-        [ObservableProperty]
-        private int _keyLengthIndex;
+        public int KeyLengthIndex
+        {
+            get;
+            set => SetProperty(ref field, value);
+        }
 
-        [ObservableProperty]
-        private int _keyFormatIndex;
+        public int KeyFormatIndex
+        {
+            get;
+            set => SetProperty(ref field, value);
+        }
 
         private readonly int[] _keyLengths = [1024, 2048, 4096];
         private readonly string[] _paddings = ["Pkcs1", "OaepSHA1", "OaepSHA256", "OaepSHA384", "OaepSHA512"];

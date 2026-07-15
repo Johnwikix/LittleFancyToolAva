@@ -12,15 +12,27 @@ public enum CompareState
 
 public partial class FolderCompareResult : ObservableObject
 {
-    [ObservableProperty]
-    private string _relativePath = string.Empty;
+    public string RelativePath
+    {
+        get;
+        set => SetProperty(ref field, value);
+    } = string.Empty;
 
-    [ObservableProperty]
-    private CompareState _state;
+    public CompareState State
+    {
+        get;
+        set => SetProperty(ref field, value);
+    }
 
-    [ObservableProperty]
-    private string? _sourceDetail;
+    public string? SourceDetail
+    {
+        get;
+        set => SetProperty(ref field, value);
+    }
 
-    [ObservableProperty]
-    private string? _targetDetail;
+    public string? TargetDetail
+    {
+        get;
+        set => SetProperty(ref field, value);
+    }
 }

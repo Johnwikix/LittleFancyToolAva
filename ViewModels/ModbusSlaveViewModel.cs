@@ -35,62 +35,125 @@ namespace LittleFancyToolAva.ViewModels
         public ObservableCollection<SlaveTableRow> HoldingRegisters => _slaveService.HoldingRegisters;
         public LogBuffer Log { get; } = new();
 
-        [ObservableProperty]
-        private string _selectedPort = string.Empty;
+        public string SelectedPort
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = string.Empty;
 
-        [ObservableProperty]
-        private int _baudRateIndex = 4;
+        public int BaudRateIndex
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = 4;
 
-        [ObservableProperty]
-        private int _parityIndex;
+        public int ParityIndex
+        {
+            get;
+            set => SetProperty(ref field, value);
+        }
 
-        [ObservableProperty]
-        private int _dataBitsIndex = 3;
+        public int DataBitsIndex
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = 3;
 
-        [ObservableProperty]
-        private int _stopBitsIndex;
+        public int StopBitsIndex
+        {
+            get;
+            set => SetProperty(ref field, value);
+        }
 
-        [ObservableProperty]
-        private string _slaveId = "1";
+        public string SlaveId
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = "1";
 
-        [ObservableProperty]
-        private string _coilCount = "16";
+        public string CoilCount
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = "16";
 
-        [ObservableProperty]
-        private string _registerCount = "16";
+        public string RegisterCount
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = "16";
 
-        [ObservableProperty]
-        private string _statusText = "就绪";
+        public string StatusText
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = "就绪";
 
-        [ObservableProperty]
-        private bool _isRunning;
+        public bool IsRunning
+        {
+            get;
+            set
+            {
+                if (SetProperty(ref field, value))
+                {
+                    OnIsRunningChanged(value);
+                }
+            }
+        }
 
-        [ObservableProperty]
-        private string _selectedCoilIndex = "0";
+        public string SelectedCoilIndex
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = "0";
 
-        [ObservableProperty]
-        private bool _selectedCoilValue;
+        public bool SelectedCoilValue
+        {
+            get;
+            set => SetProperty(ref field, value);
+        }
 
-        [ObservableProperty]
-        private string _selectedRegisterIndex = "0";
+        public string SelectedRegisterIndex
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = "0";
 
-        [ObservableProperty]
-        private string _selectedRegisterValue = "0";
+        public string SelectedRegisterValue
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = "0";
 
-        [ObservableProperty]
-        private ConnectionStatus _connectionStatus = ConnectionStatus.Idle;
+        public ConnectionStatus ConnectionStatus
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = ConnectionStatus.Idle;
 
-        [ObservableProperty]
-        private string _elapsedText = "00:00:00";
+        public string ElapsedText
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = "00:00:00";
 
-        [ObservableProperty]
-        private string _statusDetail = string.Empty;
+        public string StatusDetail
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = string.Empty;
 
-        [ObservableProperty]
-        private int _requestCountDisplay;
+        public int RequestCountDisplay
+        {
+            get;
+            set => SetProperty(ref field, value);
+        }
 
-        [ObservableProperty]
-        private int _errorCountDisplay;
+        public int ErrorCountDisplay
+        {
+            get;
+            set => SetProperty(ref field, value);
+        }
 
         string IViewState.ViewName => "modbusSlaveView";
 
@@ -192,7 +255,7 @@ namespace LittleFancyToolAva.ViewModels
             Dispatcher.UIThread.Post(() => StatusText = status);
         }
 
-        partial void OnIsRunningChanged(bool value)
+        private void OnIsRunningChanged(bool value)
         {
             if (value)
             {

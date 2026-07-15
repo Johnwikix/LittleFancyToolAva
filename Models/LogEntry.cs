@@ -4,30 +4,45 @@ namespace LittleFancyToolAva.Models
 {
     public partial class LogEntry : ObservableObject
     {
-        [ObservableProperty]
-        private LogKind _kind;
+        public LogKind Kind
+        {
+            get;
+            set => SetProperty(ref field, value);
+        }
 
-        [ObservableProperty]
-        private string _text = string.Empty;
+        public string Text
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = string.Empty;
 
-        [ObservableProperty]
-        private DateTime _timestamp;
+        public DateTime Timestamp
+        {
+            get;
+            set => SetProperty(ref field, value);
+        }
 
-        [ObservableProperty]
-        private string _timestampText = string.Empty;
+        public string TimestampText
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = string.Empty;
 
-        [ObservableProperty]
-        private string _tag = string.Empty;
+        public string Tag
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = string.Empty;
 
         public LogEntry() { }
 
         public LogEntry(LogKind kind, string text)
         {
-            _kind = kind;
-            _text = text;
-            _timestamp = DateTime.Now;
-            _timestampText = _timestamp.ToString("HH:mm:ss.fff");
-            _tag = kind switch
+            Kind = kind;
+            Text = text;
+            Timestamp = DateTime.Now;
+            TimestampText = Timestamp.ToString("HH:mm:ss.fff");
+            Tag = kind switch
             {
                 LogKind.Tx => "TX",
                 LogKind.Rx => "RX",
