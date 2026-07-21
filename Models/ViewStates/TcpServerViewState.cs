@@ -11,4 +11,6 @@ public class TcpServerViewState
     public bool EnableFrameBreak { get; set; }
     public int FrameBreakInterval { get; set; } = 20;
     public int PollInterval { get; set; } = 1000;
+    public bool EnableSendCount { get; set; }
+    public int SendCount { get; set; } = 1;
 }

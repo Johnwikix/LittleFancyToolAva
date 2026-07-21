@@ -156,6 +156,18 @@ namespace LittleFancyToolAva.ViewModels
             set => SetProperty(ref field, value);
         }
 
+        public bool EnableSendCount
+        {
+            get;
+            set => SetProperty(ref field, value);
+        }
+
+        public int SendCount
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = 1;
+
         string IViewState.ViewName => "udpView";
 
         public UdpViewModel(IUdpService udpService, INotificationService notificationService, IViewStateService viewStateService)
@@ -212,7 +224,9 @@ namespace LittleFancyToolAva.ViewModels
             IsHexSend = IsHexSend,
             IsHexDisplay = IsHexDisplay,
             FrameBreakInterval = FrameBreakInterval,
-            PollInterval = PollInterval
+            PollInterval = PollInterval,
+            EnableSendCount = EnableSendCount,
+            SendCount = SendCount
         };
 
         void IViewState.RestoreState(object state)
@@ -231,6 +245,8 @@ namespace LittleFancyToolAva.ViewModels
                 IsHexDisplay = s.IsHexDisplay;
                 FrameBreakInterval = s.FrameBreakInterval;
                 PollInterval = s.PollInterval;
+                EnableSendCount = s.EnableSendCount;
+                SendCount = s.SendCount;
             }
         }
 
@@ -398,6 +414,7 @@ namespace LittleFancyToolAva.ViewModels
                 ? (int.TryParse(MulticastPort, out int mp) ? mp : int.Parse(LocalPort))
                 : (int.TryParse(RemotePort, out int rp) ? rp : 9090);
             string targetEncoding = Encoding.UTF8.WebName;
+            int sentCount = 0;
             try
             {
                 while (!localCts.Token.IsCancellationRequested)
@@ -406,6 +423,8 @@ namespace LittleFancyToolAva.ViewModels
                     await _udpService.SendAsync(SendText, IsHexSend, targetAddr, targetPort);
                     AppendTxLog(SendText);
                     TxCount++;
+                    sentCount++;
+                    if (EnableSendCount && sentCount >= SendCount) break;
                     await Task.Delay(PollInterval, localCts.Token);
                 }
             }

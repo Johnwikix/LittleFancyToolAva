@@ -116,6 +116,14 @@
                                 <NumericUpDown Grid.Column="1"
                                                Value="{Binding PollInterval, Mode=TwoWay}" />
                             </Grid>
+                            <CheckBox Content="启用发送总数" IsChecked="{Binding EnableSendCount, Mode=TwoWay}" />
+                            <Grid Classes="FormRow" ColumnDefinitions="100,*"
+                                  IsVisible="{Binding EnableSendCount}">
+                                <TextBlock Classes="FieldLabel" Text="发送总数" />
+                                <NumericUpDown Grid.Column="1"
+                                               Minimum="1" Maximum="999999"
+                                               Value="{Binding SendCount, Mode=TwoWay}" />
+                            </Grid>
                             <StackPanel Classes="ActionBar">
                                 <Button Command="{Binding StartPollingCommand}"
                                         Content="定时发送"

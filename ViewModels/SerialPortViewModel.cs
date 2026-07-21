@@ -182,6 +182,18 @@ namespace LittleFancyToolAva.ViewModels
             set => SetProperty(ref field, value);
         } = string.Empty;
 
+        public bool EnableSendCount
+        {
+            get;
+            set => SetProperty(ref field, value);
+        }
+
+        public int SendCount
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = 1;
+
         string IViewState.ViewName => "serialPortView";
 
         public SerialPortViewModel(ISerialPortService serialPortService, INotificationService notificationService, IViewStateService viewStateService)
@@ -235,7 +247,9 @@ namespace LittleFancyToolAva.ViewModels
             IsRtsEnabled = IsRtsEnabled,
             IsDtrEnabled = IsDtrEnabled,
             PollInterval = PollInterval,
-            FrameBreakInterval = FrameBreakInterval
+            FrameBreakInterval = FrameBreakInterval,
+            EnableSendCount = EnableSendCount,
+            SendCount = SendCount
         };
 
         void IViewState.RestoreState(object state)
@@ -255,6 +269,8 @@ namespace LittleFancyToolAva.ViewModels
                 IsDtrEnabled = s.IsDtrEnabled;
                 PollInterval = s.PollInterval;
                 FrameBreakInterval = s.FrameBreakInterval;
+                EnableSendCount = s.EnableSendCount;
+                SendCount = s.SendCount;
             }
         }
 
@@ -496,6 +512,7 @@ namespace LittleFancyToolAva.ViewModels
             _pollCts = localCts;
             IsPolling = true;
             string encoding = Encodings[EncodingIndex];
+            int sentCount = 0;
             try
             {
                 while (!localCts.Token.IsCancellationRequested)
@@ -504,6 +521,8 @@ namespace LittleFancyToolAva.ViewModels
                     await _serialPortService.SendAsync(SendText, IsHexSend, encoding);
                     AppendTxLog(SendText, encoding);
                     TxCount++;
+                    sentCount++;
+                    if (EnableSendCount && sentCount >= SendCount) break;
                     await Task.Delay(PollInterval, localCts.Token);
                 }
             }

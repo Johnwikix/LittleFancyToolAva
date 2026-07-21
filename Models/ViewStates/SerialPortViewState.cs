@@ -15,4 +15,6 @@ public class SerialPortViewState
     public bool IsDtrEnabled { get; set; }
     public int PollInterval { get; set; } = 1000;
     public int FrameBreakInterval { get; set; } = 20;
+    public bool EnableSendCount { get; set; }
+    public int SendCount { get; set; } = 1;
 }

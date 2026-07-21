@@ -172,6 +172,18 @@ namespace LittleFancyToolAva.ViewModels
             set => SetProperty(ref field, value);
         }
 
+        public bool EnableSendCount
+        {
+            get;
+            set => SetProperty(ref field, value);
+        }
+
+        public int SendCount
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = 1;
+
         string IViewState.ViewName => "tcpServerView";
 
         public TcpServerViewModel(ITcpServerService tcpService, INotificationService notificationService, IViewStateService viewStateService)
@@ -225,7 +237,9 @@ namespace LittleFancyToolAva.ViewModels
             IsHexDisplay = IsHexDisplay,
             EnableFrameBreak = EnableFrameBreak,
             FrameBreakInterval = FrameBreakInterval,
-            PollInterval = PollInterval
+            PollInterval = PollInterval,
+            EnableSendCount = EnableSendCount,
+            SendCount = SendCount
         };
 
         void IViewState.RestoreState(object state)
@@ -241,6 +255,8 @@ namespace LittleFancyToolAva.ViewModels
                 EnableFrameBreak = s.EnableFrameBreak;
                 FrameBreakInterval = s.FrameBreakInterval;
                 PollInterval = s.PollInterval;
+                EnableSendCount = s.EnableSendCount;
+                SendCount = s.SendCount;
             }
         }
 
@@ -470,6 +486,7 @@ namespace LittleFancyToolAva.ViewModels
             var localCts = new CancellationTokenSource();
             _pollCts = localCts;
             IsPolling = true;
+            int sentCount = 0;
             try
             {
                 while (!localCts.Token.IsCancellationRequested)
@@ -478,6 +495,8 @@ namespace LittleFancyToolAva.ViewModels
                     await _tcpService.SendAsync(SendText, IsHexSend, null);
                     AppendTxLog(SendText);
                     TxCount++;
+                    sentCount++;
+                    if (EnableSendCount && sentCount >= SendCount) break;
                     await Task.Delay(PollInterval, localCts.Token);
                 }
             }
