@@ -1,9 +1,11 @@
+using LittleFancyToolAva.Models;
+using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
 using System.Net;
 using System.Net.Sockets;
+using System.Runtime.InteropServices;
 using System.Text;
-using LittleFancyToolAva.Utils;
 
 namespace LittleFancyToolAva.Services
 {
@@ -18,9 +20,10 @@ namespace LittleFancyToolAva.Services
         private int _frameBreakInterval = 20;
         private bool _enableFrameBreak;
         private readonly ConcurrentDictionary<string, ClientBuffer> _clientBuffers = [];
+        private readonly ILogger<TcpServerService> _logger;
+        private bool _isStopping;
 
         public bool IsRunning => _isServerMode ? _listener != null : IsConnected;
-
         public bool IsConnected => _client?.Connected ?? false;
 
         public ObservableCollection<string> ConnectedClients { get; } = [];
@@ -29,6 +32,29 @@ namespace LittleFancyToolAva.Services
         public event Action<byte[]>? DataSent;
         public event Action<string>? DataReceived;
         public event Action<string>? StatusChanged;
+        public event EventHandler<ConnectionEventArgs>? ConnectionStateChanged;
+
+        public TcpServerService(ILogger<TcpServerService> logger)
+        {
+            _logger = logger;
+            _logger.LogInformation("TcpServerService created");
+        }
+
+        public bool EnableFrameBreak
+        {
+            get => _enableFrameBreak;
+            set
+            {
+                if (_enableFrameBreak == value) return;
+                _enableFrameBreak = value;
+                if (!value) FlushAllBuffers();
+            }
+        }
+
+        public void SetFrameBreakInterval(int ms)
+        {
+            _frameBreakInterval = Math.Max(10, ms);
+        }
 
         public async Task StartServerAsync(string address, int port, CancellationToken ct)
         {
@@ -36,26 +62,36 @@ namespace LittleFancyToolAva.Services
             {
                 StopServer();
                 _isServerMode = true;
+                _isStopping = false;
 
                 var ip = IPAddress.TryParse(address, out var parsed) ? parsed : IPAddress.Loopback;
                 _listener = new TcpListener(ip, port);
                 _listener.Start();
 
                 _cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+
+                _logger.LogInformation("TCP server started: {Address}:{Port}", ip, port);
                 StatusChanged?.Invoke($"服务器已启动: {ip}:{port}");
+                ConnectionStateChanged?.Invoke(this, new ConnectionEventArgs(
+                    ConnectionEventType.Connected, $"服务器已启动: {ip}:{port}", endpoint: $"{ip}:{port}"));
 
                 _ = AcceptClientsAsync(_cts.Token);
                 await Task.CompletedTask;
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "TCP server start failed: {Address}:{Port}", address, port);
                 StatusChanged?.Invoke($"启动服务器失败: {ex.Message}");
+                ConnectionStateChanged?.Invoke(this, new ConnectionEventArgs(
+                    ConnectionEventType.Error, $"启动服务器失败: {ex.Message}", ex));
                 throw;
             }
         }
 
         public void StopServer()
         {
+            _isStopping = true;
+            bool wasRunning = _listener != null;
             try
             {
                 _cts?.Cancel();
@@ -79,10 +115,17 @@ namespace LittleFancyToolAva.Services
                 _client?.Close();
                 _client = null;
 
+                _logger.LogInformation("TCP server stopped by user");
                 StatusChanged?.Invoke("服务器已停止");
+                if (wasRunning)
+                {
+                    ConnectionStateChanged?.Invoke(this, new ConnectionEventArgs(
+                        ConnectionEventType.Disconnected, "服务器已停止"));
+                }
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "TCP server stop error");
                 StatusChanged?.Invoke($"停止异常: {ex.Message}");
             }
         }
@@ -93,24 +136,36 @@ namespace LittleFancyToolAva.Services
             {
                 DisconnectClient();
                 _isServerMode = false;
+                _isStopping = false;
 
                 _client = new TcpClient();
                 await _client.ConnectAsync(address, port, ct);
 
+                EnableTcpKeepAlive(_client);
+
                 _cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+
+                _logger.LogInformation("TCP client connected: {Address}:{Port}", address, port);
                 StatusChanged?.Invoke($"已连接: {address}:{port}");
+                ConnectionStateChanged?.Invoke(this, new ConnectionEventArgs(
+                    ConnectionEventType.Connected, $"已连接: {address}:{port}", endpoint: $"{address}:{port}"));
 
                 _ = ReceiveLoopAsync(_client, _cts.Token);
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "TCP client connect failed: {Address}:{Port}", address, port);
                 StatusChanged?.Invoke($"连接失败: {ex.Message}");
+                ConnectionStateChanged?.Invoke(this, new ConnectionEventArgs(
+                    ConnectionEventType.Error, $"连接失败: {ex.Message}", ex));
                 throw;
             }
         }
 
         public void DisconnectClient()
         {
+            _isStopping = true;
+            bool wasConnected = _client != null;
             try
             {
                 _cts?.Cancel();
@@ -120,10 +175,17 @@ namespace LittleFancyToolAva.Services
                 _client?.Close();
                 _client = null;
 
+                _logger.LogInformation("TCP client disconnected by user");
                 StatusChanged?.Invoke("已断开");
+                if (wasConnected)
+                {
+                    ConnectionStateChanged?.Invoke(this, new ConnectionEventArgs(
+                        ConnectionEventType.Disconnected, "已断开"));
+                }
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "TCP client disconnect error");
                 StatusChanged?.Invoke($"断开异常: {ex.Message}");
             }
         }
@@ -136,7 +198,7 @@ namespace LittleFancyToolAva.Services
                 lock (_clients)
                 {
                     target = _clients.FirstOrDefault(c =>
-                        c.Client.RemoteEndPoint?.ToString() == endpoint);
+                        c.Client?.RemoteEndPoint?.ToString() == endpoint);
                     if (target != null)
                     {
                         _clients.Remove(target);
@@ -151,32 +213,17 @@ namespace LittleFancyToolAva.Services
                     {
                         ConnectedClients.Remove(endpoint);
                     });
+                    _logger.LogInformation("TCP server disconnected client: {Endpoint}", endpoint);
                     StatusChanged?.Invoke($"已断开客户端: {endpoint}");
+                    ConnectionStateChanged?.Invoke(this, new ConnectionEventArgs(
+                        ConnectionEventType.Disconnected, $"已断开客户端: {endpoint}", endpoint: endpoint));
                 }
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "TCP disconnect client error: {Endpoint}", endpoint);
                 StatusChanged?.Invoke($"断开客户端异常: {ex.Message}");
             }
-        }
-
-        public bool EnableFrameBreak
-        {
-            get => _enableFrameBreak;
-            set
-            {
-                if (_enableFrameBreak == value) return;
-                _enableFrameBreak = value;
-                if (!value)
-                {
-                    FlushAllBuffers();
-                }
-            }
-        }
-
-        public void SetFrameBreakInterval(int ms)
-        {
-            _frameBreakInterval = Math.Max(10, ms);
         }
 
         public async Task SendAsync(string data, bool isHex, string? targetClient = null)
@@ -187,8 +234,7 @@ namespace LittleFancyToolAva.Services
                 if (isHex)
                 {
                     string hex = data.Replace(" ", "").Replace("-", "");
-                    if (hex.Length % 2 != 0)
-                        hex = "0" + hex;
+                    if (hex.Length % 2 != 0) hex = "0" + hex;
                     bytes = new byte[hex.Length / 2];
                     for (int i = 0; i < hex.Length; i += 2)
                         bytes[i / 2] = Convert.ToByte(hex.Substring(i, 2), 16);
@@ -205,7 +251,12 @@ namespace LittleFancyToolAva.Services
                     {
                         targets = _clients.Where(c => c.Connected).ToList();
                         if (targetClient != null)
-                            targets = targets.Where(c => c.Client.RemoteEndPoint?.ToString() == targetClient).ToList();
+                            targets = targets.Where(c => c.Client?.RemoteEndPoint?.ToString() == targetClient).ToList();
+                    }
+                    if (targets.Count == 0)
+                    {
+                        StatusChanged?.Invoke("无已连接客户端");
+                        return;
                     }
                     foreach (var c in targets)
                     {
@@ -214,16 +265,46 @@ namespace LittleFancyToolAva.Services
                             var stream = c.GetStream();
                             await stream.WriteAsync(bytes);
                         }
-                        catch { }
+                        catch (IOException ex)
+                        {
+                            _logger.LogWarning(ex, "TCP send to client failed, client may be disconnected");
+                            var ep = c.Client?.RemoteEndPoint?.ToString();
+                            if (ep != null)
+                                ConnectionStateChanged?.Invoke(this, new ConnectionEventArgs(
+                                    ConnectionEventType.Lost, $"客户端连接丢失: {ep}", ex, ep));
+                        }
+                        catch (SocketException ex)
+                        {
+                            _logger.LogWarning(ex, "TCP send socket error to client");
+                            var ep = c.Client?.RemoteEndPoint?.ToString();
+                            if (ep != null)
+                                ConnectionStateChanged?.Invoke(this, new ConnectionEventArgs(
+                                    ConnectionEventType.PingTimeout, $"客户端连接超时: {ep}", ex, ep));
+                        }
                     }
                     DataSent?.Invoke(bytes);
                     StatusChanged?.Invoke($"服务器发送: {bytes.Length} 字节");
                 }
                 else if (_client?.Connected == true)
                 {
-                    var stream = _client.GetStream();
-                    await stream.WriteAsync(bytes);
-                    await stream.FlushAsync();
+                    try
+                    {
+                        var stream = _client.GetStream();
+                        await stream.WriteAsync(bytes);
+                        await stream.FlushAsync();
+                    }
+                    catch (IOException ex)
+                    {
+                        _logger.LogError(ex, "TCP client send IOException - connection lost");
+                        RaiseLost("发送失败，连接已断开");
+                        return;
+                    }
+                    catch (SocketException ex)
+                    {
+                        _logger.LogError(ex, "TCP client send SocketException");
+                        RaiseLost($"连接异常: {ex.Message}", ex);
+                        return;
+                    }
                     DataSent?.Invoke(bytes);
                     StatusChanged?.Invoke($"发送: {bytes.Length} 字节");
                 }
@@ -234,7 +315,39 @@ namespace LittleFancyToolAva.Services
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "TCP send error");
                 StatusChanged?.Invoke($"发送失败: {ex.Message}");
+            }
+        }
+
+        private void RaiseLost(string message, Exception? ex = null)
+        {
+            StatusChanged?.Invoke(message);
+            ConnectionStateChanged?.Invoke(this, new ConnectionEventArgs(
+                ConnectionEventType.Lost, message, ex));
+        }
+
+        private void EnableTcpKeepAlive(TcpClient client)
+        {
+            try
+            {
+                var socket = client.Client;
+                if (socket == null) return;
+
+                socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
+
+                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                {
+                    byte[] keepAliveValues = new byte[12];
+                    BitConverter.GetBytes(1).CopyTo(keepAliveValues, 0);
+                    BitConverter.GetBytes(10_000).CopyTo(keepAliveValues, 4);
+                    BitConverter.GetBytes(3_000).CopyTo(keepAliveValues, 8);
+                    socket.IOControl(IOControlCode.KeepAliveValues, keepAliveValues, null);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to configure TCP KeepAlive");
             }
         }
 
@@ -245,7 +358,9 @@ namespace LittleFancyToolAva.Services
                 while (!ct.IsCancellationRequested && _listener != null)
                 {
                     var client = await _listener.AcceptTcpClientAsync(ct);
-                    var endpoint = client.Client.RemoteEndPoint?.ToString() ?? "未知";
+                    EnableTcpKeepAlive(client);
+
+                    var endpoint = client.Client?.RemoteEndPoint?.ToString() ?? "未知";
 
                     lock (_clients)
                     {
@@ -257,7 +372,10 @@ namespace LittleFancyToolAva.Services
                         ConnectedClients.Add(endpoint);
                     });
 
+                    _logger.LogInformation("TCP client connected: {Endpoint}", endpoint);
                     StatusChanged?.Invoke($"客户端连接: {endpoint}");
+                    ConnectionStateChanged?.Invoke(this, new ConnectionEventArgs(
+                        ConnectionEventType.ClientConnected, $"客户端连接: {endpoint}", endpoint: endpoint));
 
                     _ = ReceiveLoopAsync(client, ct);
                 }
@@ -266,13 +384,14 @@ namespace LittleFancyToolAva.Services
             catch (ObjectDisposedException) { }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "TCP accept clients error");
                 StatusChanged?.Invoke($"接受连接异常: {ex.Message}");
             }
         }
 
         private async Task ReceiveLoopAsync(TcpClient client, CancellationToken ct)
         {
-            var endpoint = client.Client.RemoteEndPoint?.ToString() ?? "未知";
+            var endpoint = client.Client?.RemoteEndPoint?.ToString() ?? "未知";
             try
             {
                 var buffer = new byte[4096];
@@ -280,8 +399,27 @@ namespace LittleFancyToolAva.Services
 
                 while (!ct.IsCancellationRequested && client.Connected)
                 {
-                    int read = await stream.ReadAsync(buffer, 0, buffer.Length, ct);
-                    if (read == 0) break;
+                    int read;
+                    try
+                    {
+                        read = await stream.ReadAsync(buffer, 0, buffer.Length, ct);
+                    }
+                    catch (IOException ex)
+                    {
+                        _logger.LogWarning(ex, "TCP receive IOException from {Endpoint}", endpoint);
+                        break;
+                    }
+                    catch (SocketException ex)
+                    {
+                        _logger.LogWarning(ex, "TCP receive SocketException from {Endpoint}", endpoint);
+                        break;
+                    }
+
+                    if (read == 0)
+                    {
+                        _logger.LogInformation("TCP peer closed connection: {Endpoint}", endpoint);
+                        break;
+                    }
 
                     byte[] data = new byte[read];
                     Array.Copy(buffer, data, read);
@@ -293,6 +431,7 @@ namespace LittleFancyToolAva.Services
             catch (ObjectDisposedException) { }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "TCP receive loop error from {Endpoint}", endpoint);
                 StatusChanged?.Invoke($"接收循环异常: {ex.Message}");
             }
             finally
@@ -305,14 +444,24 @@ namespace LittleFancyToolAva.Services
                 lock (_clients) { _clients.Remove(client); }
                 CleanupClientBuffer(endpoint);
                 try { client.Close(); } catch { }
+
                 if (!_isServerMode)
                 {
                     _client = null;
-                    StatusChanged?.Invoke("连接已断开");
+                    if (!_isStopping)
+                    {
+                        _logger.LogWarning("TCP client connection lost: {Endpoint}", endpoint);
+                        StatusChanged?.Invoke("连接已断开");
+                        ConnectionStateChanged?.Invoke(this, new ConnectionEventArgs(
+                            ConnectionEventType.Lost, "连接已断开", endpoint: endpoint));
+                    }
                 }
                 else
                 {
+                    _logger.LogInformation("TCP client disconnected: {Endpoint}", endpoint);
                     StatusChanged?.Invoke($"客户端断开: {endpoint}");
+                    ConnectionStateChanged?.Invoke(this, new ConnectionEventArgs(
+                        ConnectionEventType.ClientDisconnected, $"客户端断开: {endpoint}", endpoint: endpoint));
                 }
             }
         }
@@ -348,10 +497,7 @@ namespace LittleFancyToolAva.Services
                     shouldFlush = true;
                 }
             }
-            if (shouldFlush)
-            {
-                FlushClientBuffer(endpoint);
-            }
+            if (shouldFlush) FlushClientBuffer(endpoint);
         }
 
         private void FlushAllBuffers()
@@ -386,6 +532,8 @@ namespace LittleFancyToolAva.Services
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "TCP client frame timer error: {Endpoint}",
+                    state is (string ep, _) ? ep : "?");
                 StatusChanged?.Invoke($"客户端帧定时器异常: {ex.Message}");
             }
         }
@@ -403,6 +551,7 @@ namespace LittleFancyToolAva.Services
 
             BytesReceived?.Invoke(bytes);
             string text = Encoding.UTF8.GetString(bytes);
+            _logger.LogDebug("TCP received {ByteCount} bytes from {Endpoint}", bytes.Length, endpoint);
             StatusChanged?.Invoke($"接收 ({endpoint}): {bytes.Length} 字节");
             DataReceived?.Invoke($"[{endpoint}] {text}");
         }
@@ -430,6 +579,7 @@ namespace LittleFancyToolAva.Services
             if (_disposed) return;
             _disposed = true;
             StopServer();
+            _logger.LogInformation("TcpServerService disposed");
             GC.SuppressFinalize(this);
         }
     }

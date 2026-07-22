@@ -8,6 +8,7 @@ using LittleFancyToolAva.Models;
 using LittleFancyToolAva.Models.ViewStates;
 using LittleFancyToolAva.Services;
 using LittleFancyToolAva.Utils;
+using Microsoft.Extensions.Logging;
 
 namespace LittleFancyToolAva.ViewModels
 {
@@ -217,6 +218,7 @@ namespace LittleFancyToolAva.ViewModels
         {
             _serialPortService.BytesReceived += OnBytesReceived;
             _serialPortService.StatusChanged += OnStatusChanged;
+            _serialPortService.ConnectionStateChanged += OnConnectionStateChanged;
             if (IsConnected)
             {
                 StartElapsedTimer();
@@ -227,6 +229,7 @@ namespace LittleFancyToolAva.ViewModels
         {
             _serialPortService.BytesReceived -= OnBytesReceived;
             _serialPortService.StatusChanged -= OnStatusChanged;
+            _serialPortService.ConnectionStateChanged -= OnConnectionStateChanged;
             _pollCts?.Cancel();
             _pollCts?.Dispose();
             _pollCts = null;
@@ -319,6 +322,40 @@ namespace LittleFancyToolAva.ViewModels
             Dispatcher.UIThread.Post(() =>
             {
                 StatusText = status;
+            });
+        }
+
+        private void OnConnectionStateChanged(object? sender, ConnectionEventArgs e)
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                switch (e.Type)
+                {
+                    case ConnectionEventType.Connected:
+                        IsConnected = true;
+                        Log.Append(LogKind.System, e.Message);
+                        break;
+                    case ConnectionEventType.Disconnected:
+                        IsConnected = false;
+                        IsPolling = false;
+                        _pollCts?.Cancel();
+                        Log.Append(LogKind.System, e.Message);
+                        break;
+                    case ConnectionEventType.Lost:
+                        IsConnected = false;
+                        IsPolling = false;
+                        _pollCts?.Cancel();
+                        Log.Append(LogKind.Error, e.Message);
+                        _notificationService.ShowError(e.Message);
+                        break;
+                    case ConnectionEventType.LineDisconnect:
+                        Log.Append(LogKind.Warn, e.Message);
+                        break;
+                    case ConnectionEventType.Error:
+                        ConnectionStatus = ConnectionStatus.Error;
+                        Log.Append(LogKind.Error, e.Message);
+                        break;
+                }
             });
         }
 

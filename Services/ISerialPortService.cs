@@ -1,3 +1,4 @@
+using LittleFancyToolAva.Models;
 using System.IO.Ports;
 
 namespace LittleFancyToolAva.Services
@@ -8,6 +9,7 @@ namespace LittleFancyToolAva.Services
         event Action<byte[]>? BytesReceived;
         event Action<string>? DataReceived;
         event Action<string>? StatusChanged;
+        event EventHandler<ConnectionEventArgs>? ConnectionStateChanged;
         Task OpenAsync(string portName, int baudRate, Parity parity, int dataBits, StopBits stopBits);
         void Close();
         Task SendAsync(string data, bool isHex, string encoding);

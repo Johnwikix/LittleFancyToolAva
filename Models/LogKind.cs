@@ -6,6 +6,7 @@ namespace LittleFancyToolAva.Models
         System = 1,
         Tx = 2,
         Rx = 3,
-        Error = 4
+        Warn = 4,
+        Error = 5
     }
 }

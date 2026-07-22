@@ -6,6 +6,7 @@ using LittleFancyToolAva.Models;
 using LittleFancyToolAva.Models.ViewStates;
 using LittleFancyToolAva.Services;
 using LittleFancyToolAva.Utils;
+using Microsoft.Extensions.Logging;
 
 namespace LittleFancyToolAva.ViewModels
 {
@@ -191,6 +192,7 @@ namespace LittleFancyToolAva.ViewModels
             _udpService.BytesReceived += OnBytesReceived;
             _udpService.DataSent += OnDataSent;
             _udpService.StatusChanged += OnStatusChanged;
+            _udpService.ConnectionStateChanged += OnConnectionStateChanged;
             if (IsRunning)
             {
                 StartElapsedTimer();
@@ -202,6 +204,7 @@ namespace LittleFancyToolAva.ViewModels
             _udpService.BytesReceived -= OnBytesReceived;
             _udpService.DataSent -= OnDataSent;
             _udpService.StatusChanged -= OnStatusChanged;
+            _udpService.ConnectionStateChanged -= OnConnectionStateChanged;
             _cts?.Cancel();
             _cts?.Dispose();
             _cts = null;
@@ -273,6 +276,36 @@ namespace LittleFancyToolAva.ViewModels
         private void OnStatusChanged(string status)
         {
             Dispatcher.UIThread.Post(() => StatusText = status);
+        }
+
+        private void OnConnectionStateChanged(object? sender, ConnectionEventArgs e)
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                switch (e.Type)
+                {
+                    case ConnectionEventType.Connected:
+                        IsRunning = true;
+                        Log.Append(LogKind.System, e.Message);
+                        break;
+                    case ConnectionEventType.Disconnected:
+                        IsRunning = false;
+                        IsPolling = false;
+                        _pollCts?.Cancel();
+                        Log.Append(LogKind.System, e.Message);
+                        break;
+                    case ConnectionEventType.Lost:
+                        IsRunning = false;
+                        IsPolling = false;
+                        _pollCts?.Cancel();
+                        Log.Append(LogKind.Error, e.Message);
+                        break;
+                    case ConnectionEventType.Error:
+                        ConnectionStatus = ConnectionStatus.Error;
+                        Log.Append(LogKind.Error, e.Message);
+                        break;
+                }
+            });
         }
 
         private void StartElapsedTimer()

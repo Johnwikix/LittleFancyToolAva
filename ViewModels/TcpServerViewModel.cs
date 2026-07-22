@@ -7,6 +7,7 @@ using LittleFancyToolAva.Models;
 using LittleFancyToolAva.Models.ViewStates;
 using LittleFancyToolAva.Services;
 using LittleFancyToolAva.Utils;
+using Microsoft.Extensions.Logging;
 
 namespace LittleFancyToolAva.ViewModels
 {
@@ -207,6 +208,7 @@ namespace LittleFancyToolAva.ViewModels
             _tcpService.BytesReceived += OnBytesReceived;
             _tcpService.DataSent += OnDataSent;
             _tcpService.StatusChanged += OnStatusChanged;
+            _tcpService.ConnectionStateChanged += OnConnectionStateChanged;
             if (IsRunning || IsConnected)
             {
                 StartElapsedTimer();
@@ -218,6 +220,7 @@ namespace LittleFancyToolAva.ViewModels
             _tcpService.BytesReceived -= OnBytesReceived;
             _tcpService.DataSent -= OnDataSent;
             _tcpService.StatusChanged -= OnStatusChanged;
+            _tcpService.ConnectionStateChanged -= OnConnectionStateChanged;
             _cts?.Cancel();
             _cts?.Dispose();
             _cts = null;
@@ -300,9 +303,47 @@ namespace LittleFancyToolAva.ViewModels
             Dispatcher.UIThread.Post(() =>
             {
                 StatusText = status;
-                if (status == "连接已断开")
+            });
+        }
+
+        private void OnConnectionStateChanged(object? sender, ConnectionEventArgs e)
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                switch (e.Type)
                 {
-                    IsConnected = false;
+                    case ConnectionEventType.Connected:
+                        if (ModeIndex == 1) IsConnected = true;
+                        else IsRunning = true;
+                        Log.Append(LogKind.System, e.Message);
+                        break;
+                    case ConnectionEventType.Disconnected:
+                        if (ModeIndex == 1) IsConnected = false;
+                        else IsRunning = false;
+                        IsPolling = false;
+                        _pollCts?.Cancel();
+                        Log.Append(LogKind.System, e.Message);
+                        break;
+                    case ConnectionEventType.ClientConnected:
+                        Log.Append(LogKind.System, e.Message);
+                        break;
+                    case ConnectionEventType.ClientDisconnected:
+                        Log.Append(LogKind.System, e.Message);
+                        break;
+                    case ConnectionEventType.Lost:
+                        if (ModeIndex == 1) IsConnected = false;
+                        else IsRunning = false;
+                        IsPolling = false;
+                        _pollCts?.Cancel();
+                        Log.Append(LogKind.Error, e.Message);
+                        break;
+                    case ConnectionEventType.PingTimeout:
+                        Log.Append(LogKind.Warn, e.Message);
+                        break;
+                    case ConnectionEventType.Error:
+                        ConnectionStatus = ConnectionStatus.Error;
+                        Log.Append(LogKind.Error, e.Message);
+                        break;
                 }
             });
         }

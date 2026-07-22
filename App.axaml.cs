@@ -8,6 +8,8 @@ using LittleFancyToolAva.Services;
 using LittleFancyToolAva.ViewModels;
 using LittleFancyToolAva.Views;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Serilog;
 
 namespace LittleFancyToolAva
 {
@@ -54,6 +56,21 @@ namespace LittleFancyToolAva
 
         private void ConfigureServices(IServiceCollection services)
         {
+            Log.Logger = new LoggerConfiguration()
+                .MinimumLevel.Debug()
+                .WriteTo.File(
+                    Path.Combine(AppContext.BaseDirectory, "logs", "tool-.log"),
+                    rollingInterval: RollingInterval.Day,
+                    retainedFileCountLimit: 30,
+                    shared: true)
+                .CreateLogger();
+
+            services.AddLogging(builder =>
+            {
+                builder.ClearProviders();
+                builder.AddSerilog(dispose: true);
+            });
+
             services.AddSingleton<AppObserveModel>();
             services.AddSingleton<AppPreferences>(sp => sp.GetRequiredService<AppObserveModel>().Preferences);
             services.AddSingleton<FileService>();

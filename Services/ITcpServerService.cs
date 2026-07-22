@@ -1,3 +1,4 @@
+using LittleFancyToolAva.Models;
 using System.Collections.ObjectModel;
 
 namespace LittleFancyToolAva.Services
@@ -10,6 +11,7 @@ namespace LittleFancyToolAva.Services
         event Action<byte[]>? DataSent;
         event Action<string>? DataReceived;
         event Action<string>? StatusChanged;
+        event EventHandler<ConnectionEventArgs>? ConnectionStateChanged;
         Task StartServerAsync(string address, int port, CancellationToken ct);
         void StopServer();
         Task ConnectClientAsync(string address, int port, CancellationToken ct);
