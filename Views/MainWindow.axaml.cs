@@ -31,8 +31,6 @@ namespace LittleFancyToolAva.Views
                 navFactory.Register<Sm3ViewModel, Sm3View>();
                 navFactory.Register<Base64ViewModel, Base64View>();
                 navFactory.Register<SerialPortViewModel, SerialPortView>();
-                navFactory.Register<ModbusPollViewModel, ModbusPollView>();
-                navFactory.Register<ModbusSlaveViewModel, ModbusSlaveView>();
                 navFactory.Register<TcpServerViewModel, TcpServerView>();
                 navFactory.Register<UdpViewModel, UdpView>();
                 navFactory.Register<SettingsViewModel, SettingsView>();

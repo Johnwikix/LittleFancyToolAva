@@ -72,8 +72,6 @@ namespace LittleFancyToolAva
             services.AddSingleton<IFileDialogService, FileDialogService>();
             services.AddSingleton<ISerialPortService, SerialPortService>();
             services.AddSingleton<ITcpServerService, TcpServerService>();
-            services.AddSingleton<IModbusPollService, ModbusPollService>();
-            services.AddSingleton<IModbusSlaveService, ModbusSlaveService>();
             services.AddSingleton<IUdpService, UdpService>();
 
             services.AddTransient<MainWindowViewModel>();
@@ -89,8 +87,6 @@ namespace LittleFancyToolAva
             services.AddTransient<Sm3ViewModel>();
             services.AddTransient<Base64ViewModel>();
             services.AddTransient<SerialPortViewModel>();
-            services.AddTransient<ModbusPollViewModel>();
-            services.AddTransient<ModbusSlaveViewModel>();
             services.AddTransient<TcpServerViewModel>();
             services.AddTransient<UdpViewModel>();
 

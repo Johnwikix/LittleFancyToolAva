@@ -95,8 +95,6 @@ public class ViewStateService : IViewStateService
         "shaView" => root.ShaView,
         "base64View" => root.Base64View,
         "serialPortView" => root.SerialPortView,
-        "modbusPollView" => root.ModbusPollView,
-        "modbusSlaveView" => root.ModbusSlaveView,
         "tcpServerView" => root.TcpServerView,
         "udpView" => root.UdpView,
         "fileEncryptionView" => root.FileEncryptionView,
@@ -120,8 +118,6 @@ public class ViewStateService : IViewStateService
             case "shaView": root.ShaView = (ShaViewState?)state; break;
             case "base64View": root.Base64View = (Base64ViewState?)state; break;
             case "serialPortView": root.SerialPortView = (SerialPortViewState?)state; break;
-            case "modbusPollView": root.ModbusPollView = (ModbusPollViewState?)state; break;
-            case "modbusSlaveView": root.ModbusSlaveView = (ModbusSlaveViewState?)state; break;
             case "tcpServerView": root.TcpServerView = (TcpServerViewState?)state; break;
             case "udpView": root.UdpView = (UdpViewState?)state; break;
             case "fileEncryptionView": root.FileEncryptionView = (FileEncryptionViewState?)state; break;

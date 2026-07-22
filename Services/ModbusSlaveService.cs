@@ -6,6 +6,7 @@ using System.Collections.ObjectModel;
 using System.IO.Ports;
 using System.Threading.Tasks;
 
+// TODO: 待完善 — 功能可用但暂不启用，后续可完善后重新接入导航
 namespace LittleFancyToolAva.Services
 {
     public class ModbusSlaveService : IModbusSlaveService, IDisposable

@@ -14,8 +14,6 @@ public class ViewStatesRoot
     public ShaViewState? ShaView { get; set; }
     public Base64ViewState? Base64View { get; set; }
     public SerialPortViewState? SerialPortView { get; set; }
-    public ModbusPollViewState? ModbusPollView { get; set; }
-    public ModbusSlaveViewState? ModbusSlaveView { get; set; }
     public TcpServerViewState? TcpServerView { get; set; }
     public UdpViewState? UdpView { get; set; }
     public FileEncryptionViewState? FileEncryptionView { get; set; }
@@ -36,8 +34,6 @@ public class ViewStatesRoot
 [JsonSerializable(typeof(ShaViewState))]
 [JsonSerializable(typeof(Base64ViewState))]
 [JsonSerializable(typeof(SerialPortViewState))]
-[JsonSerializable(typeof(ModbusPollViewState))]
-[JsonSerializable(typeof(ModbusSlaveViewState))]
 [JsonSerializable(typeof(TcpServerViewState))]
 [JsonSerializable(typeof(UdpViewState))]
 [JsonSerializable(typeof(FileEncryptionViewState))]

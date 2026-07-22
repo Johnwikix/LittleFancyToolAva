@@ -2,7 +2,6 @@
 using FluentAvalonia.UI.Controls;
 using LittleFancyToolAva.Models;
 using LittleFancyToolAva.Services;
-using LittleFancyToolAva.Views;
 using Microsoft.Extensions.DependencyInjection;
 using System.Collections.ObjectModel;
 
@@ -41,7 +40,6 @@ namespace LittleFancyToolAva.ViewModels
             {
                 new PageNavigationItem("首页", FASymbol.Home, new HomeViewModel(appObserveModel)),
                 BuildSerialCategory(serviceProvider),
-                BuildModbusCategory(serviceProvider),
                 BuildNetworkCategory(serviceProvider),
                 BuildEncryptionCategory(serviceProvider),
                 BuildFileCategory(serviceProvider),
@@ -55,14 +53,6 @@ namespace LittleFancyToolAva.ViewModels
         {
             var category = new PageNavigationItem("串口", FASymbol.Remote);
             category.Children.Add(new PageNavigationItem("串口调试", FASymbol.Document, sp.GetRequiredService<SerialPortViewModel>()));
-            return category;
-        }
-
-        private static PageNavigationItem BuildModbusCategory(IServiceProvider sp)
-        {
-            var category = new PageNavigationItem("Modbus", FASymbol.Switch);
-            category.Children.Add(new PageNavigationItem("Modbus Poll", FASymbol.Document, sp.GetRequiredService<ModbusPollViewModel>()));
-            category.Children.Add(new PageNavigationItem("Modbus Slave", FASymbol.Document, sp.GetRequiredService<ModbusSlaveViewModel>()));
             return category;
         }
 
