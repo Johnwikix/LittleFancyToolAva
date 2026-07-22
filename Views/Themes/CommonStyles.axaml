@@ -129,6 +129,15 @@
         <Setter Property="Padding" Value="12,2" />
     </Style>
 
+    <!-- Compact variants of Primary/Danger: override the wider 16,8 padding
+         that Primary/Danger styles set, so all Compact buttons have a uniform height. -->
+    <Style Selector="Button.Compact.Primary">
+        <Setter Property="Padding" Value="12,2" />
+    </Style>
+    <Style Selector="Button.Compact.Danger">
+        <Setter Property="Padding" Value="12,2" />
+    </Style>
+
     <!-- Terminal box: monospace, theme-aware bg -->
     <Style Selector="TextBox.TerminalBox">
         <Setter Property="FontFamily" Value="{StaticResource MonoFontFamily}" />
@@ -174,7 +183,6 @@
         <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="Padding" Value="8,4" />
-        <Setter Property="MinHeight" Value="{StaticResource LogListMinHeight}" />
         <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Auto" />
         <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto" />
         <Setter Property="SelectionMode" Value="Single" />

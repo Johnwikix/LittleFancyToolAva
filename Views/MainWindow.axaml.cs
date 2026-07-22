@@ -33,6 +33,7 @@ namespace LittleFancyToolAva.Views
                 navFactory.Register<SerialPortViewModel, SerialPortView>();
                 navFactory.Register<TcpServerViewModel, TcpServerView>();
                 navFactory.Register<UdpViewModel, UdpView>();
+                navFactory.Register<RabbitMqViewModel, RabbitMqView>();
                 navFactory.Register<SettingsViewModel, SettingsView>();
                 navFactory.Register<FileEncryptionViewModel, FileEncryptionView>();
                 navFactory.Register<FolderCompareViewModel, FolderCompareView>();

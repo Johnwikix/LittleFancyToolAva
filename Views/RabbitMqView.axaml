@@ -1,0 +1,346 @@
+﻿<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:LittleFancyToolAva.ViewModels"
+             xmlns:controls="using:LittleFancyToolAva.Views.Controls"
+             xmlns:helpers="using:LittleFancyToolAva.Helpers"
+             xmlns:models="using:LittleFancyToolAva.Models"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             x:Class="LittleFancyToolAva.Views.RabbitMqView"
+             x:DataType="vm:RabbitMqViewModel">
+
+    <UserControl.Resources>
+        <helpers:InverseBoolConverter x:Key="Inv" />
+    </UserControl.Resources>
+
+    <Grid RowDefinitions="Auto,3*,*,Auto"
+          Margin="{StaticResource PageMargin}">
+
+        <!-- Header -->
+        <controls:ToolPageHeader Grid.Row="0"
+                                 Title="RabbitMQ 调试"
+                                 Subtitle="连接 RabbitMQ 代理进行消息发布与消费">
+            <controls:ToolPageHeader.Actions>
+                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <controls:StatusPill Status="{Binding ConnectionStatus}"
+                                         Text="{Binding ConnectionStatus, Converter={StaticResource StatusTextConverter}}"
+                                         Detail="{Binding StatusDetail}" />
+                </StackPanel>
+            </controls:ToolPageHeader.Actions>
+        </controls:ToolPageHeader>
+
+        <!-- Main area: left sidebar + right content -->
+        <Grid Grid.Row="1" ColumnDefinitions="320,3*" Margin="0,8,0,0">
+
+            <!-- Left sidebar -->
+            <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto" Margin="0">
+                <StackPanel Spacing="4">
+
+                    <Border Classes="ToolCard">
+                        <StackPanel Classes="ToolCardContent" Spacing="4">
+                            <TextBlock Classes="SectionHeader" Text="连接配置" />
+                            <Grid Classes="FormRow" ColumnDefinitions="100,*">
+                                <TextBlock Classes="FieldLabel" Text="Host" />
+                                <TextBox Grid.Column="1" Text="{Binding Host, Mode=TwoWay}" />
+                            </Grid>
+                            <Grid Classes="FormRow" ColumnDefinitions="100,*">
+                                <TextBlock Classes="FieldLabel" Text="端口" />
+                                <NumericUpDown Grid.Column="1"
+                                               Minimum="1" Maximum="65535"
+                                               Value="{Binding Port, Mode=TwoWay}" />
+                            </Grid>
+                            <Grid Classes="FormRow" ColumnDefinitions="100,*">
+                                <TextBlock Classes="FieldLabel" Text="用户名" />
+                                <TextBox Grid.Column="1" Text="{Binding UserName, Mode=TwoWay}" />
+                            </Grid>
+                            <Grid Classes="FormRow" ColumnDefinitions="100,*">
+                                <TextBlock Classes="FieldLabel" Text="密码" />
+                                <TextBox Grid.Column="1" PasswordChar="•"
+                                         Text="{Binding Password, Mode=TwoWay}" />
+                            </Grid>
+                            <Grid Classes="FormRow" ColumnDefinitions="100,*">
+                                <TextBlock Classes="FieldLabel" Text="VirtualHost" />
+                                <TextBox Grid.Column="1" Text="{Binding VirtualHost, Mode=TwoWay}" />
+                            </Grid>
+                            <StackPanel Classes="ActionBar">
+                                <Button Command="{Binding ConnectCommand}" Classes="Primary" Content="连接"
+                                        IsEnabled="{Binding IsAnyActive, Converter={StaticResource Inv}}" />
+                                <Button Command="{Binding DisconnectCommand}" Classes="Danger" Content="断开"
+                                        IsEnabled="{Binding IsAnyActive}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Classes="ToolCard" IsEnabled="{Binding IsAnyActive}">
+                        <StackPanel Classes="ToolCardContent" Spacing="4">
+                            <TextBlock Classes="SectionHeader" Text="浏览" />
+                            <StackPanel Classes="ActionBar">
+                                <Button Command="{Binding RefreshExchangesCommand}" Content="刷新交换机" />
+                                <Button Command="{Binding RefreshQueuesCommand}" Content="刷新队列" />
+                            </StackPanel>
+                            <Grid Classes="FormRow" ColumnDefinitions="100,*">
+                                <TextBlock Classes="FieldLabel" Text="交换机" />
+                                <ComboBox Grid.Column="1"
+                                          Classes="Compact"
+                                          IsEditable="True"
+                                          ItemsSource="{Binding ExchangeList}"
+                                          Text="{Binding ExchangeName, Mode=TwoWay}" />
+                            </Grid>
+                            <Grid Classes="FormRow" ColumnDefinitions="100,*">
+                                <TextBlock Classes="FieldLabel" Text="队列" />
+                                <ComboBox Grid.Column="1"
+                                          Classes="Compact"
+                                          IsEditable="True"
+                                          ItemsSource="{Binding QueueList}"
+                                          Text="{Binding QueueName, Mode=TwoWay}" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Classes="ToolCard">
+                        <StackPanel Classes="ToolCardContent" Spacing="4">
+                            <TextBlock Classes="SectionHeader" Text="选项" />
+                            <CheckBox Content="HEX 发送" IsChecked="{Binding IsHexSend, Mode=TwoWay}" />
+                            <CheckBox Content="HEX 显示" IsChecked="{Binding IsHexDisplay, Mode=TwoWay}" />
+                            <Grid Classes="FormRow" ColumnDefinitions="100,*">
+                                <TextBlock Classes="FieldLabel" Text="ACK 模式" />
+                                <ComboBox Grid.Column="1"
+                                          Classes="Compact"
+                                          ItemsSource="{Binding AckModes}"
+                                          SelectedIndex="{Binding AckModeIndex, Mode=TwoWay}" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- Right content: publish (top) + receive (middle) -->
+            <Grid Grid.Column="1" RowDefinitions="*,*" Margin="10,0,0,0">
+
+                <!-- Publish area: TabControl (50%) -->
+                <Border Grid.Row="0" Classes="ToolCard" Padding="0">
+                    <TabControl SelectedIndex="{Binding PublishTabIndex, Mode=TwoWay}"
+                                Background="Transparent">
+
+                        <!-- Tab: Exchange -->
+                        <TabItem Header="发布到交换机">
+                            <Grid RowDefinitions="*,Auto" Margin="16,12">
+                                <!-- Row 0 (*): scrollable fields + body -->
+                                <ScrollViewer Grid.Row="0"
+                                              VerticalScrollBarVisibility="Auto"
+                                              HorizontalScrollBarVisibility="Disabled">
+                                    <StackPanel Spacing="10">
+                                        <!-- 目标交换机 -->
+                                        <Grid ColumnDefinitions="120,*">
+                                            <TextBlock Classes="FieldLabel" Text="目标交换机" VerticalAlignment="Center" />
+                                            <TextBlock Grid.Column="1"
+                                                       Text="{Binding ExchangeName}"
+                                                       FontWeight="SemiBold"
+                                                       VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"
+                                                       TextTrimming="CharacterEllipsis" />
+                                        </Grid>
+
+                                        <!-- 类型 -->
+                                        <Grid ColumnDefinitions="120,*">
+                                            <TextBlock Classes="FieldLabel" Text="类型" VerticalAlignment="Center" />
+                                            <ComboBox Grid.Column="1"
+                                                      Classes="Compact"
+                                                      ItemsSource="{Binding ExchangeTypes}"
+                                                      SelectedIndex="{Binding ExchangeTypeIndex, Mode=TwoWay}" />
+                                        </Grid>
+
+                                        <!-- Routing Key -->
+                                        <Grid ColumnDefinitions="120,*">
+                                            <TextBlock Classes="FieldLabel" Text="Routing Key" VerticalAlignment="Center" />
+                                            <TextBox Grid.Column="1"
+                                                     Text="{Binding RoutingKey, Mode=TwoWay}"
+                                                     PlaceholderText="topic 模式下支持 * / # 通配" />
+                                        </Grid>
+
+                                        <!-- 选项 -->
+                                        <StackPanel Orientation="Horizontal" Spacing="16">
+                                            <CheckBox Content="自动声明" IsChecked="{Binding ExchangeAutoDeclare, Mode=TwoWay}" />
+                                            <CheckBox Content="持久化" IsChecked="{Binding ExchangeIsPersistent, Mode=TwoWay}" />
+                                        </StackPanel>
+
+                                        <!-- Headers -->
+                                        <Grid ColumnDefinitions="120,*">
+                                            <TextBlock Classes="FieldLabel" Text="Headers (JSON)" VerticalAlignment="Top" Margin="0,4,0,0" />
+                                            <TextBox Grid.Column="1"
+                                                     AcceptsReturn="True"
+                                                     TextWrapping="NoWrap"
+                                                     Height="70"
+                                                     FontFamily="Consolas"
+                                                     ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                                     Text="{Binding HeadersJson, Mode=TwoWay}"
+                                                     PlaceholderText="{}{&quot;key&quot;: &quot;value&quot;}" />
+                                        </Grid>
+
+                                        <!-- 消息内容 -->
+                                        <Grid ColumnDefinitions="120,*">
+                                            <TextBlock Classes="FieldLabel" Text="消息内容" VerticalAlignment="Top" Margin="0,4,0,0" />
+                                            <TextBox Grid.Column="1"
+                                                     Classes="TerminalInput"
+                                                     Height="120"
+                                                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                                     Text="{Binding PublishExchangeText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                     PlaceholderText="要发送的消息内容" />
+                                        </Grid>
+                                    </StackPanel>
+                                </ScrollViewer>
+
+                                <!-- Row 1 (Auto): publish button -->
+                                <StackPanel Grid.Row="1" Classes="ActionBar" Margin="0,8,0,0">
+                                    <Button Command="{Binding PublishToExchangeCommand}" Classes="Primary" Content="发布到交换机" />
+                                </StackPanel>
+                            </Grid>
+                        </TabItem>
+
+                        <!-- Tab: Queue -->
+                        <TabItem Header="发布到队列 (默认交换机)">
+                            <Grid RowDefinitions="*,Auto" Margin="16,12">
+                                <!-- Row 0 (*): scrollable fields + body -->
+                                <ScrollViewer Grid.Row="0"
+                                              VerticalScrollBarVisibility="Auto"
+                                              HorizontalScrollBarVisibility="Disabled">
+                                    <StackPanel Spacing="10">
+                                        <!-- 目标队列 -->
+                                        <Grid ColumnDefinitions="120,*">
+                                            <TextBlock Classes="FieldLabel" Text="目标队列" VerticalAlignment="Center" />
+                                            <TextBlock Grid.Column="1"
+                                                       Text="{Binding QueueName}"
+                                                       FontWeight="SemiBold"
+                                                       VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"
+                                                       TextTrimming="CharacterEllipsis" />
+                                        </Grid>
+
+                                        <!-- 选项 -->
+                                        <StackPanel Orientation="Horizontal" Spacing="16">
+                                            <CheckBox Content="自动声明" IsChecked="{Binding QueueAutoDeclare, Mode=TwoWay}" />
+                                            <CheckBox Content="持久化" IsChecked="{Binding QueueIsPersistent, Mode=TwoWay}" />
+                                        </StackPanel>
+
+                                        <!-- 消息内容 -->
+                                        <Grid ColumnDefinitions="120,*">
+                                            <TextBlock Classes="FieldLabel" Text="消息内容" VerticalAlignment="Top" Margin="0,4,0,0" />
+                                            <TextBox Grid.Column="1"
+                                                     Classes="TerminalInput"
+                                                     Height="200"
+                                                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                                     Text="{Binding PublishQueueText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                     PlaceholderText="要发送的消息内容" />
+                                        </Grid>
+                                    </StackPanel>
+                                </ScrollViewer>
+
+                                <!-- Row 1 (Auto): publish button -->
+                                <StackPanel Grid.Row="1" Classes="ActionBar" Margin="0,8,0,0">
+                                    <Button Command="{Binding PublishToQueueCommand}" Classes="Primary" Content="发布到队列" />
+                                </StackPanel>
+                            </Grid>
+                        </TabItem>
+                    </TabControl>
+                </Border>
+
+                <!-- Receive area (50%) -->
+                <Border Grid.Row="1" Classes="ToolCard" Padding="0" Margin="0,8,0,0">
+                    <Grid RowDefinitions="Auto,*,Auto">
+                        <!-- Row 0 (Auto): title -->
+                        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="16,12,16,8">
+                            <TextBlock Classes="SectionHeader" Grid.Column="0" Text="接收" />
+                            <Button Grid.Column="1" Classes="Quiet"
+                                    Command="{Binding ClearReceivedCommand}" Content="清空" />
+                        </Grid>
+
+                        <ListBox Grid.Row="1" Margin="12,0,12,8"
+                                 ItemsSource="{Binding ReceivedMessages}"
+                                 SelectedItem="{Binding SelectedMessage, Mode=TwoWay}"
+                                 Classes="TerminalLogList">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate x:DataType="models:RabbitMqMessage">
+                                    <Grid ColumnDefinitions="Auto,Auto,*,Auto" Margin="0,2">
+                                        <TextBlock Grid.Column="0"
+                                                   Text="{Binding TimestampText}"
+                                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                                   Margin="0,0,8,0" />
+                                        <TextBlock Grid.Column="1"
+                                                   Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"
+                                                   FontWeight="SemiBold"
+                                                   Margin="0,0,8,0">
+                                            <Run Text="dt=" />
+                                            <Run Text="{Binding DeliveryTag}" />
+                                        </TextBlock>
+                                        <SelectableTextBlock Grid.Column="2"
+                                                             TextTrimming="CharacterEllipsis"
+                                                             FontFamily="Consolas">
+                                            <Run Text="[" />
+                                            <Run Text="{Binding DisplayExchange}" />
+                                            <Run Text=" → " />
+                                            <Run Text="{Binding QueueName}" />
+                                            <Run Text="] rk=" />
+                                            <Run Text="{Binding RoutingKey}" />
+                                        </SelectableTextBlock>
+                                        <Border Grid.Column="3"
+                                                Background="{DynamicResource SubtleFillColorTertiaryBrush}"
+                                                CornerRadius="3" Padding="6,1" Margin="8,0,0,0">
+                                            <TextBlock Classes="Caption" Text="{Binding BodyPreview}" />
+                                        </Border>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+
+                        <!-- Row 2 (Auto): ACK operations (always visible) -->
+                        <Border Grid.Row="2" Background="{DynamicResource SubtleFillColorTertiaryBrush}"
+                                Padding="16,6" Margin="12,4,12,12" CornerRadius="4">
+                            <StackPanel Classes="ActionBar">
+                                <TextBox Classes="Compact"
+                                         Text="{Binding ConsumeQueue, Mode=TwoWay}"
+                                         PlaceholderText="队列名" />
+                                <Button Margin="6,0,0,0" Classes="Compact Danger"
+                                        Command="{Binding BasicGetCommand}" Content="BasicGet 拉取" />
+                                <Button Classes="Compact Primary"
+                                        Command="{Binding StartConsumeCommand}" Content="订阅"
+                                        IsEnabled="{Binding IsConsuming, Converter={StaticResource Inv}}" />
+                                <Button Classes="Compact Danger"
+                                        Command="{Binding StopConsumeCommand}" Content="停止订阅"
+                                        IsEnabled="{Binding IsConsuming}" />
+                                <Button Classes="Compact Danger" Command="{Binding AckSelectedCommand}" Content="ACK 选中" />
+                                <Button Classes="Compact Danger"
+                                        Command="{Binding NackSelectedCommand}"
+                                        Content="NACK (requeue)" />
+                                <TextBlock Classes="Caption" VerticalAlignment="Center" Margin="16,0,0,0">
+                                    <Run Text="待 ACK: " />
+                                    <Run Text="{Binding PendingAckCount}" />
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Grid>
+
+        <!-- Log (fixed bottom 1/4) -->
+        <Border Grid.Row="2" Classes="ToolCard" Padding="0" Margin="0,8,0,0">
+            <Grid RowDefinitions="Auto,*">
+                <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="16,12,16,8">
+                    <TextBlock Classes="SectionHeader" Grid.Column="0" Text="日志" />
+                    <Button Grid.Column="1" Classes="Quiet"
+                            Command="{Binding ClearLogCommand}" Content="清空日志" />
+                </Grid>
+                <controls:LogBufferView Grid.Row="1" Margin="12,0,12,12" Entries="{Binding Log.Entries}" />
+            </Grid>
+        </Border>
+
+        <controls:TerminalStatusBar Grid.Row="3"
+                                    Margin="0,10,0,0"
+                                    RxCount="{Binding RxCount}"
+                                    TxCount="{Binding TxCount}"
+                                    ElapsedText="{Binding ElapsedText}"
+                                    RightDetail="{Binding StatusText}" />
+    </Grid>
+</UserControl>
