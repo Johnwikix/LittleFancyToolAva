@@ -1,3 +1,4 @@
+using Avalonia.Threading;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using LittleFancyToolAva.Models;
@@ -17,9 +18,14 @@ namespace LittleFancyToolAva.Utils
         public void Append(LogKind kind, string text)
         {
             if (string.IsNullOrEmpty(text)) return;
-            Entries.Add(new LogEntry(kind, text));
-            Trim();
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Count)));
+            if (Dispatcher.UIThread.CheckAccess())
+            {
+                AddEntry(kind, text);
+            }
+            else
+            {
+                Dispatcher.UIThread.Post(() => AddEntry(kind, text));
+            }
         }
 
         public void AppendLine(LogKind kind, string text)
@@ -32,7 +38,21 @@ namespace LittleFancyToolAva.Utils
 
         public void Clear()
         {
-            Entries.Clear();
+            if (Dispatcher.UIThread.CheckAccess())
+            {
+                Entries.Clear();
+            }
+            else
+            {
+                Dispatcher.UIThread.Post(() => Entries.Clear());
+            }
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Count)));
+        }
+
+        private void AddEntry(LogKind kind, string text)
+        {
+            Entries.Add(new LogEntry(kind, text));
+            Trim();
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Count)));
         }
 
@@ -42,10 +62,7 @@ namespace LittleFancyToolAva.Utils
             if (excess > 0)
             {
                 for (int i = 0; i < excess; i++)
-                {
                     Entries.RemoveAt(0);
-                }
-                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Count)));
             }
         }
 

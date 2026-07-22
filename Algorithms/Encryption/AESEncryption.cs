@@ -7,30 +7,14 @@ namespace LittleFancyToolAva.Algorithms
 {
     public class AESEncryption : IEncryptionSymmetric
     {
+        public int KeyBitLength => 128;
+        public int IvBitLength => 128;
 
         public string Encrypt(string input, string? key = null, string paddingMode = "PKCS7", int keyLength = 128, string? iv = null, string mode = null, string? outputType = "base64", string? keyIvType = "text")
         {
             using (Aes aesAlg = Aes.Create())
             {
-                if (keyIvType == "hex")
-                {
-                    aesAlg.Key = Hex.Decode(key);
-                    aesAlg.IV = Hex.Decode(iv);
-                }
-                else if (keyIvType == "text")
-                {
-                    aesAlg.Key = Encoding.UTF8.GetBytes(key);
-                    aesAlg.IV = Encoding.UTF8.GetBytes(iv);
-                }
-                else if (keyIvType == "base64")
-                {
-                    aesAlg.Key = Convert.FromBase64String(key);
-                    aesAlg.IV = Convert.FromBase64String(iv);
-                }
-                else
-                {
-                    return "key iv type error";
-                }
+                SetKeyAndIv(aesAlg, key, iv, keyIvType, mode);
                 aesAlg.Padding = GetAesPaddingMode(paddingMode);
                 aesAlg.Mode = ToolMethod.EncryptMode(mode);
                 ICryptoTransform encryptor = aesAlg.CreateEncryptor(aesAlg.Key, aesAlg.IV);
@@ -43,15 +27,12 @@ namespace LittleFancyToolAva.Algorithms
                             swEncrypt.Write(input);
                         }
                         byte[] encrypted = msEncrypt.ToArray();
-                        if (outputType == "base64")
+                        return outputType switch
                         {
-                            return Convert.ToBase64String(encrypted);
-                        }
-                        else if (outputType == "hex")
-                        {
-                            return Hex.ToHexString(encrypted);
-                        }
-                        return "output type error";
+                            "base64" => Convert.ToBase64String(encrypted),
+                            "hex" => Hex.ToHexString(encrypted),
+                            _ => throw new NotSupportedException($"Unsupported output type: {outputType}")
+                        };
                     }
                 }
             }
@@ -61,43 +42,17 @@ namespace LittleFancyToolAva.Algorithms
         {
             using (Aes aesAlg = Aes.Create())
             {
-                if (keyIvType == "hex")
-                {
-                    aesAlg.Key = Hex.Decode(key);
-                    aesAlg.IV = Hex.Decode(iv);
-                }
-                else if (keyIvType == "text")
-                {
-                    aesAlg.Key = Encoding.UTF8.GetBytes(key);
-                    aesAlg.IV = Encoding.UTF8.GetBytes(iv);
-                }
-                else if (keyIvType == "base64")
-                {
-                    aesAlg.Key = Convert.FromBase64String(key);
-                    aesAlg.IV = Convert.FromBase64String(iv);
-                }
-                else
-                {
-                    return "key iv type error";
-                }
+                SetKeyAndIv(aesAlg, key, iv, keyIvType, mode);
                 aesAlg.Padding = GetAesPaddingMode(paddingMode);
                 aesAlg.Mode = ToolMethod.EncryptMode(mode);
                 ICryptoTransform decryptor = aesAlg.CreateDecryptor(aesAlg.Key, aesAlg.IV);
 
-                byte[] cipherBytes;
-
-                if (outputType == "base64")
+                byte[] cipherBytes = outputType switch
                 {
-                    cipherBytes = Convert.FromBase64String(input);
-                }
-                else if (outputType == "hex")
-                {
-                    cipherBytes = Hex.Decode(input);
-                }
-                else
-                {
-                    return "output type error";
-                }
+                    "base64" => Convert.FromBase64String(input),
+                    "hex" => Hex.Decode(input),
+                    _ => throw new NotSupportedException($"Unsupported output type: {outputType}")
+                };
 
                 using (MemoryStream msDecrypt = new MemoryStream(cipherBytes))
                 {
@@ -110,6 +65,31 @@ namespace LittleFancyToolAva.Algorithms
                     }
                 }
             }
+        }
+
+        private static void SetKeyAndIv(Aes aesAlg, string? key, string? iv, string? keyIvType, string mode)
+        {
+            switch (keyIvType)
+            {
+                case "hex":
+                    aesAlg.Key = Hex.Decode(key);
+                    if (!string.IsNullOrEmpty(iv)) aesAlg.IV = Hex.Decode(iv);
+                    break;
+                case "text":
+                    aesAlg.Key = Encoding.UTF8.GetBytes(key);
+                    if (!string.IsNullOrEmpty(iv)) aesAlg.IV = Encoding.UTF8.GetBytes(iv);
+                    break;
+                case "base64":
+                    aesAlg.Key = Convert.FromBase64String(key);
+                    if (!string.IsNullOrEmpty(iv)) aesAlg.IV = Convert.FromBase64String(iv);
+                    break;
+                default:
+                    throw new ArgumentException($"Unsupported keyIvType: {keyIvType}");
+            }
+            if (aesAlg.Key.Length is not (16 or 24 or 32))
+                throw new ArgumentException($"Key must be 16, 24, or 32 bytes, got {aesAlg.Key.Length}");
+            if (mode == "CBC" && aesAlg.IV.Length != 16)
+                throw new ArgumentException($"IV must be 16 bytes for CBC mode, got {aesAlg.IV.Length}");
         }
 
         private PaddingMode GetAesPaddingMode(string paddingMode)
@@ -128,10 +108,8 @@ namespace LittleFancyToolAva.Algorithms
                 case "None":
                     return PaddingMode.None;
                 default:
-                    throw new NotSupportedException("不支持的 AES 填充方式");
+                    throw new NotSupportedException($"Unsupported AES padding: {paddingMode}");
             }
         }
     }
 }
-
-

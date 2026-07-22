@@ -89,8 +89,8 @@ namespace LittleFancyToolAva.ViewModels
 
         protected void GenerateSymmetricKey()
         {
-            Key = ToolMethod.GenerateSymmetricKey(KeyBitLength, GetSelectedKeyIvType());
-            Iv = ToolMethod.GenerateSymmetricKey(128, GetSelectedKeyIvType());
+            Key = ToolMethod.GenerateSymmetricKey(_encryption.KeyBitLength, GetSelectedKeyIvType());
+            Iv = ToolMethod.GenerateSymmetricKey(_encryption.IvBitLength, GetSelectedKeyIvType());
         }
 
         protected string GetSelectedKeyIvType() => KeyIvTypeIndex switch
@@ -109,7 +109,7 @@ namespace LittleFancyToolAva.ViewModels
             {
                 string[] modes = ["ECB", "CBC"];
                 string[] outputTypes = ["base64", "hex"];
-                OutputText = _encryption.Encrypt(InputText, Key, Paddings[PaddingIndex], KeyBitLength, Iv, modes[EncryptModeIndex], outputTypes[OutputTypeIndex], GetSelectedKeyIvType());
+                OutputText = _encryption.Encrypt(InputText, Key, Paddings[PaddingIndex], _encryption.KeyBitLength, Iv, modes[EncryptModeIndex], outputTypes[OutputTypeIndex], GetSelectedKeyIvType());
             }
             catch (Exception ex)
             {
@@ -125,7 +125,7 @@ namespace LittleFancyToolAva.ViewModels
             {
                 string[] modes = ["ECB", "CBC"];
                 string[] outputTypes = ["base64", "hex"];
-                InputText = _encryption.Decrypt(OutputText, Key, Paddings[PaddingIndex], KeyBitLength, Iv, modes[EncryptModeIndex], outputTypes[OutputTypeIndex], GetSelectedKeyIvType());
+                InputText = _encryption.Decrypt(OutputText, Key, Paddings[PaddingIndex], _encryption.KeyBitLength, Iv, modes[EncryptModeIndex], outputTypes[OutputTypeIndex], GetSelectedKeyIvType());
             }
             catch (Exception ex)
             {

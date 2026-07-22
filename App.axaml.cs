@@ -48,7 +48,22 @@ namespace LittleFancyToolAva
                     DataContext = _serviceProvider.GetRequiredService<MainWindowViewModel>(),
                 };
 
-                desktop.Exit += (_, _) => host.SaveState();
+                desktop.Exit += async (_, _) =>
+                {
+                    try
+                    {
+                        host.SaveState();
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Warning(ex, "Failed to save state on exit");
+                    }
+                    if (_serviceProvider is IDisposable d)
+                    {
+                        try { d.Dispose(); } catch (Exception ex) { Log.Warning(ex, "ServiceProvider dispose failed"); }
+                    }
+                    Log.CloseAndFlush();
+                };
             }
 
             base.OnFrameworkInitializationCompleted();
@@ -56,19 +71,11 @@ namespace LittleFancyToolAva
 
         private void ConfigureServices(IServiceCollection services)
         {
-            Log.Logger = new LoggerConfiguration()
-                .MinimumLevel.Debug()
-                .WriteTo.File(
-                    Path.Combine(AppContext.BaseDirectory, "logs", "tool-.log"),
-                    rollingInterval: RollingInterval.Day,
-                    retainedFileCountLimit: 30,
-                    shared: true)
-                .CreateLogger();
-
             services.AddLogging(builder =>
             {
                 builder.ClearProviders();
-                builder.AddSerilog(dispose: true);
+                builder.AddSerilog(dispose: false);
+                builder.SetMinimumLevel(Microsoft.Extensions.Logging.LogLevel.Trace);
             });
 
             services.AddSingleton<AppObserveModel>();

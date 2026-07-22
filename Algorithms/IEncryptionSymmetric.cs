@@ -2,6 +2,9 @@
 {
     public interface IEncryptionSymmetric
     {
+        int KeyBitLength { get; }
+        int IvBitLength { get; }
+
         string Encrypt(
             string input,
             string? key = null,

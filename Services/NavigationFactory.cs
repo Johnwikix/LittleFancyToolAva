@@ -3,8 +3,8 @@ using FluentAvalonia.UI.Controls;
 using LittleFancyToolAva.Models.ViewStates;
 using LittleFancyToolAva.ViewModels;
 using LittleFancyToolAva.Views;
-using System;
-using System.Collections.Generic;
+using Microsoft.Extensions.Logging;
+using Serilog;
 
 namespace LittleFancyToolAva.Services
 {
@@ -22,7 +22,7 @@ namespace LittleFancyToolAva.Services
 
         public Control GetPage(Type srcType)
         {
-            return null!;
+            throw new NotSupportedException($"GetPage(Type) is not supported. Use GetPageFromObject instead. Type={srcType?.Name}");
         }
 
         public Control GetPageFromObject(object target)
@@ -30,6 +30,10 @@ namespace LittleFancyToolAva.Services
             if (_previousDataContext is IViewLifecycle lifecycle && _previousDataContext != target)
             {
                 lifecycle.OnNavigatedFrom();
+                if (_previousDataContext is IDisposable d)
+                {
+                    try { d.Dispose(); } catch (Exception ex) { Log.Warning(ex, "Failed to dispose ViewModel {Type}", _previousDataContext.GetType().Name); }
+                }
             }
 
             if (_previousDataContext != target && target is IViewLifecycle lifecycle2)
@@ -44,7 +48,7 @@ namespace LittleFancyToolAva.Services
                 page.DataContext = target;
                 return page;
             }
-            return null!;
+            throw new InvalidOperationException($"No view registered for ViewModel type '{target.GetType().Name}'. Register via NavigationFactory.Register<TViewModel, TView>()");
         }
     }
 }

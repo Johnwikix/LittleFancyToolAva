@@ -5,11 +5,9 @@ namespace LittleFancyToolAva.Utils
 {
     public static class ToolMethod
     {
-        private static readonly Random _random = new();
-
         public static bool GetRandomBoolean(int probabilityPercent)
         {
-            return _random.Next(100) < probabilityPercent;
+            return Random.Shared.Next(100) < probabilityPercent;
         }
 
         public static string ByteArrayToHexString(byte[] data)
@@ -19,27 +17,22 @@ namespace LittleFancyToolAva.Utils
 
         public static byte[] HexStringToBytes(string hexStr)
         {
-            try
+            if (string.IsNullOrWhiteSpace(hexStr))
+                throw new ArgumentException("Hex string cannot be empty", nameof(hexStr));
+            string hex = hexStr.Replace(" ", "").Replace("-", "");
+            if (hex.Length % 2 != 0)
+                throw new FormatException($"Hex string has odd length ({hex.Length} chars) after removing delimiters");
+            byte[] bytes = new byte[hex.Length / 2];
+            for (int i = 0; i < hex.Length; i += 2)
             {
-                string hex = hexStr.Replace(" ", "");
-                int length = hex.Length;
-                byte[] bytes = new byte[length / 2];
-                for (int i = 0; i < length; i += 2)
-                {
-                    bytes[i / 2] = Convert.ToByte(hex.Substring(i, 2), 16);
-                }
-                return bytes;
+                bytes[i / 2] = Convert.ToByte(hex.Substring(i, 2), 16);
             }
-            catch (Exception ex)
-            {
-                throw new Exception(ex.Message);
-            }
+            return bytes;
         }
 
         public static string GenerateSymmetricKey(int bitLength, string keyIvType)
         {
             const string ValidChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+-=[]{}|;':\",./<>?";
-            byte[] keyBytes = new byte[bitLength / 8];
             int length = bitLength switch
             {
                 64 => 8,
@@ -48,33 +41,30 @@ namespace LittleFancyToolAva.Utils
                 256 => 32,
                 _ => throw new ArgumentException("Invalid bit length. Supported: 64, 128, 192, 256.")
             };
+            byte[] keyBytes = new byte[length];
             if (keyIvType == "text")
             {
-                var key = new StringBuilder(bitLength);
+                var key = new StringBuilder(length);
+                Span<byte> randBytes = stackalloc byte[length];
+                RandomNumberGenerator.Fill(randBytes);
                 for (int i = 0; i < length; i++)
                 {
-                    int index = _random.Next(0, ValidChars.Length);
+                    int index = randBytes[i] % ValidChars.Length;
                     key.Append(ValidChars[index]);
                 }
                 return key.ToString();
             }
             if (keyIvType == "base64")
             {
-                using (var rng = RandomNumberGenerator.Create())
-                {
-                    rng.GetBytes(keyBytes);
-                }
+                RandomNumberGenerator.Fill(keyBytes);
                 return Convert.ToBase64String(keyBytes);
             }
             if (keyIvType == "hex")
             {
-                using (var rng = RandomNumberGenerator.Create())
-                {
-                    rng.GetBytes(keyBytes);
-                }
+                RandomNumberGenerator.Fill(keyBytes);
                 return HexToStr(keyBytes);
             }
-            return "keyIvType error";
+            throw new ArgumentException($"Unsupported keyIvType: {keyIvType}");
         }
 
         private static string HexToStr(byte[] bytes)
@@ -87,15 +77,12 @@ namespace LittleFancyToolAva.Utils
 
         public static CipherMode EncryptMode(string mode)
         {
-            switch (mode)
+            return mode switch
             {
-                case "ECB":
-                    return CipherMode.ECB;
-                case "CBC":
-                    return CipherMode.CBC;
-                default:
-                    throw new NotSupportedException("不支持的加密模式");
-            }
+                "ECB" => CipherMode.ECB,
+                "CBC" => CipherMode.CBC,
+                _ => throw new NotSupportedException($"Unsupported cipher mode: {mode}")
+            };
         }
 
         public static Encoding GetEncoding(EncodingMode encodingMode)
@@ -106,7 +93,7 @@ namespace LittleFancyToolAva.Utils
                 EncodingMode.ASCII => Encoding.ASCII,
                 EncodingMode.UTF8 => Encoding.UTF8,
                 EncodingMode.GB2312 => Encoding.GetEncoding("GB18030"),
-                _ => throw new ArgumentException("不支持的编码类型"),
+                _ => throw new ArgumentException($"Unsupported encoding: {encodingMode}")
             };
         }
 
@@ -118,7 +105,7 @@ namespace LittleFancyToolAva.Utils
                 EncodingMode.ASCII => Encoding.ASCII.GetBytes(input),
                 EncodingMode.UTF8 => Encoding.UTF8.GetBytes(input),
                 EncodingMode.GB2312 => Encoding.GetEncoding("GB18030").GetBytes(input),
-                _ => throw new ArgumentException("不支持的编码类型"),
+                _ => throw new ArgumentException($"Unsupported encoding: {mode}")
             };
         }
 
@@ -149,7 +136,7 @@ namespace LittleFancyToolAva.Utils
         public static bool IsMusicFile(string path)
         {
             string ext = Path.GetExtension(path)?.ToLowerInvariant() ?? "";
-            return ext is ".mp3" or ".wav" or ".flac" or ".ogg";
+            return ext is ".mp3" or ".wav" or ".flac" or ".ogg" or ".m4a" or ".aac" or ".opus" or ".wma" or ".aiff" or ".ape";
         }
 
         public enum EncodingMode

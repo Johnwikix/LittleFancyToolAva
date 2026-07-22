@@ -6,9 +6,9 @@ namespace LittleFancyToolAva.Algorithms.Encryption
 {
     public class RSAEncryption : IEncryptionAsymmetric
     {
-        public string Encrypt(string input, string publicKey = null, string paddingMode = "PKCS#1", int keyLength = 2048)
+        public string Encrypt(string input, string publicKey = null, string paddingMode = "Pkcs1", int keyLength = 2048)
         {
-            using (RSA rsa = RSA.Create(keyLength))
+            using (RSA rsa = RSA.Create())
             {
                 rsa.ImportFromPem(publicKey);
                 RSAEncryptionPadding padding = GetRSAEncryptionPadding(paddingMode);
@@ -18,9 +18,9 @@ namespace LittleFancyToolAva.Algorithms.Encryption
             }
         }
 
-        public string Decrypt(string input, string privateKey = null, string paddingMode = "PKCS#1", int keyLength = 2048)
+        public string Decrypt(string input, string privateKey = null, string paddingMode = "Pkcs1", int keyLength = 2048)
         {
-            using (RSA rsa = RSA.Create(keyLength))
+            using (RSA rsa = RSA.Create())
             {
                 rsa.ImportFromPem(privateKey);
                 RSAEncryptionPadding padding = GetRSAEncryptionPadding(paddingMode);
@@ -64,17 +64,7 @@ namespace LittleFancyToolAva.Algorithms.Encryption
             }
             else if (keyFormat == "PKCS#8")
             {
-                byte[] pkcs8KeyBytes = rsa.ExportSubjectPublicKeyInfo();
-                string pkcs8Base64 = Convert.ToBase64String(pkcs8KeyBytes);
-                StringBuilder pkcs8PemBuilder = new StringBuilder();
-                pkcs8PemBuilder.AppendLine("-----BEGIN PUBLIC KEY-----");
-                for (int i = 0; i < pkcs8Base64.Length; i += 64)
-                {
-                    pkcs8PemBuilder.AppendLine(pkcs8Base64.Substring(i, Math.Min(64, pkcs8Base64.Length - i)));
-                }
-                pkcs8PemBuilder.AppendLine("-----END PUBLIC KEY-----");
-
-                return pkcs8PemBuilder.ToString();
+                return rsa.ExportSubjectPublicKeyInfoPem();
             }
             else
             {
@@ -97,7 +87,7 @@ namespace LittleFancyToolAva.Algorithms.Encryption
                 case "OaepSHA512":
                     return RSAEncryptionPadding.OaepSHA512;
                 default:
-                    throw new NotSupportedException("不支持的填充方式");
+                    throw new NotSupportedException($"Unsupported RSA padding: {paddingMode}");
             }
         }
 
@@ -106,18 +96,25 @@ namespace LittleFancyToolAva.Algorithms.Encryption
             using (var rsa = RSA.Create())
             {
                 rsa.ImportFromPem(publicKey);
-                using (var inputFileStream = new FileStream(inputFilePath, FileMode.Open, FileAccess.Read))
-                using (var outputFileStream = new FileStream(outputFilePath, FileMode.Create, FileAccess.Write))
+                int keySizeBytes = rsa.KeySize / 8;
+                int maxDataSize = keySizeBytes - 11;
+                int encryptedBlockSize = keySizeBytes;
+
+                await using (var inputFileStream = new FileStream(inputFilePath, FileMode.Open, FileAccess.Read))
+                await using (var tmpStream = new FileStream(outputFilePath + ".tmp", FileMode.Create, FileAccess.Write))
                 {
-                    int maxDataSize = keyLength / 8 - 11; // PKCS1填充模式下，最大加密数据块大小
                     byte[] buffer = new byte[maxDataSize];
                     int bytesRead;
                     while ((bytesRead = await inputFileStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
                     {
-                        byte[] encryptedData = rsa.Encrypt(buffer, RSAEncryptionPadding.Pkcs1);
-                        await outputFileStream.WriteAsync(encryptedData, 0, encryptedData.Length);
+                        byte[] dataToEncrypt = bytesRead == buffer.Length ? buffer : buffer[..bytesRead];
+                        byte[] encryptedData = rsa.Encrypt(dataToEncrypt, RSAEncryptionPadding.Pkcs1);
+                        await tmpStream.WriteAsync(encryptedData, 0, encryptedData.Length);
                     }
                 }
+                if (File.Exists(outputFilePath))
+                    File.Delete(outputFilePath);
+                File.Move(outputFilePath + ".tmp", outputFilePath);
             }
         }
 
@@ -125,24 +122,25 @@ namespace LittleFancyToolAva.Algorithms.Encryption
         {
             using (var rsa = RSA.Create())
             {
-
                 rsa.ImportFromPem(privateKey);
-                using (var inputFileStream = new FileStream(inputFilePath, FileMode.Open, FileAccess.Read))
-                using (var outputFileStream = new FileStream(outputFilePath, FileMode.Create, FileAccess.Write))
+                int keySizeBytes = rsa.KeySize / 8;
+
+                await using (var inputFileStream = new FileStream(inputFilePath, FileMode.Open, FileAccess.Read))
+                await using (var tmpStream = new FileStream(outputFilePath + ".tmp", FileMode.Create, FileAccess.Write))
                 {
-                    // RSA解密的数据块大小等于密钥长度
-                    int encryptedBlockSize = keyLength / 8;
-                    byte[] buffer = new byte[encryptedBlockSize];
+                    byte[] buffer = new byte[keySizeBytes];
                     int bytesRead;
                     while ((bytesRead = await inputFileStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
                     {
-                        byte[] decryptedData = rsa.Decrypt(buffer, RSAEncryptionPadding.Pkcs1);
-                        await outputFileStream.WriteAsync(decryptedData, 0, decryptedData.Length);
+                        byte[] blockToDecrypt = bytesRead == keySizeBytes ? buffer : buffer[..bytesRead];
+                        byte[] decryptedData = rsa.Decrypt(blockToDecrypt, RSAEncryptionPadding.Pkcs1);
+                        await tmpStream.WriteAsync(decryptedData, 0, decryptedData.Length);
                     }
                 }
+                if (File.Exists(outputFilePath))
+                    File.Delete(outputFilePath);
+                File.Move(outputFilePath + ".tmp", outputFilePath);
             }
         }
     }
 }
-
-

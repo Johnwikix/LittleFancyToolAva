@@ -11,6 +11,9 @@ namespace LittleFancyToolAva.Algorithms.Encryption
 {
     public class SM4Encryption : IEncryptionSymmetric
     {
+        public int KeyBitLength => 128;
+        public int IvBitLength => 128;
+
         public string Decrypt(
             string input,
             string? key, string?
@@ -21,70 +24,23 @@ namespace LittleFancyToolAva.Algorithms.Encryption
             string? outputType = "base64",
             string? keyIvType = "text")
         {
-            byte[] cipherBytes;
-            byte[] keyBytes;
-            byte[] ivBytes;
-            if (outputType == "base64")
+            byte[] cipherBytes = outputType switch
             {
-                cipherBytes = Convert.FromBase64String(input);
-            }
-            else if (outputType == "hex")
-            {
-                cipherBytes = Hex.Decode(input);
-            }
-            else
-            {
-                return "output type error";
-            }
+                "base64" => Convert.FromBase64String(input),
+                "hex" => Hex.Decode(input),
+                _ => throw new NotSupportedException($"Unsupported output type: {outputType}")
+            };
 
-            if (keyIvType == "hex")
-            {
-                keyBytes = Hex.Decode(key);
-                ivBytes = Hex.Decode(iv);
-            }
-            else if (keyIvType == "text")
-            {
-                keyBytes = Encoding.UTF8.GetBytes(key);
-                ivBytes = Encoding.UTF8.GetBytes(iv);
-            }
-            else if (keyIvType == "base64")
-            {
-                keyBytes = Convert.FromBase64String(key);
-                ivBytes = Convert.FromBase64String(iv);
-            }
-            else
-            {
-                return "key iv type error";
-            }
-
-            IBlockCipher engine = new SM4Engine();
-            IBufferedCipher cipher;
+            var (keyBytes, ivBytes) = ParseKeyIv(key, iv, keyIvType);
             IBlockCipherPadding padding = GetPadding(paddingModeStr);
-
-            if (mode.ToUpper() == "ECB")
-            {
-                cipher = new PaddedBufferedBlockCipher(engine, padding);
-                cipher.Init(false, new KeyParameter(keyBytes));
-            }
-            else if (mode.ToUpper() == "CBC")
-            {
-                if (string.IsNullOrEmpty(iv))
-                {
-                    throw new ArgumentException("使用 CBC 模式时，IV 不能为空。");
-                }
-                cipher = new PaddedBufferedBlockCipher(new CbcBlockCipher(engine), padding);
-                cipher.Init(false, new ParametersWithIV(new KeyParameter(keyBytes), ivBytes));
-            }
-            else
-            {
-                throw new ArgumentException($"不支持的加密模式: {mode}。支持的模式有: ECB, CBC。");
-            }
+            IBufferedCipher cipher = CreateCipher(mode, ivBytes, keyBytes, padding, false);
 
             byte[] outputBytes = new byte[cipher.GetOutputSize(cipherBytes.Length)];
             int length = cipher.ProcessBytes(cipherBytes, 0, cipherBytes.Length, outputBytes, 0);
             cipher.DoFinal(outputBytes, length);
             return Encoding.UTF8.GetString(outputBytes);
         }
+
         public string Encrypt(
             string input,
             string? key,
@@ -95,66 +51,77 @@ namespace LittleFancyToolAva.Algorithms.Encryption
             string? outputType = "base64",
             string? keyIvType = "text")
         {
-            byte[] keyBytes;
-            byte[] ivBytes;
+            var (keyBytes, ivBytes) = ParseKeyIv(key, iv, keyIvType);
             byte[] data = Encoding.UTF8.GetBytes(input);
-
-            if (keyIvType == "hex")
-            {
-                keyBytes = Hex.Decode(key);
-                ivBytes = Hex.Decode(iv);
-            }
-            else if (keyIvType == "text")
-            {
-                keyBytes = Encoding.UTF8.GetBytes(key);
-                ivBytes = Encoding.UTF8.GetBytes(iv);
-            }
-            else if (keyIvType == "base64")
-            {
-                keyBytes = Convert.FromBase64String(key);
-                ivBytes = Convert.FromBase64String(iv);
-            }
-            else
-            {
-                return "key iv type error";
-            }
-
-            IBlockCipher engine = new SM4Engine();
-            IBufferedCipher cipher;
-
             IBlockCipherPadding paddingMode = GetPadding(paddingModeStr);
+            IBufferedCipher cipher = CreateCipher(mode, ivBytes, keyBytes, paddingMode, true);
 
-            if (mode.ToUpper() == "ECB")
-            {
-                cipher = new PaddedBufferedBlockCipher(engine, paddingMode);
-                cipher.Init(true, new KeyParameter(keyBytes));
-            }
-            else if (mode.ToUpper() == "CBC")
-            {
-                if (string.IsNullOrEmpty(iv))
-                {
-                    throw new ArgumentException("使用 CBC 模式时，IV 不能为空。");
-                }
-                cipher = new PaddedBufferedBlockCipher(new CbcBlockCipher(engine), paddingMode);
-                cipher.Init(true, new ParametersWithIV(new KeyParameter(keyBytes), ivBytes));
-            }
-            else
-            {
-                throw new ArgumentException($"不支持的加密模式: {mode}。支持的模式有: ECB, CBC。");
-            }
             byte[] outputBytes = new byte[cipher.GetOutputSize(data.Length)];
             int length = cipher.ProcessBytes(data, 0, data.Length, outputBytes, 0);
-            cipher.DoFinal(outputBytes, length);
-            if (outputType == "base64")
+            int finalLen = cipher.DoFinal(outputBytes, length);
+
+            int actualLen = length + finalLen;
+            return outputType switch
             {
-                return Convert.ToBase64String(outputBytes);
-            }
-            else if (outputType == "hex")
-            {
-                return Hex.ToHexString(outputBytes);
-            }
-            return "output type error";
+                "base64" => Convert.ToBase64String(outputBytes, 0, actualLen),
+                "hex" => Hex.ToHexString(outputBytes, 0, actualLen),
+                _ => throw new NotSupportedException($"Unsupported output type: {outputType}")
+            };
         }
+
+        private static (byte[] key, byte[] iv) ParseKeyIv(string? key, string? iv, string? keyIvType)
+        {
+            byte[] keyBytes, ivBytes;
+            switch (keyIvType)
+            {
+                case "hex":
+                    keyBytes = Hex.Decode(key);
+                    ivBytes = Hex.Decode(iv);
+                    break;
+                case "text":
+                    keyBytes = Encoding.UTF8.GetBytes(key);
+                    ivBytes = Encoding.UTF8.GetBytes(iv);
+                    break;
+                case "base64":
+                    keyBytes = Convert.FromBase64String(key);
+                    ivBytes = Convert.FromBase64String(iv);
+                    break;
+                default:
+                    throw new ArgumentException($"Unsupported keyIvType: {keyIvType}");
+            }
+            if (keyBytes.Length != 16)
+                throw new ArgumentException($"SM4 key must be 16 bytes, got {keyBytes.Length}");
+            if (ivBytes.Length != 16)
+                throw new ArgumentException($"SM4 IV must be 16 bytes, got {ivBytes.Length}");
+            return (keyBytes, ivBytes);
+        }
+
+        private static IBufferedCipher CreateCipher(string mode, byte[]? ivBytes, byte[] keyBytes, IBlockCipherPadding padding, bool forEncryption)
+        {
+            IBlockCipher engine = new SM4Engine();
+            string modeUpper = mode?.ToUpper() ?? "ECB";
+            if (modeUpper == "ECB")
+            {
+                var cipher = new PaddedBufferedBlockCipher(engine, padding);
+                cipher.Init(forEncryption, new KeyParameter(keyBytes));
+                return cipher;
+            }
+            else if (modeUpper == "CBC")
+            {
+                if (string.IsNullOrEmpty(ivBytes is null ? null : Convert.ToBase64String(ivBytes)))
+                {
+                    throw new ArgumentException("CBC mode requires a non-null IV.");
+                }
+                var cipher = new PaddedBufferedBlockCipher(new CbcBlockCipher(engine), padding);
+                cipher.Init(forEncryption, new ParametersWithIV(new KeyParameter(keyBytes), ivBytes));
+                return cipher;
+            }
+            else
+            {
+                throw new ArgumentException($"Unsupported mode: {mode}. Supported: ECB, CBC.");
+            }
+        }
+
         private IBlockCipherPadding GetPadding(string paddingMode)
         {
             if (string.IsNullOrEmpty(paddingMode))
@@ -171,10 +138,8 @@ namespace LittleFancyToolAva.Algorithms.Encryption
                 case "ZEROBYTE":
                     return new ZeroBytePadding();
                 default:
-                    throw new ArgumentException($"不支持的填充模式: {paddingMode}。支持的模式有: PKCS7, ISO10126, ZEROBYTE。");
+                    throw new ArgumentException($"Unsupported padding: {paddingMode}. Supported: PKCS7, ISO10126, ZEROBYTE.");
             }
         }
     }
 }
-
-

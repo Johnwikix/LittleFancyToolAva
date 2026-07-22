@@ -8,15 +8,9 @@ namespace LittleFancyToolAva.Views
 {
     public partial class MainWindow : FAAppWindow
     {
-        public MainWindowViewModel? ViewModel { get; }
-
         public MainWindow()
         {
             InitializeComponent();
-            if (DataContext is MainWindowViewModel vm)
-            {
-                ViewModel = vm;
-            }
 
             if (App.Current is App app && app.TryGetService<NavigationFactory>() is { } navFactory)
             {
@@ -45,10 +39,13 @@ namespace LittleFancyToolAva.Views
 
             NavigationService.Instance.SetFrame(FrameView);
 
-            if (ViewModel?.SelectedPage is PageNavigationItem page && page.Content != null)
+            Loaded += (_, _) =>
             {
-                NavigationService.Instance.NavigateFromContext(page.Content);
-            }
+                if (DataContext is MainWindowViewModel vm && vm.SelectedPage is PageNavigationItem page && page.Content != null)
+                {
+                    NavigationService.Instance.NavigateFromContext(page.Content);
+                }
+            };
         }
 
         protected override void OnApplyTemplate(Avalonia.Controls.Primitives.TemplateAppliedEventArgs e)

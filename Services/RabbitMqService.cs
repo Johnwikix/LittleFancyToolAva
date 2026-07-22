@@ -52,24 +52,42 @@ namespace LittleFancyToolAva.Services
                     Password = cfg.Password,
                     VirtualHost = cfg.VirtualHost,
                     AutomaticRecoveryEnabled = true,
+                    ContinuationTimeout = TimeSpan.FromSeconds(10),
+                    HandshakeContinuationTimeout = TimeSpan.FromSeconds(10),
+                    RequestedConnectionTimeout = TimeSpan.FromSeconds(10),
+                    SocketReadTimeout = TimeSpan.FromSeconds(10),
+                    SocketWriteTimeout = TimeSpan.FromSeconds(10),
                     ClientProvidedName = "LittleFancyToolAva"
                 };
 
                 StatusChanged?.Invoke($"正在连接 {cfg.Host}:{cfg.Port} ...");
-                _connection = await factory.CreateConnectionAsync(ct);
-                _publishChannel = await _connection.CreateChannelAsync(cancellationToken: ct);
-                _consumeChannel = await _connection.CreateChannelAsync(cancellationToken: ct);
+
+                using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                timeoutCts.CancelAfter(TimeSpan.FromSeconds(15));
+                _connection = await factory.CreateConnectionAsync(timeoutCts.Token);
+                _publishChannel = await _connection.CreateChannelAsync(cancellationToken: timeoutCts.Token);
+                _consumeChannel = await _connection.CreateChannelAsync(cancellationToken: timeoutCts.Token);
 
                 _connection.ConnectionShutdownAsync += OnConnectionShutdown;
 
                 _logger.LogInformation("RabbitMQ connected: {Host}:{Port} vhost={VHost}", cfg.Host, cfg.Port, cfg.VirtualHost);
                 StatusChanged?.Invoke($"已连接 {_connection.Endpoint.HostName}:{_connection.Endpoint.Port} vhost={cfg.VirtualHost}");
             }
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+            {
+                _logger.LogError("RabbitMQ connect timed out after 15s");
+                StatusChanged?.Invoke("连接超时 (15s)");
+                ErrorOccurred?.Invoke(new TimeoutException("RabbitMQ 连接超时 (15秒)"));
+                throw;
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "RabbitMQ connect failed");
                 StatusChanged?.Invoke($"连接失败: {ex.Message}");
                 ErrorOccurred?.Invoke(ex);
+                if (_publishChannel != null) { try { await _publishChannel.CloseAsync(); } catch { } _publishChannel.Dispose(); _publishChannel = null; }
+                if (_consumeChannel != null) { try { await _consumeChannel.CloseAsync(); } catch { } _consumeChannel.Dispose(); _consumeChannel = null; }
+                if (_connection != null) { try { await _connection.CloseAsync(); } catch { } _connection.Dispose(); _connection = null; }
                 throw;
             }
             finally
@@ -85,6 +103,7 @@ namespace LittleFancyToolAva.Services
             {
                 await CloseAsync();
                 StatusChanged?.Invoke("已断开");
+                _logger.LogInformation("RabbitMQ disconnected");
             }
             finally
             {
@@ -97,27 +116,27 @@ namespace LittleFancyToolAva.Services
             if (_consumerTag is not null && _consumeChannel is { IsOpen: true })
             {
                 try { await _consumeChannel.BasicCancelAsync(_consumerTag, false, CancellationToken.None); }
-                catch (Exception ex) { _logger.LogWarning(ex, "Cancel consumer failed"); }
+                catch (Exception ex) { _logger.LogDebug(ex, "Cancel consumer during close"); }
             }
             _consumerTag = null;
             _consumer = null;
 
             if (_publishChannel is not null)
             {
-                try { await _publishChannel.CloseAsync(); } catch (Exception ex) { _logger.LogWarning(ex, "Close publish channel"); }
+                try { await _publishChannel.CloseAsync(); } catch (Exception ex) { _logger.LogDebug(ex, "Close publish channel"); }
                 _publishChannel.Dispose();
                 _publishChannel = null;
             }
             if (_consumeChannel is not null)
             {
-                try { await _consumeChannel.CloseAsync(); } catch (Exception ex) { _logger.LogWarning(ex, "Close consume channel"); }
+                try { await _consumeChannel.CloseAsync(); } catch (Exception ex) { _logger.LogDebug(ex, "Close consume channel"); }
                 _consumeChannel.Dispose();
                 _consumeChannel = null;
             }
             if (_connection is not null)
             {
                 _connection.ConnectionShutdownAsync -= OnConnectionShutdown;
-                try { await _connection.CloseAsync(); } catch (Exception ex) { _logger.LogWarning(ex, "Close connection"); }
+                try { await _connection.CloseAsync(); } catch (Exception ex) { _logger.LogDebug(ex, "Close connection"); }
                 _connection.Dispose();
                 _connection = null;
             }
@@ -125,6 +144,7 @@ namespace LittleFancyToolAva.Services
 
         private Task OnConnectionShutdown(object sender, ShutdownEventArgs e)
         {
+            _logger.LogWarning("RabbitMQ connection shutdown: {ReplyCode} {ReplyText}", e.ReplyCode, e.ReplyText);
             StatusChanged?.Invoke($"连接已关闭: {e.ReplyText} ({e.ReplyCode})");
             Disconnected?.Invoke();
             return Task.CompletedTask;
@@ -147,9 +167,7 @@ namespace LittleFancyToolAva.Services
                     await _consumeChannel.QueueDeclarePassiveAsync(name, ct);
                     results.Add(name);
                 }
-                catch (OperationInterruptedException)
-                {
-                }
+                catch (OperationInterruptedException) { }
                 catch (Exception ex)
                 {
                     _logger.LogDebug(ex, "Queue passive declare failed: {Queue}", name);
@@ -176,9 +194,7 @@ namespace LittleFancyToolAva.Services
                     await _publishChannel.ExchangeDeclarePassiveAsync(name, ct);
                     results.Add(name);
                 }
-                catch (OperationInterruptedException)
-                {
-                }
+                catch (OperationInterruptedException) { }
                 catch (Exception ex)
                 {
                     _logger.LogDebug(ex, "Exchange passive declare failed: {Exchange}", name);
@@ -190,12 +206,22 @@ namespace LittleFancyToolAva.Services
 
         public async Task PublishToExchangeAsync(PublishToExchangeArgs args, CancellationToken ct)
         {
+            if (string.IsNullOrEmpty(args.Exchange))
+                throw new ArgumentException("Exchange 不能为空");
+            if (args.Body?.Length > 128 * 1024 * 1024)
+                throw new ArgumentException("Body 超出 128MiB 限制");
+
             var channel = EnsurePublishChannel();
             if (args.AutoDeclare && !string.IsNullOrEmpty(args.Exchange))
             {
                 try
                 {
                     await channel.ExchangeDeclareAsync(args.Exchange, args.ExchangeType, true, false, null, false, false, ct);
+                }
+                catch (OperationInterruptedException ex) when (ex.ShutdownReason?.ReplyCode == 406)
+                {
+                    _logger.LogError(ex, "Exchange declare conflict: {Exchange}", args.Exchange);
+                    throw new InvalidOperationException($"交换机 '{args.Exchange}' 参数冲突: {ex.ShutdownReason.ReplyText}", ex);
                 }
                 catch (Exception ex)
                 {
@@ -213,23 +239,18 @@ namespace LittleFancyToolAva.Services
                 props.Headers = new Dictionary<string, object?>(args.Headers);
             }
 
-            await channel.BasicPublishAsync(
-                args.Exchange,
-                args.RoutingKey,
-                false,
-                props,
-                args.Body,
-                ct);
-
+            await channel.BasicPublishAsync(args.Exchange, args.RoutingKey, false, props, args.Body, ct);
             StatusChanged?.Invoke($"已发布到交换机 {args.Exchange} (rk={args.RoutingKey}) {args.Body.Length}B");
         }
 
         public async Task PublishToQueueAsync(PublishToQueueArgs args, CancellationToken ct)
         {
-            var channel = EnsurePublishChannel();
             if (string.IsNullOrEmpty(args.QueueName))
                 throw new InvalidOperationException("队列名不能为空");
+            if (args.Body?.Length > 128 * 1024 * 1024)
+                throw new ArgumentException("Body 超出 128MiB 限制");
 
+            var channel = EnsurePublishChannel();
             if (args.AutoDeclare)
             {
                 try
@@ -248,14 +269,7 @@ namespace LittleFancyToolAva.Services
                 Persistent = args.Persistent
             };
 
-            await channel.BasicPublishAsync(
-                exchange: string.Empty,
-                routingKey: args.QueueName,
-                mandatory: false,
-                basicProperties: props,
-                body: args.Body,
-                cancellationToken: ct);
-
+            await channel.BasicPublishAsync(exchange: string.Empty, routingKey: args.QueueName, mandatory: false, basicProperties: props, body: args.Body, cancellationToken: ct);
             StatusChanged?.Invoke($"已发布到默认交换机 → 队列 {args.QueueName} {args.Body.Length}B");
         }
 
@@ -292,14 +306,8 @@ namespace LittleFancyToolAva.Services
             if (_consumerTag is null) return;
             if (_consumeChannel is { IsOpen: true })
             {
-                try
-                {
-                    await _consumeChannel.BasicCancelAsync(_consumerTag, false, CancellationToken.None);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Cancel consumer");
-                }
+                try { await _consumeChannel.BasicCancelAsync(_consumerTag, false, CancellationToken.None); }
+                catch (Exception ex) { _logger.LogDebug(ex, "Cancel consumer"); }
             }
             if (_consumer is not null)
             {
@@ -324,8 +332,15 @@ namespace LittleFancyToolAva.Services
 
         private Task OnConsumerReceived(object sender, BasicDeliverEventArgs ea)
         {
-            var msg = BuildMessageFromDeliver(ea);
-            MessageReceived?.Invoke(msg);
+            try
+            {
+                var msg = BuildMessageFromDeliver(ea);
+                MessageReceived?.Invoke(msg);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Consumer receive error");
+            }
             return Task.CompletedTask;
         }
 
@@ -378,14 +393,25 @@ namespace LittleFancyToolAva.Services
         {
             if (_disposed) return;
             _disposed = true;
-            try { await DisconnectAsync(); } catch { }
+            try { await DisconnectAsync(); }
+            catch (Exception ex) { _logger.LogWarning(ex, "Disconnect during dispose"); }
             _connLock.Dispose();
             _logger.LogInformation("RabbitMqService disposed");
         }
 
         public void Dispose()
         {
-            DisposeAsync().AsTask().GetAwaiter().GetResult();
+            if (_disposed) return;
+            _disposed = true;
+            try
+            {
+                DisconnectAsync().Wait(TimeSpan.FromSeconds(3));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Dispose timeout or error");
+            }
+            _connLock.Dispose();
             GC.SuppressFinalize(this);
         }
 
@@ -401,7 +427,12 @@ namespace LittleFancyToolAva.Services
                 var sb = new StringBuilder();
                 foreach (var kv in headers)
                 {
-                    sb.Append(kv.Key).Append('=').Append(kv.Value).Append(';');
+                    sb.Append(kv.Key).Append('=');
+                    if (kv.Value is byte[] b)
+                        sb.Append($"<{b.Length}B>");
+                    else
+                        sb.Append(kv.Value);
+                    sb.Append(';');
                 }
                 return sb.ToString();
             }

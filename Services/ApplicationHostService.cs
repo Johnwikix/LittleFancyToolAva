@@ -1,6 +1,6 @@
 using LittleFancyToolAva.Models;
-using System;
-using System.Diagnostics;
+using Microsoft.Extensions.Logging;
+using Serilog;
 
 namespace LittleFancyToolAva.Services
 {
@@ -9,12 +9,18 @@ namespace LittleFancyToolAva.Services
         private readonly FileService _fileService;
         private readonly AppObserveModel _appObserveModel;
         private readonly IViewStateService _viewStateService;
+        private readonly ILogger<ApplicationHostService> _logger;
 
-        public ApplicationHostService(FileService fileService, AppObserveModel appObserveModel, IViewStateService viewStateService)
+        public ApplicationHostService(
+            FileService fileService,
+            AppObserveModel appObserveModel,
+            IViewStateService viewStateService,
+            ILogger<ApplicationHostService> logger)
         {
             _fileService = fileService;
             _appObserveModel = appObserveModel;
             _viewStateService = viewStateService;
+            _logger = logger;
         }
 
         public void LoadState()
@@ -25,11 +31,24 @@ namespace LittleFancyToolAva.Services
                 if (state?.Preferences != null)
                 {
                     _appObserveModel.Preferences = state.Preferences;
+                    _logger.LogInformation("Preferences loaded successfully");
                 }
+            }
+            catch (IOException ex)
+            {
+                _logger.LogWarning(ex, "Preferences load IO error");
+            }
+            catch (System.Text.Json.JsonException ex)
+            {
+                _logger.LogWarning(ex, "Preferences JSON corrupt, using defaults");
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogWarning(ex, "Preferences access denied, using defaults");
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"[AppHost] Load failed: {ex.Message}");
+                _logger.LogError(ex, "Unexpected error loading preferences");
             }
         }
 
@@ -38,10 +57,23 @@ namespace LittleFancyToolAva.Services
             try
             {
                 _viewStateService.LoadAll();
+                _logger.LogInformation("View states loaded successfully");
+            }
+            catch (IOException ex)
+            {
+                _logger.LogWarning(ex, "View states load IO error");
+            }
+            catch (System.Text.Json.JsonException ex)
+            {
+                _logger.LogWarning(ex, "View states JSON corrupt, using defaults");
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogWarning(ex, "View states access denied");
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"[AppHost] LoadViewStates failed: {ex.Message}");
+                _logger.LogError(ex, "Unexpected error loading view states");
             }
         }
 
@@ -51,10 +83,19 @@ namespace LittleFancyToolAva.Services
             {
                 _fileService.SaveState(_appObserveModel);
                 _viewStateService.SaveAll();
+                _logger.LogInformation("State saved successfully");
+            }
+            catch (IOException ex)
+            {
+                _logger.LogWarning(ex, "State save IO error");
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogWarning(ex, "State save access denied");
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"[AppHost] Save failed: {ex.Message}");
+                _logger.LogError(ex, "Unexpected error saving state");
             }
         }
     }

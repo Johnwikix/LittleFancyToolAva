@@ -13,6 +13,7 @@ public partial class FolderCompareViewModel : ViewModelBase, IViewState
     private readonly IFileDialogService _fileDialogService;
     private readonly INotificationService _notificationService;
     private readonly IViewStateService _viewStateService;
+    private CancellationTokenSource? _compareCts;
 
     string IViewState.ViewName => "folderCompareView";
 
@@ -136,6 +137,10 @@ public partial class FolderCompareViewModel : ViewModelBase, IViewState
         StatusText = "正在比较...";
         CompareResults.Clear();
 
+        _compareCts?.Cancel();
+        _compareCts?.Dispose();
+        _compareCts = new CancellationTokenSource();
+
         var progress = new Progress<double>(p =>
         {
             ProgressValue = p;
@@ -145,7 +150,7 @@ public partial class FolderCompareViewModel : ViewModelBase, IViewState
         {
             var results = await _folderCompareService.CompareFoldersAsync(
                 SourceFolder, TargetFolder,
-                UseHashComparison, UseMusicTitleComparison, progress);
+                UseHashComparison, UseMusicTitleComparison, progress, _compareCts.Token);
 
             CompareResults = [.. results];
 
@@ -156,6 +161,10 @@ public partial class FolderCompareViewModel : ViewModelBase, IViewState
             StatusText = $"匹配: {matchCount}, 不同: {diffCount}, 仅源文件夹: {sourceOnly}, 仅目标文件夹: {targetOnly}";
 
             _notificationService.ShowInfo($"比较完成，共 {results.Count} 个文件");
+        }
+        catch (OperationCanceledException)
+        {
+            StatusText = "比较已取消";
         }
         catch (Exception ex)
         {

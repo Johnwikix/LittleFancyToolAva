@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Png;
 using SixLabors.ImageSharp.PixelFormats;
@@ -7,10 +8,26 @@ namespace LittleFancyToolAva.Services;
 
 public class IconConversionService : IIconConversionService
 {
+    private readonly ILogger<IconConversionService> _logger;
+
+    public static readonly int[] AvailableSizes = [16, 32, 48, 64, 128, 256];
+
+    public IconConversionService(ILogger<IconConversionService> logger)
+    {
+        _logger = logger;
+    }
+
     public async Task<byte[]> CreateIcoBytesAsync(string imagePath, int size)
     {
+        if (!AvailableSizes.Contains(size))
+            throw new ArgumentException($"Icon size must be one of: {string.Join(", ", AvailableSizes)}");
+
         using Image image = await SixLabors.ImageSharp.Image.LoadAsync(imagePath);
-        image.Mutate(x => x.Resize(size, size));
+        image.Mutate(x => x.Resize(new ResizeOptions
+        {
+            Size = new Size(size, size),
+            Mode = ResizeMode.Crop
+        }));
 
         using MemoryStream pngStream = new();
         await image.SaveAsPngAsync(pngStream, new PngEncoder());
@@ -39,13 +56,28 @@ public class IconConversionService : IIconConversionService
 
         writer.Write(pngData);
 
+        _logger.LogDebug("ICO created: {Size}x{Size} ({PngBytes} bytes)", size, size, pngData.Length);
         return icoStream.ToArray();
     }
 
     public async Task<bool> SaveAsIcoAsync(string imagePath, string outputPath, int size)
     {
         byte[] icoBytes = await CreateIcoBytesAsync(imagePath, size);
-        await File.WriteAllBytesAsync(outputPath, icoBytes);
-        return true;
+        string tmpPath = outputPath + ".tmp";
+        try
+        {
+            await File.WriteAllBytesAsync(tmpPath, icoBytes);
+            if (File.Exists(outputPath))
+                File.Delete(outputPath);
+            File.Move(tmpPath, outputPath);
+            _logger.LogInformation("ICO saved: {Output} ({Size}x{Size})", outputPath, size, size);
+            return true;
+        }
+        catch
+        {
+            try { if (File.Exists(tmpPath)) File.Delete(tmpPath); } catch { }
+            _logger.LogWarning("ICO save failed: {Output}", outputPath);
+            throw;
+        }
     }
 }

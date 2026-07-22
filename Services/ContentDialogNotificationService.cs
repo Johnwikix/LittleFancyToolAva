@@ -2,19 +2,21 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using FluentAvalonia.UI.Controls;
-using System;
+using Microsoft.Extensions.Logging;
+using Serilog;
 
 namespace LittleFancyToolAva.Services
 {
     public class ContentDialogNotificationService : INotificationService
     {
-        public void ShowError(string message) => Show(message, "错误");
-        public void ShowSuccess(string message) => Show(message, "成功");
-        public void ShowInfo(string message) => Show(message, "提示");
-        public void ShowWarn(string message) => Show(message, "警告");
+        public void ShowError(string message) => Show(message, "错误", Log.Error);
+        public void ShowSuccess(string message) => Show(message, "成功", Log.Information);
+        public void ShowInfo(string message) => Show(message, "提示", Log.Information);
+        public void ShowWarn(string message) => Show(message, "警告", Log.Warning);
 
-        private static async void Show(string message, string title)
+        private static async void Show(string message, string title, Action<string, object[]> logAction)
         {
+            logAction("UI notification: {Title} - {Message}", [title, message]);
             try
             {
                 if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop
@@ -35,9 +37,9 @@ namespace LittleFancyToolAva.Services
                     await dialog.ShowAsync();
                 }
             }
-            catch
+            catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException)
             {
-                // 静默失败——错误弹框本身出错时不再递归
+                Log.Debug(ex, "Notification dialog failed: {Title} - {Message}", title, message);
             }
         }
     }

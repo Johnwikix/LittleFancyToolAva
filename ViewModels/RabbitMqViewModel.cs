@@ -273,8 +273,11 @@ namespace LittleFancyToolAva.ViewModels
             _connCts?.Cancel();
             _connCts?.Dispose();
             _connCts = null;
-            try { _mqService.DisconnectAsync().GetAwaiter().GetResult(); }
-            catch (Exception ex) { _logger.LogWarning(ex, "Force disconnect on navigated from"); }
+            _ = Task.Run(async () =>
+            {
+                try { await _mqService.DisconnectAsync(); }
+                catch (Exception ex) { _logger.LogWarning(ex, "Force disconnect on navigated from"); }
+            });
             StopElapsedTimer();
             IsConnected = false;
             IsConsuming = false;
@@ -285,7 +288,7 @@ namespace LittleFancyToolAva.ViewModels
             Host = Host,
             Port = Port,
             UserName = UserName,
-            Password = Password,
+            Password = string.Empty,
             VirtualHost = VirtualHost,
             ExchangeName = ExchangeName,
             ExchangeTypeIndex = ExchangeTypeIndex.ToString(),
@@ -311,7 +314,7 @@ namespace LittleFancyToolAva.ViewModels
                 Host = s.Host;
                 Port = s.Port;
                 UserName = s.UserName;
-                Password = s.Password;
+                Password = string.Empty;
                 VirtualHost = s.VirtualHost;
                 ExchangeName = s.ExchangeName;
                 if (int.TryParse(s.ExchangeTypeIndex, out var idx)) ExchangeTypeIndex = idx;

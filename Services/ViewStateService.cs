@@ -1,4 +1,4 @@
-using System.Diagnostics;
+using Microsoft.Extensions.Logging;
 using System.Text.Json;
 using LittleFancyToolAva.Models.ViewStates;
 
@@ -6,15 +6,29 @@ namespace LittleFancyToolAva.Services;
 
 public class ViewStateService : IViewStateService
 {
-    private readonly string _filePath = Path.Combine(AppContext.BaseDirectory, "view-states.json");
+    private readonly string _filePath;
+    private readonly string _backupPath;
+    private readonly ILogger<ViewStateService> _logger;
     private readonly List<IViewState> _activeViews = [];
     private ViewStatesRoot? _loadedRoot;
 
     private static readonly JsonSerializerOptions _jsonOptions = new()
     {
         WriteIndented = true,
-        TypeInfoResolver = ViewStatesJsonContext.Default
+        TypeInfoResolver = ViewStatesJsonContext.Default,
+        MaxDepth = 64
     };
+
+    public ViewStateService(ILogger<ViewStateService> logger)
+    {
+        _logger = logger;
+        string dir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "LittleFancyToolAva");
+        Directory.CreateDirectory(dir);
+        _filePath = Path.Combine(dir, "view-states.json");
+        _backupPath = _filePath + ".bak";
+    }
 
     public void Register(IViewState view)
     {
@@ -32,19 +46,52 @@ public class ViewStateService : IViewStateService
 
     public void LoadAll()
     {
-        if (!File.Exists(_filePath)) return;
+        if (!File.Exists(_filePath))
+        {
+            if (File.Exists(_backupPath))
+            {
+                _logger.LogInformation("Primary view states not found, loading backup");
+                TryLoadFrom(_backupPath);
+            }
+            return;
+        }
         try
         {
-            string json = File.ReadAllText(_filePath);
+            var fi = new FileInfo(_filePath);
+            if (fi.Length > 5 * 1024 * 1024)
+            {
+                _logger.LogWarning("View states file too large ({Size} bytes), using defaults", fi.Length);
+                return;
+            }
+            TryLoadFrom(_filePath);
+            try { File.Copy(_filePath, _backupPath, overwrite: true); } catch { }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to load view states, trying backup");
+            TryLoadFrom(_backupPath);
+        }
+    }
+
+    private void TryLoadFrom(string path)
+    {
+        try
+        {
+            string json = File.ReadAllText(path);
             _loadedRoot = JsonSerializer.Deserialize<ViewStatesRoot>(json, _jsonOptions);
             foreach (var view in _activeViews)
             {
                 TryRestore(view);
             }
+            _logger.LogInformation("View states loaded from {Path}", path);
         }
-        catch (Exception ex)
+        catch (JsonException ex)
         {
-            Debug.WriteLine($"[ViewStateService] Load failed: {ex.Message}");
+            _logger.LogWarning(ex, "View states JSON corrupt in {Path}", path);
+        }
+        catch (IOException ex)
+        {
+            _logger.LogWarning(ex, "IO error reading {Path}", path);
         }
     }
 
@@ -54,11 +101,20 @@ public class ViewStateService : IViewStateService
         {
             var root = BuildRoot();
             string json = JsonSerializer.Serialize(root, _jsonOptions);
-            File.WriteAllText(_filePath, json);
+            AtomicWrite(_filePath, json);
+            _logger.LogInformation("View states saved ({Count} views)", _activeViews.Count);
+        }
+        catch (IOException ex)
+        {
+            _logger.LogWarning(ex, "View states save IO error");
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning(ex, "View states save access denied");
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[ViewStateService] Save failed: {ex.Message}");
+            _logger.LogError(ex, "Unexpected error saving view states");
         }
     }
 
@@ -101,6 +157,7 @@ public class ViewStateService : IViewStateService
         "folderCompareView" => root.FolderCompareView,
         "img2icoView" => root.Img2icoView,
         "imgConvertView" => root.ImgConvertView,
+        "rabbitMqView" => root.RabbitMqView,
         _ => null
     };
 
@@ -124,6 +181,14 @@ public class ViewStateService : IViewStateService
             case "folderCompareView": root.FolderCompareView = (FolderCompareViewState?)state; break;
             case "img2icoView": root.Img2icoView = (Img2icoViewState?)state; break;
             case "imgConvertView": root.ImgConvertView = (ImgConvertViewState?)state; break;
+            case "rabbitMqView": root.RabbitMqView = (RabbitMqViewState?)state; break;
         }
+    }
+
+    private static void AtomicWrite(string path, string content)
+    {
+        string tmpPath = path + ".tmp";
+        File.WriteAllText(tmpPath, content);
+        File.Move(tmpPath, path, overwrite: true);
     }
 }

@@ -7,5 +7,6 @@ public interface IFolderCompareService
     Task<List<FolderCompareResult>> CompareFoldersAsync(
         string sourceFolder, string targetFolder,
         bool useHashComparison, bool useMusicTitleComparison,
-        IProgress<double>? progress = null);
+        IProgress<double>? progress = null,
+        CancellationToken cancellationToken = default);
 }
