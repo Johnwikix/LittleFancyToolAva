@@ -129,15 +129,6 @@
         <Setter Property="Padding" Value="12,2" />
     </Style>
 
-    <!-- Compact variants of Primary/Danger: override the wider 16,8 padding
-         that Primary/Danger styles set, so all Compact buttons have a uniform height. -->
-    <Style Selector="Button.Compact.Primary">
-        <Setter Property="Padding" Value="12,2" />
-    </Style>
-    <Style Selector="Button.Compact.Danger">
-        <Setter Property="Padding" Value="12,2" />
-    </Style>
-
     <!-- Terminal box: monospace, theme-aware bg -->
     <Style Selector="TextBox.TerminalBox">
         <Setter Property="FontFamily" Value="{StaticResource MonoFontFamily}" />
@@ -231,13 +222,11 @@
         <Setter Property="Margin" Value="0,8,0,0" />
     </Style>
 
-    <!-- Primary button emphasis (uses accent) -->
+    <!-- Primary button emphasis (uses accent). Inherits Padding/MinHeight/FontWeight from default Button. -->
     <Style Selector="Button.Primary">
         <Setter Property="Background" Value="{DynamicResource AccentFillColorDefaultBrush}" />
         <Setter Property="Foreground" Value="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
         <Setter Property="BorderThickness" Value="0" />
-        <Setter Property="Padding" Value="16,8" />
-        <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
 
     <Style Selector="Button.Primary:pointerover /template/ ContentPresenter">
@@ -255,13 +244,11 @@
         <Setter Property="Foreground" Value="{DynamicResource TextOnAccentFillColorDisabledBrush}" />
     </Style>
 
-    <!-- Danger button (Disconnect, Stop) -->
+    <!-- Danger button (Disconnect, Stop). Inherits Padding/MinHeight/FontWeight from default Button. -->
     <Style Selector="Button.Danger">
         <Setter Property="Background" Value="{DynamicResource SystemFillColorCriticalBrush}" />
         <Setter Property="Foreground" Value="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
         <Setter Property="BorderThickness" Value="0" />
-        <Setter Property="Padding" Value="16,8" />
-        <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
 
     <!-- Quiet button (inline link-like) -->
