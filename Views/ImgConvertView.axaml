@@ -16,7 +16,7 @@
                         <StackPanel Classes="FormRow">
                             <TextBlock Classes="FieldLabel" Text="源图片" />
                             <Grid ColumnDefinitions="*,8,Auto">
-                                <TextBlock Grid.Column="0" Text="{Binding ImagePath}" TextTrimming="CharacterEllipsis" />
+                                <TextBox Grid.Column="0" Text="{Binding ImagePath}" IsReadOnly="True" />
                                 <Button Grid.Column="2" Command="{Binding UploadImageCommand}" Content="上传" />
                             </Grid>
                         </StackPanel>

@@ -18,14 +18,14 @@
                         <StackPanel Classes="FormRow">
                             <TextBlock Classes="FieldLabel" Text="源" />
                             <Grid ColumnDefinitions="*,8,Auto">
-                                <TextBlock Grid.Column="0" Text="{Binding SourceFolder}" TextTrimming="CharacterEllipsis" />
+                                <TextBox Grid.Column="0" Text="{Binding SourceFolder}" IsReadOnly="True" />
                                 <Button Grid.Column="2" Command="{Binding SelectSourceFolderCommand}" Content="选择" />
                             </Grid>
                         </StackPanel>
                         <StackPanel Classes="FormRow">
                             <TextBlock Classes="FieldLabel" Text="目标" />
                             <Grid ColumnDefinitions="*,8,Auto">
-                                <TextBlock Grid.Column="0" Text="{Binding TargetFolder}" TextTrimming="CharacterEllipsis" />
+                                <TextBox Grid.Column="0" Text="{Binding TargetFolder}" IsReadOnly="True" />
                                 <Button Grid.Column="2" Command="{Binding SelectTargetFolderCommand}" Content="选择" />
                             </Grid>
                         </StackPanel>

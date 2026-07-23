@@ -18,14 +18,14 @@
                         <StackPanel Classes="FormRow">
                             <TextBlock Classes="FieldLabel" Text="选择文件" />
                             <Grid ColumnDefinitions="*,8,Auto">
-                                <TextBlock Grid.Column="0" Text="{Binding SelectedFilesDisplay}" TextTrimming="CharacterEllipsis" />
+                                <TextBox Grid.Column="0" Text="{Binding SelectedFilesDisplay}" IsReadOnly="True" />
                                 <Button Grid.Column="2" Command="{Binding SelectFilesCommand}" Content="选择文件" />
                             </Grid>
                         </StackPanel>
                         <StackPanel Classes="FormRow">
                             <TextBlock Classes="FieldLabel" Text="输出目录" />
                             <Grid ColumnDefinitions="*,8,Auto">
-                                <TextBlock Grid.Column="0" Text="{Binding OutputDirectory}" TextTrimming="CharacterEllipsis" />
+                                <TextBox Grid.Column="0" Text="{Binding OutputDirectory}" IsReadOnly="True" />
                                 <Button Grid.Column="2" Command="{Binding SelectOutputDirectoryCommand}" Content="选择目录" />
                             </Grid>
                         </StackPanel>
