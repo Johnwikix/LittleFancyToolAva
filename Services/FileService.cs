@@ -26,11 +26,7 @@ namespace LittleFancyToolAva.Services
         public FileService(ILogger<FileService> logger)
         {
             _logger = logger;
-            string dir = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "LittleFancyToolAva");
-            Directory.CreateDirectory(dir);
-            _filePath = Path.Combine(dir, "preferences.json");
+            _filePath = Path.Combine(AppContext.BaseDirectory, "preferences.json");
             _backupPath = _filePath + ".bak";
         }
 

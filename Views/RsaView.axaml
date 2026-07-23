@@ -73,9 +73,9 @@
                 <Border Grid.Row="2" Classes="ToolCard" Padding="0">
                     <Grid RowDefinitions="Auto,*">
                         <TextBlock Grid.Row="0" Classes="SectionHeader" Text="输出" Margin="16,12,16,8" />
-                        <TextBox Grid.Row="1" Margin="16,0,16,12" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap"
+                        <TextBox Grid.Row="1" Margin="16,0,16,12" IsReadOnly="False" AcceptsReturn="True" TextWrapping="Wrap"
                                  FontFamily="{StaticResource MonoFontFamily}"
-                                 Text="{Binding OutputText, Mode=OneWay}" />
+                                 Text="{Binding OutputText, Mode=TwoWay}" />
                     </Grid>
                 </Border>
             </Grid>

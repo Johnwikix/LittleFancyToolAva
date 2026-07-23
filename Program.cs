@@ -16,12 +16,13 @@ namespace LittleFancyToolAva
         {
             Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 
+            string logDir = System.IO.Path.Combine(AppContext.BaseDirectory, "logs");
+            System.IO.Directory.CreateDirectory(logDir);
+
             Log.Logger = new LoggerConfiguration()
                 .MinimumLevel.Debug()
                 .WriteTo.File(
-                    System.IO.Path.Combine(
-                        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                        "LittleFancyToolAva", "logs", "tool-.log"),
+                    System.IO.Path.Combine(logDir, "tool-.log"),
                     rollingInterval: RollingInterval.Day,
                     retainedFileCountLimit: 30,
                     fileSizeLimitBytes: 50 * 1024 * 1024,

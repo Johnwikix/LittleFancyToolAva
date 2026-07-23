@@ -22,11 +22,7 @@ public class ViewStateService : IViewStateService
     public ViewStateService(ILogger<ViewStateService> logger)
     {
         _logger = logger;
-        string dir = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "LittleFancyToolAva");
-        Directory.CreateDirectory(dir);
-        _filePath = Path.Combine(dir, "view-states.json");
+            _filePath = Path.Combine(AppContext.BaseDirectory, "view-states.json");
         _backupPath = _filePath + ".bak";
     }
 

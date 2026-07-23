@@ -61,7 +61,8 @@ namespace LittleFancyToolAva.ViewModels
             var category = new PageNavigationItem("网络", FASymbol.Globe);
             category.Children.Add(new PageNavigationItem("TCP", FASymbol.Message, sp.GetRequiredService<TcpServerViewModel>()));
             category.Children.Add(new PageNavigationItem("UDP", FASymbol.Message, sp.GetRequiredService<UdpViewModel>()));
-            category.Children.Add(new PageNavigationItem("RabbitMQ", FASymbol.Message, sp.GetRequiredService<RabbitMqViewModel>()));
+            // TODO: 待完善 — RabbitMQ 已从导航移除，后续可完善后重新启用
+            // category.Children.Add(new PageNavigationItem("RabbitMQ", FASymbol.Message, sp.GetRequiredService<RabbitMqViewModel>()));
             return category;
         }
 
