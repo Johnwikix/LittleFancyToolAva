@@ -25,6 +25,12 @@ namespace LittleFancyToolAva.Models
             set => SetProperty(ref field, value);
         } = string.Empty;
 
+        public string Description
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = string.Empty;
+
         public FAIconSource IconSource
         {
             get;
@@ -40,5 +46,11 @@ namespace LittleFancyToolAva.Models
         public ObservableCollection<PageNavigationItem> Children { get; } = new();
 
         public bool HasChildren => Children.Count > 0;
+
+        public bool IsExpanded
+        {
+            get;
+            set => SetProperty(ref field, value);
+        }
     }
 }

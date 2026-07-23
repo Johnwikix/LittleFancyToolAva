@@ -51,9 +51,10 @@
                 <helpers:InverseBoolConverter x:Key="InverseBoolConverter" />
                 <DataTemplate x:Key="MenuItemDataTemplate" DataType="models:PageNavigationItem">
                     <ui:FANavigationViewItem Content="{Binding Label}"
-                                             IconSource="{Binding IconSource}"
-                                             SelectsOnInvoked="{Binding HasChildren, Converter={StaticResource InverseBoolConverter}}"
-                                             MenuItemsSource="{Binding Children}" />
+                                              IconSource="{Binding IconSource}"
+                                              SelectsOnInvoked="{Binding HasChildren, Converter={StaticResource InverseBoolConverter}}"
+                                              MenuItemsSource="{Binding Children}"
+                                              IsExpanded="{Binding IsExpanded}" />
                 </DataTemplate>
             </ui:FANavigationView.Resources>
 

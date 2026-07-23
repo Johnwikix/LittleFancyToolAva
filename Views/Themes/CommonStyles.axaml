@@ -36,6 +36,38 @@
         <helpers:ConnectionStatusToTextConverter x:Key="StatusTextConverter" />
         <helpers:IntEqualsToBoolConverter x:Key="IntEq" />
 
+        <!-- ============ Home page card grid ============ -->
+        <ControlTheme TargetType="ListBoxItem"
+                      x:Key="GridViewItem"
+                      BasedOn="{StaticResource {x:Type ListBoxItem}}">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0" />
+            <Style Selector="^ /template/ Rectangle#SelectionIndicator">
+                <Setter Property="IsVisible" Value="False" />
+            </Style>
+            <Style Selector="^:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+                <Setter Property="Background" Value="{DynamicResource ListViewItemBackgroundPointerOver}" />
+            </Style>
+            <Style Selector="^:pressed /template/ ContentPresenter#PART_ContentPresenter">
+                <Setter Property="Background" Value="{DynamicResource ListViewItemBackgroundPressed}" />
+            </Style>
+        </ControlTheme>
+
+        <ControlTheme TargetType="ListBox"
+                      x:Key="ListBoxNoScroller"
+                      BasedOn="{StaticResource {x:Type ListBox}}">
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Border BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}">
+                        <ItemsPresenter Name="PART_ItemsPresenter"
+                                        ItemsPanel="{TemplateBinding ItemsPanel}"
+                                        Margin="{TemplateBinding Padding}" />
+                    </Border>
+                </ControlTemplate>
+            </Setter>
+        </ControlTheme>
+
     </Styles.Resources>
 
     <!-- ============ Styles ============ -->

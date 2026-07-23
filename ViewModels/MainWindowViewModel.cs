@@ -36,15 +36,32 @@ namespace LittleFancyToolAva.ViewModels
                 new PageNavigationItem("设置", FASymbol.Setting, serviceProvider.GetRequiredService<SettingsViewModel>())
             };
 
+            var serialCategory = BuildSerialCategory(serviceProvider);
+            var networkCategory = BuildNetworkCategory(serviceProvider);
+            var encryptionCategory = BuildEncryptionCategory(serviceProvider);
+            var fileCategory = BuildFileCategory(serviceProvider);
+            var imageCategory = BuildImageCategory(serviceProvider);
+
+            var categories = new PageNavigationItem[]
+            {
+                serialCategory, networkCategory, encryptionCategory, fileCategory, imageCategory,
+            };
+
+            var homeVm = new HomeViewModel(categories);
+            homeVm.NavigateToPage = item =>
+            {
+                var parent = Pages.FirstOrDefault(p => p.Children.Contains(item));
+                if (parent != null)
+                    parent.IsExpanded = true;
+                SelectedPage = item;
+            };
+
             Pages = new ObservableCollection<PageNavigationItem>
             {
-                new PageNavigationItem("首页", FASymbol.Home, new HomeViewModel(appObserveModel)),
-                BuildSerialCategory(serviceProvider),
-                BuildNetworkCategory(serviceProvider),
-                BuildEncryptionCategory(serviceProvider),
-                BuildFileCategory(serviceProvider),
-                BuildImageCategory(serviceProvider),
+                new PageNavigationItem("首页", FASymbol.Home, homeVm),
             };
+            foreach (var cat in categories)
+                Pages.Add(cat);
 
             SelectedPage = Pages[0];
         }

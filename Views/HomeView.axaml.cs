@@ -1,5 +1,5 @@
 using Avalonia.Controls;
-using Avalonia.Input;
+using LittleFancyToolAva.Models;
 
 namespace LittleFancyToolAva.Views
 {
@@ -10,11 +10,14 @@ namespace LittleFancyToolAva.Views
             InitializeComponent();
         }
 
-        private void Image_OnPointerPressed(object? sender, PointerPressedEventArgs e)
+        private void OnToolSelectionChanged(object? sender, SelectionChangedEventArgs e)
         {
-            if (DataContext is ViewModels.HomeViewModel vm)
+            if (e.AddedItems.Count > 0 && e.AddedItems[0] is PageNavigationItem item)
             {
-                vm.ToggleRotationCommand.Execute(null);
+                if (DataContext is ViewModels.HomeViewModel vm)
+                    vm.NavigateToToolCommand.Execute(item);
+                if (sender is ListBox lb)
+                    lb.SelectedItem = null;
             }
         }
     }

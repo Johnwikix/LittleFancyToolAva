@@ -1,99 +1,56 @@
-using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using LittleFancyToolAva.Models;
-using LittleFancyToolAva.Utils;
-using System;
-using System.IO;
-using System.Media;
+using LittleFancyToolAva.Services;
+using System.Collections.ObjectModel;
 
 namespace LittleFancyToolAva.ViewModels
 {
     public partial class HomeViewModel : ViewModelBase
     {
-        private readonly AppObserveModel _appObserveModel;
-        private DispatcherTimer? _rotationTimer;
-        private readonly Random _random = new();
-        private SoundPlayer? _player;
-
-        public double RotationAngle
+        private static readonly Dictionary<string, string> ToolDescriptions = new()
         {
-            get;
-            set => SetProperty(ref field, value);
-        }
+            ["串口调试"] = "串口数据收发与调试",
+            ["TCP"] = "TCP 服务器调试工具",
+            ["UDP"] = "UDP 通信调试",
+            ["DES"] = "DES 加解密",
+            ["AES"] = "AES 加解密",
+            ["SM4"] = "SM4 国密加解密",
+            ["RSA"] = "RSA 非对称加解密",
+            ["SM2"] = "SM2 国密非对称加解密",
+            ["MD5"] = "MD5 哈希计算",
+            ["SHA"] = "SHA 系列哈希计算",
+            ["SM3"] = "SM3 国密哈希计算",
+            ["Base64"] = "Base64 编码/解码",
+            ["文件夹比较"] = "对比两个文件夹内容差异",
+            ["文件加解密"] = "文件级加解密操作",
+            ["图片转 Base64"] = "将图片转换为 Base64 编码",
+            ["图片转 ICO"] = "将图片转换为 ICO 图标格式",
+            ["图片格式转换"] = "图片格式批量转换",
+        };
 
-        public bool IsRotating
-        {
-            get;
-            set => SetProperty(ref field, value);
-        }
+        public Action<PageNavigationItem>? NavigateToPage { get; set; }
 
-        public HomeViewModel(AppObserveModel appObserveModel)
+        public ObservableCollection<PageNavigationItem> ToolGroups { get; }
+
+        public HomeViewModel(IEnumerable<PageNavigationItem> categories)
         {
-            _appObserveModel = appObserveModel;
+            ToolGroups = new ObservableCollection<PageNavigationItem>();
+            foreach (var category in categories)
+            {
+                foreach (var child in category.Children)
+                {
+                    if (ToolDescriptions.TryGetValue(child.Label, out var desc))
+                        child.Description = desc;
+                }
+                ToolGroups.Add(category);
+            }
         }
 
         [RelayCommand]
-        private void ToggleRotation()
+        private void NavigateToTool(PageNavigationItem item)
         {
-            if (IsRotating)
-            {
-                StopRotation();
-            }
-            else
-            {
-                StartRotation();
-            }
-        }
-
-        private void StartRotation()
-        {
-            IsRotating = true;
-            _rotationTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(62.5) };
-            _rotationTimer.Tick += (_, _) =>
-            {
-                RotationAngle += 18;
-                if (RotationAngle >= 360)
-                    RotationAngle -= 360;
-            };
-            _rotationTimer.Start();
-            PlayRandomSound();
-        }
-
-        private void StopRotation()
-        {
-            IsRotating = false;
-            _rotationTimer?.Stop();
-            _rotationTimer = null;
-            RotationAngle = 0;
-        }
-
-        private void PlayRandomSound()
-        {
-            try
-            {
-                bool playShort = ToolMethod.GetRandomBoolean(70);
-                string wavName = playShort ? "Resources.short114.wav" : "Resources.origin114.wav";
-                string baseDir = AppContext.BaseDirectory;
-                string filePath = Path.Combine(baseDir, wavName);
-                if (!File.Exists(filePath))
-                {
-                    int idx = baseDir.IndexOf("bin", StringComparison.OrdinalIgnoreCase);
-                    if (idx >= 0)
-                    {
-                        filePath = Path.Combine(baseDir[..idx], wavName);
-                    }
-                }
-                if (File.Exists(filePath))
-                {
-                    _player?.Dispose();
-                    _player = new SoundPlayer(filePath);
-                    _player.Play();
-                }
-            }
-            catch
-            {
-            }
+            NavigateToPage?.Invoke(item);
         }
     }
 }

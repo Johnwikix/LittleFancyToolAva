@@ -4,6 +4,14 @@
              x:Class="LittleFancyToolAva.App"
              RequestedThemeVariant="Default">
 
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceInclude Source="avares://LittleFancyToolAva/Views/Themes/PageHeaderStyles.axaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
+
     <Application.Styles>
         <sty:FluentAvaloniaTheme />
         <StyleInclude Source="avares://LittleFancyToolAva/Views/Themes/CommonStyles.axaml" />
