@@ -40,29 +40,28 @@
                     <Border Classes="ToolCard">
                         <StackPanel Classes="ToolCardContent" Spacing="4">
                             <TextBlock Classes="SectionHeader" Text="连接配置" />
-                            <Grid Classes="FormRow" ColumnDefinitions="100,*">
+                            <StackPanel Classes="FormRow">
                                 <TextBlock Classes="FieldLabel" Text="Host" />
-                                <TextBox Grid.Column="1" Text="{Binding Host, Mode=TwoWay}" />
-                            </Grid>
-                            <Grid Classes="FormRow" ColumnDefinitions="100,*">
+                                <TextBox Text="{Binding Host, Mode=TwoWay}" />
+                            </StackPanel>
+                            <StackPanel Classes="FormRow">
                                 <TextBlock Classes="FieldLabel" Text="端口" />
-                                <NumericUpDown Grid.Column="1"
-                                               Minimum="1" Maximum="65535"
+                                <NumericUpDown Minimum="1" Maximum="65535"
                                                Value="{Binding Port, Mode=TwoWay}" />
-                            </Grid>
-                            <Grid Classes="FormRow" ColumnDefinitions="100,*">
+                            </StackPanel>
+                            <StackPanel Classes="FormRow">
                                 <TextBlock Classes="FieldLabel" Text="用户名" />
-                                <TextBox Grid.Column="1" Text="{Binding UserName, Mode=TwoWay}" />
-                            </Grid>
-                            <Grid Classes="FormRow" ColumnDefinitions="100,*">
+                                <TextBox Text="{Binding UserName, Mode=TwoWay}" />
+                            </StackPanel>
+                            <StackPanel Classes="FormRow">
                                 <TextBlock Classes="FieldLabel" Text="密码" />
-                                <TextBox Grid.Column="1" PasswordChar="•"
+                                <TextBox PasswordChar="•"
                                          Text="{Binding Password, Mode=TwoWay}" />
-                            </Grid>
-                            <Grid Classes="FormRow" ColumnDefinitions="100,*">
+                            </StackPanel>
+                            <StackPanel Classes="FormRow">
                                 <TextBlock Classes="FieldLabel" Text="VirtualHost" />
-                                <TextBox Grid.Column="1" Text="{Binding VirtualHost, Mode=TwoWay}" />
-                            </Grid>
+                                <TextBox Text="{Binding VirtualHost, Mode=TwoWay}" />
+                            </StackPanel>
                             <StackPanel Classes="ActionBar">
                                 <Button Command="{Binding ConnectCommand}" Classes="Primary" Content="连接"
                                         IsEnabled="{Binding IsAnyActive, Converter={StaticResource Inv}}" />
@@ -79,22 +78,20 @@
                                 <Button Command="{Binding RefreshExchangesCommand}" Content="刷新交换机" />
                                 <Button Command="{Binding RefreshQueuesCommand}" Content="刷新队列" />
                             </StackPanel>
-                            <Grid Classes="FormRow" ColumnDefinitions="100,*">
+                            <StackPanel Classes="FormRow">
                                 <TextBlock Classes="FieldLabel" Text="交换机" />
-                                <ComboBox Grid.Column="1"
-                                          Classes="Compact"
+                                <ComboBox Classes="Compact"
                                           IsEditable="True"
                                           ItemsSource="{Binding ExchangeList}"
                                           Text="{Binding ExchangeName, Mode=TwoWay}" />
-                            </Grid>
-                            <Grid Classes="FormRow" ColumnDefinitions="100,*">
+                            </StackPanel>
+                            <StackPanel Classes="FormRow">
                                 <TextBlock Classes="FieldLabel" Text="队列" />
-                                <ComboBox Grid.Column="1"
-                                          Classes="Compact"
+                                <ComboBox Classes="Compact"
                                           IsEditable="True"
                                           ItemsSource="{Binding QueueList}"
                                           Text="{Binding QueueName, Mode=TwoWay}" />
-                            </Grid>
+                            </StackPanel>
                         </StackPanel>
                     </Border>
 
@@ -103,13 +100,12 @@
                             <TextBlock Classes="SectionHeader" Text="选项" />
                             <CheckBox Content="HEX 发送" IsChecked="{Binding IsHexSend, Mode=TwoWay}" />
                             <CheckBox Content="HEX 显示" IsChecked="{Binding IsHexDisplay, Mode=TwoWay}" />
-                            <Grid Classes="FormRow" ColumnDefinitions="100,*">
+                            <StackPanel Classes="FormRow">
                                 <TextBlock Classes="FieldLabel" Text="ACK 模式" />
-                                <ComboBox Grid.Column="1"
-                                          Classes="Compact"
+                                <ComboBox Classes="Compact"
                                           ItemsSource="{Binding AckModes}"
                                           SelectedIndex="{Binding AckModeIndex, Mode=TwoWay}" />
-                            </Grid>
+                            </StackPanel>
                         </StackPanel>
                     </Border>
                 </StackPanel>
@@ -132,32 +128,28 @@
                                               HorizontalScrollBarVisibility="Disabled">
                                     <StackPanel Spacing="10">
                                         <!-- 目标交换机 -->
-                                        <Grid ColumnDefinitions="120,*">
-                                            <TextBlock Classes="FieldLabel" Text="目标交换机" VerticalAlignment="Center" />
-                                            <TextBlock Grid.Column="1"
-                                                       Text="{Binding ExchangeName}"
+                                        <StackPanel>
+                                            <TextBlock Classes="FieldLabel" Text="目标交换机" />
+                                            <TextBlock Text="{Binding ExchangeName}"
                                                        FontWeight="SemiBold"
-                                                       VerticalAlignment="Center"
                                                        Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"
                                                        TextTrimming="CharacterEllipsis" />
-                                        </Grid>
+                                        </StackPanel>
 
                                         <!-- 类型 -->
-                                        <Grid ColumnDefinitions="120,*">
-                                            <TextBlock Classes="FieldLabel" Text="类型" VerticalAlignment="Center" />
-                                            <ComboBox Grid.Column="1"
-                                                      Classes="Compact"
+                                        <StackPanel>
+                                            <TextBlock Classes="FieldLabel" Text="类型" />
+                                            <ComboBox Classes="Compact"
                                                       ItemsSource="{Binding ExchangeTypes}"
                                                       SelectedIndex="{Binding ExchangeTypeIndex, Mode=TwoWay}" />
-                                        </Grid>
+                                        </StackPanel>
 
                                         <!-- Routing Key -->
-                                        <Grid ColumnDefinitions="120,*">
-                                            <TextBlock Classes="FieldLabel" Text="Routing Key" VerticalAlignment="Center" />
-                                            <TextBox Grid.Column="1"
-                                                     Text="{Binding RoutingKey, Mode=TwoWay}"
+                                        <StackPanel>
+                                            <TextBlock Classes="FieldLabel" Text="Routing Key" />
+                                            <TextBox Text="{Binding RoutingKey, Mode=TwoWay}"
                                                      PlaceholderText="topic 模式下支持 * / # 通配" />
-                                        </Grid>
+                                        </StackPanel>
 
                                         <!-- 选项 -->
                                         <StackPanel Orientation="Horizontal" Spacing="16">
@@ -166,10 +158,9 @@
                                         </StackPanel>
 
                                         <!-- Headers -->
-                                        <Grid ColumnDefinitions="120,*">
-                                            <TextBlock Classes="FieldLabel" Text="Headers (JSON)" VerticalAlignment="Top" Margin="0,4,0,0" />
-                                            <TextBox Grid.Column="1"
-                                                     AcceptsReturn="True"
+                                        <StackPanel>
+                                            <TextBlock Classes="FieldLabel" Text="Headers (JSON)" />
+                                            <TextBox AcceptsReturn="True"
                                                      TextWrapping="NoWrap"
                                                      Height="70"
                                                      FontFamily="Consolas"
@@ -177,18 +168,17 @@
                                                      ScrollViewer.VerticalScrollBarVisibility="Auto"
                                                      Text="{Binding HeadersJson, Mode=TwoWay}"
                                                      PlaceholderText="{}{&quot;key&quot;: &quot;value&quot;}" />
-                                        </Grid>
+                                        </StackPanel>
 
                                         <!-- 消息内容 -->
-                                        <Grid ColumnDefinitions="120,*">
-                                            <TextBlock Classes="FieldLabel" Text="消息内容" VerticalAlignment="Top" Margin="0,4,0,0" />
-                                            <TextBox Grid.Column="1"
-                                                     Classes="TerminalInput"
+                                        <StackPanel>
+                                            <TextBlock Classes="FieldLabel" Text="消息内容" />
+                                            <TextBox Classes="TerminalInput"
                                                      Height="120"
                                                      ScrollViewer.VerticalScrollBarVisibility="Auto"
                                                      Text="{Binding PublishExchangeText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                      PlaceholderText="要发送的消息内容" />
-                                        </Grid>
+                                        </StackPanel>
                                     </StackPanel>
                                 </ScrollViewer>
 
@@ -208,15 +198,13 @@
                                               HorizontalScrollBarVisibility="Disabled">
                                     <StackPanel Spacing="10">
                                         <!-- 目标队列 -->
-                                        <Grid ColumnDefinitions="120,*">
-                                            <TextBlock Classes="FieldLabel" Text="目标队列" VerticalAlignment="Center" />
-                                            <TextBlock Grid.Column="1"
-                                                       Text="{Binding QueueName}"
+                                        <StackPanel>
+                                            <TextBlock Classes="FieldLabel" Text="目标队列" />
+                                            <TextBlock Text="{Binding QueueName}"
                                                        FontWeight="SemiBold"
-                                                       VerticalAlignment="Center"
                                                        Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"
                                                        TextTrimming="CharacterEllipsis" />
-                                        </Grid>
+                                        </StackPanel>
 
                                         <!-- 选项 -->
                                         <StackPanel Orientation="Horizontal" Spacing="16">
@@ -225,15 +213,14 @@
                                         </StackPanel>
 
                                         <!-- 消息内容 -->
-                                        <Grid ColumnDefinitions="120,*">
-                                            <TextBlock Classes="FieldLabel" Text="消息内容" VerticalAlignment="Top" Margin="0,4,0,0" />
-                                            <TextBox Grid.Column="1"
-                                                     Classes="TerminalInput"
+                                        <StackPanel>
+                                            <TextBlock Classes="FieldLabel" Text="消息内容" />
+                                            <TextBox Classes="TerminalInput"
                                                      Height="200"
                                                      ScrollViewer.VerticalScrollBarVisibility="Auto"
                                                      Text="{Binding PublishQueueText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                      PlaceholderText="要发送的消息内容" />
-                                        </Grid>
+                                        </StackPanel>
                                     </StackPanel>
                                 </ScrollViewer>
 

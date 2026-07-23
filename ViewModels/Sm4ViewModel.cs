@@ -7,7 +7,7 @@ namespace LittleFancyToolAva.ViewModels
 {
     public class Sm4ViewModel : SymmetricCipherViewModelBase, IViewState
     {
-        public override int KeyBitLength => 128;
+        public override int[] KeyLengthOptions => [128];
 
         string IViewState.ViewName => "sm4View";
 

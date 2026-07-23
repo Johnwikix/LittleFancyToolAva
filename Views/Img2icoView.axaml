@@ -13,18 +13,22 @@
             <Grid Grid.Column="0" RowDefinitions="Auto,16,*">
                 <Border Grid.Row="0" Classes="ToolCard">
                     <StackPanel Classes="ToolCardContent">
-                        <Grid Classes="FormRow" ColumnDefinitions="80,*,12,Auto">
+                        <StackPanel Classes="FormRow">
                             <TextBlock Classes="FieldLabel" Text="源图片" />
-                            <TextBlock Grid.Column="1" Text="{Binding ImagePath}" TextTrimming="CharacterEllipsis" />
-                            <Button Grid.Column="3" Command="{Binding UploadImageCommand}" Content="上传" />
-                        </Grid>
-                        <Grid Classes="FormRow" ColumnDefinitions="80,*,12,Auto">
+                            <Grid ColumnDefinitions="*,8,Auto">
+                                <TextBlock Grid.Column="0" Text="{Binding ImagePath}" TextTrimming="CharacterEllipsis" />
+                                <Button Grid.Column="2" Command="{Binding UploadImageCommand}" Content="上传" />
+                            </Grid>
+                        </StackPanel>
+                        <StackPanel Classes="FormRow">
                             <TextBlock Classes="FieldLabel" Text="ICO 尺寸" />
-                            <ComboBox Grid.Column="1" HorizontalAlignment="Stretch"
-                                      ItemsSource="{Binding AvailableSizes}"
-                                      SelectedIndex="{Binding SelectedSizeIndex, Mode=TwoWay}" />
-                            <Button Grid.Column="3" Command="{Binding ConvertCommand}" Classes="Primary" Content="转换" />
-                        </Grid>
+                            <Grid ColumnDefinitions="*,8,Auto">
+                                <ComboBox Grid.Column="0" HorizontalAlignment="Stretch"
+                                          ItemsSource="{Binding AvailableSizes}"
+                                          SelectedIndex="{Binding SelectedSizeIndex, Mode=TwoWay}" />
+                                <Button Grid.Column="2" Command="{Binding ConvertCommand}" Classes="Primary" Content="转换" />
+                            </Grid>
+                        </StackPanel>
                     </StackPanel>
                 </Border>
                 <Border Grid.Row="2" Classes="ToolCard" Padding="0">

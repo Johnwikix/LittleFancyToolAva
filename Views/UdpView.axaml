@@ -44,34 +44,34 @@
                                              GroupName="UdpMode"
                                              IsChecked="{Binding ModeIndex, Mode=TwoWay, Converter={StaticResource IntEq}, ConverterParameter=1}" />
                             </StackPanel>
-                            <Grid Classes="FormRow" ColumnDefinitions="100,*">
+                            <StackPanel Classes="FormRow">
                                 <TextBlock Classes="FieldLabel" Text="本地地址" />
-                                <TextBox Grid.Column="1" Text="{Binding LocalAddress, Mode=TwoWay}" />
-                            </Grid>
-                            <Grid Classes="FormRow" ColumnDefinitions="100,*">
+                                <TextBox Text="{Binding LocalAddress, Mode=TwoWay}" />
+                            </StackPanel>
+                            <StackPanel Classes="FormRow">
                                 <TextBlock Classes="FieldLabel" Text="本地端口" />
-                                <TextBox Grid.Column="1" Text="{Binding LocalPort, Mode=TwoWay}" />
-                            </Grid>
-                            <Grid Classes="FormRow" ColumnDefinitions="100,*"
-                                  IsVisible="{Binding ModeIndex, Converter={StaticResource IntEq}, ConverterParameter=1}">
+                                <TextBox Text="{Binding LocalPort, Mode=TwoWay}" />
+                            </StackPanel>
+                            <StackPanel Classes="FormRow"
+                                        IsVisible="{Binding ModeIndex, Converter={StaticResource IntEq}, ConverterParameter=1}">
                                 <TextBlock Classes="FieldLabel" Text="组播地址" />
-                                <TextBox Grid.Column="1" Text="{Binding MulticastAddress, Mode=TwoWay}" />
-                            </Grid>
-                            <Grid Classes="FormRow" ColumnDefinitions="100,*"
-                                  IsVisible="{Binding ModeIndex, Converter={StaticResource IntEq}, ConverterParameter=1}">
+                                <TextBox Text="{Binding MulticastAddress, Mode=TwoWay}" />
+                            </StackPanel>
+                            <StackPanel Classes="FormRow"
+                                        IsVisible="{Binding ModeIndex, Converter={StaticResource IntEq}, ConverterParameter=1}">
                                 <TextBlock Classes="FieldLabel" Text="组播端口" />
-                                <TextBox Grid.Column="1" Text="{Binding MulticastPort, Mode=TwoWay}" />
-                            </Grid>
-                            <Grid Classes="FormRow" ColumnDefinitions="100,*"
-                                  IsVisible="{Binding ModeIndex, Converter={StaticResource IntEq}, ConverterParameter=0}">
+                                <TextBox Text="{Binding MulticastPort, Mode=TwoWay}" />
+                            </StackPanel>
+                            <StackPanel Classes="FormRow"
+                                        IsVisible="{Binding ModeIndex, Converter={StaticResource IntEq}, ConverterParameter=0}">
                                 <TextBlock Classes="FieldLabel" Text="远程地址" />
-                                <TextBox Grid.Column="1" Text="{Binding RemoteAddress, Mode=TwoWay}" />
-                            </Grid>
-                            <Grid Classes="FormRow" ColumnDefinitions="100,*"
-                                  IsVisible="{Binding ModeIndex, Converter={StaticResource IntEq}, ConverterParameter=0}">
+                                <TextBox Text="{Binding RemoteAddress, Mode=TwoWay}" />
+                            </StackPanel>
+                            <StackPanel Classes="FormRow"
+                                        IsVisible="{Binding ModeIndex, Converter={StaticResource IntEq}, ConverterParameter=0}">
                                 <TextBlock Classes="FieldLabel" Text="远程端口" />
-                                <TextBox Grid.Column="1" Text="{Binding RemotePort, Mode=TwoWay}" />
-                            </Grid>
+                                <TextBox Text="{Binding RemotePort, Mode=TwoWay}" />
+                            </StackPanel>
                             <StackPanel Classes="ActionBar">
                                 <Button Command="{Binding StartCommand}" Classes="Primary" Content="启动"
                                         IsEnabled="{Binding IsAnyActive, Converter={StaticResource Inv}}" />
@@ -86,19 +86,17 @@
                             <TextBlock Classes="SectionHeader" Text="选项" />
                             <CheckBox Content="HEX 发送" IsChecked="{Binding IsHexSend, Mode=TwoWay}" />
                             <CheckBox Content="HEX 显示" IsChecked="{Binding IsHexDisplay, Mode=TwoWay}" />
-                            <Grid Classes="FormRow" ColumnDefinitions="100,*">
+                            <StackPanel Classes="FormRow">
                                 <TextBlock Classes="FieldLabel" Text="轮询间隔 (ms)" />
-                                <NumericUpDown Grid.Column="1"
-                                               Value="{Binding PollInterval, Mode=TwoWay}" />
-                            </Grid>
+                                <NumericUpDown Value="{Binding PollInterval, Mode=TwoWay}" />
+                            </StackPanel>
                             <CheckBox Content="启用发送总数" IsChecked="{Binding EnableSendCount, Mode=TwoWay}" />
-                            <Grid Classes="FormRow" ColumnDefinitions="100,*"
-                                  IsVisible="{Binding EnableSendCount}">
+                            <StackPanel Classes="FormRow"
+                                        IsVisible="{Binding EnableSendCount}">
                                 <TextBlock Classes="FieldLabel" Text="发送总数" />
-                                <NumericUpDown Grid.Column="1"
-                                               Minimum="1" Maximum="999999"
+                                <NumericUpDown Minimum="1" Maximum="999999"
                                                Value="{Binding SendCount, Mode=TwoWay}" />
-                            </Grid>
+                            </StackPanel>
                             <StackPanel Classes="ActionBar">
                                 <Button Command="{Binding StartPollingCommand}"
                                         Content="定时发送"

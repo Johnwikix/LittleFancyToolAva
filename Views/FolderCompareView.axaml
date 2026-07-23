@@ -15,16 +15,20 @@
                 <Border Grid.Row="0" Classes="ToolCard">
                     <StackPanel Classes="ToolCardContent">
                         <TextBlock Classes="SectionHeader" Text="文件夹" />
-                        <Grid Classes="FormRow" ColumnDefinitions="80,*,12,Auto">
+                        <StackPanel Classes="FormRow">
                             <TextBlock Classes="FieldLabel" Text="源" />
-                            <TextBlock Grid.Column="1" Text="{Binding SourceFolder}" TextTrimming="CharacterEllipsis" />
-                            <Button Grid.Column="3" Command="{Binding SelectSourceFolderCommand}" Content="选择" />
-                        </Grid>
-                        <Grid Classes="FormRow" ColumnDefinitions="80,*,12,Auto">
+                            <Grid ColumnDefinitions="*,8,Auto">
+                                <TextBlock Grid.Column="0" Text="{Binding SourceFolder}" TextTrimming="CharacterEllipsis" />
+                                <Button Grid.Column="2" Command="{Binding SelectSourceFolderCommand}" Content="选择" />
+                            </Grid>
+                        </StackPanel>
+                        <StackPanel Classes="FormRow">
                             <TextBlock Classes="FieldLabel" Text="目标" />
-                            <TextBlock Grid.Column="1" Text="{Binding TargetFolder}" TextTrimming="CharacterEllipsis" />
-                            <Button Grid.Column="3" Command="{Binding SelectTargetFolderCommand}" Content="选择" />
-                        </Grid>
+                            <Grid ColumnDefinitions="*,8,Auto">
+                                <TextBlock Grid.Column="0" Text="{Binding TargetFolder}" TextTrimming="CharacterEllipsis" />
+                                <Button Grid.Column="2" Command="{Binding SelectTargetFolderCommand}" Content="选择" />
+                            </Grid>
+                        </StackPanel>
                         <StackPanel Orientation="Horizontal" Spacing="16">
                             <CheckBox Content="Hash 比较 (MD5)" IsChecked="{Binding UseHashComparison}" />
                             <CheckBox Content="音乐标题比较" IsChecked="{Binding UseMusicTitleComparison}" />

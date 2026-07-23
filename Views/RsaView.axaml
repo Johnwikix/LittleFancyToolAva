@@ -43,30 +43,36 @@
                 <Border Grid.Row="0" Classes="ToolCard">
                     <StackPanel Classes="ToolCardContent">
                         <TextBlock Classes="SectionHeader" Text="参数" />
-                        <Grid Classes="FormRow2" ColumnDefinitions="80,*,12,80,*">
-                            <TextBlock Classes="FieldLabel" Text="填充模式" />
-                            <ComboBox Grid.Column="1" HorizontalAlignment="Stretch" SelectedIndex="{Binding PaddingIndex, Mode=TwoWay}">
-                                <ComboBoxItem Content="Pkcs1" />
-                                <ComboBoxItem Content="OaepSHA1" />
-                                <ComboBoxItem Content="OaepSHA256" />
-                                <ComboBoxItem Content="OaepSHA384" />
-                                <ComboBoxItem Content="OaepSHA512" />
-                            </ComboBox>
-                            <TextBlock Grid.Column="3" Classes="FieldLabel" Text="密钥长度" />
-                            <ComboBox Grid.Column="4" HorizontalAlignment="Stretch" SelectedIndex="{Binding KeyLengthIndex, Mode=TwoWay}">
-                                <ComboBoxItem Content="1024" />
-                                <ComboBoxItem Content="2048" />
-                                <ComboBoxItem Content="4096" />
-                            </ComboBox>
+                        <Grid Classes="FormRow2" ColumnDefinitions="*,12,*">
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Classes="FieldLabel" Text="填充模式" />
+                                <ComboBox HorizontalAlignment="Stretch" SelectedIndex="{Binding PaddingIndex, Mode=TwoWay}">
+                                    <ComboBoxItem Content="Pkcs1" />
+                                    <ComboBoxItem Content="OaepSHA1" />
+                                    <ComboBoxItem Content="OaepSHA256" />
+                                    <ComboBoxItem Content="OaepSHA384" />
+                                    <ComboBoxItem Content="OaepSHA512" />
+                                </ComboBox>
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Classes="FieldLabel" Text="密钥长度" />
+                                <ComboBox HorizontalAlignment="Stretch" SelectedIndex="{Binding KeyLengthIndex, Mode=TwoWay}">
+                                    <ComboBoxItem Content="1024" />
+                                    <ComboBoxItem Content="2048" />
+                                    <ComboBoxItem Content="4096" />
+                                </ComboBox>
+                            </StackPanel>
                         </Grid>
-                        <Grid Classes="FormRow" ColumnDefinitions="80,*,12,Auto">
+                        <StackPanel Classes="FormRow">
                             <TextBlock Classes="FieldLabel" Text="密钥格式" />
-                            <ComboBox Grid.Column="1" HorizontalAlignment="Stretch" SelectedIndex="{Binding KeyFormatIndex, Mode=TwoWay}">
-                                <ComboBoxItem Content="PKCS#1" />
-                                <ComboBoxItem Content="PKCS#8" />
-                            </ComboBox>
-                            <Button Grid.Column="3" Command="{Binding GenerateKeyPairCommand}" Content="生成密钥对" />
-                        </Grid>
+                            <Grid ColumnDefinitions="*,8,Auto">
+                                <ComboBox Grid.Column="0" HorizontalAlignment="Stretch" SelectedIndex="{Binding KeyFormatIndex, Mode=TwoWay}">
+                                    <ComboBoxItem Content="PKCS#1" />
+                                    <ComboBoxItem Content="PKCS#8" />
+                                </ComboBox>
+                                <Button Grid.Column="2" Command="{Binding GenerateKeyPairCommand}" Content="生成密钥对" />
+                            </Grid>
+                        </StackPanel>
                     </StackPanel>
                 </Border>
                 <!-- Output fills -->

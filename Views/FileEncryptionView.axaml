@@ -15,39 +15,49 @@
                 <Border Grid.Row="0" Classes="ToolCard">
                     <StackPanel Classes="ToolCardContent">
                         <TextBlock Classes="SectionHeader" Text="文件" />
-                        <Grid Classes="FormRow" ColumnDefinitions="80,*,12,Auto">
+                        <StackPanel Classes="FormRow">
                             <TextBlock Classes="FieldLabel" Text="选择文件" />
-                            <TextBlock Grid.Column="1" Text="{Binding SelectedFilesDisplay}" TextTrimming="CharacterEllipsis" />
-                            <Button Grid.Column="3" Command="{Binding SelectFilesCommand}" Content="选择文件" />
-                        </Grid>
-                        <Grid Classes="FormRow" ColumnDefinitions="80,*,12,Auto">
+                            <Grid ColumnDefinitions="*,8,Auto">
+                                <TextBlock Grid.Column="0" Text="{Binding SelectedFilesDisplay}" TextTrimming="CharacterEllipsis" />
+                                <Button Grid.Column="2" Command="{Binding SelectFilesCommand}" Content="选择文件" />
+                            </Grid>
+                        </StackPanel>
+                        <StackPanel Classes="FormRow">
                             <TextBlock Classes="FieldLabel" Text="输出目录" />
-                            <TextBlock Grid.Column="1" Text="{Binding OutputDirectory}" TextTrimming="CharacterEllipsis" />
-                            <Button Grid.Column="3" Command="{Binding SelectOutputDirectoryCommand}" Content="选择目录" />
-                        </Grid>
+                            <Grid ColumnDefinitions="*,8,Auto">
+                                <TextBlock Grid.Column="0" Text="{Binding OutputDirectory}" TextTrimming="CharacterEllipsis" />
+                                <Button Grid.Column="2" Command="{Binding SelectOutputDirectoryCommand}" Content="选择目录" />
+                            </Grid>
+                        </StackPanel>
                     </StackPanel>
                 </Border>
                 <!-- Key -->
                 <Border Grid.Row="2" Classes="ToolCard">
                     <StackPanel Classes="ToolCardContent">
                         <TextBlock Classes="SectionHeader" Text="密钥" />
-                        <Grid Classes="FormRow" ColumnDefinitions="80,*,12,100,*,12,Auto">
-                            <TextBlock Classes="FieldLabel" Text="Key 长度" />
-                            <ComboBox Grid.Column="1" HorizontalAlignment="Stretch" SelectedIndex="{Binding KeyLengthIndex, Mode=TwoWay}">
-                                <ComboBoxItem Content="128" />
-                                <ComboBoxItem Content="192" />
-                                <ComboBoxItem Content="256" />
-                            </ComboBox>
-                            <TextBlock Grid.Column="3" Classes="FieldLabel" Text="IV" />
-                            <TextBox Grid.Column="4" FontFamily="{StaticResource MonoFontFamily}"
-                                     Text="{Binding Iv, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                            <Button Grid.Column="6" Command="{Binding GenerateKeyCommand}" Content="生成" />
+                        <Grid Classes="FormRow2" ColumnDefinitions="*,12,*">
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Classes="FieldLabel" Text="Key 长度" />
+                                <ComboBox HorizontalAlignment="Stretch" SelectedIndex="{Binding KeyLengthIndex, Mode=TwoWay}">
+                                    <ComboBoxItem Content="128" />
+                                    <ComboBoxItem Content="192" />
+                                    <ComboBoxItem Content="256" />
+                                </ComboBox>
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <Grid ColumnDefinitions="*,8,Auto">
+                                    <TextBlock Classes="FieldLabel" Text="IV" />
+                                    <Button Grid.Column="2" Command="{Binding GenerateKeyCommand}" Content="生成" Margin="0,0,0,4" />
+                                </Grid>
+                                <TextBox FontFamily="{StaticResource MonoFontFamily}"
+                                         Text="{Binding Iv, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
                         </Grid>
-                        <Grid Classes="FormRow" ColumnDefinitions="80,*">
+                        <StackPanel Classes="FormRow">
                             <TextBlock Classes="FieldLabel" Text="Key" />
-                            <TextBox Grid.Column="1" FontFamily="{StaticResource MonoFontFamily}"
+                            <TextBox FontFamily="{StaticResource MonoFontFamily}"
                                      Text="{Binding Key, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                        </Grid>
+                        </StackPanel>
                     </StackPanel>
                 </Border>
                 <!-- Progress -->

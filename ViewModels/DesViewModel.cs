@@ -7,7 +7,7 @@ namespace LittleFancyToolAva.ViewModels
 {
     public class DesViewModel : SymmetricCipherViewModelBase, IViewState
     {
-        public override int KeyBitLength => 64;
+        public override int[] KeyLengthOptions => [64];
 
         string IViewState.ViewName => "desView";
 

@@ -121,12 +121,16 @@
             <Border Grid.Column="0" Classes="ToolCard">
                 <StackPanel Classes="ToolCardContent">
                     <TextBlock Classes="SectionHeader" Text="写入" />
-                    <Grid Classes="FormRow2" ColumnDefinitions="60,*,12,80,*">
-                        <TextBlock Classes="FieldLabel" Text="地址" />
-                        <TextBox Grid.Column="1" Classes="Compact" Text="{Binding WriteAddress, Mode=TwoWay}" />
-                        <TextBlock Grid.Column="3" Classes="FieldLabel" Text="值" />
-                        <TextBox Grid.Column="4" Classes="Compact" Text="{Binding WriteValue, Mode=TwoWay}" />
-                    </Grid>
+<Grid Classes="FormRow2" ColumnDefinitions="*,12,*">
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Classes="FieldLabel" Text="地址" />
+                                <TextBox Classes="Compact" Text="{Binding WriteAddress, Mode=TwoWay}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Classes="FieldLabel" Text="值" />
+                                <TextBox Classes="Compact" Text="{Binding WriteValue, Mode=TwoWay}" />
+                            </StackPanel>
+                        </Grid>
                     <StackPanel Classes="ActionBar">
                         <Button Classes="Compact" Command="{Binding WriteCoilCommand}" Content="写线圈" />
                         <Button Classes="Compact" Command="{Binding WriteRegisterCommand}" Content="写寄存器" />

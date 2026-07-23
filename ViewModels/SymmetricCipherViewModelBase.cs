@@ -71,15 +71,19 @@ namespace LittleFancyToolAva.ViewModels
             set => SetProperty(ref field, value);
         } = string.Empty;
 
-        public int KeyLengthIndex
+        public virtual int KeyLengthIndex
         {
             get;
             set => SetProperty(ref field, value);
         }
 
+        public virtual int[] KeyLengthOptions => [];
+
         public string[] Paddings { get; protected set; } = [];
 
-        public abstract int KeyBitLength { get; }
+        public virtual int KeyBitLength => KeyLengthOptions.Length > 0 ? KeyLengthOptions[KeyLengthIndex] : 0;
+
+        public virtual bool IsKeyLengthSelectable => false;
 
         protected SymmetricCipherViewModelBase(IEncryptionSymmetric encryption, INotificationService notificationService)
         {
@@ -89,7 +93,7 @@ namespace LittleFancyToolAva.ViewModels
 
         protected void GenerateSymmetricKey()
         {
-            Key = ToolMethod.GenerateSymmetricKey(_encryption.KeyBitLength, GetSelectedKeyIvType());
+            Key = ToolMethod.GenerateSymmetricKey(KeyBitLength, GetSelectedKeyIvType());
             Iv = ToolMethod.GenerateSymmetricKey(_encryption.IvBitLength, GetSelectedKeyIvType());
         }
 

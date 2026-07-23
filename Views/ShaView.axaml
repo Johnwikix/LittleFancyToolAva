@@ -14,19 +14,23 @@
                 <Border Grid.Row="0" Classes="ToolCard">
                     <StackPanel Classes="ToolCardContent">
                         <TextBlock Classes="SectionHeader" Text="参数" />
-                        <Grid Classes="FormRow2" ColumnDefinitions="80,*,12,80,*">
-                            <TextBlock Classes="FieldLabel" Text="算法" />
-                            <ComboBox Grid.Column="1" HorizontalAlignment="Stretch" SelectedIndex="{Binding ModeIndex, Mode=TwoWay}">
-                                <ComboBoxItem Content="SHA-1" />
-                                <ComboBoxItem Content="SHA-256" />
-                                <ComboBoxItem Content="SHA-384" />
-                                <ComboBoxItem Content="SHA-512" />
-                            </ComboBox>
-                            <TextBlock Grid.Column="3" Classes="FieldLabel" Text="大小写" />
-                            <ComboBox Grid.Column="4" HorizontalAlignment="Stretch" SelectedIndex="{Binding CaseIndex, Mode=TwoWay}">
-                                <ComboBoxItem Content="大写 (UPPER)" />
-                                <ComboBoxItem Content="小写 (lower)" />
-                            </ComboBox>
+                        <Grid Classes="FormRow2" ColumnDefinitions="*,12,*">
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Classes="FieldLabel" Text="算法" />
+                                <ComboBox HorizontalAlignment="Stretch" SelectedIndex="{Binding ModeIndex, Mode=TwoWay}">
+                                    <ComboBoxItem Content="SHA-1" />
+                                    <ComboBoxItem Content="SHA-256" />
+                                    <ComboBoxItem Content="SHA-384" />
+                                    <ComboBoxItem Content="SHA-512" />
+                                </ComboBox>
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Classes="FieldLabel" Text="大小写" />
+                                <ComboBox HorizontalAlignment="Stretch" SelectedIndex="{Binding CaseIndex, Mode=TwoWay}">
+                                    <ComboBoxItem Content="大写 (UPPER)" />
+                                    <ComboBoxItem Content="小写 (lower)" />
+                                </ComboBox>
+                            </StackPanel>
                         </Grid>
                         <StackPanel Classes="ActionBar">
                             <Button Command="{Binding EncryptCommand}" Classes="Primary" Content="计算 SHA" />

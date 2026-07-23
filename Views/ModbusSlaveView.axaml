@@ -142,24 +142,26 @@
             <Border Grid.Column="0" Classes="ToolCard">
                 <StackPanel Classes="ToolCardContent">
                     <TextBlock Classes="SectionHeader" Text="写入控制" />
-                    <Grid Classes="FormRow" ColumnDefinitions="80,*,16,Auto">
+                    <StackPanel Classes="FormRow">
                         <TextBlock Classes="FieldLabel" Text="线圈索引" />
-                        <TextBox Grid.Column="1" Classes="Compact" Text="{Binding SelectedCoilIndex, Mode=TwoWay}" />
-                        <CheckBox Grid.Column="3" Content="ON"
-                                  IsChecked="{Binding SelectedCoilValue, Mode=TwoWay}"
-                                  VerticalAlignment="Center" />
-                    </Grid>
+                        <Grid ColumnDefinitions="*,16,Auto">
+                            <TextBox Grid.Column="0" Classes="Compact" Text="{Binding SelectedCoilIndex, Mode=TwoWay}" />
+                            <CheckBox Grid.Column="2" Content="ON"
+                                      IsChecked="{Binding SelectedCoilValue, Mode=TwoWay}"
+                                      VerticalAlignment="Center" />
+                        </Grid>
+                    </StackPanel>
                     <StackPanel Classes="ActionBar">
                         <Button Classes="Compact" Command="{Binding UpdateCoilCommand}" Content="更新线圈" />
                     </StackPanel>
-                    <Grid Classes="FormRow" ColumnDefinitions="80,*">
+                    <StackPanel Classes="FormRow">
                         <TextBlock Classes="FieldLabel" Text="寄存器索引" />
-                        <TextBox Grid.Column="1" Classes="Compact" Text="{Binding SelectedRegisterIndex, Mode=TwoWay}" />
-                    </Grid>
-                    <Grid Classes="FormRow" ColumnDefinitions="80,*">
+                        <TextBox Classes="Compact" Text="{Binding SelectedRegisterIndex, Mode=TwoWay}" />
+                    </StackPanel>
+                    <StackPanel Classes="FormRow">
                         <TextBlock Classes="FieldLabel" Text="寄存器值" />
-                        <TextBox Grid.Column="1" Classes="Compact" Text="{Binding SelectedRegisterValue, Mode=TwoWay}" />
-                    </Grid>
+                        <TextBox Classes="Compact" Text="{Binding SelectedRegisterValue, Mode=TwoWay}" />
+                    </StackPanel>
                     <StackPanel Classes="ActionBar">
                         <Button Classes="Compact" Command="{Binding UpdateRegisterCommand}" Content="更新寄存器" />
                     </StackPanel>

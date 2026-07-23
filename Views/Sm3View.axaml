@@ -14,13 +14,13 @@
                 <Border Grid.Row="0" Classes="ToolCard">
                     <StackPanel Classes="ToolCardContent">
                         <TextBlock Classes="SectionHeader" Text="参数" />
-                        <Grid Classes="FormRow" ColumnDefinitions="80,*">
+                        <StackPanel Classes="FormRow">
                             <TextBlock Classes="FieldLabel" Text="大小写" />
-                            <ComboBox Grid.Column="1" HorizontalAlignment="Stretch" SelectedIndex="{Binding CaseIndex, Mode=TwoWay}">
+                            <ComboBox HorizontalAlignment="Stretch" SelectedIndex="{Binding CaseIndex, Mode=TwoWay}">
                                 <ComboBoxItem Content="大写 (UPPER)" />
                                 <ComboBoxItem Content="小写 (lower)" />
                             </ComboBox>
-                        </Grid>
+                        </StackPanel>
                         <StackPanel Classes="ActionBar">
                             <Button Command="{Binding EncryptCommand}" Classes="Primary" Content="计算 SM3" />
                         </StackPanel>

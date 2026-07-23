@@ -14,17 +14,21 @@
                 <Border Grid.Row="0" Classes="ToolCard">
                     <StackPanel Classes="ToolCardContent">
                         <TextBlock Classes="SectionHeader" Text="参数" />
-                        <Grid Classes="FormRow2" ColumnDefinitions="80,*,12,80,*">
-                            <TextBlock Classes="FieldLabel" Text="大小写" />
-                            <ComboBox Grid.Column="1" HorizontalAlignment="Stretch" SelectedIndex="{Binding CaseIndex, Mode=TwoWay}">
-                                <ComboBoxItem Content="大写 (UPPER)" />
-                                <ComboBoxItem Content="小写 (lower)" />
-                            </ComboBox>
-                            <TextBlock Grid.Column="3" Classes="FieldLabel" Text="输出长度" />
-                            <ComboBox Grid.Column="4" HorizontalAlignment="Stretch" SelectedIndex="{Binding OutputLengthIndex, Mode=TwoWay}">
-                                <ComboBoxItem Content="32 字符" />
-                                <ComboBoxItem Content="16 字符" />
-                            </ComboBox>
+                        <Grid Classes="FormRow2" ColumnDefinitions="*,12,*">
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Classes="FieldLabel" Text="大小写" />
+                                <ComboBox HorizontalAlignment="Stretch" SelectedIndex="{Binding CaseIndex, Mode=TwoWay}">
+                                    <ComboBoxItem Content="大写 (UPPER)" />
+                                    <ComboBoxItem Content="小写 (lower)" />
+                                </ComboBox>
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Classes="FieldLabel" Text="输出长度" />
+                                <ComboBox HorizontalAlignment="Stretch" SelectedIndex="{Binding OutputLengthIndex, Mode=TwoWay}">
+                                    <ComboBoxItem Content="32 字符" />
+                                    <ComboBoxItem Content="16 字符" />
+                                </ComboBox>
+                            </StackPanel>
                         </Grid>
                         <StackPanel Classes="ActionBar">
                             <Button Command="{Binding EncryptCommand}" Classes="Primary" Content="计算 MD5" />

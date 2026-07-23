@@ -44,14 +44,14 @@
                                              GroupName="TcpMode"
                                              IsChecked="{Binding ModeIndex, Mode=TwoWay, Converter={StaticResource IntEq}, ConverterParameter=1}" />
                             </StackPanel>
-                            <Grid Classes="FormRow" ColumnDefinitions="100,*">
+                            <StackPanel Classes="FormRow">
                                 <TextBlock Classes="FieldLabel" Text="地址" />
-                                <TextBox Grid.Column="1" Text="{Binding Address, Mode=TwoWay}" />
-                            </Grid>
-                            <Grid Classes="FormRow" ColumnDefinitions="100,*">
+                                <TextBox Text="{Binding Address, Mode=TwoWay}" />
+                            </StackPanel>
+                            <StackPanel Classes="FormRow">
                                 <TextBlock Classes="FieldLabel" Text="端口" />
-                                <TextBox Grid.Column="1" Text="{Binding Port, Mode=TwoWay}" />
-                            </Grid>
+                                <TextBox Text="{Binding Port, Mode=TwoWay}" />
+                            </StackPanel>
                             <StackPanel Classes="ActionBar">
                                 <Button Command="{Binding StartCommand}" Classes="Primary" Content="启动"
                                         IsEnabled="{Binding IsAnyActive, Converter={StaticResource Inv}}" />
@@ -67,26 +67,23 @@
                             <CheckBox Content="HEX 发送" IsChecked="{Binding IsHexSend, Mode=TwoWay}" />
                             <CheckBox Content="HEX 显示" IsChecked="{Binding IsHexDisplay, Mode=TwoWay}" />
                             <CheckBox Content="启用帧间隔" IsChecked="{Binding EnableFrameBreak, Mode=TwoWay}" />
-                            <Grid Classes="FormRow" ColumnDefinitions="100,*"
-                                  IsVisible="{Binding EnableFrameBreak}">
+                            <StackPanel Classes="FormRow"
+                                        IsVisible="{Binding EnableFrameBreak}">
                                 <TextBlock Classes="FieldLabel" Text="帧间隔 (ms)" />
-                                <NumericUpDown Grid.Column="1"
-                                               Minimum="10" Maximum="500"
+                                <NumericUpDown Minimum="10" Maximum="500"
                                                Value="{Binding FrameBreakInterval, Mode=TwoWay}" />
-                            </Grid>
-                            <Grid Classes="FormRow" ColumnDefinitions="100,*">
+                            </StackPanel>
+                            <StackPanel Classes="FormRow">
                                 <TextBlock Classes="FieldLabel" Text="轮询间隔 (ms)" />
-                                <NumericUpDown Grid.Column="1"
-                                               Value="{Binding PollInterval, Mode=TwoWay}" />
-                            </Grid>
+                                <NumericUpDown Value="{Binding PollInterval, Mode=TwoWay}" />
+                            </StackPanel>
                             <CheckBox Content="启用发送总数" IsChecked="{Binding EnableSendCount, Mode=TwoWay}" />
-                            <Grid Classes="FormRow" ColumnDefinitions="100,*"
-                                  IsVisible="{Binding EnableSendCount}">
+                            <StackPanel Classes="FormRow"
+                                        IsVisible="{Binding EnableSendCount}">
                                 <TextBlock Classes="FieldLabel" Text="发送总数" />
-                                <NumericUpDown Grid.Column="1"
-                                               Minimum="1" Maximum="999999"
+                                <NumericUpDown Minimum="1" Maximum="999999"
                                                Value="{Binding SendCount, Mode=TwoWay}" />
-                            </Grid>
+                            </StackPanel>
                             <StackPanel Classes="ActionBar">
                                 <Button Command="{Binding StartPollingCommand}"
                                         Content="定时发送"

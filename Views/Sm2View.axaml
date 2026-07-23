@@ -39,14 +39,16 @@
                 <Border Grid.Row="0" Classes="ToolCard">
                     <StackPanel Classes="ToolCardContent">
                         <TextBlock Classes="SectionHeader" Text="参数" />
-                        <Grid Classes="FormRow" ColumnDefinitions="80,*,12,Auto">
+                        <StackPanel Classes="FormRow">
                             <TextBlock Classes="FieldLabel" Text="编码模式" />
-                            <ComboBox Grid.Column="1" HorizontalAlignment="Stretch" SelectedIndex="{Binding ModeIndex, Mode=TwoWay}">
-                                <ComboBoxItem Content="C1C2C3" />
-                                <ComboBoxItem Content="C1C3C2" />
-                            </ComboBox>
-                            <Button Grid.Column="3" Command="{Binding GenerateKeyPairCommand}" Content="生成密钥对" />
-                        </Grid>
+                            <Grid ColumnDefinitions="*,8,Auto">
+                                <ComboBox Grid.Column="0" HorizontalAlignment="Stretch" SelectedIndex="{Binding ModeIndex, Mode=TwoWay}">
+                                    <ComboBoxItem Content="C1C2C3" />
+                                    <ComboBoxItem Content="C1C3C2" />
+                                </ComboBox>
+                                <Button Grid.Column="2" Command="{Binding GenerateKeyPairCommand}" Content="生成密钥对" />
+                            </Grid>
+                        </StackPanel>
                     </StackPanel>
                 </Border>
                 <Border Grid.Row="2" Classes="ToolCard" Padding="0">

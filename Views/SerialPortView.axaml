@@ -40,48 +40,42 @@
                     <Border Classes="ToolCard">
                         <StackPanel Classes="ToolCardContent" Spacing="4">
                             <TextBlock Classes="SectionHeader" Text="端口设置" />
-                            <Grid Classes="FormRow" ColumnDefinitions="100,*">
+                            <StackPanel Classes="FormRow">
                                 <TextBlock Classes="FieldLabel" Text="串口" />
-                                <ComboBox Grid.Column="1"
-                                          HorizontalAlignment="Stretch"
+                                <ComboBox HorizontalAlignment="Stretch"
                                           ItemsSource="{Binding PortNames}"
                                           SelectedItem="{Binding SelectedPort, Mode=TwoWay}" />
-                            </Grid>
-                            <Grid Classes="FormRow" ColumnDefinitions="100,*">
+                            </StackPanel>
+                            <StackPanel Classes="FormRow">
                                 <TextBlock Classes="FieldLabel" Text="波特率" />
-                                <ComboBox Grid.Column="1"
-                                          HorizontalAlignment="Stretch"
+                                <ComboBox HorizontalAlignment="Stretch"
                                           ItemsSource="{Binding BaudRates}"
                                           SelectedIndex="{Binding BaudRateIndex, Mode=TwoWay}" />
-                            </Grid>
-                            <Grid Classes="FormRow" ColumnDefinitions="100,*">
+                            </StackPanel>
+                            <StackPanel Classes="FormRow">
                                 <TextBlock Classes="FieldLabel" Text="校验位" />
-                                <ComboBox Grid.Column="1"
-                                          HorizontalAlignment="Stretch"
+                                <ComboBox HorizontalAlignment="Stretch"
                                           ItemsSource="{Binding Parities}"
                                           SelectedIndex="{Binding ParityIndex, Mode=TwoWay}" />
-                            </Grid>
-                            <Grid Classes="FormRow" ColumnDefinitions="100,*">
+                            </StackPanel>
+                            <StackPanel Classes="FormRow">
                                 <TextBlock Classes="FieldLabel" Text="数据位" />
-                                <ComboBox Grid.Column="1"
-                                          HorizontalAlignment="Stretch"
+                                <ComboBox HorizontalAlignment="Stretch"
                                           ItemsSource="{Binding DataBitsList}"
                                           SelectedIndex="{Binding DataBitsIndex, Mode=TwoWay}" />
-                            </Grid>
-                            <Grid Classes="FormRow" ColumnDefinitions="100,*">
+                            </StackPanel>
+                            <StackPanel Classes="FormRow">
                                 <TextBlock Classes="FieldLabel" Text="停止位" />
-                                <ComboBox Grid.Column="1"
-                                          HorizontalAlignment="Stretch"
+                                <ComboBox HorizontalAlignment="Stretch"
                                           ItemsSource="{Binding StopBitsList}"
                                           SelectedIndex="{Binding StopBitsIndex, Mode=TwoWay}" />
-                            </Grid>
-                            <Grid Classes="FormRow" ColumnDefinitions="100,*">
+                            </StackPanel>
+                            <StackPanel Classes="FormRow">
                                 <TextBlock Classes="FieldLabel" Text="编码" />
-                                <ComboBox Grid.Column="1"
-                                          HorizontalAlignment="Stretch"
+                                <ComboBox HorizontalAlignment="Stretch"
                                           ItemsSource="{Binding Encodings}"
                                           SelectedIndex="{Binding EncodingIndex, Mode=TwoWay}" />
-                            </Grid>
+                            </StackPanel>
                             <StackPanel Classes="ActionBar">
                                 <Button Command="{Binding RefreshPortsCommand}" Content="刷新端口" />
                                 <Button Command="{Binding ConnectCommand}"
@@ -105,25 +99,22 @@
                                       Command="{Binding ToggleRtsCommand}" />
                             <CheckBox Content="DTR" IsChecked="{Binding IsDtrEnabled, Mode=TwoWay}"
                                       Command="{Binding ToggleDtrCommand}" />
-                            <Grid Classes="FormRow" ColumnDefinitions="100,*">
+                            <StackPanel Classes="FormRow">
                                 <TextBlock Classes="FieldLabel" Text="帧间隔 (ms)" />
-                                <NumericUpDown Grid.Column="1"
-                                               Minimum="10" Maximum="500"
+                                <NumericUpDown Minimum="10" Maximum="500"
                                                Value="{Binding FrameBreakInterval, Mode=TwoWay}" />
-                            </Grid>
-                            <Grid Classes="FormRow" ColumnDefinitions="100,*">
+                            </StackPanel>
+                            <StackPanel Classes="FormRow">
                                 <TextBlock Classes="FieldLabel" Text="轮询间隔 (ms)" />
-                                <NumericUpDown Grid.Column="1"
-                                               Value="{Binding PollInterval, Mode=TwoWay}" />
-                            </Grid>
+                                <NumericUpDown Value="{Binding PollInterval, Mode=TwoWay}" />
+                            </StackPanel>
                             <CheckBox Content="启用发送总数" IsChecked="{Binding EnableSendCount, Mode=TwoWay}" />
-                            <Grid Classes="FormRow" ColumnDefinitions="100,*"
-                                  IsVisible="{Binding EnableSendCount}">
+                            <StackPanel Classes="FormRow"
+                                        IsVisible="{Binding EnableSendCount}">
                                 <TextBlock Classes="FieldLabel" Text="发送总数" />
-                                <NumericUpDown Grid.Column="1"
-                                               Minimum="1" Maximum="999999"
+                                <NumericUpDown Minimum="1" Maximum="999999"
                                                Value="{Binding SendCount, Mode=TwoWay}" />
-                            </Grid>
+                            </StackPanel>
                             <StackPanel Classes="ActionBar">
                                 <Button Command="{Binding StartPollingCommand}"
                                         Content="定时发送"

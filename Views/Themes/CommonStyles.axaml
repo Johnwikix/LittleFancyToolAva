@@ -24,7 +24,6 @@
 
         <sys:Double x:Key="CardSpacing">12</sys:Double>
         <sys:Double x:Key="StackSpacing">8</sys:Double>
-        <sys:Double x:Key="FieldLabelColumnWidth">100</sys:Double>
 
         <CornerRadius x:Key="CardCornerRadius">8</CornerRadius>
         <CornerRadius x:Key="SubtleCornerRadius">4</CornerRadius>
@@ -72,10 +71,11 @@
         <Setter Property="Margin" Value="0,8,0,8" />
     </Style>
 
-    <!-- Field label (left column of a label/value grid) -->
+    <!-- Field label (stacked above its control) -->
     <Style Selector="TextBlock.FieldLabel">
-        <Setter Property="VerticalAlignment" Value="Center" />
         <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+        <Setter Property="Margin" Value="0,0,0,4" />
+        <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
 
     <!-- Caption / muted status text -->
@@ -207,17 +207,18 @@
         <Setter Property="Spacing" Value="{StaticResource StackSpacing}" />
     </Style>
 
-    <!-- Form row: label + control. ColumnDefinitions must be set inline because
-         Avalonia doesn't support string-based ColumnDefinitions via Setter. -->
-    <Style Selector="Grid.FormRow">
+    <!-- Form row: label stacked above its control. -->
+    <Style Selector="StackPanel.FormRow">
         <Setter Property="Margin" Value="{StaticResource FieldSpacing}" />
+        <Setter Property="Spacing" Value="0" />
     </Style>
 
-    <Style Selector="Grid.FormRowTight">
+    <Style Selector="StackPanel.FormRowTight">
         <Setter Property="Margin" Value="0,4" />
+        <Setter Property="Spacing" Value="0" />
     </Style>
 
-    <!-- Two-column form row -->
+    <!-- Two-column form row: two stacked fields side by side. -->
     <Style Selector="Grid.FormRow2">
         <Setter Property="Margin" Value="{StaticResource FieldSpacing}" />
     </Style>

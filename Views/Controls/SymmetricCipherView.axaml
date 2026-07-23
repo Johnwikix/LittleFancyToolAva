@@ -9,55 +9,71 @@
           Margin="{StaticResource PageMargin}">
 
         <controls:ToolPageHeader Grid.Row="0"
-                                Title="{Binding DisplayTitle}"
-                                Subtitle="{Binding DisplaySubtitle}" />
+                                 Title="{Binding DisplayTitle}"
+                                 Subtitle="{Binding DisplaySubtitle}" />
 
         <Grid Grid.Row="1" ColumnDefinitions="*,16,*" Margin="0,16,0,0">
             <Grid Grid.Column="0" RowDefinitions="Auto,16,*">
                 <Border Grid.Row="0" Classes="ToolCard">
                     <StackPanel Classes="ToolCardContent">
                         <TextBlock Classes="SectionHeader" Text="参数" />
-                        <Grid Classes="FormRow2" ColumnDefinitions="80,*,12,80,*">
-                            <TextBlock Classes="FieldLabel" Text="填充模式" />
-                            <ComboBox Grid.Column="1" HorizontalAlignment="Stretch"
-                                      ItemsSource="{Binding Paddings}"
-                                      SelectedIndex="{Binding PaddingIndex, Mode=TwoWay}" />
-                            <TextBlock Grid.Column="3" Classes="FieldLabel" Text="加密模式" />
-                            <ComboBox Grid.Column="4" HorizontalAlignment="Stretch"
-                                      SelectedIndex="{Binding EncryptModeIndex, Mode=TwoWay}">
-                                <ComboBoxItem Content="ECB" />
-                                <ComboBoxItem Content="CBC" />
-                            </ComboBox>
+                        <Grid Classes="FormRow2" ColumnDefinitions="*,12,*">
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Classes="FieldLabel" Text="填充模式" />
+                                <ComboBox HorizontalAlignment="Stretch"
+                                          ItemsSource="{Binding Paddings}"
+                                          SelectedIndex="{Binding PaddingIndex, Mode=TwoWay}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Classes="FieldLabel" Text="加密模式" />
+                                <ComboBox HorizontalAlignment="Stretch"
+                                          SelectedIndex="{Binding EncryptModeIndex, Mode=TwoWay}">
+                                    <ComboBoxItem Content="ECB" />
+                                    <ComboBoxItem Content="CBC" />
+                                </ComboBox>
+                            </StackPanel>
                         </Grid>
-                        <Grid Classes="FormRow2" ColumnDefinitions="80,*,12,80,*">
-                            <TextBlock Classes="FieldLabel" Text="输出格式" />
-                            <ComboBox Grid.Column="1" HorizontalAlignment="Stretch"
-                                      SelectedIndex="{Binding OutputTypeIndex, Mode=TwoWay}">
-                                <ComboBoxItem Content="Base64" />
-                                <ComboBoxItem Content="Hex" />
-                            </ComboBox>
-                            <TextBlock Grid.Column="3" Classes="FieldLabel" Text="Key/IV 格式" />
-                            <ComboBox Grid.Column="4" HorizontalAlignment="Stretch"
-                                      SelectedIndex="{Binding KeyIvTypeIndex, Mode=TwoWay}">
-                                <ComboBoxItem Content="Text" />
-                                <ComboBoxItem Content="Base64" />
-                                <ComboBoxItem Content="Hex" />
-                            </ComboBox>
+                        <Grid Classes="FormRow2" ColumnDefinitions="*,12,*">
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Classes="FieldLabel" Text="输出格式" />
+                                <ComboBox HorizontalAlignment="Stretch"
+                                          SelectedIndex="{Binding OutputTypeIndex, Mode=TwoWay}">
+                                    <ComboBoxItem Content="Base64" />
+                                    <ComboBoxItem Content="Hex" />
+                                </ComboBox>
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Classes="FieldLabel" Text="Key/IV 格式" />
+                                <ComboBox HorizontalAlignment="Stretch"
+                                          SelectedIndex="{Binding KeyIvTypeIndex, Mode=TwoWay}">
+                                    <ComboBoxItem Content="Text" />
+                                    <ComboBoxItem Content="Base64" />
+                                    <ComboBoxItem Content="Hex" />
+                                </ComboBox>
+                            </StackPanel>
                         </Grid>
-                        <Grid Classes="FormRow" ColumnDefinitions="80,*,12,Auto">
+                        <StackPanel Classes="FormRow"
+                                    IsEnabled="{Binding IsKeyLengthSelectable}">
+                            <TextBlock Classes="FieldLabel" Text="密钥长度 (bits)" />
+                            <ComboBox Classes="Compact" HorizontalAlignment="Stretch"
+                                      ItemsSource="{Binding KeyLengthOptions}"
+                                      SelectedIndex="{Binding KeyLengthIndex, Mode=TwoWay}" />
+                        </StackPanel>
+                        <StackPanel Classes="FormRow">
                             <TextBlock Classes="FieldLabel" Text="Key" />
-                            <TextBox Grid.Column="1"
-                                     Text="{Binding Key, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                            <Button Grid.Column="3"
-                                    Command="{Binding GenerateNewKeyCommand}"
-                                    Content="生成 Key/IV" />
-                        </Grid>
-                        <Grid Classes="FormRow" ColumnDefinitions="80,*"
-                              IsEnabled="{Binding EncryptModeIndex, Converter={StaticResource IntEq}, ConverterParameter=1}">
+                            <Grid ColumnDefinitions="*,8,Auto">
+                                <TextBox Grid.Column="0"
+                                         Text="{Binding Key, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                <Button Grid.Column="2"
+                                        Command="{Binding GenerateNewKeyCommand}"
+                                        Content="生成 Key/IV" />
+                            </Grid>
+                        </StackPanel>
+                        <StackPanel Classes="FormRow"
+                                    IsEnabled="{Binding EncryptModeIndex, Converter={StaticResource IntEq}, ConverterParameter=1}">
                             <TextBlock Classes="FieldLabel" Text="IV" />
-                            <TextBox Grid.Column="1"
-                                     Text="{Binding Iv, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                        </Grid>
+                            <TextBox Text="{Binding Iv, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                        </StackPanel>
                     </StackPanel>
                 </Border>
 

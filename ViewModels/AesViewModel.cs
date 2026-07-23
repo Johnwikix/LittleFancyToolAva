@@ -8,7 +8,7 @@ namespace LittleFancyToolAva.ViewModels
 {
     public partial class AesViewModel : SymmetricCipherViewModelBase, IViewState
     {
-        public new int KeyLengthIndex
+        public override int KeyLengthIndex
         {
             get;
             set
@@ -20,12 +20,9 @@ namespace LittleFancyToolAva.ViewModels
             }
         }
 
-        public override int KeyBitLength => KeyLengthIndex switch
-        {
-            1 => 192,
-            2 => 256,
-            _ => 128
-        };
+        public override int[] KeyLengthOptions => [128, 192, 256];
+
+        public override bool IsKeyLengthSelectable => true;
 
         string IViewState.ViewName => "aesView";
 
