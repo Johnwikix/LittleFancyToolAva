@@ -69,7 +69,7 @@ namespace LittleFancyToolAva.ViewModels
         private static PageNavigationItem BuildSerialCategory(IServiceProvider sp)
         {
             var category = new PageNavigationItem("串口", FASymbol.Remote);
-            category.Children.Add(new PageNavigationItem("串口调试", FASymbol.Document, sp.GetRequiredService<SerialPortViewModel>()));
+            category.Children.Add(new PageNavigationItem("串口调试", FASymbol.Remote, sp.GetRequiredService<SerialPortViewModel>()));
             return category;
         }
 
@@ -86,32 +86,32 @@ namespace LittleFancyToolAva.ViewModels
         private static PageNavigationItem BuildEncryptionCategory(IServiceProvider sp)
         {
             var category = new PageNavigationItem("加密", FASymbol.Permissions);
-            category.Children.Add(new PageNavigationItem("DES", FASymbol.Document, sp.GetRequiredService<DesViewModel>()));
-            category.Children.Add(new PageNavigationItem("AES", FASymbol.Document, sp.GetRequiredService<AesViewModel>()));
-            category.Children.Add(new PageNavigationItem("SM4", FASymbol.Document, sp.GetRequiredService<Sm4ViewModel>()));
-            category.Children.Add(new PageNavigationItem("RSA", FASymbol.Page2, sp.GetRequiredService<RsaViewModel>()));
-            category.Children.Add(new PageNavigationItem("SM2", FASymbol.Page2, sp.GetRequiredService<Sm2ViewModel>()));
-            category.Children.Add(new PageNavigationItem("MD5", FASymbol.Page2, sp.GetRequiredService<Md5ViewModel>()));
-            category.Children.Add(new PageNavigationItem("SHA", FASymbol.Page2, sp.GetRequiredService<ShaViewModel>()));
-            category.Children.Add(new PageNavigationItem("SM3", FASymbol.Page2, sp.GetRequiredService<Sm3ViewModel>()));
-            category.Children.Add(new PageNavigationItem("Base64", FASymbol.Page2, sp.GetRequiredService<Base64ViewModel>()));
+            category.Children.Add(new PageNavigationItem("DES", FASymbol.Permissions, sp.GetRequiredService<DesViewModel>()));
+            category.Children.Add(new PageNavigationItem("AES", FASymbol.Permissions, sp.GetRequiredService<AesViewModel>()));
+            category.Children.Add(new PageNavigationItem("SM4", FASymbol.Permissions, sp.GetRequiredService<Sm4ViewModel>()));
+            category.Children.Add(new PageNavigationItem("RSA", FASymbol.Permissions, sp.GetRequiredService<RsaViewModel>()));
+            category.Children.Add(new PageNavigationItem("SM2", FASymbol.Permissions, sp.GetRequiredService<Sm2ViewModel>()));
+            category.Children.Add(new PageNavigationItem("MD5", FASymbol.Permissions, sp.GetRequiredService<Md5ViewModel>()));
+            category.Children.Add(new PageNavigationItem("SHA", FASymbol.Permissions, sp.GetRequiredService<ShaViewModel>()));
+            category.Children.Add(new PageNavigationItem("SM3", FASymbol.Permissions, sp.GetRequiredService<Sm3ViewModel>()));
+            category.Children.Add(new PageNavigationItem("Base64", FASymbol.Permissions, sp.GetRequiredService<Base64ViewModel>()));
             return category;
         }
 
         private static PageNavigationItem BuildFileCategory(IServiceProvider sp)
         {
             var category = new PageNavigationItem("文件处理", FASymbol.Document);
-            category.Children.Add(new PageNavigationItem("文件夹比较", FASymbol.Document, sp.GetRequiredService<FolderCompareViewModel>()));
-            category.Children.Add(new PageNavigationItem("文件加解密", FASymbol.Document, sp.GetRequiredService<FileEncryptionViewModel>()));
+            category.Children.Add(new PageNavigationItem("文件夹比较", FASymbol.MoveToFolder, sp.GetRequiredService<FolderCompareViewModel>()));
+            category.Children.Add(new PageNavigationItem("文件加解密", FASymbol.ProtectedDocument, sp.GetRequiredService<FileEncryptionViewModel>()));
             return category;
         }
 
         private static PageNavigationItem BuildImageCategory(IServiceProvider sp)
         {
             var category = new PageNavigationItem("图片处理", FASymbol.Image);
-            category.Children.Add(new PageNavigationItem("图片转 Base64", FASymbol.Page2, sp.GetRequiredService<Img2Base64ViewModel>()));
-            category.Children.Add(new PageNavigationItem("图片转 ICO", FASymbol.Page2, sp.GetRequiredService<Img2icoViewModel>()));
-            category.Children.Add(new PageNavigationItem("图片格式转换", FASymbol.Page2, sp.GetRequiredService<ImgConvertViewModel>()));
+            category.Children.Add(new PageNavigationItem("图片转 Base64", FASymbol.ImageAltText, sp.GetRequiredService<Img2Base64ViewModel>()));
+            category.Children.Add(new PageNavigationItem("图片转 ICO", FASymbol.ImageCopy, sp.GetRequiredService<Img2icoViewModel>()));
+            category.Children.Add(new PageNavigationItem("图片格式转换", FASymbol.ImageCopyFilled, sp.GetRequiredService<ImgConvertViewModel>()));
             return category;
         }
 
