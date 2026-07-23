@@ -5,7 +5,7 @@
              x:Class="LittleFancyToolAva.Views.Controls.SymmetricCipherView"
              x:DataType="vm:SymmetricCipherViewModelBase">
 
-    <Grid RowDefinitions="Auto,*,Auto"
+    <Grid RowDefinitions="Auto,*"
           Margin="{StaticResource PageMargin}">
 
         <controls:ToolPageHeader Grid.Row="0"
@@ -79,7 +79,11 @@
 
                 <Border Grid.Row="2" Classes="ToolCard" Padding="0">
                     <Grid RowDefinitions="Auto,*">
-                        <TextBlock Grid.Row="0" Classes="SectionHeader" Text="输入" Margin="16,12,16,8" />
+                        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="16,12,16,8">
+                            <TextBlock Classes="SectionHeader" Text="输入" />
+                            <Button Grid.Column="1" Classes="Primary"
+                                    Command="{Binding EncryptCommand}" Content="加密" />
+                        </Grid>
                         <TextBox Grid.Row="1"
                                  Margin="16,0,16,12"
                                  AcceptsReturn="True" TextWrapping="Wrap"
@@ -90,7 +94,11 @@
 
             <Border Grid.Column="2" Classes="ToolCard" Padding="0">
                 <Grid RowDefinitions="Auto,*">
-                    <TextBlock Grid.Row="0" Classes="SectionHeader" Text="输出" Margin="16,12,16,8" />
+                    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="16,12,16,8">
+                        <TextBlock Classes="SectionHeader" Text="输出" />
+                        <Button Grid.Column="1" Classes="Danger"
+                                Command="{Binding DecryptCommand}" Content="解密" />
+                    </Grid>
                     <TextBox Grid.Row="1"
                              Margin="16,0,16,12"
                              IsReadOnly="False" AcceptsReturn="True" TextWrapping="Wrap"
@@ -98,10 +106,5 @@
                 </Grid>
             </Border>
         </Grid>
-
-        <StackPanel Grid.Row="2" Classes="ActionBar">
-            <Button Command="{Binding EncryptCommand}" Classes="Primary" Content="加密" />
-            <Button Command="{Binding DecryptCommand}" Classes="Danger" Content="解密" />
-        </StackPanel>
     </Grid>
 </UserControl>

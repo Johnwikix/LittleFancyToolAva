@@ -12,11 +12,11 @@
         <Grid Grid.Row="1" ColumnDefinitions="*,16,*" Margin="0,16,0,0">
             <Border Grid.Column="0" Classes="ToolCard" Padding="0">
                 <Grid RowDefinitions="Auto,*">
-                    <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto" Margin="16,12,16,8">
-                        <TextBlock Classes="SectionHeader" Grid.Column="0" Text="输入" />
-                        <Button Grid.Column="1" Classes="Quiet" Command="{Binding EncodeCommand}" Content="编码 →" />
-                        <Button Grid.Column="2" Classes="Quiet" Command="{Binding DecodeCommand}" Content="← 解码" Margin="6,0,0,0" />
-                    </Grid>
+<Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto" Margin="16,12,16,8">
+                            <TextBlock Classes="SectionHeader" Grid.Column="0" Text="输入" />
+                            <Button Grid.Column="1" Classes="Primary" Command="{Binding EncodeCommand}" Content="编码 →" />
+                            <Button Grid.Column="2" Classes="Danger" Command="{Binding DecodeCommand}" Content="← 解码" Margin="6,0,0,0" />
+                        </Grid>
                     <TextBox Grid.Row="1" Margin="16,0,16,12" AcceptsReturn="True" TextWrapping="Wrap"
                              Text="{Binding InputText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                 </Grid>
