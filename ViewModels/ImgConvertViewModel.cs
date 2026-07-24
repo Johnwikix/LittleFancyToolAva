@@ -28,48 +28,86 @@ public partial class ImgConvertViewModel : ViewModelBase, IViewState
 
     public ObservableCollection<ConvertFileItem> FileItems { get; } = [];
 
-    [ObservableProperty]
-    private ConvertFileItem? _selectedFileItem;
+    public ConvertFileItem? SelectedFileItem
+    {
+        get => field;
+        set => SetProperty(ref field, value);
+    }
 
-    [ObservableProperty]
-    private string? _outputFolder;
+    public string? OutputFolder
+    {
+        get => field;
+        set => SetProperty(ref field, value);
+    }
 
-    [ObservableProperty]
-    private int _formatIndex;
+    public int FormatIndex
+    {
+        get => field;
+        set => SetProperty(ref field, value);
+    }
 
-    [ObservableProperty]
-    private bool _isDownscaleEnabled;
+    public bool IsDownscaleEnabled
+    {
+        get => field;
+        set => SetProperty(ref field, value);
+    }
 
-    [ObservableProperty]
-    private int _downscalePercent = 100;
+    public int DownscalePercent
+    {
+        get => field;
+        set => SetProperty(ref field, value);
+    } = 100;
 
-    [ObservableProperty]
-    private int _selectedFilterIndex;
+    public int SelectedFilterIndex
+    {
+        get => field;
+        set => SetProperty(ref field, value);
+    }
 
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(AddFilesCommand))]
-    [NotifyCanExecuteChangedFor(nameof(AddFolderCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ClearListCommand))]
-    [NotifyCanExecuteChangedFor(nameof(StartConvertCommand))]
-    private bool _isBusy;
+    public bool IsBusy
+    {
+        get => field;
+        set
+        {
+            if (SetProperty(ref field, value))
+            {
+                AddFilesCommand.NotifyCanExecuteChanged();
+                AddFolderCommand.NotifyCanExecuteChanged();
+                ClearListCommand.NotifyCanExecuteChanged();
+                StartConvertCommand.NotifyCanExecuteChanged();
+            }
+        }
+    }
 
-    [ObservableProperty]
-    private int _totalCount;
+    public int TotalCount
+    {
+        get => field;
+        set => SetProperty(ref field, value);
+    }
 
-    [ObservableProperty]
-    private int _completedCount;
+    public int CompletedCount
+    {
+        get => field;
+        set => SetProperty(ref field, value);
+    }
 
-    [ObservableProperty]
-    private int _failedCount;
+    public int FailedCount
+    {
+        get => field;
+        set => SetProperty(ref field, value);
+    }
 
-    [ObservableProperty]
-    private double _conversionProgress;
+    public double ConversionProgress
+    {
+        get => field;
+        set => SetProperty(ref field, value);
+    }
 
-    [ObservableProperty]
-    private string _statusText = string.Empty;
-
-    [ObservableProperty]
-    private string _dimensionInfoText = string.Empty;
+    public string StatusText
+    {
+        get => field;
+        set => SetProperty(ref field, value);
+    } = string.Empty;
 
     public List<string> AvailableFormats { get; } = ["jpg", "png", "bmp", "webp", "tiff", "dds", "jxl", "heic"];
     public List<string> AvailableFilters { get; } = ["Lanczos", "Mitchell", "Catrom", "Cubic", "Triangle", "Box"];
@@ -86,20 +124,6 @@ public partial class ImgConvertViewModel : ViewModelBase, IViewState
         _viewStateService = viewStateService;
         _viewStateService.Register(this);
         FileItems.CollectionChanged += (_, _) => StartConvertCommand.NotifyCanExecuteChanged();
-    }
-
-    partial void OnIsDownscaleEnabledChanged(bool value) => UpdateDimensionInfo();
-    partial void OnDownscalePercentChanged(int value) => UpdateDimensionInfo();
-    partial void OnIsBusyChanged(bool value) => UpdateDimensionInfo();
-
-    private void UpdateDimensionInfo()
-    {
-        if (!IsDownscaleEnabled || DownscalePercent >= 100)
-        {
-            DimensionInfoText = string.Empty;
-            return;
-        }
-        DimensionInfoText = $"输出将缩小至 {DownscalePercent}%";
     }
 
     private int? GetMaxDimension()

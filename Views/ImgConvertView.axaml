@@ -43,7 +43,6 @@
                                         <TextBlock Grid.Column="1" Text="{Binding DownscalePercent, StringFormat='{}{0}%'}"
                                                    Margin="8,0,0,0" VerticalAlignment="Center" />
                                     </Grid>
-                                    <TextBlock Text="{Binding DimensionInfoText}" />
                                 </StackPanel>
                             </StackPanel>
                         </StackPanel>

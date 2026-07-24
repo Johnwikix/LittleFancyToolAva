@@ -43,11 +43,19 @@ public partial class Img2icoViewModel : ViewModelBase, IViewState
         set => SetProperty(ref field, value);
     }
 
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(UploadImageCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ConvertCommand))]
-    [NotifyCanExecuteChangedFor(nameof(SaveIcoCommand))]
-    private bool _isBusy;
+    public bool IsBusy
+    {
+        get => field;
+        set
+        {
+            if (SetProperty(ref field, value))
+            {
+                UploadImageCommand.NotifyCanExecuteChanged();
+                ConvertCommand.NotifyCanExecuteChanged();
+                SaveIcoCommand.NotifyCanExecuteChanged();
+            }
+        }
+    }
 
     public List<int> AvailableSizes { get; } = [16, 32, 48, 64, 128, 256];
 

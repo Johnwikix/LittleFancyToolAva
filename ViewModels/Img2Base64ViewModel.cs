@@ -54,15 +54,23 @@ public partial class Img2Base64ViewModel : ViewModelBase
         ? string.Empty
         : $"共 {Base64Output.Length:N0} 字符";
 
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(UploadImageCommand))]
-    [NotifyCanExecuteChangedFor(nameof(EncodeCommand))]
-    [NotifyCanExecuteChangedFor(nameof(DecodeCommand))]
-    [NotifyCanExecuteChangedFor(nameof(DecodeFromClipboardCommand))]
-    [NotifyCanExecuteChangedFor(nameof(DecodeFromFileCommand))]
-    [NotifyCanExecuteChangedFor(nameof(CopyBase64Command))]
-    [NotifyCanExecuteChangedFor(nameof(SaveDecodedImageCommand))]
-    private bool _isBusy;
+    public bool IsBusy
+    {
+        get => field;
+        set
+        {
+            if (SetProperty(ref field, value))
+            {
+                UploadImageCommand.NotifyCanExecuteChanged();
+                EncodeCommand.NotifyCanExecuteChanged();
+                DecodeCommand.NotifyCanExecuteChanged();
+                DecodeFromClipboardCommand.NotifyCanExecuteChanged();
+                DecodeFromFileCommand.NotifyCanExecuteChanged();
+                CopyBase64Command.NotifyCanExecuteChanged();
+                SaveDecodedImageCommand.NotifyCanExecuteChanged();
+            }
+        }
+    }
 
     public Img2Base64ViewModel(
         IImageConversionService imageConversionService,

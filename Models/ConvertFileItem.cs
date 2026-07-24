@@ -15,13 +15,25 @@ public partial class ConvertFileItem : ObservableObject
     public string FilePath { get; }
     public string FileName => Path.GetFileName(FilePath);
 
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(StatusDisplay))]
-    private ConvertFileStatus _status = ConvertFileStatus.Pending;
+    public ConvertFileStatus Status
+    {
+        get => field;
+        set
+        {
+            if (SetProperty(ref field, value))
+                OnPropertyChanged(nameof(StatusDisplay));
+        }
+    } = ConvertFileStatus.Pending;
 
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(StatusDisplay))]
-    private string? _errorMessage;
+    public string? ErrorMessage
+    {
+        get => field;
+        set
+        {
+            if (SetProperty(ref field, value))
+                OnPropertyChanged(nameof(StatusDisplay));
+        }
+    }
 
     public ConvertFileItem(string filePath)
     {
