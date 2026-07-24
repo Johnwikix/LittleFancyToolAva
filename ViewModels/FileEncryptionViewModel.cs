@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Text.Json;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -34,19 +35,37 @@ public partial class FileEncryptionViewModel : ViewModelBase, IViewState
     public string? OutputDirectory
     {
         get => field;
-        set => SetProperty(ref field, value);
+        set
+        {
+            if (SetProperty(ref field, value))
+                OpenOutputFolderCommand.NotifyCanExecuteChanged();
+        }
     }
 
     public string Key
     {
         get => field;
-        set => SetProperty(ref field, value);
+        set
+        {
+            if (SetProperty(ref field, value))
+            {
+                ExportKeyIvCommand.NotifyCanExecuteChanged();
+                ImportKeyIvCommand.NotifyCanExecuteChanged();
+            }
+        }
     } = string.Empty;
 
     public string Iv
     {
         get => field;
-        set => SetProperty(ref field, value);
+        set
+        {
+            if (SetProperty(ref field, value))
+            {
+                ExportKeyIvCommand.NotifyCanExecuteChanged();
+                ImportKeyIvCommand.NotifyCanExecuteChanged();
+            }
+        }
     } = string.Empty;
 
     public int KeyLengthIndex
@@ -84,8 +103,11 @@ public partial class FileEncryptionViewModel : ViewModelBase, IViewState
                 AddFolderCommand.NotifyCanExecuteChanged();
                 ClearListCommand.NotifyCanExecuteChanged();
                 SelectOutputDirectoryCommand.NotifyCanExecuteChanged();
+                OpenOutputFolderCommand.NotifyCanExecuteChanged();
                 StartEncryptCommand.NotifyCanExecuteChanged();
                 StartDecryptCommand.NotifyCanExecuteChanged();
+                ExportKeyIvCommand.NotifyCanExecuteChanged();
+                ImportKeyIvCommand.NotifyCanExecuteChanged();
             }
         }
     }
@@ -138,11 +160,13 @@ public partial class FileEncryptionViewModel : ViewModelBase, IViewState
             StartDecryptCommand.NotifyCanExecuteChanged();
             UpdateStatusText();
         };
+        UpdateStatusText();
     }
 
     object IViewState.CaptureState() => new FileEncryptionViewState
     {
         KeyLengthIndex = KeyLengthIndex,
+        KeyIvTypeIndex = KeyIvTypeIndex,
         OutputDirectory = OutputDirectory
     };
 
@@ -152,6 +176,7 @@ public partial class FileEncryptionViewModel : ViewModelBase, IViewState
         {
             KeyLengthIndex = s.KeyLengthIndex;
             OutputDirectory = s.OutputDirectory;
+            KeyIvTypeIndex = s.KeyIvTypeIndex;
         }
     }
 
@@ -208,6 +233,16 @@ public partial class FileEncryptionViewModel : ViewModelBase, IViewState
         }
     }
 
+    [RelayCommand(CanExecute = nameof(CanOpenOutputFolder))]
+    private void OpenOutputFolder()
+    {
+        if (!string.IsNullOrEmpty(OutputDirectory))
+            _fileDialogService.OpenInExplorer(OutputDirectory);
+    }
+
+    private bool CanOpenOutputFolder()
+        => !IsBusy && !string.IsNullOrEmpty(OutputDirectory) && Directory.Exists(OutputDirectory!);
+
     [RelayCommand]
     private void GenerateKey()
     {
@@ -217,6 +252,63 @@ public partial class FileEncryptionViewModel : ViewModelBase, IViewState
         Key = ToolMethod.GenerateSymmetricKey(bitLen, keyIvType);
         Iv = ToolMethod.GenerateSymmetricKey(128, keyIvType);
     }
+
+    [RelayCommand(CanExecute = nameof(CanExportImportKeyIv))]
+    private async Task ExportKeyIv()
+    {
+        IReadOnlyList<FilePickerFileType> filters = [new("JSON File") { Patterns = ["*.json"] }];
+        string? path = await _fileDialogService.PickSaveFileAsync("导出 Key/IV", "key-iv.json", filters);
+        if (path == null) return;
+
+        var dto = new KeyIvDto(Key, Iv, GetSelectedKeyIvType());
+        string content = JsonSerializer.Serialize(dto, ViewStatesJsonContext.Default.KeyIvDto);
+        await File.WriteAllTextAsync(path, content);
+        _notificationService.ShowSuccess($"Key/IV 已导出到 {path}");
+    }
+
+    [RelayCommand(CanExecute = nameof(CanExportImportKeyIv))]
+    private async Task ImportKeyIv()
+    {
+        IReadOnlyList<FilePickerFileType> filters =
+        [
+            new("JSON File") { Patterns = ["*.json"] },
+            new("All Files") { Patterns = ["*.*"] }
+        ];
+        string? path = await _fileDialogService.PickOpenFileAsync("导入 Key/IV", filters);
+        if (path == null) return;
+
+        try
+        {
+            string content = await File.ReadAllTextAsync(path);
+            KeyIvDto? dto = JsonSerializer.Deserialize(content, ViewStatesJsonContext.Default.KeyIvDto);
+            if (dto == null || string.IsNullOrEmpty(dto.Key) || string.IsNullOrEmpty(dto.Iv))
+            {
+                _notificationService.ShowError("文件格式错误,需包含 key 与 iv 字段");
+                return;
+            }
+
+            int? formatIndex = dto.Format switch
+            {
+                "text" => 0,
+                "base64" => 1,
+                "hex" => 2,
+                _ => null
+            };
+            if (formatIndex.HasValue)
+                KeyIvTypeIndex = formatIndex.Value;
+
+            Key = dto.Key;
+            Iv = dto.Iv;
+            _notificationService.ShowSuccess($"Key/IV 已从 {Path.GetFileName(path)} 导入");
+        }
+        catch (Exception ex)
+        {
+            _notificationService.ShowError($"导入失败: {ex.Message}");
+        }
+    }
+
+    private bool CanExportImportKeyIv()
+        => !IsBusy && !string.IsNullOrEmpty(Key) && !string.IsNullOrEmpty(Iv);
 
     private string GetSelectedKeyIvType() => KeyIvTypeIndex switch
     {

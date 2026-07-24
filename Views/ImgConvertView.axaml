@@ -16,9 +16,11 @@
                     <StackPanel Classes="ToolCardContent" Spacing="12">
                         <StackPanel Classes="FormRow">
                             <TextBlock Classes="FieldLabel" Text="输出目录" />
-                            <Grid ColumnDefinitions="*,8,Auto">
-                                <TextBox Grid.Column="0" Text="{Binding OutputFolder}" IsReadOnly="True" />
+                            <Grid ColumnDefinitions="*,8,Auto,8,Auto">
+                                <TextBox Grid.Column="0"
+                                         Text="{Binding OutputFolder, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
                                 <Button Grid.Column="2" Command="{Binding PickOutputFolderCommand}" Content="选择" />
+                                <Button Grid.Column="4" Command="{Binding OpenOutputFolderCommand}" Content="打开" />
                             </Grid>
                         </StackPanel>
                         <StackPanel Classes="FormRow">
@@ -46,11 +48,6 @@
                                 </StackPanel>
                             </StackPanel>
                         </StackPanel>
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <Button Command="{Binding AddFilesCommand}" Content="添加文件" />
-                            <Button Command="{Binding AddFolderCommand}" Content="添加文件夹" />
-                            <Button Command="{Binding ClearListCommand}" Content="清空" />
-                        </StackPanel>
                         <StackPanel IsVisible="{Binding IsBusy}" Spacing="4">
                             <ProgressBar Value="{Binding ConversionProgress}" Minimum="0" Maximum="1" Height="8" />
                             <TextBlock Text="{Binding StatusText}" />
@@ -62,7 +59,14 @@
             </ScrollViewer>
             <Border Grid.Column="2" Classes="ToolCard" Padding="0">
                 <Grid RowDefinitions="Auto,*">
-                    <TextBlock Grid.Row="0" Classes="SectionHeader" Text="{Binding StatusText, FallbackValue='文件列表'}" Margin="16,12,16,4" />
+                    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="16,12,16,4">
+                        <TextBlock Grid.Column="0" Classes="SectionHeader" Text="{Binding StatusText, FallbackValue='文件列表'}" VerticalAlignment="Center" />
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                            <Button Command="{Binding AddFilesCommand}" Content="添加文件" />
+                            <Button Command="{Binding AddFolderCommand}" Content="添加文件夹" />
+                            <Button Command="{Binding ClearListCommand}" Content="清空" />
+                        </StackPanel>
+                    </Grid>
                     <ListBox Grid.Row="1" ItemsSource="{Binding FileItems}"
                              SelectedItem="{Binding SelectedFileItem}"
                              BorderThickness="0" Margin="8,0,8,8">

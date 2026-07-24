@@ -38,6 +38,7 @@ public class ViewStatesRoot
 [JsonSerializable(typeof(TcpServerViewState))]
 [JsonSerializable(typeof(UdpViewState))]
 [JsonSerializable(typeof(FileEncryptionViewState))]
+[JsonSerializable(typeof(KeyIvDto))]
 [JsonSerializable(typeof(FolderCompareViewState))]
 [JsonSerializable(typeof(Img2icoViewState))]
 [JsonSerializable(typeof(ImgConvertViewState))]

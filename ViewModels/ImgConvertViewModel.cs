@@ -37,7 +37,11 @@ public partial class ImgConvertViewModel : ViewModelBase, IViewState
     public string? OutputFolder
     {
         get => field;
-        set => SetProperty(ref field, value);
+        set
+        {
+            if (SetProperty(ref field, value))
+                OpenOutputFolderCommand.NotifyCanExecuteChanged();
+        }
     }
 
     public int FormatIndex
@@ -74,6 +78,8 @@ public partial class ImgConvertViewModel : ViewModelBase, IViewState
                 AddFilesCommand.NotifyCanExecuteChanged();
                 AddFolderCommand.NotifyCanExecuteChanged();
                 ClearListCommand.NotifyCanExecuteChanged();
+                PickOutputFolderCommand.NotifyCanExecuteChanged();
+                OpenOutputFolderCommand.NotifyCanExecuteChanged();
                 StartConvertCommand.NotifyCanExecuteChanged();
             }
         }
@@ -124,6 +130,7 @@ public partial class ImgConvertViewModel : ViewModelBase, IViewState
         _viewStateService = viewStateService;
         _viewStateService.Register(this);
         FileItems.CollectionChanged += (_, _) => StartConvertCommand.NotifyCanExecuteChanged();
+        UpdateStatusText();
     }
 
     private int? GetMaxDimension()
@@ -206,6 +213,16 @@ public partial class ImgConvertViewModel : ViewModelBase, IViewState
         if (folder != null)
             OutputFolder = folder;
     }
+
+    [RelayCommand(CanExecute = nameof(CanOpenOutputFolder))]
+    private void OpenOutputFolder()
+    {
+        if (!string.IsNullOrEmpty(OutputFolder))
+            _fileDialogService.OpenInExplorer(OutputFolder);
+    }
+
+    private bool CanOpenOutputFolder()
+        => !IsBusy && !string.IsNullOrEmpty(OutputFolder) && Directory.Exists(OutputFolder!);
 
     [RelayCommand(CanExecute = nameof(CanStartConvert))]
     private async Task StartConvert()
@@ -310,6 +327,8 @@ public partial class ImgConvertViewModel : ViewModelBase, IViewState
 
     private void UpdateStatusText()
     {
-        StatusText = $"共 {FileItems.Count} 个文件";
+        StatusText = FileItems.Count == 0
+            ? "文件列表"
+            : $"共 {FileItems.Count} 个文件";
     }
 }
