@@ -1,7 +1,9 @@
-using Avalonia.Media.Imaging;
+using System.Collections.ObjectModel;
 using Avalonia.Platform.Storage;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using LittleFancyToolAva.Models;
 using LittleFancyToolAva.Models.ViewStates;
 using LittleFancyToolAva.Services;
 
@@ -9,38 +11,68 @@ namespace LittleFancyToolAva.ViewModels;
 
 public partial class ImgConvertViewModel : ViewModelBase, IViewState
 {
+    private static readonly HashSet<string> ImageExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".png", ".jpg", ".jpeg", ".bmp", ".webp", ".tiff", ".gif"
+    };
+
     private readonly IImageConversionService _imageConversionService;
     private readonly IFileDialogService _fileDialogService;
     private readonly INotificationService _notificationService;
     private readonly IViewStateService _viewStateService;
+    private CancellationTokenSource? _cts;
+    private int _completedCountField;
+    private int _failedCountField;
 
     string IViewState.ViewName => "imgConvertView";
 
-        public string ImagePath
-        {
-            get;
-            set => SetProperty(ref field, value);
-        } = string.Empty;
+    public ObservableCollection<ConvertFileItem> FileItems { get; } = [];
 
-        public Bitmap? ImagePreview
-        {
-            get;
-            set => SetProperty(ref field, value);
-        }
+    [ObservableProperty]
+    private ConvertFileItem? _selectedFileItem;
 
-        public int FormatIndex
-        {
-            get;
-            set => SetProperty(ref field, value);
-        }
+    [ObservableProperty]
+    private string? _outputFolder;
 
-        public string ConvertedPath
-        {
-            get;
-            set => SetProperty(ref field, value);
-        } = string.Empty;
+    [ObservableProperty]
+    private int _formatIndex;
 
-    public List<string> AvailableFormats { get; } = ["jpg", "png", "gif", "bmp", "webp", "tiff"];
+    [ObservableProperty]
+    private bool _isDownscaleEnabled;
+
+    [ObservableProperty]
+    private int _downscalePercent = 100;
+
+    [ObservableProperty]
+    private int _selectedFilterIndex;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(AddFilesCommand))]
+    [NotifyCanExecuteChangedFor(nameof(AddFolderCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ClearListCommand))]
+    [NotifyCanExecuteChangedFor(nameof(StartConvertCommand))]
+    private bool _isBusy;
+
+    [ObservableProperty]
+    private int _totalCount;
+
+    [ObservableProperty]
+    private int _completedCount;
+
+    [ObservableProperty]
+    private int _failedCount;
+
+    [ObservableProperty]
+    private double _conversionProgress;
+
+    [ObservableProperty]
+    private string _statusText = string.Empty;
+
+    [ObservableProperty]
+    private string _dimensionInfoText = string.Empty;
+
+    public List<string> AvailableFormats { get; } = ["jpg", "png", "bmp", "webp", "tiff"];
+    public List<string> AvailableFilters { get; } = ["Lanczos", "Mitchell", "Catrom", "Cubic", "Triangle", "Box"];
 
     public ImgConvertViewModel(
         IImageConversionService imageConversionService,
@@ -53,11 +85,36 @@ public partial class ImgConvertViewModel : ViewModelBase, IViewState
         _notificationService = notificationService;
         _viewStateService = viewStateService;
         _viewStateService.Register(this);
+        FileItems.CollectionChanged += (_, _) => StartConvertCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnIsDownscaleEnabledChanged(bool value) => UpdateDimensionInfo();
+    partial void OnDownscalePercentChanged(int value) => UpdateDimensionInfo();
+    partial void OnIsBusyChanged(bool value) => UpdateDimensionInfo();
+
+    private void UpdateDimensionInfo()
+    {
+        if (!IsDownscaleEnabled || DownscalePercent >= 100)
+        {
+            DimensionInfoText = string.Empty;
+            return;
+        }
+        DimensionInfoText = $"输出将缩小至 {DownscalePercent}%";
+    }
+
+    private int? GetMaxDimension()
+    {
+        if (!IsDownscaleEnabled || DownscalePercent >= 100) return null;
+        return DownscalePercent;
     }
 
     object IViewState.CaptureState() => new ImgConvertViewState
     {
-        FormatIndex = FormatIndex
+        FormatIndex = FormatIndex,
+        OutputFolder = OutputFolder,
+        IsDownscaleEnabled = IsDownscaleEnabled,
+        DownscalePercent = DownscalePercent,
+        SelectedFilterIndex = SelectedFilterIndex
     };
 
     void IViewState.RestoreState(object state)
@@ -65,49 +122,170 @@ public partial class ImgConvertViewModel : ViewModelBase, IViewState
         if (state is ImgConvertViewState s)
         {
             FormatIndex = s.FormatIndex;
+            OutputFolder = s.OutputFolder;
+            IsDownscaleEnabled = s.IsDownscaleEnabled;
+            DownscalePercent = s.DownscalePercent is > 10 and <= 100 ? s.DownscalePercent : 100;
+            SelectedFilterIndex = s.SelectedFilterIndex;
         }
     }
 
-    [RelayCommand]
-    private async Task UploadImage()
+    [RelayCommand(CanExecute = nameof(CanModify))]
+    private async Task AddFiles()
     {
-        IReadOnlyList<FilePickerFileType> filters = [new("Image Files") { Patterns = ["*.png", "*.jpg", "*.jpeg", "*.gif", "*.bmp", "*.webp", "*.tiff"] }];
-        string? path = await _fileDialogService.PickOpenFileAsync("选择图片", filters);
-        if (path == null) return;
+        IReadOnlyList<FilePickerFileType> filters = [new("图片文件") { Patterns = ["*.png", "*.jpg", "*.jpeg", "*.bmp", "*.webp", "*.tiff", "*.gif"] }];
+        var paths = await _fileDialogService.PickOpenFilesAsync("选择图片", filters);
+        if (paths == null) return;
 
-        ImagePath = path;
-        ImagePreview = await _imageConversionService.LoadImageAsync(path);
-        ConvertedPath = string.Empty;
+        var existing = new HashSet<string>(FileItems.Select(x => x.FilePath), StringComparer.OrdinalIgnoreCase);
+        foreach (string path in paths)
+        {
+            if (!existing.Contains(path))
+            {
+                FileItems.Add(new ConvertFileItem(path));
+                existing.Add(path);
+            }
+        }
+        UpdateStatusText();
     }
 
-    [RelayCommand]
-    private async Task ConvertAndSave()
+    [RelayCommand(CanExecute = nameof(CanModify))]
+    private async Task AddFolder()
     {
-        if (string.IsNullOrEmpty(ImagePath))
+        string? folder = await _fileDialogService.PickFolderAsync("选择图片文件夹");
+        if (folder == null) return;
+
+        var existing = new HashSet<string>(FileItems.Select(x => x.FilePath), StringComparer.OrdinalIgnoreCase);
+        foreach (string file in Directory.EnumerateFiles(folder, "*", SearchOption.AllDirectories))
         {
-            _notificationService.ShowWarn("请先上传图片");
+            if (ImageExtensions.Contains(Path.GetExtension(file)) && !existing.Contains(file))
+            {
+                FileItems.Add(new ConvertFileItem(file));
+                existing.Add(file);
+            }
+        }
+        UpdateStatusText();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanModify))]
+    private void ClearList()
+    {
+        FileItems.Clear();
+        UpdateStatusText();
+    }
+
+    private bool CanModify() => !IsBusy;
+
+    [RelayCommand(CanExecute = nameof(CanModify))]
+    private async Task PickOutputFolder()
+    {
+        string? folder = await _fileDialogService.PickFolderAsync("选择输出目录");
+        if (folder != null)
+            OutputFolder = folder;
+    }
+
+    [RelayCommand(CanExecute = nameof(CanStartConvert))]
+    private async Task StartConvert()
+    {
+        if (string.IsNullOrEmpty(OutputFolder))
+        {
+            string? folder = await _fileDialogService.PickFolderAsync("选择输出目录");
+            if (folder == null) return;
+            OutputFolder = folder;
+        }
+
+        if (!Directory.Exists(OutputFolder))
+        {
+            _notificationService.ShowError("输出目录不存在");
             return;
         }
 
+        _cts?.Cancel();
+        _cts = new CancellationTokenSource();
+        IsBusy = true;
+        TotalCount = FileItems.Count;
+        CompletedCount = 0;
+        FailedCount = 0;
+        _completedCountField = 0;
+        _failedCountField = 0;
+        ConversionProgress = 0;
+        UpdateStatusText();
+
         string format = AvailableFormats[FormatIndex];
-        string outputPath = Path.ChangeExtension(ImagePath, "." + format);
+        string? filter = IsDownscaleEnabled ? AvailableFilters[SelectedFilterIndex] : null;
+        int? scalePct = IsDownscaleEnabled && DownscalePercent < 100 ? DownscalePercent : null;
 
-        string? savePath = await _fileDialogService.PickSaveFileAsync("保存转换后的图片", Path.GetFileName(outputPath));
-        if (savePath == null) return;
+        foreach (var item in FileItems)
+            item.Status = ConvertFileStatus.Pending;
 
-        try
-        {
-            string? result = await _imageConversionService.ConvertImageFormatAsync(ImagePath, savePath, format);
-            if (result != null)
+        await Parallel.ForEachAsync(FileItems,
+            new ParallelOptions
             {
-                ConvertedPath = result;
-                ImagePreview = await _imageConversionService.LoadImageAsync(result);
-                _notificationService.ShowSuccess($"转换完成: {result}");
-            }
-        }
-        catch (Exception ex)
+                MaxDegreeOfParallelism = Environment.ProcessorCount,
+                CancellationToken = _cts.Token
+            },
+            async (item, ct) =>
+            {
+                item.Status = ConvertFileStatus.Converting;
+                try
+                {
+                    string outputPath = GetUniqueOutputPath(OutputFolder!, item.FileName, format);
+                    await _imageConversionService.ConvertImageFormatAsync(item.FilePath, outputPath, format, ct, null, filter, scalePercent: scalePct);
+                    item.Status = ConvertFileStatus.Completed;
+                }
+                catch (OperationCanceledException)
+                {
+                    item.Status = ConvertFileStatus.Pending;
+                }
+                catch (Exception ex)
+                {
+                    item.Status = ConvertFileStatus.Failed;
+                    item.ErrorMessage = ex.Message;
+                }
+                finally
+                {
+                    bool isFailed = item.Status == ConvertFileStatus.Failed;
+                    if (isFailed)
+                        Interlocked.Increment(ref _failedCountField);
+                    int processed = Interlocked.Increment(ref _completedCountField);
+                    int failed = Volatile.Read(ref _failedCountField);
+                    Dispatcher.UIThread.Post(() =>
+                    {
+                        CompletedCount = processed - failed;
+                        FailedCount = failed;
+                        ConversionProgress = (double)processed / TotalCount;
+                        UpdateStatusText();
+                    });
+                }
+            });
+
+        IsBusy = false;
+
+        if (FailedCount == 0)
+            _notificationService.ShowSuccess($"全部转换完成（共 {TotalCount} 个）");
+        else
+            _notificationService.ShowWarn($"转换完成，{FailedCount} 个失败 / {TotalCount} 个");
+    }
+
+    private bool CanStartConvert() => !IsBusy && FileItems.Count > 0;
+
+    private static string GetUniqueOutputPath(string folder, string fileName, string format)
+    {
+        string basePath = Path.Combine(folder, Path.ChangeExtension(fileName, format));
+        if (!File.Exists(basePath))
+            return basePath;
+
+        string nameWithoutExt = Path.GetFileNameWithoutExtension(fileName);
+        string ext = "." + format;
+        for (int i = 1; ; i++)
         {
-            _notificationService.ShowError($"转换失败: {ex.Message}");
+            string candidate = Path.Combine(folder, $"{nameWithoutExt}_{i}{ext}");
+            if (!File.Exists(candidate))
+                return candidate;
         }
+    }
+
+    private void UpdateStatusText()
+    {
+        StatusText = $"共 {FileItems.Count} 个文件";
     }
 }

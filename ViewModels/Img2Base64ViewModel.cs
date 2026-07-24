@@ -15,6 +15,7 @@ public partial class Img2Base64ViewModel : ViewModelBase
     private readonly IImageConversionService _imageConversionService;
     private readonly IFileDialogService _fileDialogService;
     private readonly INotificationService _notificationService;
+    private CancellationTokenSource? _cts;
 
     public string ImagePath
     {
@@ -53,6 +54,16 @@ public partial class Img2Base64ViewModel : ViewModelBase
         ? string.Empty
         : $"共 {Base64Output.Length:N0} 字符";
 
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(UploadImageCommand))]
+    [NotifyCanExecuteChangedFor(nameof(EncodeCommand))]
+    [NotifyCanExecuteChangedFor(nameof(DecodeCommand))]
+    [NotifyCanExecuteChangedFor(nameof(DecodeFromClipboardCommand))]
+    [NotifyCanExecuteChangedFor(nameof(DecodeFromFileCommand))]
+    [NotifyCanExecuteChangedFor(nameof(CopyBase64Command))]
+    [NotifyCanExecuteChangedFor(nameof(SaveDecodedImageCommand))]
+    private bool _isBusy;
+
     public Img2Base64ViewModel(
         IImageConversionService imageConversionService,
         IFileDialogService fileDialogService,
@@ -63,20 +74,31 @@ public partial class Img2Base64ViewModel : ViewModelBase
         _notificationService = notificationService;
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanUpload))]
     private async Task UploadImage()
     {
         IReadOnlyList<FilePickerFileType> filters = [new("Image Files") { Patterns = ["*.png", "*.jpg", "*.jpeg", "*.gif", "*.bmp", "*.webp", "*.tiff"] }];
         string? path = await _fileDialogService.PickOpenFileAsync("选择图片", filters);
         if (path == null) return;
 
-        ImagePath = path;
-        ImagePreview = await _imageConversionService.LoadImageAsync(path);
-        Base64Input = string.Empty;
-        Base64Output = string.Empty;
+        _cts?.Cancel();
+        _cts = new CancellationTokenSource();
+        IsBusy = true;
+        try
+        {
+            ImagePath = path;
+            SetImagePreview(await _imageConversionService.LoadImageAsync(path, _cts.Token));
+            Base64Input = string.Empty;
+            Base64Output = string.Empty;
+        }
+        catch (OperationCanceledException) { }
+        finally
+        {
+            IsBusy = false;
+        }
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanEncode))]
     private async Task Encode()
     {
         if (string.IsNullOrEmpty(ImagePath))
@@ -85,16 +107,27 @@ public partial class Img2Base64ViewModel : ViewModelBase
             return;
         }
 
-        string? base64 = await _imageConversionService.ImageToBase64Async(ImagePath);
-        if (base64 != null)
+        _cts?.Cancel();
+        _cts = new CancellationTokenSource();
+        IsBusy = true;
+        try
         {
-            Base64Output = base64;
-            await SetClipboardAsync(base64);
-            _notificationService.ShowSuccess($"编码完成，已复制到剪贴板（共 {base64.Length:N0} 字符）");
+            string? base64 = await _imageConversionService.ImageToBase64Async(ImagePath, _cts.Token);
+            if (base64 != null)
+            {
+                Base64Output = base64;
+                await SetClipboardAsync(base64);
+                _notificationService.ShowSuccess($"编码完成，已复制到剪贴板（共 {base64.Length:N0} 字符）");
+            }
+        }
+        catch (OperationCanceledException) { }
+        finally
+        {
+            IsBusy = false;
         }
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanDecode))]
     private async Task Decode()
     {
         if (string.IsNullOrEmpty(Base64Input))
@@ -110,18 +143,26 @@ public partial class Img2Base64ViewModel : ViewModelBase
             return;
         }
 
+        _cts?.Cancel();
+        _cts = new CancellationTokenSource();
+        IsBusy = true;
         try
         {
-            ImagePreview = await _imageConversionService.Base64ToBitmapAsync(Base64Input);
+            SetImagePreview(await _imageConversionService.Base64ToBitmapAsync(Base64Input, _cts.Token));
             _notificationService.ShowSuccess("解码完成");
         }
+        catch (OperationCanceledException) { }
         catch
         {
             _notificationService.ShowError("Base64 解码失败，请检查输入是否正确");
         }
+        finally
+        {
+            IsBusy = false;
+        }
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanDecodeFromClipboard))]
     private async Task DecodeFromClipboard()
     {
         if (Application.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop
@@ -156,44 +197,60 @@ public partial class Img2Base64ViewModel : ViewModelBase
                 return;
             }
 
+            _cts?.Cancel();
+            _cts = new CancellationTokenSource();
+            IsBusy = true;
             try
             {
-                ImagePreview = await _imageConversionService.Base64ToBitmapAsync(text);
+                SetImagePreview(await _imageConversionService.Base64ToBitmapAsync(text, _cts.Token));
                 _notificationService.ShowSuccess("解码完成");
             }
+            catch (OperationCanceledException) { }
             catch
             {
                 _notificationService.ShowError("Base64 解码失败，请检查剪贴板内容是否为有效的 Base64 编码");
             }
+            finally
+            {
+                IsBusy = false;
+            }
         }
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanDecodeFromFile))]
     private async Task DecodeFromFile()
     {
         IReadOnlyList<FilePickerFileType> filters = [new("Base64 Files") { Patterns = ["*.txt", "*.b64", "*.base64", "*.b64txt"] }];
         string? path = await _fileDialogService.PickOpenFileAsync("选择 Base64 文件", filters);
         if (path == null) return;
 
+        _cts?.Cancel();
+        _cts = new CancellationTokenSource();
+        IsBusy = true;
         try
         {
-            string text = await File.ReadAllTextAsync(path);
+            string text = await File.ReadAllTextAsync(path, _cts.Token);
             if (string.IsNullOrWhiteSpace(text))
             {
                 _notificationService.ShowWarn("文件内容为空");
                 return;
             }
 
-            ImagePreview = await _imageConversionService.Base64ToBitmapAsync(text.Trim());
+            SetImagePreview(await _imageConversionService.Base64ToBitmapAsync(text.Trim(), _cts.Token));
             _notificationService.ShowSuccess("解码完成");
         }
+        catch (OperationCanceledException) { }
         catch
         {
             _notificationService.ShowError("Base64 解码失败，请检查文件内容是否为有效的 Base64 编码");
         }
+        finally
+        {
+            IsBusy = false;
+        }
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanCopyBase64))]
     private async Task CopyBase64()
     {
         if (string.IsNullOrEmpty(Base64Output))
@@ -206,7 +263,7 @@ public partial class Img2Base64ViewModel : ViewModelBase
         _notificationService.ShowSuccess("已复制到剪贴板");
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanSaveDecodedImage))]
     private async Task SaveDecodedImage()
     {
         if (ImagePreview == null)
@@ -248,5 +305,21 @@ public partial class Img2Base64ViewModel : ViewModelBase
             return base64 ?? string.Empty;
 
         return base64[..edgeChars] + "\n...\n" + base64[^edgeChars..];
+    }
+
+    private bool CanUpload() => !IsBusy;
+    private bool CanEncode() => !IsBusy && !string.IsNullOrEmpty(ImagePath);
+    private bool CanDecode() => !IsBusy && !string.IsNullOrEmpty(Base64Input);
+    private bool CanDecodeFromClipboard() => !IsBusy;
+    private bool CanDecodeFromFile() => !IsBusy;
+    private bool CanCopyBase64() => !IsBusy && !string.IsNullOrEmpty(Base64Output);
+    private bool CanSaveDecodedImage() => !IsBusy && ImagePreview != null;
+
+    private void SetImagePreview(Bitmap? newPreview)
+    {
+        var old = ImagePreview;
+        ImagePreview = null;
+        old?.Dispose();
+        ImagePreview = newPreview;
     }
 }

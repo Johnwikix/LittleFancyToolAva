@@ -14,33 +14,40 @@ public partial class Img2icoViewModel : ViewModelBase, IViewState
     private readonly IFileDialogService _fileDialogService;
     private readonly INotificationService _notificationService;
     private readonly IViewStateService _viewStateService;
+    private CancellationTokenSource? _cts;
 
     string IViewState.ViewName => "img2icoView";
     private byte[]? _icoBytes;
 
-        public string ImagePath
-        {
-            get;
-            set => SetProperty(ref field, value);
-        } = string.Empty;
+    public string ImagePath
+    {
+        get;
+        set => SetProperty(ref field, value);
+    } = string.Empty;
 
-        public Bitmap? ImagePreview
-        {
-            get;
-            set => SetProperty(ref field, value);
-        }
+    public Bitmap? ImagePreview
+    {
+        get;
+        set => SetProperty(ref field, value);
+    }
 
-        public int SelectedSizeIndex
-        {
-            get;
-            set => SetProperty(ref field, value);
-        } = 2;
+    public int SelectedSizeIndex
+    {
+        get;
+        set => SetProperty(ref field, value);
+    } = 2;
 
-        public Bitmap? IcoPreview
-        {
-            get;
-            set => SetProperty(ref field, value);
-        }
+    public Bitmap? IcoPreview
+    {
+        get;
+        set => SetProperty(ref field, value);
+    }
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(UploadImageCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ConvertCommand))]
+    [NotifyCanExecuteChangedFor(nameof(SaveIcoCommand))]
+    private bool _isBusy;
 
     public List<int> AvailableSizes { get; } = [16, 32, 48, 64, 128, 256];
 
@@ -72,20 +79,31 @@ public partial class Img2icoViewModel : ViewModelBase, IViewState
         }
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanUpload))]
     private async Task UploadImage()
     {
         IReadOnlyList<FilePickerFileType> filters = [new("Image Files") { Patterns = ["*.png", "*.jpg", "*.jpeg", "*.gif", "*.bmp", "*.webp", "*.tiff"] }];
         string? path = await _fileDialogService.PickOpenFileAsync("选择图片", filters);
         if (path == null) return;
 
-        ImagePath = path;
-        ImagePreview = await _imageConversionService.LoadImageAsync(path);
-        _icoBytes = null;
-        IcoPreview = null;
+        _cts?.Cancel();
+        _cts = new CancellationTokenSource();
+        IsBusy = true;
+        try
+        {
+            ImagePath = path;
+            ImagePreview = await _imageConversionService.LoadImageAsync(path, _cts.Token);
+            _icoBytes = null;
+            IcoPreview = null;
+        }
+        catch (OperationCanceledException) { }
+        finally
+        {
+            IsBusy = false;
+        }
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanConvert))]
     private async Task Convert()
     {
         if (string.IsNullOrEmpty(ImagePath))
@@ -96,20 +114,28 @@ public partial class Img2icoViewModel : ViewModelBase, IViewState
 
         int size = AvailableSizes[SelectedSizeIndex];
 
+        _cts?.Cancel();
+        _cts = new CancellationTokenSource();
+        IsBusy = true;
         try
         {
-            _icoBytes = await _iconConversionService.CreateIcoBytesAsync(ImagePath, size);
+            _icoBytes = await _iconConversionService.CreateIcoBytesAsync(ImagePath, size, _cts.Token);
             using MemoryStream ms = new(_icoBytes);
             IcoPreview = new Bitmap(ms);
             _notificationService.ShowSuccess("转换完成，可在右侧预览");
         }
+        catch (OperationCanceledException) { }
         catch (Exception ex)
         {
             _notificationService.ShowError($"转换失败: {ex.Message}");
         }
+        finally
+        {
+            IsBusy = false;
+        }
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanSaveIco))]
     private async Task SaveIco()
     {
         if (_icoBytes == null)
@@ -131,4 +157,10 @@ public partial class Img2icoViewModel : ViewModelBase, IViewState
             _notificationService.ShowError($"保存失败: {ex.Message}");
         }
     }
+
+    private bool CanUpload() => !IsBusy;
+
+    private bool CanConvert() => !IsBusy && !string.IsNullOrEmpty(ImagePath);
+
+    private bool CanSaveIco() => !IsBusy && _icoBytes != null;
 }

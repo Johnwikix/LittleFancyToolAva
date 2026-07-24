@@ -25,7 +25,7 @@ namespace LittleFancyToolAva.Services
                     var dialog = new FAContentDialog
                     {
                         Title = title,
-                        Content = new TextBlock
+                        Content = new SelectableTextBlock
                         {
                             Text = message,
                             Margin = new(20),

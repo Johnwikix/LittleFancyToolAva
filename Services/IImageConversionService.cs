@@ -4,9 +4,9 @@ namespace LittleFancyToolAva.Services;
 
 public interface IImageConversionService
 {
-    Task<string?> ImageToBase64Async(string imagePath);
-    Task<Bitmap?> Base64ToBitmapAsync(string base64);
-    Task<string?> ConvertImageFormatAsync(string inputPath, string outputPath, string format);
-    Task<Bitmap?> LoadImageAsync(string imagePath);
-    Task<byte[]> ImageToBytesAsync(string imagePath);
+    Task<string?> ImageToBase64Async(string imagePath, CancellationToken ct = default);
+    Task<Bitmap?> Base64ToBitmapAsync(string base64, CancellationToken ct = default);
+    Task<string?> ConvertImageFormatAsync(string inputPath, string outputPath, string format, CancellationToken ct = default, int? maxDimension = null, string? filterType = null, IProgress<double>? progress = null, int? scalePercent = null);
+    Task<Bitmap?> LoadImageAsync(string imagePath, CancellationToken ct = default);
+    Task<byte[]> ImageToBytesAsync(string imagePath, CancellationToken ct = default);
 }

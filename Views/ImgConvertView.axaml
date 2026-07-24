@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:LittleFancyToolAva.ViewModels"
+             xmlns:models="using:LittleFancyToolAva.Models"
              xmlns:controls="using:LittleFancyToolAva.Views.Controls"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -8,44 +9,74 @@
              x:Class="LittleFancyToolAva.Views.ImgConvertView"
              x:DataType="vm:ImgConvertViewModel">
     <Grid RowDefinitions="Auto,*,Auto" Margin="{StaticResource PageMargin}">
-        <controls:ToolPageHeader Grid.Row="0" Title="图片格式转换" Subtitle="PNG / JPG / WebP / BMP 等格式互转" />
-        <Grid Grid.Row="1" ColumnDefinitions="*,16,*" Margin="0,16,0,0">
-            <Grid Grid.Column="0" RowDefinitions="Auto,16,*">
-                <Border Grid.Row="0" Classes="ToolCard">
-                    <StackPanel Classes="ToolCardContent">
+        <controls:ToolPageHeader Grid.Row="0" Title="图片格式转换" Subtitle="PNG / JPG / WebP / BMP 等格式批量转换" />
+        <Grid Grid.Row="1" ColumnDefinitions="3*,16,7*" Margin="0,16,0,0">
+            <ScrollViewer Grid.Column="0">
+                <Border Classes="ToolCard">
+                    <StackPanel Classes="ToolCardContent" Spacing="12">
                         <StackPanel Classes="FormRow">
-                            <TextBlock Classes="FieldLabel" Text="源图片" />
+                            <TextBlock Classes="FieldLabel" Text="输出目录" />
                             <Grid ColumnDefinitions="*,8,Auto">
-                                <TextBox Grid.Column="0" Text="{Binding ImagePath}" IsReadOnly="True" />
-                                <Button Grid.Column="2" Command="{Binding UploadImageCommand}" Content="上传" />
+                                <TextBox Grid.Column="0" Text="{Binding OutputFolder}" IsReadOnly="True" />
+                                <Button Grid.Column="2" Command="{Binding PickOutputFolderCommand}" Content="选择" />
                             </Grid>
                         </StackPanel>
                         <StackPanel Classes="FormRow">
                             <TextBlock Classes="FieldLabel" Text="目标格式" />
-                            <Grid ColumnDefinitions="*,8,Auto">
-                                <ComboBox Grid.Column="0" HorizontalAlignment="Stretch"
-                                          ItemsSource="{Binding AvailableFormats}"
-                                          SelectedIndex="{Binding FormatIndex, Mode=TwoWay}" />
-                                <Button Grid.Column="2" Command="{Binding ConvertAndSaveCommand}" Classes="Primary" Content="转换并保存" />
-                            </Grid>
+                            <ComboBox HorizontalAlignment="Stretch"
+                                      ItemsSource="{Binding AvailableFormats}"
+                                      SelectedIndex="{Binding FormatIndex, Mode=TwoWay}" />
                         </StackPanel>
+                        <StackPanel Classes="FormRow">
+                            <TextBlock Classes="FieldLabel" Text="降采样" />
+                            <StackPanel Spacing="8">
+                                <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">
+                                    <CheckBox Grid.Column="0" IsChecked="{Binding IsDownscaleEnabled}" Content="启用" />
+                                    <ComboBox Grid.Column="2" IsVisible="{Binding IsDownscaleEnabled}"
+                                              ItemsSource="{Binding AvailableFilters}"
+                                              SelectedIndex="{Binding SelectedFilterIndex}" Width="120" />
+                                </Grid>
+                                <StackPanel IsVisible="{Binding IsDownscaleEnabled}" Spacing="6">
+                                    <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+                                        <Slider Grid.Column="0" Minimum="10" Maximum="100"
+                                                Value="{Binding DownscalePercent}" />
+                                        <TextBlock Grid.Column="1" Text="{Binding DownscalePercent, StringFormat='{}{0}%'}"
+                                                   Margin="8,0,0,0" VerticalAlignment="Center" />
+                                    </Grid>
+                                    <TextBlock Text="{Binding DimensionInfoText}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Command="{Binding AddFilesCommand}" Content="添加文件" />
+                            <Button Command="{Binding AddFolderCommand}" Content="添加文件夹" />
+                            <Button Command="{Binding ClearListCommand}" Content="清空" />
+                        </StackPanel>
+                        <StackPanel IsVisible="{Binding IsBusy}" Spacing="4">
+                            <ProgressBar Value="{Binding ConversionProgress}" Minimum="0" Maximum="1" Height="8" />
+                            <TextBlock Text="{Binding StatusText}" />
+                        </StackPanel>
+                        <Button Command="{Binding StartConvertCommand}" Classes="Primary"
+                                HorizontalAlignment="Stretch" Content="开始批量转换" />
                     </StackPanel>
                 </Border>
-                <Border Grid.Row="2" Classes="ToolCard" Padding="0">
-                    <Grid RowDefinitions="Auto,*">
-                        <TextBlock Grid.Row="0" Classes="SectionHeader" Text="源图预览" Margin="16,12,16,4" />
-                        <Border Grid.Row="1" Classes="ToolCardTight" Margin="16,0,16,12" MinHeight="200">
-                            <Image Source="{Binding ImagePreview}" Stretch="Uniform" />
-                        </Border>
-                    </Grid>
-                </Border>
-            </Grid>
+            </ScrollViewer>
             <Border Grid.Column="2" Classes="ToolCard" Padding="0">
                 <Grid RowDefinitions="Auto,*">
-                    <TextBlock Grid.Row="0" Classes="SectionHeader" Text="转换预览" Margin="16,12,16,4" />
-                    <Border Grid.Row="1" Classes="ToolCardTight" Margin="16,0,16,12" MinHeight="200">
-                        <Image Source="{Binding ImagePreview}" Stretch="Uniform" />
-                    </Border>
+                    <TextBlock Grid.Row="0" Classes="SectionHeader" Text="{Binding StatusText, FallbackValue='文件列表'}" Margin="16,12,16,4" />
+                    <ListBox Grid.Row="1" ItemsSource="{Binding FileItems}"
+                             SelectedItem="{Binding SelectedFileItem}"
+                             BorderThickness="0" Margin="8,0,8,8">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="models:ConvertFileItem">
+                                <Grid ColumnDefinitions="Auto,*,Auto" Margin="4,2">
+                                    <TextBlock Grid.Column="0" Text="🖼" Margin="0,0,8,0" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="1" Text="{Binding FileName}" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="2" Text="{Binding StatusDisplay}" VerticalAlignment="Center" />
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
                 </Grid>
             </Border>
         </Grid>
