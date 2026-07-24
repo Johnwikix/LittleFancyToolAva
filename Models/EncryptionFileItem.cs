@@ -42,6 +42,16 @@ public partial class EncryptionFileItem : ObservableObject
         }
     }
 
+    public double Progress
+    {
+        get => field;
+        set
+        {
+            if (SetProperty(ref field, value))
+                OnPropertyChanged(nameof(ProgressDisplay));
+        }
+    }
+
     public EncryptionFileItem(string filePath)
     {
         FilePath = filePath;
@@ -54,6 +64,14 @@ public partial class EncryptionFileItem : ObservableObject
         EncryptionFileStatus.Decrypting => "解密中",
         EncryptionFileStatus.Completed => "已完成",
         EncryptionFileStatus.Failed => $"失败: {ErrorMessage}",
+        _ => ""
+    };
+
+    public string ProgressDisplay => Status switch
+    {
+        EncryptionFileStatus.Encrypting => $" {Progress * 100:F0}%",
+        EncryptionFileStatus.Decrypting => $" {Progress * 100:F0}%",
+        EncryptionFileStatus.Completed => " 100%",
         _ => ""
     };
 }

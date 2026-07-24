@@ -303,10 +303,16 @@ public partial class ImgConvertViewModel : ViewModelBase, IViewState
             async (item, ct) =>
             {
                 item.Status = ConvertFileStatus.Converting;
+                item.Progress = 0;
+                var progress = new Progress<double>(p =>
+                {
+                    Dispatcher.UIThread.Post(() => item.Progress = p);
+                });
                 try
                 {
                     string outputPath = GetUniqueOutputPath(OutputFolder!, item.FileName, format);
-                    await _imageConversionService.ConvertImageFormatAsync(item.FilePath, outputPath, format, ct, null, filter, scalePercent: scalePct);
+                    await _imageConversionService.ConvertImageFormatAsync(item.FilePath, outputPath, format, ct, null, filter, progress, scalePercent: scalePct);
+                    item.Progress = 1.0;
                     item.Status = ConvertFileStatus.Completed;
                 }
                 catch (OperationCanceledException)

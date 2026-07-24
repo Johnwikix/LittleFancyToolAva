@@ -35,6 +35,16 @@ public partial class ConvertFileItem : ObservableObject
         }
     }
 
+    public double Progress
+    {
+        get => field;
+        set
+        {
+            if (SetProperty(ref field, value))
+                OnPropertyChanged(nameof(ProgressDisplay));
+        }
+    }
+
     public ConvertFileItem(string filePath)
     {
         FilePath = filePath;
@@ -46,6 +56,13 @@ public partial class ConvertFileItem : ObservableObject
         ConvertFileStatus.Converting => "转换中",
         ConvertFileStatus.Completed => "已完成",
         ConvertFileStatus.Failed => $"失败: {ErrorMessage}",
+        _ => ""
+    };
+
+    public string ProgressDisplay => Status switch
+    {
+        ConvertFileStatus.Converting => $" {Progress * 100:F0}%",
+        ConvertFileStatus.Completed => " 100%",
         _ => ""
     };
 }

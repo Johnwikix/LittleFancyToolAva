@@ -427,17 +427,23 @@ public partial class FileEncryptionViewModel : ViewModelBase, IViewState
             async (item, ct) =>
             {
                 item.Status = inProgress;
+                item.Progress = 0;
+                var progress = new Progress<double>(p =>
+                {
+                    Dispatcher.UIThread.Post(() => item.Progress = p);
+                });
                 try
                 {
                     string outputPath = item.OutputPath!;
                     if (encrypt)
                     {
-                        await _fileEncryptionService.EncryptFileAsync(item.FilePath, outputPath, Key, Iv, null, ct, keyIvType);
+                        await _fileEncryptionService.EncryptFileAsync(item.FilePath, outputPath, Key, Iv, progress, ct, keyIvType);
                     }
                     else
                     {
-                        await _fileEncryptionService.DecryptFileAsync(item.FilePath, outputPath, Key, Iv, null, ct, keyIvType);
+                        await _fileEncryptionService.DecryptFileAsync(item.FilePath, outputPath, Key, Iv, progress, ct, keyIvType);
                     }
+                    item.Progress = 1.0;
                     item.Status = EncryptionFileStatus.Completed;
                 }
                 catch (OperationCanceledException)
