@@ -123,7 +123,7 @@ namespace LittleFancyToolAva.Services
                     IPAddress.TryParse(remoteAddress, out var ip) ? ip : IPAddress.Loopback,
                     remotePort);
 
-                await _udpClient.SendAsync(bytes, bytes.Length, endpoint);
+                await _udpClient.SendAsync(bytes, bytes.Length, endpoint).ConfigureAwait(false);
                 DataSent?.Invoke(bytes);
                 _logger.LogDebug("UDP sent {ByteCount} bytes to {Address}:{Port}",
                     bytes.Length, remoteAddress, remotePort);

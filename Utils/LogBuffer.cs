@@ -1,4 +1,5 @@
 using Avalonia.Threading;
+using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using LittleFancyToolAva.Models;
@@ -9,35 +10,44 @@ namespace LittleFancyToolAva.Utils
     {
         public event PropertyChangedEventHandler? PropertyChanged;
 
+        private readonly ConcurrentQueue<LogEntry> _pending = new();
+        private readonly DispatcherTimer _flushTimer;
+
         public ObservableCollection<LogEntry> Entries { get; } = new();
 
         public int MaxLines { get; set; } = 5000;
 
         public int Count => Entries.Count;
 
-        public void Append(LogKind kind, string text)
+        public LogBuffer() : this(16) { }
+
+        public LogBuffer(int flushIntervalMs)
         {
-            if (string.IsNullOrEmpty(text)) return;
-            if (Dispatcher.UIThread.CheckAccess())
-            {
-                AddEntry(kind, text);
-            }
-            else
-            {
-                Dispatcher.UIThread.Post(() => AddEntry(kind, text));
-            }
+            _flushTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(flushIntervalMs) };
+            _flushTimer.Tick += (_, _) => Flush();
+            _flushTimer.Start();
         }
 
-        public void AppendLine(LogKind kind, string text)
+        public void Enqueue(LogKind kind, string text)
         {
-            foreach (var line in SplitLines(text))
-            {
-                Append(kind, line);
-            }
+            if (string.IsNullOrEmpty(text)) return;
+            _pending.Enqueue(new LogEntry(kind, text));
         }
+
+        public void EnqueueLine(LogKind kind, string text)
+        {
+            if (string.IsNullOrEmpty(text)) return;
+            var lines = text.Replace("\r\n", "\n").Split('\n');
+            foreach (var line in lines)
+                _pending.Enqueue(new LogEntry(kind, line));
+        }
+
+        public void Append(LogKind kind, string text) => Enqueue(kind, text);
+        public void AppendLine(LogKind kind, string text) => EnqueueLine(kind, text);
 
         public void Clear()
         {
+            while (_pending.TryDequeue(out _)) { }
             if (Dispatcher.UIThread.CheckAccess())
             {
                 Entries.Clear();
@@ -49,26 +59,27 @@ namespace LittleFancyToolAva.Utils
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Count)));
         }
 
-        private void AddEntry(LogKind kind, string text)
+        private void Flush()
         {
-            Entries.Add(new LogEntry(kind, text));
-            Trim();
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Count)));
-        }
+            if (_pending.IsEmpty) return;
+            if (!Dispatcher.UIThread.CheckAccess()) return;
 
-        private void Trim()
-        {
-            int excess = Entries.Count - MaxLines;
-            if (excess > 0)
+            List<LogEntry> batch = [];
+            while (_pending.TryDequeue(out var e))
             {
-                for (int i = 0; i < excess; i++)
+                batch.Add(e);
+            }
+            if (batch.Count == 0) return;
+
+            if (Entries.Count + batch.Count > MaxLines)
+            {
+                int excess = (Entries.Count + batch.Count) - MaxLines;
+                for (int i = 0; i < excess && Entries.Count > 0; i++)
                     Entries.RemoveAt(0);
             }
-        }
-
-        private static IEnumerable<string> SplitLines(string text)
-        {
-            return text.Replace("\r\n", "\n").Split('\n');
+            foreach (var e in batch)
+                Entries.Add(e);
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Count)));
         }
     }
 }

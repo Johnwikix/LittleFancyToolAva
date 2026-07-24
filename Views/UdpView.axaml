@@ -88,7 +88,7 @@
                             <CheckBox Content="HEX 显示" IsChecked="{Binding IsHexDisplay, Mode=TwoWay}" />
                             <StackPanel Classes="FormRow">
                                 <TextBlock Classes="FieldLabel" Text="轮询间隔 (ms)" />
-                                <NumericUpDown Value="{Binding PollInterval, Mode=TwoWay}" />
+                                <NumericUpDown Minimum="1" Value="{Binding PollInterval, Mode=TwoWay}" />
                             </StackPanel>
                             <CheckBox Content="启用发送总数" IsChecked="{Binding EnableSendCount, Mode=TwoWay}" />
                             <StackPanel Classes="FormRow"

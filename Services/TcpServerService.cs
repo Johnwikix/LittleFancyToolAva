@@ -139,6 +139,7 @@ namespace LittleFancyToolAva.Services
                 _isStopping = false;
 
                 _client = new TcpClient();
+                _client.NoDelay = true;
                 await _client.ConnectAsync(address, port, ct);
 
                 EnableTcpKeepAlive(_client);
@@ -263,7 +264,7 @@ namespace LittleFancyToolAva.Services
                         try
                         {
                             var stream = c.GetStream();
-                            await stream.WriteAsync(bytes);
+                            await stream.WriteAsync(bytes).ConfigureAwait(false);
                         }
                         catch (IOException ex)
                         {
@@ -290,8 +291,8 @@ namespace LittleFancyToolAva.Services
                     try
                     {
                         var stream = _client.GetStream();
-                        await stream.WriteAsync(bytes);
-                        await stream.FlushAsync();
+                        await stream.WriteAsync(bytes).ConfigureAwait(false);
+                        await stream.FlushAsync().ConfigureAwait(false);
                     }
                     catch (IOException ex)
                     {
@@ -358,6 +359,7 @@ namespace LittleFancyToolAva.Services
                 while (!ct.IsCancellationRequested && _listener != null)
                 {
                     var client = await _listener.AcceptTcpClientAsync(ct);
+                    client.NoDelay = true;
                     EnableTcpKeepAlive(client);
 
                     var endpoint = client.Client?.RemoteEndPoint?.ToString() ?? "未知";

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -17,8 +18,12 @@ namespace LittleFancyToolAva.ViewModels
         private readonly IViewStateService _viewStateService;
         private CancellationTokenSource? _cts;
         private CancellationTokenSource? _pollCts;
+        private Task? _pollTask;
         private DispatcherTimer? _elapsedTimer;
+        private DispatcherTimer? _uiFlushTimer;
         private DateTime? _startedAt;
+        private long _pendingRxCount;
+        private long _pendingTxCount;
         private bool _disposed;
 
         public LogBuffer Log { get; } = new();
@@ -211,7 +216,11 @@ namespace LittleFancyToolAva.ViewModels
             _pollCts?.Cancel();
             _pollCts?.Dispose();
             _pollCts = null;
+            var task = _pollTask;
+            if (task != null) { try { task.Wait(200); } catch { } }
+            _pollTask = null;
             StopElapsedTimer();
+            StopUiFlushTimer();
         }
 
         object IViewState.CaptureState() => new UdpViewState
@@ -259,18 +268,16 @@ namespace LittleFancyToolAva.ViewModels
 
         private void OnBytesReceived(byte[] bytes)
         {
-            Dispatcher.UIThread.Post(() =>
+            Interlocked.Increment(ref _pendingRxCount);
+
+            if (IsHexDisplay)
             {
-                if (IsHexDisplay)
-                {
-                    Log.Append(LogKind.Rx, ToolMethod.ByteArrayToHexString(bytes));
-                }
-                else
-                {
-                    Log.AppendLine(LogKind.Rx, Encoding.UTF8.GetString(bytes));
-                }
-                RxCount++;
-            });
+                Log.Enqueue(LogKind.Rx, ToolMethod.ByteArrayToHexString(bytes));
+            }
+            else
+            {
+                Log.EnqueueLine(LogKind.Rx, Encoding.UTF8.GetString(bytes));
+            }
         }
 
         private void OnStatusChanged(string status)
@@ -331,6 +338,26 @@ namespace LittleFancyToolAva.ViewModels
             ElapsedText = "00:00:00";
         }
 
+        private void StartUiFlushTimer()
+        {
+            StopUiFlushTimer();
+            _uiFlushTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
+            _uiFlushTimer.Tick += (_, _) =>
+            {
+                int txDelta = (int)Interlocked.Exchange(ref _pendingTxCount, 0);
+                int rxDelta = (int)Interlocked.Exchange(ref _pendingRxCount, 0);
+                if (txDelta > 0) TxCount += txDelta;
+                if (rxDelta > 0) RxCount += rxDelta;
+            };
+            _uiFlushTimer.Start();
+        }
+
+        private void StopUiFlushTimer()
+        {
+            _uiFlushTimer?.Stop();
+            _uiFlushTimer = null;
+        }
+
         private void OnIsRunningChanged(bool value)
         {
             OnPropertyChanged(nameof(IsAnyActive));
@@ -339,12 +366,18 @@ namespace LittleFancyToolAva.ViewModels
                 ConnectionStatus = ConnectionStatus.Connected;
                 StatusDetail = $"{LocalAddress}:{LocalPort}";
                 StartElapsedTimer();
+                StartUiFlushTimer();
             }
             else
             {
                 ConnectionStatus = ConnectionStatus.Idle;
                 StatusDetail = string.Empty;
                 StopElapsedTimer();
+                _pollCts?.Cancel();
+                var task = _pollTask;
+                if (task != null) { try { task.Wait(200); } catch { } }
+                _pollTask = null;
+                StopUiFlushTimer();
             }
         }
 
@@ -412,12 +445,12 @@ namespace LittleFancyToolAva.ViewModels
 
             try
             {
-                await _udpService.SendAsync(SendText, IsHexSend, targetAddr, targetPort);
+                await _udpService.SendAsync(SendText, IsHexSend, targetAddr, targetPort).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
-                Log.Append(LogKind.Error, $"发送失败: {ex.Message}");
-                _notificationService.ShowError($"发送失败: {ex.Message}");
+                Log.Enqueue(LogKind.Error, $"发送失败: {ex.Message}");
+                Dispatcher.UIThread.Post(() => _notificationService.ShowError($"发送失败: {ex.Message}"));
             }
         }
 
@@ -425,12 +458,14 @@ namespace LittleFancyToolAva.ViewModels
         private void Clear()
         {
             Log.Clear();
+            Interlocked.Exchange(ref _pendingRxCount, 0);
+            Interlocked.Exchange(ref _pendingTxCount, 0);
             RxCount = 0;
             TxCount = 0;
         }
 
         [RelayCommand]
-        private async Task StartPolling()
+        private void StartPolling()
         {
             if (!IsRunning)
             {
@@ -447,32 +482,57 @@ namespace LittleFancyToolAva.ViewModels
                 ? (int.TryParse(MulticastPort, out int mp) ? mp : int.Parse(LocalPort))
                 : (int.TryParse(RemotePort, out int rp) ? rp : 9090);
             string targetEncoding = Encoding.UTF8.WebName;
-            int sentCount = 0;
-            try
+            StartUiFlushTimer();
+
+            _pollTask = Task.Run(async () =>
             {
-                while (!localCts.Token.IsCancellationRequested)
+                int sentCount = 0;
+                long intervalTicks = Math.Max(1L, (long)(PollInterval * (Stopwatch.Frequency / 1000.0)));
+                long nextDue = Stopwatch.GetTimestamp() + intervalTicks;
+                try
                 {
-                    if (!IsRunning) break;
-                    await _udpService.SendAsync(SendText, IsHexSend, targetAddr, targetPort);
-                    AppendTxLog(SendText);
-                    TxCount++;
-                    sentCount++;
-                    if (EnableSendCount && sentCount >= SendCount) break;
-                    await Task.Delay(PollInterval, localCts.Token);
+                    while (!localCts.Token.IsCancellationRequested)
+                    {
+                        if (!IsRunning) break;
+                        try
+                        {
+                            await _udpService.SendAsync(SendText, IsHexSend, targetAddr, targetPort).ConfigureAwait(false);
+                            AppendTxLog(SendText);
+                            Interlocked.Increment(ref _pendingTxCount);
+                        }
+                        catch (OperationCanceledException) { throw; }
+                        catch (Exception ex)
+                        {
+                            Log.Enqueue(LogKind.Error, $"定时发送错误: {ex.Message}");
+                        }
+                        if (EnableSendCount && ++sentCount >= SendCount) break;
+
+                        nextDue += intervalTicks;
+                        long remainingTicks = nextDue - Stopwatch.GetTimestamp();
+                        while (remainingTicks > 0)
+                        {
+                            if (localCts.Token.IsCancellationRequested) break;
+                            long remainingMs = remainingTicks * 1000 / Stopwatch.Frequency;
+                            if (remainingMs >= 1)
+                                await Task.Delay((int)remainingMs, localCts.Token).ConfigureAwait(false);
+                            else
+                                await Task.Yield();
+                            remainingTicks = nextDue - Stopwatch.GetTimestamp();
+                        }
+                    }
                 }
-            }
-            catch (TaskCanceledException) { }
-            catch (Exception ex)
-            {
-                Log.Append(LogKind.Error, $"定时发送错误: {ex.Message}");
-            }
-            finally
-            {
-                if (ReferenceEquals(_pollCts, localCts))
+                catch (OperationCanceledException) { }
+                finally
                 {
-                    IsPolling = false;
+                    await Dispatcher.UIThread.InvokeAsync(() =>
+                    {
+                        if (ReferenceEquals(_pollCts, localCts))
+                        {
+                            IsPolling = false;
+                        }
+                    });
                 }
-            }
+            }, localCts.Token);
         }
 
         [RelayCommand]

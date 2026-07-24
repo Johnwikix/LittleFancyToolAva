@@ -132,8 +132,8 @@ namespace LittleFancyToolAva.Services
                     bytes = ToolMethod.GetEncodedData(data, mode);
                 }
 
-                await _serialPort.BaseStream.WriteAsync(bytes);
-                await _serialPort.BaseStream.FlushAsync();
+                await _serialPort.BaseStream.WriteAsync(bytes).ConfigureAwait(false);
+                await _serialPort.BaseStream.FlushAsync().ConfigureAwait(false);
 
                 _logger.LogDebug("SerialPort sent {ByteCount} bytes", bytes.Length);
                 StatusChanged?.Invoke($"发送: {bytes.Length} 字节");

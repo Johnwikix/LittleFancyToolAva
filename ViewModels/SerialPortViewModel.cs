@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.IO.Ports;
 using System.Text;
 using Avalonia.Threading;
@@ -18,8 +19,12 @@ namespace LittleFancyToolAva.ViewModels
         private readonly INotificationService _notificationService;
         private readonly IViewStateService _viewStateService;
         private CancellationTokenSource? _pollCts;
+        private Task? _pollTask;
         private DispatcherTimer? _elapsedTimer;
+        private DispatcherTimer? _uiFlushTimer;
         private DateTime? _connectedAt;
+        private long _pendingRxCount;
+        private long _pendingTxCount;
         private bool _disposed;
 
         public ObservableCollection<string> PortNames { get; } = [];
@@ -233,7 +238,14 @@ namespace LittleFancyToolAva.ViewModels
             _pollCts?.Cancel();
             _pollCts?.Dispose();
             _pollCts = null;
+            var task = _pollTask;
+            if (task != null)
+            {
+                try { task.Wait(200); } catch { }
+            }
+            _pollTask = null;
             StopElapsedTimer();
+            StopUiFlushTimer();
         }
 
         object IViewState.CaptureState() => new SerialPortViewState
@@ -279,18 +291,16 @@ namespace LittleFancyToolAva.ViewModels
 
         private void OnBytesReceived(byte[] bytes)
         {
-            Dispatcher.UIThread.Post(() =>
+            Interlocked.Increment(ref _pendingRxCount);
+
+            if (IsHexDisplay)
             {
-                if (IsHexDisplay)
-                {
-                    Log.Append(LogKind.Rx, ToolMethod.ByteArrayToHexString(bytes));
-                }
-                else
-                {
-                    Log.AppendLine(LogKind.Rx, DecodeBytes(bytes));
-                }
-                RxCount++;
-            });
+                Log.Enqueue(LogKind.Rx, ToolMethod.ByteArrayToHexString(bytes));
+            }
+            else
+            {
+                Log.EnqueueLine(LogKind.Rx, DecodeBytes(bytes));
+            }
         }
 
         private string DecodeBytes(byte[] bytes)
@@ -367,6 +377,7 @@ namespace LittleFancyToolAva.ViewModels
                 StatusDetail = $"{SelectedPort} @ {BaudRates[BaudRateIndex]}";
                 _connectedAt = DateTime.Now;
                 StartElapsedTimer();
+                StartUiFlushTimer();
             }
             else
             {
@@ -375,6 +386,11 @@ namespace LittleFancyToolAva.ViewModels
                 StopElapsedTimer();
                 _connectedAt = null;
                 ElapsedText = "00:00:00";
+                _pollCts?.Cancel();
+                var task = _pollTask;
+                if (task != null) { try { task.Wait(200); } catch { } }
+                _pollTask = null;
+                StopUiFlushTimer();
             }
         }
 
@@ -396,6 +412,26 @@ namespace LittleFancyToolAva.ViewModels
         {
             _elapsedTimer?.Stop();
             _elapsedTimer = null;
+        }
+
+        private void StartUiFlushTimer()
+        {
+            StopUiFlushTimer();
+            _uiFlushTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
+            _uiFlushTimer.Tick += (_, _) =>
+            {
+                int txDelta = (int)Interlocked.Exchange(ref _pendingTxCount, 0);
+                int rxDelta = (int)Interlocked.Exchange(ref _pendingRxCount, 0);
+                if (txDelta > 0) TxCount += txDelta;
+                if (rxDelta > 0) RxCount += rxDelta;
+            };
+            _uiFlushTimer.Start();
+        }
+
+        private void StopUiFlushTimer()
+        {
+            _uiFlushTimer?.Stop();
+            _uiFlushTimer = null;
         }
 
         [RelayCommand]
@@ -443,7 +479,7 @@ namespace LittleFancyToolAva.ViewModels
             _serialPortService.Close();
             IsConnected = _serialPortService.IsOpen;
             IsPolling = false;
-            Log.Append(LogKind.System, "已断开连接");
+            Log.Enqueue(LogKind.System, "已断开连接");
         }
 
         [RelayCommand]
@@ -453,14 +489,14 @@ namespace LittleFancyToolAva.ViewModels
             string encoding = Encodings[EncodingIndex];
             try
             {
-                await _serialPortService.SendAsync(SendText, IsHexSend, encoding);
+                await _serialPortService.SendAsync(SendText, IsHexSend, encoding).ConfigureAwait(false);
                 AppendTxLog(SendText, encoding);
-                TxCount++;
+                Interlocked.Increment(ref _pendingTxCount);
             }
             catch (Exception ex)
             {
-                Log.Append(LogKind.Error, $"发送失败: {ex.Message}");
-                _notificationService.ShowError($"发送失败: {ex.Message}");
+                Log.Enqueue(LogKind.Error, $"发送失败: {ex.Message}");
+                Dispatcher.UIThread.Post(() => _notificationService.ShowError($"发送失败: {ex.Message}"));
             }
         }
 
@@ -483,6 +519,8 @@ namespace LittleFancyToolAva.ViewModels
         private void Clear()
         {
             Log.Clear();
+            Interlocked.Exchange(ref _pendingRxCount, 0);
+            Interlocked.Exchange(ref _pendingTxCount, 0);
             RxCount = 0;
             TxCount = 0;
         }
@@ -536,7 +574,7 @@ namespace LittleFancyToolAva.ViewModels
         }
 
         [RelayCommand]
-        private async Task StartPolling()
+        private void StartPolling()
         {
             if (!IsConnected)
             {
@@ -549,32 +587,57 @@ namespace LittleFancyToolAva.ViewModels
             _pollCts = localCts;
             IsPolling = true;
             string encoding = Encodings[EncodingIndex];
-            int sentCount = 0;
-            try
+            StartUiFlushTimer();
+
+            _pollTask = Task.Run(async () =>
             {
-                while (!localCts.Token.IsCancellationRequested)
+                int sentCount = 0;
+                long intervalTicks = Math.Max(1L, (long)(PollInterval * (Stopwatch.Frequency / 1000.0)));
+                long nextDue = Stopwatch.GetTimestamp() + intervalTicks;
+                try
                 {
-                    if (!IsConnected) break;
-                    await _serialPortService.SendAsync(SendText, IsHexSend, encoding);
-                    AppendTxLog(SendText, encoding);
-                    TxCount++;
-                    sentCount++;
-                    if (EnableSendCount && sentCount >= SendCount) break;
-                    await Task.Delay(PollInterval, localCts.Token);
+                    while (!localCts.Token.IsCancellationRequested)
+                    {
+                        if (!IsConnected) break;
+                        try
+                        {
+                            await _serialPortService.SendAsync(SendText, IsHexSend, encoding).ConfigureAwait(false);
+                            AppendTxLog(SendText, encoding);
+                            Interlocked.Increment(ref _pendingTxCount);
+                        }
+                        catch (OperationCanceledException) { throw; }
+                        catch (Exception ex)
+                        {
+                            Log.Enqueue(LogKind.Error, $"定时发送错误: {ex.Message}");
+                        }
+                        if (EnableSendCount && ++sentCount >= SendCount) break;
+
+                        nextDue += intervalTicks;
+                        long remainingTicks = nextDue - Stopwatch.GetTimestamp();
+                        while (remainingTicks > 0)
+                        {
+                            if (localCts.Token.IsCancellationRequested) break;
+                            long remainingMs = remainingTicks * 1000 / Stopwatch.Frequency;
+                            if (remainingMs >= 1)
+                                await Task.Delay((int)remainingMs, localCts.Token).ConfigureAwait(false);
+                            else
+                                await Task.Yield();
+                            remainingTicks = nextDue - Stopwatch.GetTimestamp();
+                        }
+                    }
                 }
-            }
-            catch (TaskCanceledException) { }
-            catch (Exception ex)
-            {
-                Log.Append(LogKind.Error, $"定时发送错误: {ex.Message}");
-            }
-            finally
-            {
-                if (ReferenceEquals(_pollCts, localCts))
+                catch (OperationCanceledException) { }
+                finally
                 {
-                    IsPolling = false;
+                    await Dispatcher.UIThread.InvokeAsync(() =>
+                    {
+                        if (ReferenceEquals(_pollCts, localCts))
+                        {
+                            IsPolling = false;
+                        }
+                    });
                 }
-            }
+            }, localCts.Token);
         }
 
         [RelayCommand]
