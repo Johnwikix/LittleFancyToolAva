@@ -204,6 +204,42 @@ public partial class ImgConvertViewModel : ViewModelBase, IViewState
         UpdateStatusText();
     }
 
+    [RelayCommand(CanExecute = nameof(CanModify))]
+    private void RemoveFile(ConvertFileItem? item)
+    {
+        if (item == null) return;
+        FileItems.Remove(item);
+        UpdateStatusText();
+    }
+
+    public void AddDroppedPaths(IEnumerable<string> paths)
+    {
+        if (IsBusy) return;
+
+        var existing = new HashSet<string>(FileItems.Select(x => x.FilePath), StringComparer.OrdinalIgnoreCase);
+        foreach (string path in paths)
+        {
+            if (string.IsNullOrEmpty(path)) continue;
+            if (Directory.Exists(path))
+            {
+                foreach (string file in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories))
+                {
+                    if (ImageExtensions.Contains(Path.GetExtension(file)) && !existing.Contains(file))
+                    {
+                        FileItems.Add(new ConvertFileItem(file));
+                        existing.Add(file);
+                    }
+                }
+            }
+            else if (File.Exists(path) && ImageExtensions.Contains(Path.GetExtension(path)) && !existing.Contains(path))
+            {
+                FileItems.Add(new ConvertFileItem(path));
+                existing.Add(path);
+            }
+        }
+        UpdateStatusText();
+    }
+
     private bool CanModify() => !IsBusy;
 
     [RelayCommand(CanExecute = nameof(CanModify))]

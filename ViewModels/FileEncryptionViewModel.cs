@@ -221,6 +221,42 @@ public partial class FileEncryptionViewModel : ViewModelBase, IViewState
         FileItems.Clear();
     }
 
+    [RelayCommand(CanExecute = nameof(CanModify))]
+    private void RemoveFile(EncryptionFileItem? item)
+    {
+        if (item == null) return;
+        FileItems.Remove(item);
+        UpdateStatusText();
+    }
+
+    public void AddDroppedPaths(IEnumerable<string> paths)
+    {
+        if (IsBusy) return;
+
+        var existing = new HashSet<string>(FileItems.Select(x => x.FilePath), StringComparer.OrdinalIgnoreCase);
+        foreach (string path in paths)
+        {
+            if (string.IsNullOrEmpty(path)) continue;
+            if (Directory.Exists(path))
+            {
+                foreach (string file in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories))
+                {
+                    if (!existing.Contains(file))
+                    {
+                        FileItems.Add(new EncryptionFileItem(file));
+                        existing.Add(file);
+                    }
+                }
+            }
+            else if (File.Exists(path) && !existing.Contains(path))
+            {
+                FileItems.Add(new EncryptionFileItem(path));
+                existing.Add(path);
+            }
+        }
+        UpdateStatusText();
+    }
+
     private bool CanModify() => !IsBusy;
 
     [RelayCommand(CanExecute = nameof(CanModify))]
