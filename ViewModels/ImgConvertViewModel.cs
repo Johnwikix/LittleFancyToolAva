@@ -13,7 +13,7 @@ public partial class ImgConvertViewModel : ViewModelBase, IViewState
 {
     private static readonly HashSet<string> ImageExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
-        ".png", ".jpg", ".jpeg", ".bmp", ".webp", ".tiff", ".gif"
+        ".png", ".jpg", ".jpeg", ".bmp", ".webp", ".tiff", ".gif", ".dds", ".jxl", ".heic"
     };
 
     private readonly IImageConversionService _imageConversionService;
@@ -71,7 +71,7 @@ public partial class ImgConvertViewModel : ViewModelBase, IViewState
     [ObservableProperty]
     private string _dimensionInfoText = string.Empty;
 
-    public List<string> AvailableFormats { get; } = ["jpg", "png", "bmp", "webp", "tiff"];
+    public List<string> AvailableFormats { get; } = ["jpg", "png", "bmp", "webp", "tiff", "dds", "jxl", "heic"];
     public List<string> AvailableFilters { get; } = ["Lanczos", "Mitchell", "Catrom", "Cubic", "Triangle", "Box"];
 
     public ImgConvertViewModel(
@@ -132,7 +132,7 @@ public partial class ImgConvertViewModel : ViewModelBase, IViewState
     [RelayCommand(CanExecute = nameof(CanModify))]
     private async Task AddFiles()
     {
-        IReadOnlyList<FilePickerFileType> filters = [new("图片文件") { Patterns = ["*.png", "*.jpg", "*.jpeg", "*.bmp", "*.webp", "*.tiff", "*.gif"] }];
+        IReadOnlyList<FilePickerFileType> filters = [new("图片文件") { Patterns = ["*.png", "*.jpg", "*.jpeg", "*.bmp", "*.webp", "*.tiff", "*.gif", "*.dds", "*.jxl", "*.heic"] }];
         var paths = await _fileDialogService.PickOpenFilesAsync("选择图片", filters);
         if (paths == null) return;
 

@@ -70,9 +70,9 @@
                         <ListBox.ItemTemplate>
                             <DataTemplate x:DataType="models:ConvertFileItem">
                                 <Grid ColumnDefinitions="Auto,*,Auto" Margin="4,2">
-                                    <TextBlock Grid.Column="0" Text="🖼" Margin="0,0,8,0" VerticalAlignment="Center" />
-                                    <TextBlock Grid.Column="1" Text="{Binding FileName}" VerticalAlignment="Center" />
-                                    <TextBlock Grid.Column="2" Text="{Binding StatusDisplay}" VerticalAlignment="Center" />
+                                    <SelectableTextBlock Grid.Column="0" Text="🖼" Margin="0,0,8,0" VerticalAlignment="Center" />
+                                    <SelectableTextBlock Grid.Column="1" Text="{Binding FileName}" VerticalAlignment="Center" />
+                                    <SelectableTextBlock Grid.Column="2" Text="{Binding StatusDisplay}" VerticalAlignment="Center" />
                                 </Grid>
                             </DataTemplate>
                         </ListBox.ItemTemplate>

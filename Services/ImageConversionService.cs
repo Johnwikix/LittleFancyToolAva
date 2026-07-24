@@ -8,7 +8,6 @@ public class ImageConversionService : IImageConversionService
 {
     private const long MaxImageSize = 1024 * 1024 * 1024;
     private const int PreviewMaxDimension = 1920;
-    private const int StripHeight = 1024;
     private const int WebpMaxDimension = 16383;
     private readonly ILogger<ImageConversionService> _logger;
 
@@ -70,9 +69,6 @@ public class ImageConversionService : IImageConversionService
             }
         }
 
-        if (outputFormat == MagickFormat.Bmp && !effectiveMaxDim.HasValue)
-            return await ConvertToBmpStripwiseAsync(inputPath, tmpPath, outputPath, ct, progress);
-
         return await Task.Run(() =>
         {
             try
@@ -125,108 +121,6 @@ public class ImageConversionService : IImageConversionService
         }, ct);
     }
 
-    private async Task<string?> ConvertToBmpStripwiseAsync(string inputPath, string tmpPath, string outputPath, CancellationToken ct, IProgress<double>? progress = null)
-    {
-        return await Task.Run(() =>
-        {
-            try
-            {
-                var info = new MagickImageInfo(inputPath);
-                int width = (int)info.Width;
-                int height = (int)info.Height;
-
-                var fi = new FileInfo(inputPath);
-                if (fi.Length > MaxImageSize)
-                    throw new InvalidOperationException($"Image too large ({fi.Length / 1024 / 1024}MB). Max: {MaxImageSize / 1024 / 1024}MB");
-
-                progress?.Report(0.05);
-
-                using var fs = new FileStream(tmpPath, FileMode.Create, FileAccess.Write);
-                WriteBmpHeader(fs, width, height);
-
-                int rowSize = width * 4;
-                byte[] rowBuffer = new byte[rowSize];
-                int totalStrips = (height + StripHeight - 1) / StripHeight;
-                int stripIndex = 0;
-
-                int y = 0;
-                while (y < height)
-                {
-                    ct.ThrowIfCancellationRequested();
-
-                    int stripH = Math.Min(StripHeight, height - y);
-                    stripIndex++;
-                    var settings = new MagickReadSettings
-                    {
-                        ExtractArea = new MagickGeometry(0, y, (uint)width, (uint)stripH)
-                    };
-
-                    using var strip = new MagickImage(inputPath, settings);
-
-                    using var stripMs = new MemoryStream();
-                    strip.Write(stripMs, MagickFormat.Bmp);
-                    byte[] stripBytes = stripMs.ToArray();
-
-                    int stripPixelOffset = 54;
-                    int stripPixelCount = stripBytes.Length - stripPixelOffset;
-
-                    for (int i = 0; i < stripH / 2; i++)
-                    {
-                        int src = i * rowSize;
-                        int dst = (stripH - 1 - i) * rowSize;
-                        Array.Copy(stripBytes, stripPixelOffset + src, rowBuffer, 0, rowSize);
-                        Array.Copy(stripBytes, stripPixelOffset + dst, stripBytes, stripPixelOffset + src, rowSize);
-                        Array.Copy(rowBuffer, 0, stripBytes, stripPixelOffset + dst, rowSize);
-                    }
-
-                    fs.Write(stripBytes, stripPixelOffset, stripPixelCount);
-                    y += stripH;
-                    progress?.Report(0.05 + 0.9 * stripIndex / totalStrips);
-                }
-
-                fs.Close();
-
-                if (File.Exists(outputPath))
-                    File.Delete(outputPath);
-                File.Move(tmpPath, outputPath);
-
-                _logger.LogInformation("Image converted (BMP strip-wise): {Input} -> {Output}", inputPath, outputPath);
-                return outputPath;
-            }
-            catch
-            {
-                try { if (File.Exists(tmpPath)) File.Delete(tmpPath); } catch { }
-                throw;
-            }
-        }, ct);
-    }
-
-    private static void WriteBmpHeader(FileStream fs, int width, int height)
-    {
-        int rowSize = width * 4;
-        int pixelDataSize = rowSize * height;
-        const int headerSize = 54;
-        int fileSize = headerSize + pixelDataSize;
-
-        fs.WriteByte(0x42);
-        fs.WriteByte(0x4D);
-        fs.Write(BitConverter.GetBytes(fileSize));
-        fs.Write(BitConverter.GetBytes((short)0));
-        fs.Write(BitConverter.GetBytes((short)0));
-        fs.Write(BitConverter.GetBytes(headerSize));
-        fs.Write(BitConverter.GetBytes(40));
-        fs.Write(BitConverter.GetBytes(width));
-        fs.Write(BitConverter.GetBytes(-height));
-        fs.Write(BitConverter.GetBytes((short)1));
-        fs.Write(BitConverter.GetBytes((short)32));
-        fs.Write(BitConverter.GetBytes(0));
-        fs.Write(BitConverter.GetBytes(pixelDataSize));
-        fs.Write(BitConverter.GetBytes(0));
-        fs.Write(BitConverter.GetBytes(0));
-        fs.Write(BitConverter.GetBytes(0));
-        fs.Write(BitConverter.GetBytes(0));
-    }
-
     public async Task<Bitmap?> LoadImageAsync(string imagePath, CancellationToken ct = default)
     {
         var fi = new FileInfo(imagePath);
@@ -262,6 +156,9 @@ public class ImageConversionService : IImageConversionService
         "bmp" => MagickFormat.Bmp,
         "webp" => MagickFormat.WebP,
         "tiff" => MagickFormat.Tiff,
+        "dds" => MagickFormat.Dds,
+        "jxl" => MagickFormat.Jxl,
+        "heic" => MagickFormat.Heic,
         _ => throw new NotSupportedException($"Format '{format}' is not supported.")
     };
 
