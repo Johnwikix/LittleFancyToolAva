@@ -6,10 +6,11 @@ using CommunityToolkit.Mvvm.Input;
 using LittleFancyToolAva.Models;
 using LittleFancyToolAva.Models.ViewStates;
 using LittleFancyToolAva.Services;
+using LittleFancyToolAva.Utils;
 
 namespace LittleFancyToolAva.ViewModels;
 
-public partial class ImgConvertViewModel : ViewModelBase, IViewState
+public partial class ImgConvertViewModel : ViewModelBase, IViewState, IConvertFileItemOwner
 {
     private static readonly HashSet<string> ImageExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -172,7 +173,7 @@ public partial class ImgConvertViewModel : ViewModelBase, IViewState
         {
             if (!existing.Contains(path))
             {
-                FileItems.Add(new ConvertFileItem(path));
+                FileItems.Add(CreateItem(path));
                 existing.Add(path);
             }
         }
@@ -190,7 +191,7 @@ public partial class ImgConvertViewModel : ViewModelBase, IViewState
         {
             if (ImageExtensions.Contains(Path.GetExtension(file)) && !existing.Contains(file))
             {
-                FileItems.Add(new ConvertFileItem(file));
+                FileItems.Add(CreateItem(file));
                 existing.Add(file);
             }
         }
@@ -204,12 +205,17 @@ public partial class ImgConvertViewModel : ViewModelBase, IViewState
         UpdateStatusText();
     }
 
-    [RelayCommand(CanExecute = nameof(CanModify))]
-    private void RemoveFile(ConvertFileItem? item)
+    void IConvertFileItemOwner.Remove(ConvertFileItem item)
     {
-        if (item == null) return;
         FileItems.Remove(item);
         UpdateStatusText();
+    }
+
+    private ConvertFileItem CreateItem(string path)
+    {
+        var item = new ConvertFileItem(path);
+        item.Owner = this;
+        return item;
     }
 
     public void AddDroppedPaths(IEnumerable<string> paths)
@@ -226,14 +232,14 @@ public partial class ImgConvertViewModel : ViewModelBase, IViewState
                 {
                     if (ImageExtensions.Contains(Path.GetExtension(file)) && !existing.Contains(file))
                     {
-                        FileItems.Add(new ConvertFileItem(file));
+                        FileItems.Add(CreateItem(file));
                         existing.Add(file);
                     }
                 }
             }
             else if (File.Exists(path) && ImageExtensions.Contains(Path.GetExtension(path)) && !existing.Contains(path))
             {
-                FileItems.Add(new ConvertFileItem(path));
+                FileItems.Add(CreateItem(path));
                 existing.Add(path);
             }
         }
@@ -304,10 +310,10 @@ public partial class ImgConvertViewModel : ViewModelBase, IViewState
             {
                 item.Status = ConvertFileStatus.Converting;
                 item.Progress = 0;
-                var progress = new Progress<double>(p =>
+                var progress = new ThrottledProgress<double>(p =>
                 {
-                    Dispatcher.UIThread.Post(() => item.Progress = p);
-                });
+                    item.Progress = p;
+                }, TimeSpan.FromMilliseconds(50));
                 try
                 {
                     string outputPath = GetUniqueOutputPath(OutputFolder!, item.FileName, format);

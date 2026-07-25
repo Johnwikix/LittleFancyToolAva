@@ -14,6 +14,7 @@ namespace LittleFancyToolAva.Services
         event Action? StatsUpdated;
         Task ConnectAsync(string portName, int baudRate, Parity parity, int dataBits, StopBits stopBits);
         void Disconnect();
+        Task StopAsync();
         Task StartPollingAsync(byte slaveId, byte functionCode, ushort startAddress, ushort quantity, int scanTimeMs, CancellationToken ct);
         Task WriteSingleCoilAsync(byte slaveId, ushort address, bool value);
         Task WriteSingleRegisterAsync(byte slaveId, ushort address, ushort value);

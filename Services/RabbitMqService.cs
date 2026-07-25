@@ -236,7 +236,8 @@ namespace LittleFancyToolAva.Services
             };
             if (args.Headers is { Count: > 0 })
             {
-                props.Headers = new Dictionary<string, object?>(args.Headers);
+                props.Headers = args.Headers as Dictionary<string, object?>
+                    ?? new Dictionary<string, object?>(args.Headers);
             }
 
             await channel.BasicPublishAsync(args.Exchange, args.RoutingKey, false, props, args.Body, ct);
@@ -405,7 +406,7 @@ namespace LittleFancyToolAva.Services
             _disposed = true;
             try
             {
-                DisconnectAsync().Wait(TimeSpan.FromSeconds(3));
+                DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(3));
             }
             catch (Exception ex)
             {
@@ -420,7 +421,9 @@ namespace LittleFancyToolAva.Services
             if (headers is null || headers.Count == 0) return string.Empty;
             try
             {
-                return JsonSerializer.Serialize(headers, new JsonSerializerOptions { WriteIndented = false });
+                Dictionary<string, object?> concrete = headers as Dictionary<string, object?>
+                    ?? new Dictionary<string, object?>(headers);
+                return JsonSerializer.Serialize(concrete, RabbitMqJsonContext.Default.DictionaryStringObject);
             }
             catch
             {

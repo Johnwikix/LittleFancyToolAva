@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -5,6 +6,8 @@ namespace LittleFancyToolAva.Utils
 {
     public static class ToolMethod
     {
+        private const int FileHashBufferSize = 64 * 1024;
+
         public static bool GetRandomBoolean(int probabilityPercent)
         {
             return Random.Shared.Next(100) < probabilityPercent;
@@ -12,22 +15,57 @@ namespace LittleFancyToolAva.Utils
 
         public static string ByteArrayToHexString(byte[] data)
         {
-            return BitConverter.ToString(data).Replace("-", " ");
+            ArgumentNullException.ThrowIfNull(data);
+            return ByteArrayToHexString((ReadOnlySpan<byte>)data);
+        }
+
+        public static string ByteArrayToHexString(ReadOnlySpan<byte> data)
+        {
+            if (data.IsEmpty) return string.Empty;
+            return Convert.ToHexString(data);
         }
 
         public static byte[] HexStringToBytes(string hexStr)
         {
             if (string.IsNullOrWhiteSpace(hexStr))
                 throw new ArgumentException("Hex string cannot be empty", nameof(hexStr));
-            string hex = hexStr.Replace(" ", "").Replace("-", "");
-            if (hex.Length % 2 != 0)
-                throw new FormatException($"Hex string has odd length ({hex.Length} chars) after removing delimiters");
-            byte[] bytes = new byte[hex.Length / 2];
-            for (int i = 0; i < hex.Length; i += 2)
+            return HexStringToBytes(hexStr.AsSpan());
+        }
+
+        public static byte[] HexStringToBytes(ReadOnlySpan<char> hex)
+        {
+            int strippedLen = CountHexChars(hex);
+            if (strippedLen % 2 != 0)
+                throw new FormatException($"Hex string has odd length ({strippedLen} chars) after removing delimiters");
+            if (strippedLen == 0) return [];
+            return Convert.FromHexString(BuildHexString(hex, strippedLen));
+        }
+
+        private static int CountHexChars(ReadOnlySpan<char> source)
+        {
+            int count = 0;
+            for (int i = 0; i < source.Length; i++)
             {
-                bytes[i / 2] = Convert.ToByte(hex.Substring(i, 2), 16);
+                char c = source[i];
+                if (c is not ' ' and not '-') count++;
             }
-            return bytes;
+            return count;
+        }
+
+        private static string BuildHexString(ReadOnlySpan<char> source, int length)
+        {
+            return string.Create(length, source, (span, src) =>
+            {
+                int write = 0;
+                for (int i = 0; i < src.Length; i++)
+                {
+                    char c = src[i];
+                    if (c is not ' ' and not '-')
+                    {
+                        span[write++] = c;
+                    }
+                }
+            });
         }
 
         public static string GenerateSymmetricKey(int bitLength, string keyIvType)
@@ -112,6 +150,12 @@ namespace LittleFancyToolAva.Utils
         public static string CalculateFileHash(string filePath, string mode)
         {
             using FileStream stream = File.OpenRead(filePath);
+            return CalculateFileHash(stream, mode);
+        }
+
+        public static string CalculateFileHash(Stream stream, string mode)
+        {
+            ArgumentNullException.ThrowIfNull(stream);
             HashAlgorithm hashAlgorithm = mode.ToUpperInvariant() switch
             {
                 "MD5" => MD5.Create(),
@@ -123,8 +167,22 @@ namespace LittleFancyToolAva.Utils
             };
             using (hashAlgorithm)
             {
-                byte[] hashBytes = hashAlgorithm.ComputeHash(stream);
-                return BitConverter.ToString(hashBytes).Replace("-", "").ToLowerInvariant();
+                byte[] rented = ArrayPool<byte>.Shared.Rent(FileHashBufferSize);
+                try
+                {
+                    int read;
+                    Span<byte> buffer = rented.AsSpan(0, FileHashBufferSize);
+                    while ((read = stream.Read(buffer)) > 0)
+                    {
+                        hashAlgorithm.TransformBlock(rented, 0, read, null, 0);
+                    }
+                    hashAlgorithm.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
+                    return Convert.ToHexString(hashAlgorithm.Hash!).ToLowerInvariant();
+                }
+                finally
+                {
+                    ArrayPool<byte>.Shared.Return(rented, clearArray: false);
+                }
             }
         }
 

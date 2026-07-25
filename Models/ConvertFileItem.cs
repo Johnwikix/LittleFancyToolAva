@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 
 namespace LittleFancyToolAva.Models;
 
@@ -15,33 +16,39 @@ public partial class ConvertFileItem : ObservableObject
     public string FilePath { get; }
     public string FileName => Path.GetFileName(FilePath);
 
+    private ConvertFileStatus _status = ConvertFileStatus.Pending;
+    private string? _errorMessage;
+    private double _progress;
+    private string _statusDisplay = "等待中";
+    private string _progressDisplay = "";
+
     public ConvertFileStatus Status
     {
-        get => field;
+        get => _status;
         set
         {
-            if (SetProperty(ref field, value))
-                OnPropertyChanged(nameof(StatusDisplay));
+            if (SetProperty(ref _status, value))
+                RefreshStatusDisplay();
         }
-    } = ConvertFileStatus.Pending;
+    }
 
     public string? ErrorMessage
     {
-        get => field;
+        get => _errorMessage;
         set
         {
-            if (SetProperty(ref field, value))
-                OnPropertyChanged(nameof(StatusDisplay));
+            if (SetProperty(ref _errorMessage, value))
+                RefreshStatusDisplay();
         }
     }
 
     public double Progress
     {
-        get => field;
+        get => _progress;
         set
         {
-            if (SetProperty(ref field, value))
-                OnPropertyChanged(nameof(ProgressDisplay));
+            if (SetProperty(ref _progress, value))
+                RefreshProgressDisplay();
         }
     }
 
@@ -50,19 +57,47 @@ public partial class ConvertFileItem : ObservableObject
         FilePath = filePath;
     }
 
-    public string StatusDisplay => Status switch
+    [RelayCommand]
+    private void Remove()
     {
-        ConvertFileStatus.Pending => "等待中",
-        ConvertFileStatus.Converting => "转换中",
-        ConvertFileStatus.Completed => "已完成",
-        ConvertFileStatus.Failed => $"失败: {ErrorMessage}",
-        _ => ""
-    };
+        if (Owner is { } owner)
+        {
+            owner.Remove(this);
+        }
+    }
 
-    public string ProgressDisplay => Status switch
+    internal IConvertFileItemOwner? Owner { get; set; }
+
+    public string StatusDisplay => _statusDisplay;
+
+    public string ProgressDisplay => _progressDisplay;
+
+    private void RefreshStatusDisplay()
     {
-        ConvertFileStatus.Converting => $" {Progress * 100:F0}%",
-        ConvertFileStatus.Completed => " 100%",
-        _ => ""
-    };
+        _statusDisplay = _status switch
+        {
+            ConvertFileStatus.Pending => "等待中",
+            ConvertFileStatus.Converting => "转换中",
+            ConvertFileStatus.Completed => "已完成",
+            ConvertFileStatus.Failed => string.IsNullOrEmpty(_errorMessage) ? "失败" : $"失败: {_errorMessage}",
+            _ => ""
+        };
+        OnPropertyChanged(nameof(StatusDisplay));
+    }
+
+    private void RefreshProgressDisplay()
+    {
+        _progressDisplay = _status switch
+        {
+            ConvertFileStatus.Converting => $" {_progress * 100:F0}%",
+            ConvertFileStatus.Completed => " 100%",
+            _ => ""
+        };
+        OnPropertyChanged(nameof(ProgressDisplay));
+    }
+}
+
+internal interface IConvertFileItemOwner
+{
+    void Remove(ConvertFileItem item);
 }

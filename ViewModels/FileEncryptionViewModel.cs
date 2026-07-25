@@ -11,7 +11,7 @@ using LittleFancyToolAva.Utils;
 
 namespace LittleFancyToolAva.ViewModels;
 
-public partial class FileEncryptionViewModel : ViewModelBase, IViewState
+public partial class FileEncryptionViewModel : ViewModelBase, IViewState, IEncryptionFileItemOwner
 {
     private readonly IFileEncryptionService _fileEncryptionService;
     private readonly IFileDialogService _fileDialogService;
@@ -192,7 +192,7 @@ public partial class FileEncryptionViewModel : ViewModelBase, IViewState
         {
             if (!existing.Contains(path))
             {
-                FileItems.Add(new EncryptionFileItem(path));
+                FileItems.Add(CreateItem(path));
                 existing.Add(path);
             }
         }
@@ -209,7 +209,7 @@ public partial class FileEncryptionViewModel : ViewModelBase, IViewState
         {
             if (!existing.Contains(file))
             {
-                FileItems.Add(new EncryptionFileItem(file));
+                FileItems.Add(CreateItem(file));
                 existing.Add(file);
             }
         }
@@ -221,12 +221,17 @@ public partial class FileEncryptionViewModel : ViewModelBase, IViewState
         FileItems.Clear();
     }
 
-    [RelayCommand(CanExecute = nameof(CanModify))]
-    private void RemoveFile(EncryptionFileItem? item)
+    void IEncryptionFileItemOwner.Remove(EncryptionFileItem item)
     {
-        if (item == null) return;
         FileItems.Remove(item);
         UpdateStatusText();
+    }
+
+    private EncryptionFileItem CreateItem(string path)
+    {
+        var item = new EncryptionFileItem(path);
+        item.Owner = this;
+        return item;
     }
 
     public void AddDroppedPaths(IEnumerable<string> paths)
@@ -243,14 +248,14 @@ public partial class FileEncryptionViewModel : ViewModelBase, IViewState
                 {
                     if (!existing.Contains(file))
                     {
-                        FileItems.Add(new EncryptionFileItem(file));
+                        FileItems.Add(CreateItem(file));
                         existing.Add(file);
                     }
                 }
             }
             else if (File.Exists(path) && !existing.Contains(path))
             {
-                FileItems.Add(new EncryptionFileItem(path));
+                FileItems.Add(CreateItem(path));
                 existing.Add(path);
             }
         }
@@ -428,10 +433,10 @@ public partial class FileEncryptionViewModel : ViewModelBase, IViewState
             {
                 item.Status = inProgress;
                 item.Progress = 0;
-                var progress = new Progress<double>(p =>
+                var progress = new ThrottledProgress<double>(p =>
                 {
-                    Dispatcher.UIThread.Post(() => item.Progress = p);
-                });
+                    item.Progress = p;
+                }, TimeSpan.FromMilliseconds(50));
                 try
                 {
                     string outputPath = item.OutputPath!;

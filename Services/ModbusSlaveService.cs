@@ -4,6 +4,7 @@ using Modbus.Device;
 using System;
 using System.Collections.ObjectModel;
 using System.IO.Ports;
+using System.Threading;
 using System.Threading.Tasks;
 
 // TODO: 待完善 — 功能可用但暂不启用，后续可完善后重新接入导航
@@ -14,6 +15,9 @@ namespace LittleFancyToolAva.Services
         private SerialPort? _serialPort;
         private ModbusSerialSlave? _slave;
         private bool _disposed;
+        private Task? _listenTask;
+        private CancellationTokenSource? _listenCts;
+
         public bool IsRunning { get; private set; }
         public ObservableCollection<SlaveTableRow> Coils { get; } = new();
         public ObservableCollection<SlaveTableRow> HoldingRegisters { get; } = new();
@@ -30,27 +34,45 @@ namespace LittleFancyToolAva.Services
             _slave = ModbusSerialSlave.CreateRtu(slaveId, _serialPort);
             _slave.DataStore = store;
 
+            PopulateRows(coilCount, registerCount);
+
             IsRunning = true;
             StatusChanged?.Invoke("Modbus Slave 已启动");
 
-            _ = Task.Run(() =>
+            _listenCts = new CancellationTokenSource();
+            _listenTask = Task.Run(() =>
             {
                 try { _slave.Listen(); }
-                catch (Exception ex) { StatusChanged?.Invoke($"监听异常: {ex.Message}"); }
+                catch (Exception ex) when (_listenCts is { IsCancellationRequested: false })
+                { StatusChanged?.Invoke($"监听异常: {ex.Message}"); }
             });
             await Task.CompletedTask;
         }
 
-        public void Stop()
+        public async Task StopAsync()
         {
+            if (!IsRunning) return;
             IsRunning = false;
+            _listenCts?.Cancel();
             _slave?.Dispose();
             if (_serialPort?.IsOpen == true)
                 _serialPort?.Close();
             _serialPort?.Dispose();
+            if (_listenTask is not null)
+            {
+                try { await _listenTask.ConfigureAwait(false); } catch { }
+            }
             _slave = null;
             _serialPort = null;
+            _listenTask = null;
+            _listenCts?.Dispose();
+            _listenCts = null;
             StatusChanged?.Invoke("Modbus Slave 已停止");
+        }
+
+        public void Stop()
+        {
+            _ = StopAsync();
         }
 
         public Task WriteCoilAsync(int index, bool value)
@@ -61,7 +83,12 @@ namespace LittleFancyToolAva.Services
                 store.CoilDiscretes[index] = value;
                 if (index < Coils.Count)
                 {
-                    Coils[index] = new SlaveTableRow { Address = index.ToString(), Value = value ? "1" : "0" };
+                    var row = Coils[index];
+                    string newValue = value ? "1" : "0";
+                    if (row.Value != newValue)
+                    {
+                        row.Value = newValue;
+                    }
                 }
             }
             return Task.CompletedTask;
@@ -75,17 +102,36 @@ namespace LittleFancyToolAva.Services
                 store.HoldingRegisters[index] = value;
                 if (index < HoldingRegisters.Count)
                 {
-                    HoldingRegisters[index] = new SlaveTableRow { Address = index.ToString(), Value = value.ToString() };
+                    var row = HoldingRegisters[index];
+                    string newValue = value.ToString();
+                    if (row.Value != newValue)
+                    {
+                        row.Value = newValue;
+                    }
                 }
             }
             return Task.CompletedTask;
+        }
+
+        private void PopulateRows(ushort coilCount, ushort registerCount)
+        {
+            Coils.Clear();
+            for (int i = 0; i < coilCount; i++)
+            {
+                Coils.Add(new SlaveTableRow { Address = i.ToString(), Value = "0" });
+            }
+            HoldingRegisters.Clear();
+            for (int i = 0; i < registerCount; i++)
+            {
+                HoldingRegisters.Add(new SlaveTableRow { Address = i.ToString(), Value = "0" });
+            }
         }
 
         public void Dispose()
         {
             if (_disposed) return;
             _disposed = true;
-            Stop();
+            StopAsync().GetAwaiter().GetResult();
             GC.SuppressFinalize(this);
         }
     }

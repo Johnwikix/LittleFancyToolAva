@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 
 namespace LittleFancyToolAva.Models;
 
@@ -16,39 +17,46 @@ public partial class EncryptionFileItem : ObservableObject
     public string FilePath { get; }
     public string FileName => Path.GetFileName(FilePath);
 
+    private string? _outputPath;
+    private EncryptionFileStatus _status = EncryptionFileStatus.Pending;
+    private string? _errorMessage;
+    private double _progress;
+    private string _statusDisplay = "等待中";
+    private string _progressDisplay = "";
+
     public string? OutputPath
     {
-        get => field;
-        set => SetProperty(ref field, value);
+        get => _outputPath;
+        set => SetProperty(ref _outputPath, value);
     }
 
     public EncryptionFileStatus Status
     {
-        get => field;
+        get => _status;
         set
         {
-            if (SetProperty(ref field, value))
-                OnPropertyChanged(nameof(StatusDisplay));
+            if (SetProperty(ref _status, value))
+                RefreshStatusDisplay();
         }
-    } = EncryptionFileStatus.Pending;
+    }
 
     public string? ErrorMessage
     {
-        get => field;
+        get => _errorMessage;
         set
         {
-            if (SetProperty(ref field, value))
-                OnPropertyChanged(nameof(StatusDisplay));
+            if (SetProperty(ref _errorMessage, value))
+                RefreshStatusDisplay();
         }
     }
 
     public double Progress
     {
-        get => field;
+        get => _progress;
         set
         {
-            if (SetProperty(ref field, value))
-                OnPropertyChanged(nameof(ProgressDisplay));
+            if (SetProperty(ref _progress, value))
+                RefreshProgressDisplay();
         }
     }
 
@@ -57,21 +65,49 @@ public partial class EncryptionFileItem : ObservableObject
         FilePath = filePath;
     }
 
-    public string StatusDisplay => Status switch
+    [RelayCommand]
+    private void Remove()
     {
-        EncryptionFileStatus.Pending => "等待中",
-        EncryptionFileStatus.Encrypting => "加密中",
-        EncryptionFileStatus.Decrypting => "解密中",
-        EncryptionFileStatus.Completed => "已完成",
-        EncryptionFileStatus.Failed => $"失败: {ErrorMessage}",
-        _ => ""
-    };
+        if (Owner is { } owner)
+        {
+            owner.Remove(this);
+        }
+    }
 
-    public string ProgressDisplay => Status switch
+    internal IEncryptionFileItemOwner? Owner { get; set; }
+
+    public string StatusDisplay => _statusDisplay;
+
+    public string ProgressDisplay => _progressDisplay;
+
+    private void RefreshStatusDisplay()
     {
-        EncryptionFileStatus.Encrypting => $" {Progress * 100:F0}%",
-        EncryptionFileStatus.Decrypting => $" {Progress * 100:F0}%",
-        EncryptionFileStatus.Completed => " 100%",
-        _ => ""
-    };
+        _statusDisplay = _status switch
+        {
+            EncryptionFileStatus.Pending => "等待中",
+            EncryptionFileStatus.Encrypting => "加密中",
+            EncryptionFileStatus.Decrypting => "解密中",
+            EncryptionFileStatus.Completed => "已完成",
+            EncryptionFileStatus.Failed => string.IsNullOrEmpty(_errorMessage) ? "失败" : $"失败: {_errorMessage}",
+            _ => ""
+        };
+        OnPropertyChanged(nameof(StatusDisplay));
+    }
+
+    private void RefreshProgressDisplay()
+    {
+        _progressDisplay = _status switch
+        {
+            EncryptionFileStatus.Encrypting => $" {_progress * 100:F0}%",
+            EncryptionFileStatus.Decrypting => $" {_progress * 100:F0}%",
+            EncryptionFileStatus.Completed => " 100%",
+            _ => ""
+        };
+        OnPropertyChanged(nameof(ProgressDisplay));
+    }
+}
+
+internal interface IEncryptionFileItemOwner
+{
+    void Remove(EncryptionFileItem item);
 }

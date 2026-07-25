@@ -1,13 +1,18 @@
+using System.Buffers;
+using System.Collections.ObjectModel;
+using System.IO.Ports;
+using System.Runtime.InteropServices;
+using System.Text;
 using LittleFancyToolAva.Models;
 using LittleFancyToolAva.Utils;
 using Microsoft.Extensions.Logging;
-using System.IO.Ports;
-using System.Text;
 
 namespace LittleFancyToolAva.Services
 {
     public class SerialPortService : ISerialPortService, IDisposable
     {
+        private const int ReceiveReadBufferSize = 4096;
+
         private SerialPort? _serialPort;
         private readonly List<byte> _receiveBuffer = [];
         private Timer? _frameTimer;
@@ -15,6 +20,8 @@ namespace LittleFancyToolAva.Services
         private bool _disposed;
         private readonly ILogger<SerialPortService> _logger;
         private bool _isClosing;
+        private int _timerGen;
+        private readonly object _timerLock = new();
 
         public bool IsOpen => _serialPort?.IsOpen ?? false;
 
@@ -113,12 +120,8 @@ namespace LittleFancyToolAva.Services
                 byte[] bytes;
                 if (isHex)
                 {
-                    string hex = data.Replace(" ", "").Replace("-", "");
-                    if (hex.Length % 2 != 0)
-                        hex = "0" + hex;
-                    bytes = new byte[hex.Length / 2];
-                    for (int i = 0; i < hex.Length; i += 2)
-                        bytes[i / 2] = Convert.ToByte(hex.Substring(i, 2), 16);
+                    bytes = ToolMethod.HexStringToBytes(data);
+                    if (bytes.Length == 0) throw new FormatException("Hex data is empty after parsing");
                 }
                 else
                 {
@@ -178,15 +181,27 @@ namespace LittleFancyToolAva.Services
                 if (_serialPort is not { IsOpen: true }) return;
 
                 int bytesToRead = _serialPort.BytesToRead;
-                byte[] buffer = new byte[bytesToRead];
-                int read = _serialPort.Read(buffer, 0, bytesToRead);
-                if (read > 0)
+                if (bytesToRead <= 0) return;
+
+                byte[] rented = ArrayPool<byte>.Shared.Rent(Math.Max(bytesToRead, ReceiveReadBufferSize));
+                try
                 {
-                    lock (_receiveBuffer)
+                    int read = _serialPort.Read(rented, 0, bytesToRead);
+                    if (read > 0)
                     {
-                        _receiveBuffer.AddRange(buffer.Take(read));
+                        lock (_receiveBuffer)
+                        {
+                            int currentCount = _receiveBuffer.Count;
+                            CollectionsMarshal.SetCount(_receiveBuffer, currentCount + read);
+                            var span = CollectionsMarshal.AsSpan(_receiveBuffer);
+                            rented.AsSpan(0, read).CopyTo(span.Slice(currentCount, read));
+                        }
+                        ResetFrameTimer();
                     }
-                    ResetFrameTimer();
+                }
+                finally
+                {
+                    ArrayPool<byte>.Shared.Return(rented, clearArray: false);
                 }
             }
             catch (InvalidOperationException ex)
@@ -239,9 +254,6 @@ namespace LittleFancyToolAva.Services
             }
         }
 
-        private int _timerGen;
-        private readonly object _timerLock = new();
-
         private void ResetFrameTimer()
         {
             int gen;
@@ -279,7 +291,7 @@ namespace LittleFancyToolAva.Services
             lock (_receiveBuffer)
             {
                 if (_receiveBuffer.Count == 0) return;
-                bytes = [.. _receiveBuffer];
+                bytes = _receiveBuffer.ToArray();
                 _receiveBuffer.Clear();
             }
 

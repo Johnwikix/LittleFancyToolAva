@@ -16,6 +16,7 @@ namespace LittleFancyToolAva.Services
         private SerialPort? _serialPort;
         private ModbusSerialMaster? _master;
         private bool _disposed;
+        private CancellationTokenSource? _pollCts;
 
         public bool IsConnected { get; private set; }
         public int TxCount { get; private set; }
@@ -39,67 +40,83 @@ namespace LittleFancyToolAva.Services
 
         public void Disconnect()
         {
+            _ = StopAsync();
+        }
+
+        public async Task StopAsync()
+        {
+            if (!IsConnected && _master is null && _serialPort is null) return;
             IsConnected = false;
-            _master?.Dispose();
-            if (_serialPort?.IsOpen == true)
-                _serialPort?.Close();
-            _serialPort?.Dispose();
+            _pollCts?.Cancel();
+            _pollCts?.Dispose();
+            _pollCts = null;
+            try { _master?.Dispose(); } catch { }
+            try
+            {
+                if (_serialPort?.IsOpen == true) _serialPort.Close();
+                _serialPort?.Dispose();
+            }
+            catch { }
             _master = null;
             _serialPort = null;
             StatusChanged?.Invoke("已断开");
+            await Task.CompletedTask;
         }
 
         public void Dispose()
         {
             if (_disposed) return;
             _disposed = true;
-            Disconnect();
+            StopAsync().GetAwaiter().GetResult();
             GC.SuppressFinalize(this);
         }
 
         public async Task StartPollingAsync(byte slaveId, byte functionCode, ushort startAddress, ushort quantity, int scanTimeMs, CancellationToken ct)
         {
-            while (!ct.IsCancellationRequested && IsConnected)
+            while (!ct.IsCancellationRequested && IsConnected && _master is not null)
             {
                 try
                 {
                     if (functionCode == 1 || functionCode == 2)
                     {
                         var coils = functionCode == 1
-                            ? await _master!.ReadCoilsAsync(slaveId, startAddress, quantity)
-                            : await _master!.ReadInputsAsync(slaveId, startAddress, quantity);
+                            ? await _master.ReadCoilsAsync(slaveId, startAddress, quantity)
+                            : await _master.ReadInputsAsync(slaveId, startAddress, quantity);
                         TxCount++;
                         LogReceived?.Invoke($"FC{functionCode}: {string.Join(",", coils)}");
                     }
                     else
                     {
                         var registers = functionCode == 3
-                            ? await _master!.ReadHoldingRegistersAsync(slaveId, startAddress, quantity)
-                            : await _master!.ReadInputRegistersAsync(slaveId, startAddress, quantity);
+                            ? await _master.ReadHoldingRegistersAsync(slaveId, startAddress, quantity)
+                            : await _master.ReadInputRegistersAsync(slaveId, startAddress, quantity);
                         TxCount++;
                         LogReceived?.Invoke($"FC{functionCode}: {string.Join(",", registers)}");
                     }
                 }
+                catch (OperationCanceledException) { break; }
+                catch (ObjectDisposedException) { break; }
                 catch (Exception ex)
                 {
                     ErrorCount++;
                     LogReceived?.Invoke($"错误: {ex.Message}");
                 }
 
-                await Task.Delay(scanTimeMs, ct);
+                try { await Task.Delay(scanTimeMs, ct); }
+                catch (OperationCanceledException) { break; }
             }
         }
 
         public async Task WriteSingleCoilAsync(byte slaveId, ushort address, bool value)
         {
-            if (_master == null) return;
+            if (_master is null) return;
             await _master.WriteSingleCoilAsync(slaveId, address, value);
             TxCount++;
         }
 
         public async Task WriteSingleRegisterAsync(byte slaveId, ushort address, ushort value)
         {
-            if (_master == null) return;
+            if (_master is null) return;
             await _master.WriteSingleRegisterAsync(slaveId, address, value);
             TxCount++;
         }

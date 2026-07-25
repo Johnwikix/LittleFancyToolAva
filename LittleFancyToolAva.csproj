@@ -17,6 +17,7 @@
     <TrimmerRootAssembly Include="BouncyCastle.Cryptography" />
     <TrimmerRootAssembly Include="TagLibSharp" />
     <TrimmerRootAssembly Include="RabbitMQ.Client" />
+    <TrimmerRootAssembly Include="NModbus4" />
   </ItemGroup>
 
   <ItemGroup>

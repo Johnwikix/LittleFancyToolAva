@@ -195,25 +195,28 @@ namespace LittleFancyToolAva.Services
 
         private void AppendToBuffer(byte[] data)
         {
-            lock (_receiveBuffer)
-            {
-                _receiveBuffer.AddRange(data);
-            }
-            FlushReceiveBuffer();
+            FlushReceiveBuffer(data);
         }
 
-        private void FlushReceiveBuffer()
+        private void FlushReceiveBuffer(byte[]? bytes = null)
         {
-            byte[] bytes;
+            byte[] payload;
             lock (_receiveBuffer)
             {
-                if (_receiveBuffer.Count == 0) return;
-                bytes = [.. _receiveBuffer];
-                _receiveBuffer.Clear();
+                if (bytes is null)
+                {
+                    if (_receiveBuffer.Count == 0) return;
+                    payload = [.. _receiveBuffer];
+                    _receiveBuffer.Clear();
+                }
+                else
+                {
+                    payload = bytes;
+                }
             }
-            BytesReceived?.Invoke(bytes);
-            _logger.LogDebug("UDP received {ByteCount} bytes", bytes.Length);
-            StatusChanged?.Invoke($"接收: {bytes.Length} 字节");
+            BytesReceived?.Invoke(payload);
+            _logger.LogDebug("UDP received {ByteCount} bytes", payload.Length);
+            StatusChanged?.Invoke($"接收: {payload.Length} 字节");
         }
 
         public void Dispose()

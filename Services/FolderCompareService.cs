@@ -7,6 +7,8 @@ namespace LittleFancyToolAva.Services;
 
 public class FolderCompareService : IFolderCompareService
 {
+    private const int MaxHashParallelism = 8;
+
     private readonly ILogger<FolderCompareService> _logger;
 
     public FolderCompareService(ILogger<FolderCompareService> logger)
@@ -20,43 +22,13 @@ public class FolderCompareService : IFolderCompareService
         IProgress<double>? progress = null,
         CancellationToken cancellationToken = default)
     {
-        List<FolderCompareResult> results = [];
-
         if (!useHashComparison && !useMusicTitleComparison)
         {
             throw new InvalidOperationException("至少需要选择一种比较方式（哈希比较或音乐标题比较）");
         }
 
-        var sourceFiles = new List<string>();
-        var targetFiles = new List<string>();
-
-        try
-        {
-            sourceFiles = Directory.EnumerateFiles(sourceFolder, "*", new EnumerationOptions
-            {
-                RecurseSubdirectories = true,
-                IgnoreInaccessible = true,
-                AttributesToSkip = FileAttributes.ReparsePoint | FileAttributes.System
-            }).ToList();
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            _logger.LogWarning(ex, "Cannot enumerate source folder: {Folder}", sourceFolder);
-        }
-
-        try
-        {
-            targetFiles = Directory.EnumerateFiles(targetFolder, "*", new EnumerationOptions
-            {
-                RecurseSubdirectories = true,
-                IgnoreInaccessible = true,
-                AttributesToSkip = FileAttributes.ReparsePoint | FileAttributes.System
-            }).ToList();
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            _logger.LogWarning(ex, "Cannot enumerate target folder: {Folder}", targetFolder);
-        }
+        var sourceFiles = SafeEnumerate(sourceFolder, _logger);
+        var targetFiles = SafeEnumerate(targetFolder, _logger);
 
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -70,17 +42,35 @@ public class FolderCompareService : IFolderCompareService
             f => f,
             StringComparer.OrdinalIgnoreCase);
 
-        int totalItems = sourceFiles.Count + targetFiles.Count;
+        List<FolderCompareResult> results = new(sourceFiles.Count + targetFiles.Count);
         int processed = 0;
+        int totalItems = sourceFiles.Count + targetFiles.Count;
         int skippedCount = 0;
 
-        foreach (string sourceFile in sourceFiles)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            string relPath = Path.GetRelativePath(sourceFolder, sourceFile);
-            if (targetRelPathMap.TryGetValue(relPath, out string? targetFile))
+        await Parallel.ForEachAsync(sourceFiles,
+            new ParallelOptions
             {
+                MaxDegreeOfParallelism = useHashComparison ? Math.Min(MaxHashParallelism, Environment.ProcessorCount) : 1,
+                CancellationToken = cancellationToken
+            },
+            async (sourceFile, ct) =>
+            {
+                string relPath = Path.GetRelativePath(sourceFolder, sourceFile);
+                if (!targetRelPathMap.TryGetValue(relPath, out string? targetFile))
+                {
+                    lock (results)
+                    {
+                        results.Add(new FolderCompareResult
+                        {
+                            RelativePath = relPath,
+                            State = CompareState.SourceOnly,
+                            SourceDetail = "Only in source"
+                        });
+                    }
+                    ReportProgress(progress, ref processed, totalItems);
+                    return;
+                }
+
                 bool match = true;
                 string? sourceDetail = null;
                 string? targetDetail = null;
@@ -90,8 +80,8 @@ public class FolderCompareService : IFolderCompareService
                 {
                     try
                     {
-                        string sourceHash = await Task.Run(() => ToolMethod.CalculateFileHash(sourceFile, "SHA256"), cancellationToken);
-                        string targetHash = await Task.Run(() => ToolMethod.CalculateFileHash(targetFile, "SHA256"), cancellationToken);
+                        string sourceHash = await Task.Run(() => ToolMethod.CalculateFileHash(sourceFile, "SHA256"), ct);
+                        string targetHash = await Task.Run(() => ToolMethod.CalculateFileHash(targetFile, "SHA256"), ct);
                         sourceDetail = sourceHash;
                         targetDetail = targetHash;
                         match = string.Equals(sourceHash, targetHash, StringComparison.OrdinalIgnoreCase);
@@ -101,14 +91,14 @@ public class FolderCompareService : IFolderCompareService
                     {
                         state = CompareState.SourceOnly;
                         sourceDetail = "<access denied>";
-                        skippedCount++;
+                        Interlocked.Increment(ref skippedCount);
                     }
                     catch (IOException ex)
                     {
                         _logger.LogWarning(ex, "Hash compare failed for {File}", relPath);
                         state = CompareState.SourceOnly;
                         sourceDetail = "<io error>";
-                        skippedCount++;
+                        Interlocked.Increment(ref skippedCount);
                     }
                 }
 
@@ -122,31 +112,22 @@ public class FolderCompareService : IFolderCompareService
                     state = match ? CompareState.Match : CompareState.Different;
                 }
 
-                results.Add(new FolderCompareResult
+                lock (results)
                 {
-                    RelativePath = relPath,
-                    State = state,
-                    SourceDetail = sourceDetail,
-                    TargetDetail = targetDetail
-                });
-            }
-            else
-            {
-                results.Add(new FolderCompareResult
-                {
-                    RelativePath = relPath,
-                    State = CompareState.SourceOnly,
-                    SourceDetail = "Only in source"
-                });
-            }
-            processed++;
-            progress?.Report((double)processed / totalItems);
-        }
+                    results.Add(new FolderCompareResult
+                    {
+                        RelativePath = relPath,
+                        State = state,
+                        SourceDetail = sourceDetail,
+                        TargetDetail = targetDetail
+                    });
+                }
+                ReportProgress(progress, ref processed, totalItems);
+            });
 
         foreach (string targetFile in targetFiles)
         {
             cancellationToken.ThrowIfCancellationRequested();
-
             string relPath = Path.GetRelativePath(targetFolder, targetFile);
             if (!sourceRelPathMap.ContainsKey(relPath))
             {
@@ -168,6 +149,30 @@ public class FolderCompareService : IFolderCompareService
 
         _logger.LogInformation("Folder compare completed: {Results} results, {Skipped} skipped", results.Count, skippedCount);
         return results;
+    }
+
+    private static List<string> SafeEnumerate(string folder, ILogger logger)
+    {
+        try
+        {
+            return Directory.EnumerateFiles(folder, "*", new EnumerationOptions
+            {
+                RecurseSubdirectories = true,
+                IgnoreInaccessible = true,
+                AttributesToSkip = FileAttributes.ReparsePoint | FileAttributes.System
+            }).ToList();
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            logger.LogWarning(ex, "Cannot enumerate folder: {Folder}", folder);
+            return [];
+        }
+    }
+
+    private static void ReportProgress(IProgress<double>? progress, ref int counter, int total)
+    {
+        int p = Interlocked.Increment(ref counter);
+        progress?.Report((double)p / total);
     }
 
     private string ExtractMusicTitle(string filePath)

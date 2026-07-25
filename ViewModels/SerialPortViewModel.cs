@@ -303,12 +303,24 @@ namespace LittleFancyToolAva.ViewModels
             }
         }
 
+        private Encoding? _cachedEncoding;
+        private int _cachedEncodingIndex = -1;
+
+        private Encoding GetEncodingCached()
+        {
+            int idx = EncodingIndex;
+            if (idx == _cachedEncodingIndex) return _cachedEncoding!;
+            string encoding = Encodings[idx];
+            _cachedEncodingIndex = idx;
+            _cachedEncoding = ToolMethod.GetEncoding(ParseEncodingMode(encoding));
+            return _cachedEncoding;
+        }
+
         private string DecodeBytes(byte[] bytes)
         {
-            string encoding = Encodings[EncodingIndex];
             try
             {
-                return ToolMethod.GetEncoding(ParseEncodingMode(encoding)).GetString(bytes);
+                return GetEncodingCached().GetString(bytes);
             }
             catch
             {

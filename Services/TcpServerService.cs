@@ -1,5 +1,6 @@
 using LittleFancyToolAva.Models;
 using Microsoft.Extensions.Logging;
+using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
 using System.Net;
@@ -396,7 +397,7 @@ namespace LittleFancyToolAva.Services
             var endpoint = client.Client?.RemoteEndPoint?.ToString() ?? "未知";
             try
             {
-                var buffer = new byte[4096];
+                byte[] buffer = ArrayPool<byte>.Shared.Rent(4096);
                 var stream = client.GetStream();
 
                 while (!ct.IsCancellationRequested && client.Connected)
@@ -404,7 +405,7 @@ namespace LittleFancyToolAva.Services
                     int read;
                     try
                     {
-                        read = await stream.ReadAsync(buffer, 0, buffer.Length, ct);
+                        read = await stream.ReadAsync(buffer.AsMemory(0, 4096), ct);
                     }
                     catch (IOException ex)
                     {
@@ -423,11 +424,9 @@ namespace LittleFancyToolAva.Services
                         break;
                     }
 
-                    byte[] data = new byte[read];
-                    Array.Copy(buffer, data, read);
-
-                    AppendToClientBuffer(endpoint, data);
+                    AppendToClientBuffer(endpoint, buffer, read);
                 }
+                ArrayPool<byte>.Shared.Return(buffer, clearArray: false);
             }
             catch (OperationCanceledException) { }
             catch (ObjectDisposedException) { }
@@ -480,13 +479,16 @@ namespace LittleFancyToolAva.Services
             return _clientBuffers.GetOrAdd(endpoint, _ => new ClientBuffer());
         }
 
-        private void AppendToClientBuffer(string endpoint, byte[] data)
+        private void AppendToClientBuffer(string endpoint, byte[] rented, int length)
         {
             bool shouldFlush = false;
             var cb = GetOrCreateClientBuffer(endpoint);
             lock (cb.Buffer)
             {
-                cb.Buffer.AddRange(data);
+                int currentCount = cb.Buffer.Count;
+                CollectionsMarshal.SetCount(cb.Buffer, currentCount + length);
+                var span = CollectionsMarshal.AsSpan(cb.Buffer);
+                rented.AsSpan(0, length).CopyTo(span.Slice(currentCount, length));
                 if (_enableFrameBreak)
                 {
                     int gen = ++cb.TimerGen;

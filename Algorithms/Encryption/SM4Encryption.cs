@@ -108,7 +108,7 @@ namespace LittleFancyToolAva.Algorithms.Encryption
             }
             else if (modeUpper == "CBC")
             {
-                if (string.IsNullOrEmpty(ivBytes is null ? null : Convert.ToBase64String(ivBytes)))
+                if (ivBytes is null || ivBytes.Length == 0)
                 {
                     throw new ArgumentException("CBC mode requires a non-null IV.");
                 }

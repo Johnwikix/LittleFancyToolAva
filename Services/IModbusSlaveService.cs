@@ -14,6 +14,7 @@ namespace LittleFancyToolAva.Services
         event Action<string>? StatusChanged;
         Task StartAsync(string portName, int baudRate, Parity parity, int dataBits, StopBits stopBits, byte slaveId, ushort coilCount, ushort registerCount);
         void Stop();
+        Task StopAsync();
         Task WriteCoilAsync(int index, bool value);
         Task WriteHoldingRegisterAsync(int index, ushort value);
     }

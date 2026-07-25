@@ -96,8 +96,7 @@
                                         <SelectableTextBlock Text="{Binding ProgressDisplay}" />
                                     </StackPanel>
                                     <Button Grid.Column="3"
-                                            Command="{Binding $parent[ListBox].((vm:FileEncryptionViewModel)DataContext).RemoveFileCommand}"
-                                            CommandParameter="{Binding}"
+                                            Command="{Binding RemoveCommand}"
                                             Padding="6,2"
                                             Background="Transparent"
                                             BorderThickness="0"

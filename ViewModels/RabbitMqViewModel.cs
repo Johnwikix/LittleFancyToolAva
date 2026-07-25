@@ -575,7 +575,7 @@ namespace LittleFancyToolAva.ViewModels
                 {
                     try
                     {
-                        headers = JsonSerializer.Deserialize<Dictionary<string, object?>>(HeadersJson);
+                        headers = JsonSerializer.Deserialize(HeadersJson, RabbitMqJsonContext.Default.DictionaryStringObject);
                     }
                     catch (Exception ex)
                     {

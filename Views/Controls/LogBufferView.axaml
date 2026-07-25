@@ -17,6 +17,11 @@
              Classes="TerminalLogList"
              ItemsSource="{Binding #Root.Entries}"
              SelectionMode="Single">
+        <ListBox.ItemsPanel>
+            <ItemsPanelTemplate>
+                <VirtualizingStackPanel />
+            </ItemsPanelTemplate>
+        </ListBox.ItemsPanel>
         <ListBox.ItemTemplate>
             <DataTemplate x:DataType="models:LogEntry">
                 <Grid ColumnDefinitions="Auto,Auto,Auto,*" Margin="0,1">
