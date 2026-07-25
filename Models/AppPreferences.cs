@@ -25,36 +25,6 @@ namespace LittleFancyToolAva.Models
             }
         } = (int)ThemeMode.System;
 
-        public bool IsAnimationOn
-        {
-            get;
-            set => SetProperty(ref field, value);
-        } = true;
-
-        public bool IsShadowOn
-        {
-            get;
-            set => SetProperty(ref field, value);
-        } = true;
-
-        public bool IsScrollBarHidden
-        {
-            get;
-            set => SetProperty(ref field, value);
-        }
-
-        public bool IsMessageInWindow
-        {
-            get;
-            set => SetProperty(ref field, value);
-        } = true;
-
-        public int NoticeWindowOffsetXY
-        {
-            get;
-            set => SetProperty(ref field, value);
-        } = 50;
-
         private void OnThemeIndexChanged(int value)
         {
             if (Application.Current is { } app)

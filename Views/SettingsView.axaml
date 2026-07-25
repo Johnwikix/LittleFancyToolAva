@@ -15,7 +15,7 @@
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <StackPanel Classes="PageRoot">
             <TextBlock Classes="PageTitle" Text="设置" />
-            <TextBlock Classes="PageSubtitle" Text="应用外观与行为偏好" />
+            <TextBlock Classes="PageSubtitle" Text="应用外观偏好" />
 
             <TextBlock Classes="GroupHeader" Text="外观" />
 
@@ -37,54 +37,6 @@
                                          GroupName="ThemeMode"
                                          IsChecked="{Binding App.Preferences.ThemeIndex, Mode=TwoWay, Converter={StaticResource IntEq}, ConverterParameter=2}" />
                         </StackPanel>
-                    </Grid>
-                </StackPanel>
-            </Border>
-
-            <TextBlock Classes="GroupHeader" Text="基础设置" />
-
-            <Border Classes="ToolCard">
-                <StackPanel Classes="ToolCardContent">
-                    <Grid ColumnDefinitions="200,*,Auto" Margin="0,4">
-                        <StackPanel Grid.Column="0">
-                            <TextBlock FontWeight="SemiBold" Text="启用动画" />
-                            <TextBlock Classes="Caption" Text="页面切换与控件动画" />
-                        </StackPanel>
-                        <ToggleSwitch Grid.Column="2"
-                                      IsChecked="{Binding App.Preferences.IsAnimationOn, Mode=TwoWay}" />
-                    </Grid>
-                    <Grid ColumnDefinitions="200,*,Auto" Margin="0,4">
-                        <StackPanel Grid.Column="0">
-                            <TextBlock FontWeight="SemiBold" Text="启用阴影" />
-                            <TextBlock Classes="Caption" Text="卡片与浮层阴影" />
-                        </StackPanel>
-                        <ToggleSwitch Grid.Column="2"
-                                      IsChecked="{Binding App.Preferences.IsShadowOn, Mode=TwoWay}" />
-                    </Grid>
-                    <Grid ColumnDefinitions="200,*,Auto" Margin="0,4">
-                        <StackPanel Grid.Column="0">
-                            <TextBlock FontWeight="SemiBold" Text="隐藏滚动条" />
-                            <TextBlock Classes="Caption" Text="始终隐藏滚动条" />
-                        </StackPanel>
-                        <ToggleSwitch Grid.Column="2"
-                                      IsChecked="{Binding App.Preferences.IsScrollBarHidden, Mode=TwoWay}" />
-                    </Grid>
-                    <Grid ColumnDefinitions="200,*,Auto" Margin="0,4">
-                        <StackPanel Grid.Column="0">
-                            <TextBlock FontWeight="SemiBold" Text="在窗口中显示消息" />
-                            <TextBlock Classes="Caption" Text="通知弹窗样式" />
-                        </StackPanel>
-                        <ToggleSwitch Grid.Column="2"
-                                      IsChecked="{Binding App.Preferences.IsMessageInWindow, Mode=TwoWay}" />
-                    </Grid>
-                    <Grid ColumnDefinitions="200,*,Auto" Margin="0,4">
-                        <StackPanel Grid.Column="0">
-                            <TextBlock FontWeight="SemiBold" Text="通知窗口偏移" />
-                            <TextBlock Classes="Caption" Text="通知距离屏幕边缘的像素" />
-                        </StackPanel>
-                        <NumericUpDown Grid.Column="2" Width="120"
-                                       Value="{Binding App.Preferences.NoticeWindowOffsetXY, Mode=TwoWay}"
-                                       Minimum="0" Maximum="500" />
                     </Grid>
                 </StackPanel>
             </Border>
