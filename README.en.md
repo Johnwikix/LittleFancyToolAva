@@ -164,7 +164,6 @@ Issues and Pull Requests are welcome.
 | [BouncyCastle.Cryptography](https://www.bouncycastle.org/csharp/) | Ciphers (AES / DES / RSA / SM2 / SM3 / SM4 / SHA / MD5) | MIT |
 | [Magick.NET-Q16-AnyCPU](https://github.com/dlemstra/Magick.NET) | Image processing and format conversion | Apache-2.0 |
 | [TagLibSharp](https://github.com/mono/taglib-sharp) | Media (image) metadata | LGPL-2.1 |
-| [RabbitMQ.Client](https://www.rabbitmq.com/client-libraries/dotnet-api-guide) | Message queue client | Apache-2.0 |
 | [System.IO.Ports](https://learn.microsoft.com/dotnet/api/system.io.ports) | Serial port communication | MIT |
 | [System.Windows.Extensions](https://learn.microsoft.com/dotnet/api/) | Windows extensions | MIT |
 

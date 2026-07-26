@@ -97,7 +97,6 @@ namespace LittleFancyToolAva
             services.AddSingleton<ISerialPortService, SerialPortService>();
             services.AddSingleton<ITcpServerService, TcpServerService>();
             services.AddSingleton<IUdpService, UdpService>();
-            services.AddSingleton<IRabbitMqService, RabbitMqService>();
 
             services.AddTransient<MainWindowViewModel>();
             services.AddTransient<HomeViewModel>();
@@ -114,7 +113,6 @@ namespace LittleFancyToolAva
             services.AddTransient<SerialPortViewModel>();
             services.AddTransient<TcpServerViewModel>();
             services.AddTransient<UdpViewModel>();
-            services.AddTransient<RabbitMqViewModel>();
 
             services.AddSingleton<IFileEncryptionService, FileEncryptionService>();
             services.AddSingleton<IFolderCompareService, FolderCompareService>();

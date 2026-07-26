@@ -153,7 +153,6 @@ public class ViewStateService : IViewStateService
         "folderCompareView" => root.FolderCompareView,
         "img2icoView" => root.Img2icoView,
         "imgConvertView" => root.ImgConvertView,
-        "rabbitMqView" => root.RabbitMqView,
         _ => null
     };
 
@@ -177,7 +176,6 @@ public class ViewStateService : IViewStateService
             case "folderCompareView": root.FolderCompareView = (FolderCompareViewState?)state; break;
             case "img2icoView": root.Img2icoView = (Img2icoViewState?)state; break;
             case "imgConvertView": root.ImgConvertView = (ImgConvertViewState?)state; break;
-            case "rabbitMqView": root.RabbitMqView = (RabbitMqViewState?)state; break;
         }
     }
 

@@ -164,7 +164,6 @@ dotnet publish -c Release -p:PublishProfile=FolderProfile
 | [BouncyCastle.Cryptography](https://www.bouncycastle.org/csharp/) | 加密算法（AES / DES / RSA / SM2 / SM3 / SM4 / SHA / MD5） | MIT |
 | [Magick.NET-Q16-AnyCPU](https://github.com/dlemstra/Magick.NET) | 图片处理与格式转换 | Apache-2.0 |
 | [TagLibSharp](https://github.com/mono/taglib-sharp) | 媒体元数据（图片） | LGPL-2.1 |
-| [RabbitMQ.Client](https://www.rabbitmq.com/client-libraries/dotnet-api-guide) | 消息队列客户端 | Apache-2.0 |
 | [System.IO.Ports](https://learn.microsoft.com/dotnet/api/system.io.ports) | 串口通信 | MIT |
 | [System.Windows.Extensions](https://learn.microsoft.com/dotnet/api/) | Windows 扩展 | MIT |
 

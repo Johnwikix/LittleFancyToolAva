@@ -274,20 +274,14 @@ namespace LittleFancyToolAva.ViewModels
 
         private void OnDataSent(byte[] bytes)
         {
-        }
-
-        private void AppendTxLog(string text)
-        {
+            Interlocked.Increment(ref _pendingTxCount);
             if (IsHexDisplay)
             {
-                byte[] bytes = IsHexSend
-                    ? ToolMethod.HexStringToBytes(text)
-                    : Encoding.UTF8.GetBytes(text);
-                Log.Append(LogKind.Tx, ToolMethod.ByteArrayToHexString(bytes));
+                Log.Enqueue(LogKind.Tx, ToolMethod.ByteArrayToSpacedHexString(bytes));
             }
             else
             {
-                Log.Append(LogKind.Tx, text);
+                Log.EnqueueLine(LogKind.Tx, Encoding.UTF8.GetString(bytes));
             }
         }
 
@@ -297,7 +291,7 @@ namespace LittleFancyToolAva.ViewModels
 
             if (IsHexDisplay)
             {
-                Log.Enqueue(LogKind.Rx, ToolMethod.ByteArrayToHexString(bytes));
+                Log.Enqueue(LogKind.Rx, ToolMethod.ByteArrayToSpacedHexString(bytes));
             }
             else
             {
@@ -529,8 +523,6 @@ namespace LittleFancyToolAva.ViewModels
             try
             {
                 await _tcpService.SendAsync(SendText, IsHexSend, target).ConfigureAwait(false);
-                AppendTxLog(SendText);
-                Interlocked.Increment(ref _pendingTxCount);
             }
             catch (Exception ex)
             {
@@ -577,8 +569,6 @@ namespace LittleFancyToolAva.ViewModels
                         try
                         {
                             await _tcpService.SendAsync(SendText, IsHexSend, null).ConfigureAwait(false);
-                            AppendTxLog(SendText);
-                            Interlocked.Increment(ref _pendingTxCount);
                         }
                         catch (OperationCanceledException) { throw; }
                         catch (Exception ex)

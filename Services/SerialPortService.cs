@@ -27,6 +27,7 @@ namespace LittleFancyToolAva.Services
 
         public event Action<byte[]>? BytesReceived;
         public event Action<string>? DataReceived;
+        public event Action<byte[]>? DataSent;
         public event Action<string>? StatusChanged;
         public event EventHandler<ConnectionEventArgs>? ConnectionStateChanged;
 
@@ -120,8 +121,13 @@ namespace LittleFancyToolAva.Services
                 byte[] bytes;
                 if (isHex)
                 {
-                    bytes = ToolMethod.HexStringToBytes(data);
-                    if (bytes.Length == 0) throw new FormatException("Hex data is empty after parsing");
+                    if (!ToolMethod.TryHexStringToBytes(data, out bytes) || bytes.Length == 0)
+                    {
+                        StatusChanged?.Invoke("HEX 输入包含非法字符或为空");
+                        ConnectionStateChanged?.Invoke(this, new ConnectionEventArgs(
+                            ConnectionEventType.Error, "HEX 输入包含非法字符或为空"));
+                        return;
+                    }
                 }
                 else
                 {
@@ -138,6 +144,7 @@ namespace LittleFancyToolAva.Services
                 await _serialPort.BaseStream.WriteAsync(bytes).ConfigureAwait(false);
                 await _serialPort.BaseStream.FlushAsync().ConfigureAwait(false);
 
+                DataSent?.Invoke(bytes);
                 _logger.LogDebug("SerialPort sent {ByteCount} bytes", bytes.Length);
                 StatusChanged?.Invoke($"发送: {bytes.Length} 字节");
             }

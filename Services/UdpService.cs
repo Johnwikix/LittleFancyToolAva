@@ -108,11 +108,13 @@ namespace LittleFancyToolAva.Services
                 byte[] bytes;
                 if (isHex)
                 {
-                    string hex = data.Replace(" ", "").Replace("-", "");
-                    if (hex.Length % 2 != 0) hex = "0" + hex;
-                    bytes = new byte[hex.Length / 2];
-                    for (int i = 0; i < hex.Length; i += 2)
-                        bytes[i / 2] = Convert.ToByte(hex.Substring(i, 2), 16);
+                    if (!ToolMethod.TryHexStringToBytes(data, out bytes))
+                    {
+                        StatusChanged?.Invoke("HEX 输入包含非法字符");
+                        ConnectionStateChanged?.Invoke(this, new ConnectionEventArgs(
+                            ConnectionEventType.Error, "HEX 输入包含非法字符"));
+                        return;
+                    }
                 }
                 else
                 {

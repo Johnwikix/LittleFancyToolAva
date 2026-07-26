@@ -20,7 +20,6 @@ public class ViewStatesRoot
     public FolderCompareViewState? FolderCompareView { get; set; }
     public Img2icoViewState? Img2icoView { get; set; }
     public ImgConvertViewState? ImgConvertView { get; set; }
-    public RabbitMqViewState? RabbitMqView { get; set; }
 }
 
 [JsonSourceGenerationOptions(WriteIndented = true)]
@@ -42,7 +41,6 @@ public class ViewStatesRoot
 [JsonSerializable(typeof(FolderCompareViewState))]
 [JsonSerializable(typeof(Img2icoViewState))]
 [JsonSerializable(typeof(ImgConvertViewState))]
-[JsonSerializable(typeof(RabbitMqViewState))]
 internal partial class ViewStatesJsonContext : JsonSerializerContext
 {
 }

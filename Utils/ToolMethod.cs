@@ -25,10 +25,38 @@ namespace LittleFancyToolAva.Utils
             return Convert.ToHexString(data);
         }
 
+        public static string ByteArrayToSpacedHexString(byte[] data)
+        {
+            ArgumentNullException.ThrowIfNull(data);
+            return ByteArrayToSpacedHexString((ReadOnlySpan<byte>)data);
+        }
+
+        public static string ByteArrayToSpacedHexString(ReadOnlySpan<byte> data)
+        {
+            if (data.IsEmpty) return string.Empty;
+            return string.Create(data.Length * 3 - 1, data, (span, src) =>
+            {
+                int pos = 0;
+                for (int i = 0; i < src.Length; i++)
+                {
+                    if (i > 0)
+                    {
+                        span[pos++] = ' ';
+                    }
+                    byte b = src[i];
+                    byte hi = (byte)(b >> 4);
+                    byte lo = (byte)(b & 0x0F);
+                    span[pos++] = (char)(hi < 10 ? '0' + hi : 'A' + hi - 10);
+                    span[pos++] = (char)(lo < 10 ? '0' + lo : 'A' + lo - 10);
+                }
+            });
+        }
+
         public static byte[] HexStringToBytes(string hexStr)
         {
-            if (string.IsNullOrWhiteSpace(hexStr))
-                throw new ArgumentException("Hex string cannot be empty", nameof(hexStr));
+            if (hexStr == null)
+                throw new ArgumentNullException(nameof(hexStr));
+            if (hexStr.Length == 0) return [];
             return HexStringToBytes(hexStr.AsSpan());
         }
 
@@ -36,10 +64,50 @@ namespace LittleFancyToolAva.Utils
         {
             int strippedLen = CountHexChars(hex);
             if (strippedLen % 2 != 0)
-                throw new FormatException($"Hex string has odd length ({strippedLen} chars) after removing delimiters");
+            {
+                char[] padded = new char[strippedLen + 1];
+                padded[0] = '0';
+                int write = 1;
+                for (int i = 0; i < hex.Length; i++)
+                {
+                    char c = hex[i];
+                    if (c is not ' ' and not '-')
+                    {
+                        padded[write++] = c;
+                    }
+                }
+                return Convert.FromHexString(padded);
+            }
             if (strippedLen == 0) return [];
             return Convert.FromHexString(BuildHexString(hex, strippedLen));
         }
+
+        public static bool TryHexStringToBytes(string? input, out byte[] bytes)
+        {
+            bytes = [];
+            if (string.IsNullOrEmpty(input)) return true;
+            try
+            {
+                foreach (char c in input)
+                {
+                    if (c is ' ' or '-') continue;
+                    if (!IsHexChar(c))
+                        return false;
+                }
+                bytes = HexStringToBytes(input.AsSpan());
+                return true;
+            }
+            catch (FormatException)
+            {
+                bytes = [];
+                return false;
+            }
+        }
+
+        private static bool IsHexChar(char c) =>
+            (c >= '0' && c <= '9') ||
+            (c >= 'a' && c <= 'f') ||
+            (c >= 'A' && c <= 'F');
 
         private static int CountHexChars(ReadOnlySpan<char> source)
         {

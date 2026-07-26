@@ -264,6 +264,15 @@ namespace LittleFancyToolAva.ViewModels
 
         private void OnDataSent(byte[] bytes)
         {
+            Interlocked.Increment(ref _pendingTxCount);
+            if (IsHexDisplay)
+            {
+                Log.Enqueue(LogKind.Tx, ToolMethod.ByteArrayToSpacedHexString(bytes));
+            }
+            else
+            {
+                Log.EnqueueLine(LogKind.Tx, Encoding.UTF8.GetString(bytes));
+            }
         }
 
         private void OnBytesReceived(byte[] bytes)
@@ -272,7 +281,7 @@ namespace LittleFancyToolAva.ViewModels
 
             if (IsHexDisplay)
             {
-                Log.Enqueue(LogKind.Rx, ToolMethod.ByteArrayToHexString(bytes));
+                Log.Enqueue(LogKind.Rx, ToolMethod.ByteArrayToSpacedHexString(bytes));
             }
             else
             {
@@ -497,8 +506,6 @@ namespace LittleFancyToolAva.ViewModels
                         try
                         {
                             await _udpService.SendAsync(SendText, IsHexSend, targetAddr, targetPort).ConfigureAwait(false);
-                            AppendTxLog(SendText);
-                            Interlocked.Increment(ref _pendingTxCount);
                         }
                         catch (OperationCanceledException) { throw; }
                         catch (Exception ex)
@@ -539,21 +546,6 @@ namespace LittleFancyToolAva.ViewModels
         private void StopPolling()
         {
             _pollCts?.Cancel();
-        }
-
-        private void AppendTxLog(string text)
-        {
-            if (IsHexDisplay)
-            {
-                byte[] bytes = IsHexSend
-                    ? ToolMethod.HexStringToBytes(text)
-                    : Encoding.UTF8.GetBytes(text);
-                Log.Append(LogKind.Tx, ToolMethod.ByteArrayToHexString(bytes));
-            }
-            else
-            {
-                Log.Append(LogKind.Tx, text);
-            }
         }
 
         private void OnFrameBreakIntervalChanged(int value)

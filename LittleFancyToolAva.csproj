@@ -10,14 +10,13 @@
     <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == '' AND $([MSBuild]::IsOSPlatform('windows'))">win-x64</RuntimeIdentifier>
     <ApplicationIcon>Assets\storeIcon.ico</ApplicationIcon>
     <NoWarn>$(NoWarn);NU1701;CS8767;CS8625;CS8602;CS8600;CS8604</NoWarn>
-    <PublishTrimmed>true</PublishTrimmed>
+	<PublishAot Condition="'$(Configuration)' == 'Debug'">false</PublishAot>
+	<PublishAot Condition="'$(Configuration)' != 'Debug'">true</PublishAot>
   </PropertyGroup>
 
   <ItemGroup>
     <TrimmerRootAssembly Include="BouncyCastle.Cryptography" />
     <TrimmerRootAssembly Include="TagLibSharp" />
-    <TrimmerRootAssembly Include="RabbitMQ.Client" />
-    <TrimmerRootAssembly Include="NModbus4" />
   </ItemGroup>
 
   <ItemGroup>
@@ -37,12 +36,10 @@
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.10" />
     <PackageReference Include="BouncyCastle.Cryptography" Version="2.6.2" />
-    <PackageReference Include="RabbitMQ.Client" Version="7.2.1" />
     <PackageReference Include="Serilog" Version="4.4.0" />
     <PackageReference Include="Serilog.Extensions.Logging" Version="10.0.0" />
     <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
     <PackageReference Include="Magick.NET-Q16-AnyCPU" Version="14.15.0" />
-    <PackageReference Include="NModbus4" Version="2.1.0" />
     <PackageReference Include="TagLibSharp" Version="2.3.0" />
     <PackageReference Include="System.IO.Ports" Version="10.0.10" />
     <PackageReference Include="System.Windows.Extensions" Version="10.0.10" />

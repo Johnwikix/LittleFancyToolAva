@@ -222,6 +222,7 @@ namespace LittleFancyToolAva.ViewModels
         void IViewLifecycle.OnNavigatedTo()
         {
             _serialPortService.BytesReceived += OnBytesReceived;
+            _serialPortService.DataSent += OnDataSent;
             _serialPortService.StatusChanged += OnStatusChanged;
             _serialPortService.ConnectionStateChanged += OnConnectionStateChanged;
             if (IsConnected)
@@ -233,6 +234,7 @@ namespace LittleFancyToolAva.ViewModels
         void IViewLifecycle.OnNavigatedFrom()
         {
             _serialPortService.BytesReceived -= OnBytesReceived;
+            _serialPortService.DataSent -= OnDataSent;
             _serialPortService.StatusChanged -= OnStatusChanged;
             _serialPortService.ConnectionStateChanged -= OnConnectionStateChanged;
             _pollCts?.Cancel();
@@ -295,11 +297,24 @@ namespace LittleFancyToolAva.ViewModels
 
             if (IsHexDisplay)
             {
-                Log.Enqueue(LogKind.Rx, ToolMethod.ByteArrayToHexString(bytes));
+                Log.Enqueue(LogKind.Rx, ToolMethod.ByteArrayToSpacedHexString(bytes));
             }
             else
             {
                 Log.EnqueueLine(LogKind.Rx, DecodeBytes(bytes));
+            }
+        }
+
+        private void OnDataSent(byte[] bytes)
+        {
+            Interlocked.Increment(ref _pendingTxCount);
+            if (IsHexDisplay)
+            {
+                Log.Enqueue(LogKind.Tx, ToolMethod.ByteArrayToSpacedHexString(bytes));
+            }
+            else
+            {
+                Log.EnqueueLine(LogKind.Tx, GetEncodingCached().GetString(bytes));
             }
         }
 
@@ -502,28 +517,11 @@ namespace LittleFancyToolAva.ViewModels
             try
             {
                 await _serialPortService.SendAsync(SendText, IsHexSend, encoding).ConfigureAwait(false);
-                AppendTxLog(SendText, encoding);
-                Interlocked.Increment(ref _pendingTxCount);
             }
             catch (Exception ex)
             {
                 Log.Enqueue(LogKind.Error, $"发送失败: {ex.Message}");
                 Dispatcher.UIThread.Post(() => _notificationService.ShowError($"发送失败: {ex.Message}"));
-            }
-        }
-
-        private void AppendTxLog(string text, string encoding)
-        {
-            if (IsHexDisplay)
-            {
-                byte[] bytes = IsHexSend
-                    ? ToolMethod.HexStringToBytes(text)
-                    : ToolMethod.GetEncodedData(text, ParseEncodingMode(encoding));
-                Log.Append(LogKind.Tx, ToolMethod.ByteArrayToHexString(bytes));
-            }
-            else
-            {
-                Log.Append(LogKind.Tx, text);
             }
         }
 
@@ -614,8 +612,6 @@ namespace LittleFancyToolAva.ViewModels
                         try
                         {
                             await _serialPortService.SendAsync(SendText, IsHexSend, encoding).ConfigureAwait(false);
-                            AppendTxLog(SendText, encoding);
-                            Interlocked.Increment(ref _pendingTxCount);
                         }
                         catch (OperationCanceledException) { throw; }
                         catch (Exception ex)
