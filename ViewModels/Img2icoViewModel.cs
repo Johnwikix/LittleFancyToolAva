@@ -1,47 +1,55 @@
-using Avalonia.Media.Imaging;
+using System.Collections.ObjectModel;
 using Avalonia.Platform.Storage;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using LittleFancyToolAva.Models;
 using LittleFancyToolAva.Models.ViewStates;
 using LittleFancyToolAva.Services;
+using LittleFancyToolAva.Utils;
 
 namespace LittleFancyToolAva.ViewModels;
 
-public partial class Img2icoViewModel : ViewModelBase, IViewState
+public partial class Img2icoViewModel : ViewModelBase, IViewState, IIcoFileItemOwner
 {
+    private static readonly HashSet<string> ImageExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".png", ".jpg", ".jpeg", ".bmp", ".webp", ".tiff", ".gif", ".dds", ".jxl", ".heic"
+    };
+
     private readonly IIconConversionService _iconConversionService;
-    private readonly IImageConversionService _imageConversionService;
     private readonly IFileDialogService _fileDialogService;
     private readonly INotificationService _notificationService;
     private readonly IViewStateService _viewStateService;
     private CancellationTokenSource? _cts;
+    private int _completedCountField;
+    private int _failedCountField;
 
     string IViewState.ViewName => "img2icoView";
-    private byte[]? _icoBytes;
 
-    public string ImagePath
-    {
-        get;
-        set => SetProperty(ref field, value);
-    } = string.Empty;
+    public ObservableCollection<IcoFileItem> FileItems { get; } = [];
 
-    public Bitmap? ImagePreview
+    public IcoFileItem? SelectedFileItem
     {
-        get;
+        get => field;
         set => SetProperty(ref field, value);
+    }
+
+    public string? OutputFolder
+    {
+        get => field;
+        set
+        {
+            if (SetProperty(ref field, value))
+                OpenOutputFolderCommand.NotifyCanExecuteChanged();
+        }
     }
 
     public int SelectedSizeIndex
     {
-        get;
+        get => field;
         set => SetProperty(ref field, value);
     } = 2;
-
-    public Bitmap? IcoPreview
-    {
-        get;
-        set => SetProperty(ref field, value);
-    }
 
     public bool IsBusy
     {
@@ -50,33 +58,67 @@ public partial class Img2icoViewModel : ViewModelBase, IViewState
         {
             if (SetProperty(ref field, value))
             {
-                UploadImageCommand.NotifyCanExecuteChanged();
-                ConvertCommand.NotifyCanExecuteChanged();
-                SaveIcoCommand.NotifyCanExecuteChanged();
+                AddFilesCommand.NotifyCanExecuteChanged();
+                AddFolderCommand.NotifyCanExecuteChanged();
+                ClearListCommand.NotifyCanExecuteChanged();
+                PickOutputFolderCommand.NotifyCanExecuteChanged();
+                OpenOutputFolderCommand.NotifyCanExecuteChanged();
+                StartConvertCommand.NotifyCanExecuteChanged();
             }
         }
     }
+
+    public int TotalCount
+    {
+        get => field;
+        set => SetProperty(ref field, value);
+    }
+
+    public int CompletedCount
+    {
+        get => field;
+        set => SetProperty(ref field, value);
+    }
+
+    public int FailedCount
+    {
+        get => field;
+        set => SetProperty(ref field, value);
+    }
+
+    public double ConversionProgress
+    {
+        get => field;
+        set => SetProperty(ref field, value);
+    }
+
+    public string StatusText
+    {
+        get => field;
+        set => SetProperty(ref field, value);
+    } = string.Empty;
 
     public List<int> AvailableSizes { get; } = [16, 32, 48, 64, 128, 256];
 
     public Img2icoViewModel(
         IIconConversionService iconConversionService,
-        IImageConversionService imageConversionService,
         IFileDialogService fileDialogService,
         INotificationService notificationService,
         IViewStateService viewStateService)
     {
         _iconConversionService = iconConversionService;
-        _imageConversionService = imageConversionService;
         _fileDialogService = fileDialogService;
         _notificationService = notificationService;
         _viewStateService = viewStateService;
         _viewStateService.Register(this);
+        FileItems.CollectionChanged += (_, _) => StartConvertCommand.NotifyCanExecuteChanged();
+        UpdateStatusText();
     }
 
     object IViewState.CaptureState() => new Img2icoViewState
     {
-        SelectedSizeIndex = SelectedSizeIndex
+        SelectedSizeIndex = SelectedSizeIndex,
+        OutputFolder = OutputFolder
     };
 
     void IViewState.RestoreState(object state)
@@ -84,91 +126,223 @@ public partial class Img2icoViewModel : ViewModelBase, IViewState
         if (state is Img2icoViewState s)
         {
             SelectedSizeIndex = s.SelectedSizeIndex;
+            OutputFolder = s.OutputFolder;
         }
     }
 
-    [RelayCommand(CanExecute = nameof(CanUpload))]
-    private async Task UploadImage()
+    [RelayCommand(CanExecute = nameof(CanModify))]
+    private async Task AddFiles()
     {
-        IReadOnlyList<FilePickerFileType> filters = [new("Image Files") { Patterns = ["*.png", "*.jpg", "*.jpeg", "*.gif", "*.bmp", "*.webp", "*.tiff"] }];
-        string? path = await _fileDialogService.PickOpenFileAsync("选择图片", filters);
-        if (path == null) return;
+        IReadOnlyList<FilePickerFileType> filters = [new("图片文件") { Patterns = ["*.png", "*.jpg", "*.jpeg", "*.bmp", "*.webp", "*.tiff", "*.gif", "*.dds", "*.jxl", "*.heic"] }];
+        var paths = await _fileDialogService.PickOpenFilesAsync("选择图片", filters);
+        if (paths == null) return;
+
+        var existing = new HashSet<string>(FileItems.Select(x => x.FilePath), StringComparer.OrdinalIgnoreCase);
+        foreach (string path in paths)
+        {
+            if (!existing.Contains(path))
+            {
+                FileItems.Add(CreateItem(path));
+                existing.Add(path);
+            }
+        }
+        UpdateStatusText();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanModify))]
+    private async Task AddFolder()
+    {
+        string? folder = await _fileDialogService.PickFolderAsync("选择图片文件夹");
+        if (folder == null) return;
+
+        var existing = new HashSet<string>(FileItems.Select(x => x.FilePath), StringComparer.OrdinalIgnoreCase);
+        foreach (string file in Directory.EnumerateFiles(folder, "*", SearchOption.AllDirectories))
+        {
+            if (ImageExtensions.Contains(Path.GetExtension(file)) && !existing.Contains(file))
+            {
+                FileItems.Add(CreateItem(file));
+                existing.Add(file);
+            }
+        }
+        UpdateStatusText();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanModify))]
+    private void ClearList()
+    {
+        FileItems.Clear();
+        UpdateStatusText();
+    }
+
+    void IIcoFileItemOwner.Remove(IcoFileItem item)
+    {
+        FileItems.Remove(item);
+        UpdateStatusText();
+    }
+
+    private IcoFileItem CreateItem(string path)
+    {
+        var item = new IcoFileItem(path);
+        item.Owner = this;
+        return item;
+    }
+
+    public void AddDroppedPaths(IEnumerable<string> paths)
+    {
+        if (IsBusy) return;
+
+        var existing = new HashSet<string>(FileItems.Select(x => x.FilePath), StringComparer.OrdinalIgnoreCase);
+        foreach (string path in paths)
+        {
+            if (string.IsNullOrEmpty(path)) continue;
+            if (Directory.Exists(path))
+            {
+                foreach (string file in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories))
+                {
+                    if (ImageExtensions.Contains(Path.GetExtension(file)) && !existing.Contains(file))
+                    {
+                        FileItems.Add(CreateItem(file));
+                        existing.Add(file);
+                    }
+                }
+            }
+            else if (File.Exists(path) && ImageExtensions.Contains(Path.GetExtension(path)) && !existing.Contains(path))
+            {
+                FileItems.Add(CreateItem(path));
+                existing.Add(path);
+            }
+        }
+        UpdateStatusText();
+    }
+
+    private bool CanModify() => !IsBusy;
+
+    [RelayCommand(CanExecute = nameof(CanModify))]
+    private async Task PickOutputFolder()
+    {
+        string? folder = await _fileDialogService.PickFolderAsync("选择输出目录");
+        if (folder != null)
+            OutputFolder = folder;
+    }
+
+    [RelayCommand(CanExecute = nameof(CanOpenOutputFolder))]
+    private void OpenOutputFolder()
+    {
+        if (!string.IsNullOrEmpty(OutputFolder))
+            _fileDialogService.OpenInExplorer(OutputFolder);
+    }
+
+    private bool CanOpenOutputFolder()
+        => !IsBusy && !string.IsNullOrEmpty(OutputFolder) && Directory.Exists(OutputFolder!);
+
+    [RelayCommand(CanExecute = nameof(CanStartConvert))]
+    private async Task StartConvert()
+    {
+        if (string.IsNullOrEmpty(OutputFolder))
+        {
+            string? folder = await _fileDialogService.PickFolderAsync("选择输出目录");
+            if (folder == null) return;
+            OutputFolder = folder;
+        }
+
+        if (!Directory.Exists(OutputFolder))
+        {
+            _notificationService.ShowError("输出目录不存在");
+            return;
+        }
 
         _cts?.Cancel();
         _cts = new CancellationTokenSource();
         IsBusy = true;
-        try
-        {
-            ImagePath = path;
-            ImagePreview = await _imageConversionService.LoadImageAsync(path, _cts.Token);
-            _icoBytes = null;
-            IcoPreview = null;
-        }
-        catch (OperationCanceledException) { }
-        finally
-        {
-            IsBusy = false;
-        }
-    }
-
-    [RelayCommand(CanExecute = nameof(CanConvert))]
-    private async Task Convert()
-    {
-        if (string.IsNullOrEmpty(ImagePath))
-        {
-            _notificationService.ShowWarn("请先上传图片");
-            return;
-        }
+        TotalCount = FileItems.Count;
+        CompletedCount = 0;
+        FailedCount = 0;
+        _completedCountField = 0;
+        _failedCountField = 0;
+        ConversionProgress = 0;
+        UpdateStatusText();
 
         int size = AvailableSizes[SelectedSizeIndex];
 
-        _cts?.Cancel();
-        _cts = new CancellationTokenSource();
-        IsBusy = true;
-        try
-        {
-            _icoBytes = await _iconConversionService.CreateIcoBytesAsync(ImagePath, size, _cts.Token);
-            using MemoryStream ms = new(_icoBytes);
-            IcoPreview = new Bitmap(ms);
-            _notificationService.ShowSuccess("转换完成，可在右侧预览");
-        }
-        catch (OperationCanceledException) { }
-        catch (Exception ex)
-        {
-            _notificationService.ShowError($"转换失败: {ex.Message}");
-        }
-        finally
-        {
-            IsBusy = false;
-        }
+        foreach (var item in FileItems)
+            item.Status = IcoFileStatus.Pending;
+
+        await Parallel.ForEachAsync(FileItems,
+            new ParallelOptions
+            {
+                MaxDegreeOfParallelism = Environment.ProcessorCount,
+                CancellationToken = _cts.Token
+            },
+            async (item, ct) =>
+            {
+                item.Status = IcoFileStatus.Converting;
+                item.Progress = 0;
+                var progress = new ThrottledProgress<double>(p =>
+                {
+                    item.Progress = p;
+                }, TimeSpan.FromMilliseconds(50));
+                try
+                {
+                    string outputPath = GetUniqueOutputPath(OutputFolder!, item.FileName);
+                    await _iconConversionService.SaveAsIcoAsync(item.FilePath, outputPath, size, ct);
+                    item.Progress = 1.0;
+                    item.Status = IcoFileStatus.Completed;
+                }
+                catch (OperationCanceledException)
+                {
+                    item.Status = IcoFileStatus.Pending;
+                }
+                catch (Exception ex)
+                {
+                    item.Status = IcoFileStatus.Failed;
+                    item.ErrorMessage = ex.Message;
+                }
+                finally
+                {
+                    bool isFailed = item.Status == IcoFileStatus.Failed;
+                    if (isFailed)
+                        Interlocked.Increment(ref _failedCountField);
+                    int processed = Interlocked.Increment(ref _completedCountField);
+                    int failed = Volatile.Read(ref _failedCountField);
+                    Dispatcher.UIThread.Post(() =>
+                    {
+                        CompletedCount = processed - failed;
+                        FailedCount = failed;
+                        ConversionProgress = (double)processed / TotalCount;
+                        UpdateStatusText();
+                    });
+                }
+            });
+
+        IsBusy = false;
+
+        if (FailedCount == 0)
+            _notificationService.ShowSuccess($"全部转换完成（共 {TotalCount} 个）");
+        else
+            _notificationService.ShowWarn($"转换完成，{FailedCount} 个失败 / {TotalCount} 个");
     }
 
-    [RelayCommand(CanExecute = nameof(CanSaveIco))]
-    private async Task SaveIco()
+    private bool CanStartConvert() => !IsBusy && FileItems.Count > 0;
+
+    private static string GetUniqueOutputPath(string folder, string fileName)
     {
-        if (_icoBytes == null)
-        {
-            _notificationService.ShowWarn("请先转换图片");
-            return;
-        }
+        string basePath = Path.Combine(folder, Path.ChangeExtension(fileName, ".ico"));
+        if (!File.Exists(basePath))
+            return basePath;
 
-        string? savePath = await _fileDialogService.PickSaveFileAsync("保存 ICO", "icon.ico");
-        if (savePath == null) return;
-
-        try
+        string nameWithoutExt = Path.GetFileNameWithoutExtension(fileName);
+        for (int i = 1; ; i++)
         {
-            await File.WriteAllBytesAsync(savePath, _icoBytes);
-            _notificationService.ShowSuccess($"ICO 已保存到: {savePath}");
-        }
-        catch (Exception ex)
-        {
-            _notificationService.ShowError($"保存失败: {ex.Message}");
+            string candidate = Path.Combine(folder, $"{nameWithoutExt}_{i}.ico");
+            if (!File.Exists(candidate))
+                return candidate;
         }
     }
 
-    private bool CanUpload() => !IsBusy;
-
-    private bool CanConvert() => !IsBusy && !string.IsNullOrEmpty(ImagePath);
-
-    private bool CanSaveIco() => !IsBusy && _icoBytes != null;
+    private void UpdateStatusText()
+    {
+        StatusText = FileItems.Count == 0
+            ? "文件列表"
+            : $"共 {FileItems.Count} 个文件";
+    }
 }

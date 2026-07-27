@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:LittleFancyToolAva.ViewModels"
+             xmlns:models="using:LittleFancyToolAva.Models"
              xmlns:controls="using:LittleFancyToolAva.Views.Controls"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -8,48 +9,72 @@
              x:Class="LittleFancyToolAva.Views.Img2icoView"
              x:DataType="vm:Img2icoViewModel">
     <Grid RowDefinitions="Auto,*,Auto" Margin="{StaticResource PageMargin}">
-        <controls:ToolPageHeader Grid.Row="0" Title="图片转 ICO" Subtitle="将 PNG/JPG 等格式图片转换为 ICO 图标文件" />
-        <Grid Grid.Row="1" ColumnDefinitions="*,16,*" Margin="0,16,0,0">
-            <Grid Grid.Column="0" RowDefinitions="Auto,16,*">
-                <Border Grid.Row="0" Classes="ToolCard">
-                    <StackPanel Classes="ToolCardContent">
+        <controls:ToolPageHeader Grid.Row="0" Title="图片转 ICO" Subtitle="将 PNG/JPG 等格式图片批量转换为 ICO 图标文件" />
+        <Grid Grid.Row="1" ColumnDefinitions="3*,16,7*" Margin="0,16,0,0">
+            <ScrollViewer Grid.Column="0">
+                <Border Classes="ToolCard">
+                    <StackPanel Classes="ToolCardContent" Spacing="12">
                         <StackPanel Classes="FormRow">
-                            <TextBlock Classes="FieldLabel" Text="源图片" />
-                            <Grid ColumnDefinitions="*,8,Auto">
-                                <TextBox Grid.Column="0" Text="{Binding ImagePath}" IsReadOnly="True" />
-                                <Button Grid.Column="2" Command="{Binding UploadImageCommand}" Content="上传" />
+                            <TextBlock Classes="FieldLabel" Text="输出目录" />
+                            <Grid ColumnDefinitions="*,8,Auto,8,Auto">
+                                <TextBox Grid.Column="0"
+                                         Text="{Binding OutputFolder, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                                <Button Grid.Column="2" Command="{Binding PickOutputFolderCommand}" Content="选择" />
+                                <Button Grid.Column="4" Command="{Binding OpenOutputFolderCommand}" Content="打开" />
                             </Grid>
                         </StackPanel>
                         <StackPanel Classes="FormRow">
                             <TextBlock Classes="FieldLabel" Text="ICO 尺寸" />
-                            <Grid ColumnDefinitions="*,8,Auto">
-                                <ComboBox Grid.Column="0" HorizontalAlignment="Stretch"
-                                          ItemsSource="{Binding AvailableSizes}"
-                                          SelectedIndex="{Binding SelectedSizeIndex, Mode=TwoWay}" />
-                                <Button Grid.Column="2" Command="{Binding ConvertCommand}" Classes="Primary" Content="转换" />
-                            </Grid>
+                            <ComboBox HorizontalAlignment="Stretch"
+                                      ItemsSource="{Binding AvailableSizes}"
+                                      SelectedIndex="{Binding SelectedSizeIndex, Mode=TwoWay}" />
                         </StackPanel>
+                        <StackPanel IsVisible="{Binding IsBusy}" Spacing="4">
+                            <ProgressBar Value="{Binding ConversionProgress}" Minimum="0" Maximum="1" Height="8" />
+                            <TextBlock Text="{Binding StatusText}" />
+                        </StackPanel>
+                        <Button Command="{Binding StartConvertCommand}" Classes="Primary"
+                                HorizontalAlignment="Stretch" Content="开始批量转换" />
                     </StackPanel>
                 </Border>
-                <Border Grid.Row="2" Classes="ToolCard" Padding="0">
-                    <Grid RowDefinitions="Auto,*">
-                        <TextBlock Grid.Row="0" Classes="SectionHeader" Text="源图预览" Margin="16,12,16,4" />
-                        <Border Grid.Row="1" Classes="ToolCardTight" Margin="16,0,16,12" MinHeight="200">
-                            <Image Source="{Binding ImagePreview}" Stretch="Uniform" />
-                        </Border>
-                    </Grid>
-                </Border>
-            </Grid>
-            <Border Grid.Column="2" Classes="ToolCard" Padding="0">
-                <Grid RowDefinitions="Auto,*,Auto">
+            </ScrollViewer>
+            <Border Grid.Column="2" Classes="ToolCard" Padding="0"
+                    DragDrop.AllowDrop="True"
+                    DragDrop.DragEnter="OnDragEnter"
+                    DragDrop.DragOver="OnDragOver"
+                    DragDrop.Drop="OnDrop">
+                <Grid RowDefinitions="Auto,*">
                     <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="16,12,16,4">
-                        <TextBlock Classes="SectionHeader" Grid.Column="0" Text="ICO 预览" />
-                        <Button Grid.Column="1" Classes="Quiet" Command="{Binding SaveIcoCommand}" Content="保存 ICO" />
+                        <TextBlock Grid.Column="0" Classes="SectionHeader" Text="{Binding StatusText, FallbackValue='文件列表'}" VerticalAlignment="Center" />
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                            <Button Command="{Binding AddFilesCommand}" Content="添加文件" />
+                            <Button Command="{Binding AddFolderCommand}" Content="添加文件夹" />
+                            <Button Command="{Binding ClearListCommand}" Content="清空" />
+                        </StackPanel>
                     </Grid>
-                    <Border Grid.Row="1" Classes="ToolCardTight" Margin="16,0,16,8" MinHeight="200">
-                        <Image Source="{Binding IcoPreview}" Stretch="Uniform" />
-                    </Border>
-                    <TextBlock Grid.Row="2" Classes="Caption" Text="提示：可在右侧预览效果后保存为 .ico 文件。" Margin="16,0,16,12" />
+                    <ListBox Grid.Row="1" ItemsSource="{Binding FileItems}"
+                             SelectedItem="{Binding SelectedFileItem}"
+                             BorderThickness="0" Margin="8,0,8,8">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="models:IcoFileItem">
+                                <Grid ColumnDefinitions="Auto,*,Auto,Auto" Margin="4,2">
+                                    <SelectableTextBlock Grid.Column="0" Text="🖼" Margin="0,0,8,0" VerticalAlignment="Center" />
+                                    <SelectableTextBlock Grid.Column="1" Text="{Binding FileName}" VerticalAlignment="Center" />
+                                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                                        <SelectableTextBlock Text="{Binding StatusDisplay}" />
+                                        <SelectableTextBlock Text="{Binding ProgressDisplay}" />
+                                    </StackPanel>
+                                    <Button Grid.Column="3"
+                                            Command="{Binding RemoveCommand}"
+                                            Padding="6,2"
+                                            Background="Transparent"
+                                            BorderThickness="0"
+                                            ToolTip.Tip="移除"
+                                            Content="🗑️" />
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
                 </Grid>
             </Border>
         </Grid>
