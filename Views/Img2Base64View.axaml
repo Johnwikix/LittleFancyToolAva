@@ -30,7 +30,11 @@
                                    Text="{Binding ImagePath}"
                                    TextTrimming="CharacterEllipsis"
                                    Margin="0,0,0,8" />
-                        <Border Grid.Row="1" Classes="ToolCardTight">
+                        <Border Grid.Row="1" Classes="ToolCardTight"
+                                DragDrop.AllowDrop="True"
+                                DragDrop.DragEnter="OnDragEnter"
+                                DragDrop.DragOver="OnDragOver"
+                                DragDrop.Drop="OnDrop">
                             <Image Source="{Binding ImagePreview}" Stretch="Uniform" />
                         </Border>
                     </Grid>

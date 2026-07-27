@@ -89,6 +89,11 @@ public partial class Img2Base64ViewModel : ViewModelBase
         string? path = await _fileDialogService.PickOpenFileAsync("选择图片", filters);
         if (path == null) return;
 
+        await LoadImageFromPathAsync(path);
+    }
+
+    public async Task LoadImageFromPathAsync(string path)
+    {
         _cts?.Cancel();
         _cts = new CancellationTokenSource();
         IsBusy = true;
