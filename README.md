@@ -81,7 +81,7 @@ dotnet publish -c Release -p:PublishProfile=FolderProfile
 - 🔐 **文件加解密**：批量的文件级加密 / 解密操作，支持进度跟踪
 - 🖼️ **图片转 Base64**：将图片转换为 Base64 编码字符串
 - 🖼️ **图片转 ICO**：将位图转换为 ICO 图标格式
-- 🖼️ **图片格式转换**：基于 Magick.NET 的图片格式批量转换
+- 🖼️ **图片格式转换**：基于 SkiaSharp 的图片格式批量转换
 
 ## 📊 功能矩阵
 
@@ -102,8 +102,8 @@ dotnet publish -c Release -p:PublishProfile=FolderProfile
 | 文件 | 文件夹比较 | 两个目录差异对比 | 路径 / 大小比较 | .NET BCL |
 | 文件 | 文件加解密 | 文件级加密 / 解密 | AES / SM4 等（可扩展） | BouncyCastle.Cryptography |
 | 图片 | 图片转 Base64 | 图片 → Base64 | 字节流编码 | .NET BCL / TagLibSharp |
-| 图片 | 图片转 ICO | 位图 → ICO | ICO 编码 | Magick.NET |
-| 图片 | 图片格式转换 | 图片批量格式转换 | 图像重编码 | Magick.NET |
+| 图片 | 图片转 ICO | 位图 → ICO | ICO 编码 | SkiaSharp |
+| 图片 | 图片格式转换 | 图片批量格式转换 | 图像重编码 | SkiaSharp |
 
 ## 🧱 技术架构
 
@@ -162,7 +162,7 @@ dotnet publish -c Release -p:PublishProfile=FolderProfile
 | [Serilog.Extensions.Logging](https://github.com/serilog/serilog-extensions-logging) | Serilog ↔ MEL 桥接 | Apache-2.0 |
 | [Serilog.Sinks.File](https://github.com/serilog/serilog-sinks-file) | 文件日志输出 | Apache-2.0 |
 | [BouncyCastle.Cryptography](https://www.bouncycastle.org/csharp/) | 加密算法（AES / DES / RSA / SM2 / SM3 / SM4 / SHA / MD5） | MIT |
-| [Magick.NET-Q16-AnyCPU](https://github.com/dlemstra/Magick.NET) | 图片处理与格式转换 | Apache-2.0 |
+| [SkiaSharp](https://github.com/mono/SkiaSharp) | 图片处理与格式转换（Avalonia 内置渲染引擎） | MIT |
 | [TagLibSharp](https://github.com/mono/taglib-sharp) | 媒体元数据（图片） | LGPL-2.1 |
 | [System.IO.Ports](https://learn.microsoft.com/dotnet/api/system.io.ports) | 串口通信 | MIT |
 | [System.Windows.Extensions](https://learn.microsoft.com/dotnet/api/) | Windows 扩展 | MIT |

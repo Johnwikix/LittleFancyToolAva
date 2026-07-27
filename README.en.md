@@ -81,7 +81,7 @@ Output is placed at `bin/Release/net10.0-windows/win-x64/publish/win-x64/`.
 - 🔐 **File Encryption**: batch file-level encryption / decryption with progress tracking
 - 🖼️ **Image → Base64**: convert an image into a Base64 string
 - 🖼️ **Image → ICO**: convert a bitmap into an ICO icon
-- 🖼️ **Image Format Conversion**: batch image format conversion powered by Magick.NET
+- 🖼️ **Image Format Conversion**: batch image format conversion powered by SkiaSharp
 
 ## 📊 Feature Matrix
 
@@ -102,8 +102,8 @@ Output is placed at `bin/Release/net10.0-windows/win-x64/publish/win-x64/`.
 | File | Folder Compare | Diff two directories | Path / size comparison | .NET BCL |
 | File | File Encryption | Batch file encrypt / decrypt | AES / SM4 (extensible) | BouncyCastle.Cryptography |
 | Image | Image → Base64 | Image → Base64 | Stream encoding | .NET BCL / TagLibSharp |
-| Image | Image → ICO | Bitmap → ICO | ICO encoding | Magick.NET |
-| Image | Image Format Conversion | Batch format conversion | Image re-encoding | Magick.NET |
+| Image | Image → ICO | Bitmap → ICO | ICO encoding | SkiaSharp |
+| Image | Image Format Conversion | Batch format conversion | Image re-encoding | SkiaSharp |
 
 ## 🧱 Architecture
 
@@ -162,7 +162,7 @@ Issues and Pull Requests are welcome.
 | [Serilog.Extensions.Logging](https://github.com/serilog/serilog-extensions-logging) | Serilog ↔ MEL bridge | Apache-2.0 |
 | [Serilog.Sinks.File](https://github.com/serilog/serilog-sinks-file) | File log sink | Apache-2.0 |
 | [BouncyCastle.Cryptography](https://www.bouncycastle.org/csharp/) | Ciphers (AES / DES / RSA / SM2 / SM3 / SM4 / SHA / MD5) | MIT |
-| [Magick.NET-Q16-AnyCPU](https://github.com/dlemstra/Magick.NET) | Image processing and format conversion | Apache-2.0 |
+| [SkiaSharp](https://github.com/mono/SkiaSharp) | Image processing & format conversion (Avalonia built-in renderer) | MIT |
 | [TagLibSharp](https://github.com/mono/taglib-sharp) | Media (image) metadata | LGPL-2.1 |
 | [System.IO.Ports](https://learn.microsoft.com/dotnet/api/system.io.ports) | Serial port communication | MIT |
 | [System.Windows.Extensions](https://learn.microsoft.com/dotnet/api/) | Windows extensions | MIT |
