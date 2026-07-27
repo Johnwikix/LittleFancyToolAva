@@ -1,6 +1,6 @@
 using Avalonia.Media.Imaging;
-using ImageMagick;
 using Microsoft.Extensions.Logging;
+using SkiaSharp;
 
 namespace LittleFancyToolAva.Services;
 
@@ -39,11 +39,11 @@ public class ImageConversionService : IImageConversionService
         byte[] bytes = await Task.Run(() => Convert.FromBase64String(base64), ct);
         return await Task.Run(() =>
         {
-            using var image = new MagickImage(bytes);
-            if (image.Width > PreviewMaxDimension || image.Height > PreviewMaxDimension)
-                image.Resize((uint)PreviewMaxDimension, (uint)PreviewMaxDimension);
+            using var src = SKBitmap.Decode(bytes);
+            if (src == null) return null;
 
-            byte[] pngBytes = image.ToByteArray(MagickFormat.Png);
+            byte[] pngBytes = EncodePreviewPng(src);
+
             using var ms = new MemoryStream(pngBytes);
             return new Bitmap(ms);
         }, ct);
@@ -52,14 +52,14 @@ public class ImageConversionService : IImageConversionService
     public async Task<string?> ConvertImageFormatAsync(string inputPath, string outputPath, string format, CancellationToken ct = default, int? maxDimension = null, string? filterType = null, IProgress<double>? progress = null, int? scalePercent = null)
     {
         string tmpPath = outputPath + ".tmp";
-        MagickFormat outputFormat = MapFormat(format);
+        var (outputFormat, quality) = MapFormat(format);
 
         int? effectiveMaxDim = maxDimension;
 
-        if (outputFormat == MagickFormat.WebP)
+        if (outputFormat == SKEncodedImageFormat.Webp)
         {
-            var info = new MagickImageInfo(inputPath);
-            if (info.Width > WebpMaxDimension || info.Height > WebpMaxDimension)
+            using var codec = SKCodec.Create(inputPath);
+            if (codec.Info.Width > WebpMaxDimension || codec.Info.Height > WebpMaxDimension)
             {
                 int formatLimit = WebpMaxDimension;
                 effectiveMaxDim = effectiveMaxDim.HasValue
@@ -69,48 +69,56 @@ public class ImageConversionService : IImageConversionService
             }
         }
 
-        return await Task.Run(() =>
+        return await Task.Run(async () =>
         {
             try
             {
-                using var image = new MagickImage(inputPath);
+                using var bitmap = SKBitmap.Decode(inputPath);
+                if (bitmap == null)
+                    throw new InvalidOperationException($"Failed to decode image: {inputPath}");
                 progress?.Report(0.1);
 
-                if (effectiveMaxDim.HasValue)
+                SKBitmap? resized = null;
+                try
                 {
-                    if (image.Width > effectiveMaxDim.Value || image.Height > effectiveMaxDim.Value)
+                    if (effectiveMaxDim.HasValue)
                     {
-                        ImageMagick.FilterType ft = MapFilterType(filterType);
-                        image.FilterType = ft;
-                        image.Resize((uint)effectiveMaxDim.Value, (uint)effectiveMaxDim.Value);
+                        if (bitmap.Width > effectiveMaxDim.Value || bitmap.Height > effectiveMaxDim.Value)
+                        {
+                            resized = ResizeToFit(bitmap, effectiveMaxDim.Value, filterType);
+                            progress?.Report(0.4);
+                        }
+                    }
+                    else if (scalePercent.HasValue && scalePercent.Value > 0 && scalePercent.Value < 100)
+                    {
+                        int newW = Math.Max(1, bitmap.Width * scalePercent.Value / 100);
+                        int newH = Math.Max(1, bitmap.Height * scalePercent.Value / 100);
+                        resized = ResizeExact(bitmap, newW, newH, filterType);
                         progress?.Report(0.4);
                     }
+
+                    var src = resized ?? bitmap;
+
+                    using var image = SKImage.FromBitmap(src);
+                    using var data = image.Encode(outputFormat, quality);
+                    progress?.Report(0.5);
+
+                    byte[] encoded = data.ToArray();
+                    await File.WriteAllBytesAsync(tmpPath, encoded, ct);
+                    progress?.Report(0.9);
+
+                    if (File.Exists(outputPath))
+                        File.Delete(outputPath);
+                    File.Move(tmpPath, outputPath);
+
+                    _logger.LogInformation("Image converted: {Input} -> {Output} ({Format})", inputPath, outputPath, format);
+                    progress?.Report(1.0);
+                    return outputPath;
                 }
-                else if (scalePercent.HasValue && scalePercent.Value > 0 && scalePercent.Value < 100)
+                finally
                 {
-                    ImageMagick.FilterType ft = MapFilterType(filterType);
-                    image.FilterType = ft;
-                    int newW = Math.Max(1, (int)image.Width * scalePercent.Value / 100);
-                    int newH = Math.Max(1, (int)image.Height * scalePercent.Value / 100);
-                    image.Resize((uint)newW, (uint)newH);
-                    progress?.Report(0.4);
+                    resized?.Dispose();
                 }
-
-                image.Format = outputFormat;
-                if (outputFormat is MagickFormat.Jpeg or MagickFormat.Jpg)
-                    image.Quality = 90;
-
-                progress?.Report(0.5);
-                image.Write(tmpPath);
-                progress?.Report(0.9);
-
-                if (File.Exists(outputPath))
-                    File.Delete(outputPath);
-                File.Move(tmpPath, outputPath);
-
-                _logger.LogInformation("Image converted: {Input} -> {Output} ({Format})", inputPath, outputPath, format);
-                progress?.Report(1.0);
-                return outputPath;
             }
             catch
             {
@@ -129,11 +137,11 @@ public class ImageConversionService : IImageConversionService
 
         return await Task.Run(() =>
         {
-            using var image = new MagickImage(imagePath);
-            if (image.Width > PreviewMaxDimension || image.Height > PreviewMaxDimension)
-                image.Resize((uint)PreviewMaxDimension, (uint)PreviewMaxDimension);
+            using var src = SKBitmap.Decode(imagePath);
+            if (src == null) return null;
 
-            byte[] pngBytes = image.ToByteArray(MagickFormat.Png);
+            byte[] pngBytes = EncodePreviewPng(src);
+
             using var ms = new MemoryStream(pngBytes);
             return new Bitmap(ms);
         }, ct);
@@ -148,28 +156,68 @@ public class ImageConversionService : IImageConversionService
         return await File.ReadAllBytesAsync(imagePath, ct);
     }
 
-    private static MagickFormat MapFormat(string format) => format.ToLowerInvariant() switch
+    private byte[] EncodePreviewPng(SKBitmap src)
     {
-        "jpg" or "jpeg" => MagickFormat.Jpeg,
-        "png" => MagickFormat.Png,
-        "gif" => MagickFormat.Gif,
-        "bmp" => MagickFormat.Bmp,
-        "webp" => MagickFormat.WebP,
-        "tiff" => MagickFormat.Tiff,
-        "dds" => MagickFormat.Dds,
-        "jxl" => MagickFormat.Jxl,
-        "heic" => MagickFormat.Heic,
-        _ => throw new NotSupportedException($"Format '{format}' is not supported.")
-    };
+        var bitmap = src;
+        bool shouldDispose = false;
 
-    private static ImageMagick.FilterType MapFilterType(string? filter) => filter?.ToLowerInvariant() switch
+        if (src.Width > PreviewMaxDimension || src.Height > PreviewMaxDimension)
+        {
+            float scale = Math.Min((float)PreviewMaxDimension / src.Width, (float)PreviewMaxDimension / src.Height);
+            int newW = Math.Max(1, (int)(src.Width * scale));
+            int newH = Math.Max(1, (int)(src.Height * scale));
+            bitmap = ResizeExact(src, newW, newH, null);
+            shouldDispose = true;
+        }
+
+        using var image = SKImage.FromBitmap(bitmap);
+        using var data = image.Encode(SKEncodedImageFormat.Png, 100);
+        byte[] pngBytes = data.ToArray();
+
+        if (shouldDispose) bitmap.Dispose();
+        return pngBytes;
+    }
+
+    private static SKBitmap ResizeToFit(SKBitmap src, int maxDim, string? filterType)
     {
-        "lanczos" => ImageMagick.FilterType.Lanczos,
-        "mitchell" => ImageMagick.FilterType.Mitchell,
-        "catrom" => ImageMagick.FilterType.Catrom,
-        "cubic" => ImageMagick.FilterType.Cubic,
-        "triangle" => ImageMagick.FilterType.Triangle,
-        "box" => ImageMagick.FilterType.Box,
-        _ => ImageMagick.FilterType.Lanczos
+        float scale = Math.Min((float)maxDim / src.Width, (float)maxDim / src.Height);
+        int newW = Math.Max(1, (int)(src.Width * scale));
+        int newH = Math.Max(1, (int)(src.Height * scale));
+
+        return ResizeExact(src, newW, newH, filterType);
+    }
+
+    private static SKBitmap ResizeExact(SKBitmap src, int width, int height, string? filterType)
+    {
+        var info = new SKImageInfo(width, height, src.ColorType, src.AlphaType);
+        return src.Resize(info, MapSamplingOptions(filterType));
+    }
+
+    private static SKSamplingOptions MapSamplingOptions(string? filter)
+    {
+        if (string.IsNullOrEmpty(filter))
+            return new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear);
+
+        return filter.ToLowerInvariant() switch
+        {
+            "lanczos" => new SKSamplingOptions(new SKCubicResampler(1.0f / 3, 1.0f / 3)),
+            "mitchell" => new SKSamplingOptions(new SKCubicResampler(1.0f / 3, 1.0f / 3)),
+            "catrom" => new SKSamplingOptions(SKCubicResampler.CatmullRom),
+            "cubic" => new SKSamplingOptions(SKCubicResampler.CatmullRom),
+            "triangle" => new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.None),
+            "box" => new SKSamplingOptions(SKFilterMode.Nearest, SKMipmapMode.None),
+            _ => new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear)
+        };
+    }
+
+    private static (SKEncodedImageFormat Format, int Quality) MapFormat(string format) => format.ToLowerInvariant() switch
+    {
+        "jpg" or "jpeg" => (SKEncodedImageFormat.Jpeg, 90),
+        "png" => (SKEncodedImageFormat.Png, 100),
+        "gif" => (SKEncodedImageFormat.Gif, 100),
+        "bmp" => (SKEncodedImageFormat.Bmp, 100),
+        "webp" => (SKEncodedImageFormat.Webp, 100),
+        "heic" => (SKEncodedImageFormat.Heif, 100),
+        _ => throw new NotSupportedException($"Format '{format}' is not supported.")
     };
 }

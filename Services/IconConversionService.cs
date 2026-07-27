@@ -1,5 +1,5 @@
-using ImageMagick;
 using Microsoft.Extensions.Logging;
+using SkiaSharp;
 
 namespace LittleFancyToolAva.Services;
 
@@ -21,14 +21,24 @@ public class IconConversionService : IIconConversionService
 
         return await Task.Run(() =>
         {
-            using var image = new MagickImage(imagePath);
+            using var src = SKBitmap.Decode(imagePath);
+            if (src == null)
+                throw new InvalidOperationException($"Failed to decode image: {imagePath}");
 
-            uint side = Math.Min(image.Width, image.Height);
-            image.Crop(side, side, Gravity.Center);
-            image.Resize((uint)size, (uint)size);
+            uint side = (uint)Math.Min(src.Width, src.Height);
+            int x = (src.Width - (int)side) / 2;
+            int y = (src.Height - (int)side) / 2;
 
-            image.Format = MagickFormat.Ico;
-            byte[] icoBytes = image.ToByteArray();
+            var info = new SKImageInfo(size, size, SKColorType.Rgba8888, SKAlphaType.Premul);
+            using var surface = SKSurface.Create(info);
+            var canvas = surface.Canvas;
+            canvas.Clear(SKColors.Transparent);
+            canvas.DrawBitmap(src, new SKRect(x, y, x + side, y + side), new SKRect(0, 0, size, size));
+
+            using var image = surface.Snapshot();
+            using var data = image.Encode(SKEncodedImageFormat.Png, 100);
+            byte[] pngBytes = data.ToArray();
+            byte[] icoBytes = CreateIcoBytesFromPng(pngBytes, size);
 
             _logger.LogDebug("ICO created: {Size}x{Size} ({Bytes} bytes)", size, size, icoBytes.Length);
             return icoBytes;
@@ -54,5 +64,25 @@ public class IconConversionService : IIconConversionService
             _logger.LogWarning("ICO save failed: {Output}", outputPath);
             throw;
         }
+    }
+
+    private static byte[] CreateIcoBytesFromPng(byte[] pngBytes, int size)
+    {
+        byte b = size >= 256 ? (byte)0 : (byte)size;
+        using var ms = new MemoryStream();
+        using var writer = new BinaryWriter(ms);
+        writer.Write((short)0);
+        writer.Write((short)1);
+        writer.Write((short)1);
+        writer.Write(b);
+        writer.Write(b);
+        writer.Write((byte)0);
+        writer.Write((byte)0);
+        writer.Write((short)1);
+        writer.Write((short)32);
+        writer.Write(pngBytes.Length);
+        writer.Write(22);
+        writer.Write(pngBytes);
+        return ms.ToArray();
     }
 }
