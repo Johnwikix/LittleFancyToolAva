@@ -6,6 +6,7 @@ using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using LittleFancyToolAva.Services;
+using LittleFancyToolAva.Utils;
 
 namespace LittleFancyToolAva.ViewModels;
 
@@ -129,7 +130,7 @@ public partial class Img2Base64ViewModel : ViewModelBase
             if (base64 != null)
             {
                 Base64Output = base64;
-                await SetClipboardAsync(base64);
+                await ClipboardHelper.SetTextAsync(base64);
                 _notificationService.ShowSuccess($"编码完成，已复制到剪贴板（共 {base64.Length:N0} 字符）");
             }
         }
@@ -272,7 +273,7 @@ public partial class Img2Base64ViewModel : ViewModelBase
             return;
         }
 
-        await SetClipboardAsync(Base64Output);
+        await ClipboardHelper.SetTextAsync(Base64Output);
         _notificationService.ShowSuccess("已复制到剪贴板");
     }
 
@@ -297,17 +298,6 @@ public partial class Img2Base64ViewModel : ViewModelBase
         catch (Exception ex)
         {
             _notificationService.ShowError($"保存失败: {ex.Message}");
-        }
-    }
-
-    private static async Task SetClipboardAsync(string text)
-    {
-        if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop
-            && desktop.MainWindow?.Clipboard is { } clipboard)
-        {
-            var dataTransfer = new DataTransfer();
-            dataTransfer.Add(DataTransferItem.CreateText(text));
-            await clipboard.SetDataAsync(dataTransfer);
         }
     }
 
