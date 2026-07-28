@@ -16,7 +16,7 @@ namespace LittleFancyToolAva.Utils
 
         public AvaloniaList<LogEntry> Entries { get; } = new();
 
-        public int MaxLines { get; set; } = 5000;
+        public int MaxLines { get; set; } = 100000;
 
         public int Count => Entries.Count;
 

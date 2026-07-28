@@ -136,7 +136,7 @@
                 <Border Grid.Row="0" Classes="ToolCard" Padding="0">
                     <Grid RowDefinitions="Auto,*,Auto">
                         <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="16,12,16,8">
-                            <TextBlock Classes="SectionHeader" Grid.Column="0" Text="接收" />
+                            <TextBlock Classes="SectionHeader" Grid.Column="0" Text="通信日志" />
                             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
                                 <Button Classes="Quiet" Command="{Binding ClearCommand}" Content="清空" />
                                 <Button Classes="Quiet" Command="{Binding SaveDataCommand}" Content="保存数据" />
