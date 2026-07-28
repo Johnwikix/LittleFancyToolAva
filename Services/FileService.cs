@@ -8,7 +8,6 @@ namespace LittleFancyToolAva.Services
     public class FileService
     {
         private readonly string _filePath;
-        private readonly string _backupPath;
         private readonly ILogger<FileService> _logger;
 
         public class PersistedState
@@ -27,7 +26,6 @@ namespace LittleFancyToolAva.Services
         {
             _logger = logger;
             _filePath = Path.Combine(AppContext.BaseDirectory, "preferences.json");
-            _backupPath = _filePath + ".bak";
         }
 
         public void SaveState(AppObserveModel model)
@@ -44,11 +42,6 @@ namespace LittleFancyToolAva.Services
         {
             if (!File.Exists(_filePath))
             {
-                if (File.Exists(_backupPath))
-                {
-                    _logger.LogInformation("Primary preferences not found, loading backup");
-                    return TryLoadFrom(_backupPath);
-                }
                 return null;
             }
             try
@@ -59,20 +52,12 @@ namespace LittleFancyToolAva.Services
                     _logger.LogWarning("Preferences file too large ({Size} bytes), using defaults", fi.Length);
                     return null;
                 }
-                var result = TryLoadFrom(_filePath);
-                if (result != null)
-                {
-                    try { File.Copy(_filePath, _backupPath, overwrite: true); } catch { /* 备份失败不影响主流程 */ }
-                }
-                return result;
+                return TryLoadFrom(_filePath);
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to load preferences, trying backup");
-                var backupResult = TryLoadFrom(_backupPath);
-                if (backupResult != null)
-                    _logger.LogInformation("Recovered preferences from backup");
-                return backupResult;
+                _logger.LogWarning(ex, "Failed to load preferences");
+                return null;
             }
         }
 

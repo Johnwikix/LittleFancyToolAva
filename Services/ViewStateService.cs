@@ -7,7 +7,6 @@ namespace LittleFancyToolAva.Services;
 public class ViewStateService : IViewStateService
 {
     private readonly string _filePath;
-    private readonly string _backupPath;
     private readonly ILogger<ViewStateService> _logger;
     private readonly List<IViewState> _activeViews = [];
     private ViewStatesRoot? _loadedRoot;
@@ -23,7 +22,6 @@ public class ViewStateService : IViewStateService
     {
         _logger = logger;
             _filePath = Path.Combine(AppContext.BaseDirectory, "view-states.json");
-        _backupPath = _filePath + ".bak";
     }
 
     public void Register(IViewState view)
@@ -44,11 +42,6 @@ public class ViewStateService : IViewStateService
     {
         if (!File.Exists(_filePath))
         {
-            if (File.Exists(_backupPath))
-            {
-                _logger.LogInformation("Primary view states not found, loading backup");
-                TryLoadFrom(_backupPath);
-            }
             return;
         }
         try
@@ -60,12 +53,10 @@ public class ViewStateService : IViewStateService
                 return;
             }
             TryLoadFrom(_filePath);
-            try { File.Copy(_filePath, _backupPath, overwrite: true); } catch { }
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to load view states, trying backup");
-            TryLoadFrom(_backupPath);
+            _logger.LogWarning(ex, "Failed to load view states");
         }
     }
 
