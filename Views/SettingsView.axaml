@@ -41,6 +41,24 @@
                 </StackPanel>
             </Border>
 
+            <TextBlock Classes="GroupHeader" Text="网络连接" />
+
+            <Border Classes="ToolCard">
+                <StackPanel Classes="ToolCardContent">
+                    <Grid ColumnDefinitions="200,*,Auto" Margin="0,4">
+                        <StackPanel Grid.Column="0">
+                            <TextBlock FontWeight="SemiBold" Text="连接超时（秒）" />
+                            <TextBlock Classes="Caption" Text="串口/TCP/UDP 打开连接的最大等待时间" />
+                        </StackPanel>
+                        <NumericUpDown Grid.Column="2"
+                                       Minimum="1" Maximum="30"
+                                       Value="{Binding App.Preferences.ConnectionTimeoutSec, Mode=TwoWay}"
+                                       Width="120"
+                                       VerticalAlignment="Center" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
             <TextBlock Classes="GroupHeader" Text="关于" />
 
             <Border Classes="ToolCard">

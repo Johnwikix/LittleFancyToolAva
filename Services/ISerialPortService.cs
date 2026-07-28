@@ -11,7 +11,7 @@ namespace LittleFancyToolAva.Services
         event Action<byte[]>? DataSent;
         event Action<string>? StatusChanged;
         event EventHandler<ConnectionEventArgs>? ConnectionStateChanged;
-        Task OpenAsync(string portName, int baudRate, Parity parity, int dataBits, StopBits stopBits);
+        Task OpenAsync(string portName, int baudRate, Parity parity, int dataBits, StopBits stopBits, CancellationToken ct = default);
         void Close();
         Task SendAsync(string data, bool isHex, string encoding);
         string[] GetPortNames();

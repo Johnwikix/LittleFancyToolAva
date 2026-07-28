@@ -67,8 +67,14 @@ namespace LittleFancyToolAva.Services
                 _isStopping = false;
 
                 var ip = IPAddress.TryParse(address, out var parsed) ? parsed : IPAddress.Loopback;
-                _listener = new TcpListener(ip, port);
-                _listener.Start();
+
+                await Task.Run(() =>
+                {
+                    ct.ThrowIfCancellationRequested();
+                    _listener = new TcpListener(ip, port);
+                    _listener.Start();
+                    ct.ThrowIfCancellationRequested();
+                }, ct).ConfigureAwait(false);
 
                 _cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
 
@@ -78,15 +84,40 @@ namespace LittleFancyToolAva.Services
                     ConnectionEventType.Connected, $"服务器已启动: {ip}:{port}", endpoint: $"{ip}:{port}"));
 
                 _ = AcceptClientsAsync(_cts.Token);
-                await Task.CompletedTask;
+            }
+            catch (OperationCanceledException)
+            {
+                SafeCleanupListener();
+                _logger.LogWarning("TCP server start cancelled: {Address}:{Port}", address, port);
+                StatusChanged?.Invoke("服务器启动已取消");
+                ConnectionStateChanged?.Invoke(this, new ConnectionEventArgs(
+                    ConnectionEventType.Error, "服务器启动已取消"));
+                throw;
             }
             catch (Exception ex)
             {
+                SafeCleanupListener();
                 _logger.LogError(ex, "TCP server start failed: {Address}:{Port}", address, port);
                 StatusChanged?.Invoke($"启动服务器失败: {ex.Message}");
                 ConnectionStateChanged?.Invoke(this, new ConnectionEventArgs(
                     ConnectionEventType.Error, $"启动服务器失败: {ex.Message}", ex));
                 throw;
+            }
+        }
+
+        private void SafeCleanupListener()
+        {
+            try
+            {
+                _listener?.Stop();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "TCP listener safe cleanup error");
+            }
+            finally
+            {
+                _listener = null;
             }
         }
 

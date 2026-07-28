@@ -13,11 +13,12 @@ using Microsoft.Extensions.Logging;
 
 namespace LittleFancyToolAva.ViewModels
 {
-    public partial class SerialPortViewModel : ViewModelBase, IDisposable, IViewState, IViewLifecycle
+    public partial class SerialPortViewModel : ViewModelBase, IViewState, IViewLifecycle
     {
         private readonly ISerialPortService _serialPortService;
         private readonly INotificationService _notificationService;
         private readonly IViewStateService _viewStateService;
+        private readonly AppObserveModel _app;
         private CancellationTokenSource? _pollCts;
         private Task? _pollTask;
         private DispatcherTimer? _elapsedTimer;
@@ -25,7 +26,6 @@ namespace LittleFancyToolAva.ViewModels
         private DateTime? _connectedAt;
         private long _pendingRxCount;
         private long _pendingTxCount;
-        private bool _disposed;
 
         public ObservableCollection<string> PortNames { get; } = [];
         public ObservableCollection<string> BaudRates { get; } =
@@ -202,53 +202,23 @@ namespace LittleFancyToolAva.ViewModels
 
         string IViewState.ViewName => "serialPortView";
 
-        public SerialPortViewModel(ISerialPortService serialPortService, INotificationService notificationService, IViewStateService viewStateService)
+        public SerialPortViewModel(ISerialPortService serialPortService, INotificationService notificationService, IViewStateService viewStateService, AppObserveModel app)
         {
             _serialPortService = serialPortService;
             _notificationService = notificationService;
             _viewStateService = viewStateService;
-            RefreshPorts();
-            _viewStateService.Register(this);
-        }
-
-        public void Dispose()
-        {
-            if (_disposed) return;
-            _disposed = true;
-            ((IViewLifecycle)this).OnNavigatedFrom();
-            _viewStateService.Unregister(this);
-        }
-
-        void IViewLifecycle.OnNavigatedTo()
-        {
+            _app = app;
             _serialPortService.BytesReceived += OnBytesReceived;
             _serialPortService.DataSent += OnDataSent;
             _serialPortService.StatusChanged += OnStatusChanged;
             _serialPortService.ConnectionStateChanged += OnConnectionStateChanged;
-            if (IsConnected)
-            {
-                StartElapsedTimer();
-            }
+            RefreshPorts();
+            _viewStateService.Register(this);
         }
 
-        void IViewLifecycle.OnNavigatedFrom()
-        {
-            _serialPortService.BytesReceived -= OnBytesReceived;
-            _serialPortService.DataSent -= OnDataSent;
-            _serialPortService.StatusChanged -= OnStatusChanged;
-            _serialPortService.ConnectionStateChanged -= OnConnectionStateChanged;
-            _pollCts?.Cancel();
-            _pollCts?.Dispose();
-            _pollCts = null;
-            var task = _pollTask;
-            if (task != null)
-            {
-                try { task.Wait(200); } catch { }
-            }
-            _pollTask = null;
-            StopElapsedTimer();
-            StopUiFlushTimer();
-        }
+        void IViewLifecycle.OnNavigatedTo() { }
+
+        void IViewLifecycle.OnNavigatedFrom() { }
 
         object IViewState.CaptureState() => new SerialPortViewState
         {
@@ -470,6 +440,9 @@ namespace LittleFancyToolAva.ViewModels
                 return;
             }
 
+            int timeoutSec = Math.Max(1, _app.Preferences.ConnectionTimeoutSec);
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSec));
+
             try
             {
                 int baudRate = int.Parse(BaudRates[BaudRateIndex]);
@@ -484,16 +457,24 @@ namespace LittleFancyToolAva.ViewModels
                 };
 
                 ConnectionStatus = ConnectionStatus.Connecting;
-                await _serialPortService.OpenAsync(SelectedPort, baudRate, parity, dataBits, stopBits);
+                await _serialPortService.OpenAsync(SelectedPort, baudRate, parity, dataBits, stopBits, cts.Token);
                 IsConnected = _serialPortService.IsOpen;
                 if (IsConnected)
                 {
                     Log.Append(LogKind.System, $"已连接到 {SelectedPort} @ {baudRate}");
                 }
             }
+            catch (OperationCanceledException)
+            {
+                ConnectionStatus = ConnectionStatus.Idle;
+                IsConnected = false;
+                Log.Append(LogKind.Warn, $"连接超时（{timeoutSec}秒），请检查串口是否正确。");
+                _notificationService.ShowWarn($"连接超时（{timeoutSec}秒），请检查串口是否正确。");
+            }
             catch (Exception ex)
             {
                 ConnectionStatus = ConnectionStatus.Error;
+                IsConnected = false;
                 Log.Append(LogKind.Error, $"连接失败: {ex.Message}");
                 _notificationService.ShowError($"连接失败: {ex.Message}");
             }
@@ -506,7 +487,6 @@ namespace LittleFancyToolAva.ViewModels
             _serialPortService.Close();
             IsConnected = _serialPortService.IsOpen;
             IsPolling = false;
-            Log.Enqueue(LogKind.System, "已断开连接");
         }
 
         [RelayCommand]

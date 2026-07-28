@@ -35,14 +35,24 @@ namespace LittleFancyToolAva.Services
                 Stop();
                 _cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
                 var ip = IPAddress.TryParse(localAddress, out var parsed) ? parsed : IPAddress.Any;
-                _udpClient = new UdpClient();
-                _udpClient.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
-                _udpClient.Client.Bind(new IPEndPoint(ip, localPort));
+
+                await Task.Run(() =>
+                {
+                    ct.ThrowIfCancellationRequested();
+                    _udpClient = new UdpClient();
+                    _udpClient.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+                    _udpClient.Client.Bind(new IPEndPoint(ip, localPort));
+                    ct.ThrowIfCancellationRequested();
+
+                    if (!string.IsNullOrEmpty(multicastAddress) && IPAddress.TryParse(multicastAddress, out var multicastIp))
+                    {
+                        _udpClient.Client.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastTimeToLive, 32);
+                        _udpClient.JoinMulticastGroup(multicastIp);
+                    }
+                }, ct).ConfigureAwait(false);
 
                 if (!string.IsNullOrEmpty(multicastAddress) && IPAddress.TryParse(multicastAddress, out var multicastIp))
                 {
-                    _udpClient.Client.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastTimeToLive, 32);
-                    _udpClient.JoinMulticastGroup(multicastIp);
                     _logger.LogInformation("UDP joined multicast: {Address}:{Port}", multicastAddress, multicastPort ?? localPort);
                     StatusChanged?.Invoke($"已加入组播 {multicastAddress}:{multicastPort ?? localPort}");
                 }
@@ -52,15 +62,41 @@ namespace LittleFancyToolAva.Services
                 ConnectionStateChanged?.Invoke(this, new ConnectionEventArgs(
                     ConnectionEventType.Connected, $"UDP 已启动: {localAddress}:{localPort}"));
                 _ = ReceiveLoopAsync(_cts.Token);
-                await Task.CompletedTask;
+            }
+            catch (OperationCanceledException)
+            {
+                SafeCleanupUdp();
+                _logger.LogWarning("UDP start cancelled: {Address}:{Port}", localAddress, localPort);
+                StatusChanged?.Invoke("UDP 启动已取消");
+                ConnectionStateChanged?.Invoke(this, new ConnectionEventArgs(
+                    ConnectionEventType.Error, "UDP 启动已取消"));
+                throw;
             }
             catch (Exception ex)
             {
+                SafeCleanupUdp();
                 _logger.LogError(ex, "UDP start failed: {Address}:{Port}", localAddress, localPort);
                 StatusChanged?.Invoke($"启动失败: {ex.Message}");
                 ConnectionStateChanged?.Invoke(this, new ConnectionEventArgs(
                     ConnectionEventType.Error, $"启动失败: {ex.Message}", ex));
                 throw;
+            }
+        }
+
+        private void SafeCleanupUdp()
+        {
+            try
+            {
+                _udpClient?.Close();
+                _udpClient?.Dispose();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "UDP safe cleanup error");
+            }
+            finally
+            {
+                _udpClient = null;
             }
         }
 

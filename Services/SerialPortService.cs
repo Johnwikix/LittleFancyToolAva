@@ -37,23 +37,28 @@ namespace LittleFancyToolAva.Services
             _logger.LogInformation("SerialPortService created");
         }
 
-        public Task OpenAsync(string portName, int baudRate, Parity parity, int dataBits, StopBits stopBits)
+        public async Task OpenAsync(string portName, int baudRate, Parity parity, int dataBits, StopBits stopBits, CancellationToken ct = default)
         {
             try
             {
                 Close();
 
                 _isClosing = false;
-                _serialPort = new SerialPort(portName, baudRate, parity, dataBits, stopBits)
-                {
-                    ReadTimeout = 500,
-                    WriteTimeout = 500
-                };
 
-                _serialPort.DataReceived += OnSerialDataReceived;
-                _serialPort.ErrorReceived += OnSerialErrorReceived;
-                _serialPort.PinChanged += OnSerialPinChanged;
-                _serialPort.Open();
+                await Task.Run(() =>
+                {
+                    ct.ThrowIfCancellationRequested();
+                    _serialPort = new SerialPort(portName, baudRate, parity, dataBits, stopBits)
+                    {
+                        ReadTimeout = 500,
+                        WriteTimeout = 500
+                    };
+                    _serialPort.DataReceived += OnSerialDataReceived;
+                    _serialPort.ErrorReceived += OnSerialErrorReceived;
+                    _serialPort.PinChanged += OnSerialPinChanged;
+                    _serialPort.Open();
+                    ct.ThrowIfCancellationRequested();
+                }, ct).ConfigureAwait(false);
 
                 _logger.LogInformation("SerialPort opened: {PortName} ({BaudRate},{Parity},{DataBits},{StopBits})",
                     portName, baudRate, parity, dataBits, stopBits);
@@ -61,15 +66,47 @@ namespace LittleFancyToolAva.Services
                 StatusChanged?.Invoke($"已连接 {portName} ({baudRate},{parity},{dataBits},{stopBits})");
                 ConnectionStateChanged?.Invoke(this, new ConnectionEventArgs(
                     ConnectionEventType.Connected, $"已连接 {portName}"));
-                return Task.CompletedTask;
+            }
+            catch (OperationCanceledException)
+            {
+                SafeCleanupSerialPort();
+                _logger.LogWarning("SerialPort open cancelled: {PortName}", portName);
+                StatusChanged?.Invoke("连接已取消");
+                ConnectionStateChanged?.Invoke(this, new ConnectionEventArgs(
+                    ConnectionEventType.Error, "连接超时或已取消"));
+                throw;
             }
             catch (Exception ex)
             {
+                SafeCleanupSerialPort();
                 _logger.LogError(ex, "SerialPort open failed: {PortName}", portName);
                 StatusChanged?.Invoke($"连接失败: {ex.Message}");
                 ConnectionStateChanged?.Invoke(this, new ConnectionEventArgs(
                     ConnectionEventType.Error, $"连接失败: {ex.Message}", ex));
                 throw;
+            }
+        }
+
+        private void SafeCleanupSerialPort()
+        {
+            try
+            {
+                if (_serialPort != null)
+                {
+                    _serialPort.DataReceived -= OnSerialDataReceived;
+                    _serialPort.ErrorReceived -= OnSerialErrorReceived;
+                    _serialPort.PinChanged -= OnSerialPinChanged;
+                    if (_serialPort.IsOpen) _serialPort.Close();
+                    _serialPort.Dispose();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "SerialPort safe cleanup error");
+            }
+            finally
+            {
+                _serialPort = null;
             }
         }
 

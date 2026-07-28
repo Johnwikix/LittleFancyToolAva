@@ -50,5 +50,13 @@ namespace LittleFancyToolAva.Models
             get => (ThemeMode)ThemeIndex;
             set => ThemeIndex = (int)value;
         }
+
+        private int _connectionTimeoutSec = 5;
+
+        public int ConnectionTimeoutSec
+        {
+            get => _connectionTimeoutSec;
+            set => SetProperty(ref _connectionTimeoutSec, Math.Clamp(value, 1, 30));
+        }
     }
 }

@@ -110,9 +110,9 @@ namespace LittleFancyToolAva
             services.AddTransient<ShaViewModel>();
             services.AddTransient<Sm3ViewModel>();
             services.AddTransient<Base64ViewModel>();
-            services.AddTransient<SerialPortViewModel>();
-            services.AddTransient<TcpServerViewModel>();
-            services.AddTransient<UdpViewModel>();
+            services.AddSingleton<SerialPortViewModel>();
+            services.AddSingleton<TcpServerViewModel>();
+            services.AddSingleton<UdpViewModel>();
 
             services.AddSingleton<IFileEncryptionService, FileEncryptionService>();
             services.AddSingleton<IFolderCompareService, FolderCompareService>();

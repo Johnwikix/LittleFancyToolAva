@@ -11,11 +11,12 @@ using Microsoft.Extensions.Logging;
 
 namespace LittleFancyToolAva.ViewModels
 {
-    public partial class UdpViewModel : ViewModelBase, IDisposable, IViewState, IViewLifecycle
+    public partial class UdpViewModel : ViewModelBase, IViewState, IViewLifecycle
     {
         private readonly IUdpService _udpService;
         private readonly INotificationService _notificationService;
         private readonly IViewStateService _viewStateService;
+        private readonly AppObserveModel _app;
         private CancellationTokenSource? _cts;
         private CancellationTokenSource? _pollCts;
         private Task? _pollTask;
@@ -24,7 +25,6 @@ namespace LittleFancyToolAva.ViewModels
         private DateTime? _startedAt;
         private long _pendingRxCount;
         private long _pendingTxCount;
-        private bool _disposed;
 
         public LogBuffer Log { get; } = new();
 
@@ -176,52 +176,22 @@ namespace LittleFancyToolAva.ViewModels
 
         string IViewState.ViewName => "udpView";
 
-        public UdpViewModel(IUdpService udpService, INotificationService notificationService, IViewStateService viewStateService)
+        public UdpViewModel(IUdpService udpService, INotificationService notificationService, IViewStateService viewStateService, AppObserveModel app)
         {
             _udpService = udpService;
             _notificationService = notificationService;
             _viewStateService = viewStateService;
-            _viewStateService.Register(this);
-        }
-
-        public void Dispose()
-        {
-            if (_disposed) return;
-            _disposed = true;
-            ((IViewLifecycle)this).OnNavigatedFrom();
-            _viewStateService.Unregister(this);
-        }
-
-        void IViewLifecycle.OnNavigatedTo()
-        {
+            _app = app;
             _udpService.BytesReceived += OnBytesReceived;
             _udpService.DataSent += OnDataSent;
             _udpService.StatusChanged += OnStatusChanged;
             _udpService.ConnectionStateChanged += OnConnectionStateChanged;
-            if (IsRunning)
-            {
-                StartElapsedTimer();
-            }
+            _viewStateService.Register(this);
         }
 
-        void IViewLifecycle.OnNavigatedFrom()
-        {
-            _udpService.BytesReceived -= OnBytesReceived;
-            _udpService.DataSent -= OnDataSent;
-            _udpService.StatusChanged -= OnStatusChanged;
-            _udpService.ConnectionStateChanged -= OnConnectionStateChanged;
-            _cts?.Cancel();
-            _cts?.Dispose();
-            _cts = null;
-            _pollCts?.Cancel();
-            _pollCts?.Dispose();
-            _pollCts = null;
-            var task = _pollTask;
-            if (task != null) { try { task.Wait(200); } catch { } }
-            _pollTask = null;
-            StopElapsedTimer();
-            StopUiFlushTimer();
-        }
+        void IViewLifecycle.OnNavigatedTo() { }
+
+        void IViewLifecycle.OnNavigatedFrom() { }
 
         object IViewState.CaptureState() => new UdpViewState
         {
@@ -399,9 +369,11 @@ namespace LittleFancyToolAva.ViewModels
                 return;
             }
 
+            int timeoutSec = Math.Max(1, _app.Preferences.ConnectionTimeoutSec);
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSec));
+
             try
             {
-                _cts = new CancellationTokenSource();
                 ConnectionStatus = ConnectionStatus.Connecting;
 
                 string? multicastAddr = ModeIndex == 1 ? MulticastAddress : null;
@@ -410,17 +382,28 @@ namespace LittleFancyToolAva.ViewModels
                 if (ModeIndex == 1 && !string.IsNullOrEmpty(multicastAddr) && !System.Net.IPAddress.TryParse(multicastAddr, out _))
                 {
                     _notificationService.ShowWarn("组播地址格式无效。");
+                    ConnectionStatus = ConnectionStatus.Idle;
                     return;
                 }
 
-                await _udpService.StartAsync(LocalAddress, localPort, multicastAddr, multicastPort, _cts.Token);
+                await _udpService.StartAsync(LocalAddress, localPort, multicastAddr, multicastPort, cts.Token);
                 IsRunning = true;
 
-                Log.Append(LogKind.System, $"UDP 已启动 {LocalAddress}:{localPort}");
+                _cts?.Cancel();
+                _cts?.Dispose();
+                _cts = null;
+            }
+            catch (OperationCanceledException)
+            {
+                ConnectionStatus = ConnectionStatus.Idle;
+                IsRunning = false;
+                Log.Append(LogKind.Warn, $"启动超时（{timeoutSec}秒），请检查端口是否被占用。");
+                _notificationService.ShowWarn($"启动超时（{timeoutSec}秒），请检查端口是否被占用。");
             }
             catch (Exception ex)
             {
                 ConnectionStatus = ConnectionStatus.Error;
+                IsRunning = false;
                 Log.Append(LogKind.Error, $"启动失败: {ex.Message}");
                 _notificationService.ShowError($"启动失败: {ex.Message}");
             }
@@ -434,7 +417,6 @@ namespace LittleFancyToolAva.ViewModels
             IsPolling = false;
             _udpService.Stop();
             IsRunning = false;
-            Log.Append(LogKind.System, "UDP 已停止");
         }
 
         [RelayCommand]

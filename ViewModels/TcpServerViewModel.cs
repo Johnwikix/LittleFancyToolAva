@@ -12,11 +12,12 @@ using Microsoft.Extensions.Logging;
 
 namespace LittleFancyToolAva.ViewModels
 {
-    public partial class TcpServerViewModel : ViewModelBase, IDisposable, IViewState, IViewLifecycle
+    public partial class TcpServerViewModel : ViewModelBase, IViewState, IViewLifecycle
     {
         private readonly ITcpServerService _tcpService;
         private readonly INotificationService _notificationService;
         private readonly IViewStateService _viewStateService;
+        private readonly AppObserveModel _app;
         private CancellationTokenSource? _cts;
         private CancellationTokenSource? _pollCts;
         private Task? _pollTask;
@@ -25,7 +26,6 @@ namespace LittleFancyToolAva.ViewModels
         private DateTime? _startedAt;
         private long _pendingRxCount;
         private long _pendingTxCount;
-        private bool _disposed;
 
         public ObservableCollection<string> Modes { get; } = ["服务器模式", "客户端模式"];
         public ObservableCollection<string> ConnectedClients => _tcpService.ConnectedClients;
@@ -192,52 +192,22 @@ namespace LittleFancyToolAva.ViewModels
 
         string IViewState.ViewName => "tcpServerView";
 
-        public TcpServerViewModel(ITcpServerService tcpService, INotificationService notificationService, IViewStateService viewStateService)
+        public TcpServerViewModel(ITcpServerService tcpService, INotificationService notificationService, IViewStateService viewStateService, AppObserveModel app)
         {
             _tcpService = tcpService;
             _notificationService = notificationService;
             _viewStateService = viewStateService;
-            _viewStateService.Register(this);
-        }
-
-        public void Dispose()
-        {
-            if (_disposed) return;
-            _disposed = true;
-            ((IViewLifecycle)this).OnNavigatedFrom();
-            _viewStateService.Unregister(this);
-        }
-
-        void IViewLifecycle.OnNavigatedTo()
-        {
+            _app = app;
             _tcpService.BytesReceived += OnBytesReceived;
             _tcpService.DataSent += OnDataSent;
             _tcpService.StatusChanged += OnStatusChanged;
             _tcpService.ConnectionStateChanged += OnConnectionStateChanged;
-            if (IsRunning || IsConnected)
-            {
-                StartElapsedTimer();
-            }
+            _viewStateService.Register(this);
         }
 
-        void IViewLifecycle.OnNavigatedFrom()
-        {
-            _tcpService.BytesReceived -= OnBytesReceived;
-            _tcpService.DataSent -= OnDataSent;
-            _tcpService.StatusChanged -= OnStatusChanged;
-            _tcpService.ConnectionStateChanged -= OnConnectionStateChanged;
-            _cts?.Cancel();
-            _cts?.Dispose();
-            _cts = null;
-            _pollCts?.Cancel();
-            _pollCts?.Dispose();
-            _pollCts = null;
-            var task = _pollTask;
-            if (task != null) { try { task.Wait(200); } catch { } }
-            _pollTask = null;
-            StopElapsedTimer();
-            StopUiFlushTimer();
-        }
+        void IViewLifecycle.OnNavigatedTo() { }
+
+        void IViewLifecycle.OnNavigatedFrom() { }
 
         object IViewState.CaptureState() => new TcpServerViewState
         {
@@ -437,30 +407,41 @@ namespace LittleFancyToolAva.ViewModels
                 return;
             }
 
+            int timeoutSec = Math.Max(1, _app.Preferences.ConnectionTimeoutSec);
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSec));
+
             try
             {
-                _cts = new CancellationTokenSource();
                 ConnectionStatus = ConnectionStatus.Connecting;
 
                 if (ModeIndex == 0)
                 {
-                    await _tcpService.StartServerAsync(Address, portNum, _cts.Token);
+                    await _tcpService.StartServerAsync(Address, portNum, cts.Token);
                     IsRunning = _tcpService.IsRunning;
                 }
                 else
                 {
-                    await _tcpService.ConnectClientAsync(Address, portNum, _cts.Token);
+                    await _tcpService.ConnectClientAsync(Address, portNum, cts.Token);
                     IsConnected = true;
                 }
 
-                if (IsRunning || IsConnected)
-                {
-                    Log.Append(LogKind.System, $"{(ModeIndex == 0 ? "服务器" : "客户端")}已启动 {Address}:{portNum}");
-                }
+                _cts?.Cancel();
+                _cts?.Dispose();
+                _cts = null;
+            }
+            catch (OperationCanceledException)
+            {
+                ConnectionStatus = ConnectionStatus.Idle;
+                IsRunning = false;
+                IsConnected = false;
+                Log.Append(LogKind.Warn, $"连接超时（{timeoutSec}秒），请检查地址/端口是否正确。");
+                _notificationService.ShowWarn($"连接超时（{timeoutSec}秒），请检查地址/端口是否正确。");
             }
             catch (Exception ex)
             {
                 ConnectionStatus = ConnectionStatus.Error;
+                IsRunning = false;
+                IsConnected = false;
                 Log.Append(LogKind.Error, $"启动失败: {ex.Message}");
                 _notificationService.ShowError($"启动失败: {ex.Message}");
             }
@@ -482,7 +463,6 @@ namespace LittleFancyToolAva.ViewModels
                 _tcpService.DisconnectClient();
                 IsConnected = false;
             }
-            Log.Append(LogKind.System, "已停止");
         }
 
         [RelayCommand]
@@ -494,7 +474,6 @@ namespace LittleFancyToolAva.ViewModels
                 return;
             }
             _tcpService.DisconnectClient(SelectedClient);
-            Log.Append(LogKind.System, $"已断开客户端: {SelectedClient}");
             SelectedClient = string.Empty;
         }
 
