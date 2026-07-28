@@ -1,3 +1,4 @@
+using Lang.Avalonia;
 using LittleFancyToolAva.Algorithms;
 using LittleFancyToolAva.Models.ViewStates;
 using LittleFancyToolAva.Services;
@@ -14,12 +15,15 @@ namespace LittleFancyToolAva.ViewModels
         public DesViewModel([FromKeyedServices("DES")] IEncryptionSymmetric encryption, INotificationService notificationService, IViewStateService viewStateService)
             : base(encryption, notificationService)
         {
-            DisplayTitle = "DES 加解密";
-            DisplaySubtitle = "数据加密标准 (DES) 对称加解密";
+            DisplayTitle = LocalizationRegistry.Get("Encrypt.DES_Title");
+            DisplaySubtitle = LocalizationRegistry.Get("Encrypt.DES_Subtitle");
             Paddings = ["PKCS7", "Zeros", "None"];
             GenerateSymmetricKey();
             viewStateService.Register(this);
         }
+
+        protected override (string TitleKey, string SubtitleKey) GetTitleKeys() =>
+            ("Encrypt.DES_Title", "Encrypt.DES_Subtitle");
 
         object IViewState.CaptureState() => new SymmetricCipherViewState
         {

@@ -1,9 +1,10 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:LittleFancyToolAva.ViewModels"
              xmlns:models="using:LittleFancyToolAva.Models"
              xmlns:controls="using:LittleFancyToolAva.Views.Controls"
              xmlns:ui="using:FluentAvalonia.UI.Controls"
+             xmlns:lan="clr-namespace:Lang.Avalonia.MarkupExtensions;assembly=Lang.Avalonia"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d"
@@ -11,7 +12,7 @@
              x:DataType="vm:HomeViewModel">
     <ScrollViewer>
         <StackPanel>
-            <controls:PageHeaderControl Header="妙妙小工具"
+            <controls:PageHeaderControl Header="{lan:I18n Home.Header}"
                                         SubTitle="LittleFancyTool" />
 
             <ItemsControl ItemsSource="{Binding ToolGroups}"

@@ -1,8 +1,9 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:LittleFancyToolAva.ViewModels"
              xmlns:controls="using:LittleFancyToolAva.Views.Controls"
              xmlns:helpers="using:LittleFancyToolAva.Helpers"
+             xmlns:lan="clr-namespace:Lang.Avalonia.MarkupExtensions;assembly=Lang.Avalonia"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d"
@@ -17,8 +18,8 @@
           Margin="{StaticResource PageMargin}">
 
         <controls:ToolPageHeader Grid.Row="0"
-                                Title="TCP 调试"
-                                Subtitle="TCP 服务器与客户端通信调试">
+                                 Title="{lan:I18n Tcp.Title}"
+                                 Subtitle="{lan:I18n Tcp.Subtitle}">
             <controls:ToolPageHeader.Actions>
                 <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                     <controls:StatusPill Status="{Binding ConnectionStatus}"
@@ -30,32 +31,31 @@
 
         <Grid Grid.Row="1" ColumnDefinitions="320,3*" Margin="0,8,0,0">
 
-            <!-- Left: settings sidebar -->
             <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto" Margin="0">
                 <StackPanel Spacing="4">
                     <Border Classes="ToolCard">
                         <StackPanel Classes="ToolCardContent" Spacing="4">
-                            <TextBlock Classes="SectionHeader" Text="连接模式" />
+                            <TextBlock Classes="SectionHeader" Text="{lan:I18n Tcp.Group_ConnectMode}" />
                             <StackPanel Spacing="4">
-                                <RadioButton Content="服务器模式"
+                                <RadioButton Content="{lan:I18n Tcp.Mode_Server}"
                                              GroupName="TcpMode"
                                              IsChecked="{Binding ModeIndex, Mode=TwoWay, Converter={StaticResource IntEq}, ConverterParameter=0}" />
-                                <RadioButton Content="客户端模式"
+                                <RadioButton Content="{lan:I18n Tcp.Mode_Client}"
                                              GroupName="TcpMode"
                                              IsChecked="{Binding ModeIndex, Mode=TwoWay, Converter={StaticResource IntEq}, ConverterParameter=1}" />
                             </StackPanel>
                             <StackPanel Classes="FormRow">
-                                <TextBlock Classes="FieldLabel" Text="地址" />
+                                <TextBlock Classes="FieldLabel" Text="{lan:I18n Tcp.Label_Address}" />
                                 <TextBox Text="{Binding Address, Mode=TwoWay}" />
                             </StackPanel>
                             <StackPanel Classes="FormRow">
-                                <TextBlock Classes="FieldLabel" Text="端口" />
+                                <TextBlock Classes="FieldLabel" Text="{lan:I18n Tcp.Label_Port}" />
                                 <TextBox Text="{Binding Port, Mode=TwoWay}" />
                             </StackPanel>
                             <StackPanel Classes="ActionBar">
-                                <Button Command="{Binding StartCommand}" Classes="Primary" Content="启动"
+                                <Button Command="{Binding StartCommand}" Classes="Primary" Content="{lan:I18n Common.Button_Start}"
                                         IsEnabled="{Binding IsAnyActive, Converter={StaticResource Inv}}" />
-                                <Button Command="{Binding StopCommand}" Classes="Danger" Content="停止"
+                                <Button Command="{Binding StopCommand}" Classes="Danger" Content="{lan:I18n Common.Button_Stop}"
                                         IsEnabled="{Binding IsAnyActive}" />
                             </StackPanel>
                         </StackPanel>
@@ -63,34 +63,34 @@
 
                     <Border Classes="ToolCard">
                         <StackPanel Classes="ToolCardContent" Spacing="4">
-                            <TextBlock Classes="SectionHeader" Text="选项" />
-                            <CheckBox Content="HEX 发送" IsChecked="{Binding IsHexSend, Mode=TwoWay}" />
-                            <CheckBox Content="HEX 显示" IsChecked="{Binding IsHexDisplay, Mode=TwoWay}" />
-                            <CheckBox Content="启用帧间隔" IsChecked="{Binding EnableFrameBreak, Mode=TwoWay}" />
+                            <TextBlock Classes="SectionHeader" Text="{lan:I18n Tcp.Group_Options}" />
+                            <CheckBox Content="{lan:I18n Tcp.Option_HexSend}" IsChecked="{Binding IsHexSend, Mode=TwoWay}" />
+                            <CheckBox Content="{lan:I18n Tcp.Option_HexDisplay}" IsChecked="{Binding IsHexDisplay, Mode=TwoWay}" />
+                            <CheckBox Content="{lan:I18n Tcp.Option_EnableFrameBreak}" IsChecked="{Binding EnableFrameBreak, Mode=TwoWay}" />
                             <StackPanel Classes="FormRow"
                                         IsVisible="{Binding EnableFrameBreak}">
-                                <TextBlock Classes="FieldLabel" Text="帧间隔 (ms)" />
+                                <TextBlock Classes="FieldLabel" Text="{lan:I18n Tcp.Label_FrameBreak}" />
                                 <NumericUpDown Minimum="10" Maximum="500"
                                                Value="{Binding FrameBreakInterval, Mode=TwoWay}" />
                             </StackPanel>
                             <StackPanel Classes="FormRow">
-                                <TextBlock Classes="FieldLabel" Text="轮询间隔 (ms)" />
+                                <TextBlock Classes="FieldLabel" Text="{lan:I18n Tcp.Label_PollInterval}" />
                                 <NumericUpDown Minimum="1" Value="{Binding PollInterval, Mode=TwoWay}" />
                             </StackPanel>
-                            <CheckBox Content="启用发送总数" IsChecked="{Binding EnableSendCount, Mode=TwoWay}" />
+                            <CheckBox Content="{lan:I18n Tcp.Option_EnableSendCount}" IsChecked="{Binding EnableSendCount, Mode=TwoWay}" />
                             <StackPanel Classes="FormRow"
                                         IsVisible="{Binding EnableSendCount}">
-                                <TextBlock Classes="FieldLabel" Text="发送总数" />
+                                <TextBlock Classes="FieldLabel" Text="{lan:I18n Tcp.Label_SendCount}" />
                                 <NumericUpDown Minimum="1" Maximum="999999"
                                                Value="{Binding SendCount, Mode=TwoWay}" />
                             </StackPanel>
                             <StackPanel Classes="ActionBar">
                                 <Button Command="{Binding StartPollingCommand}"
-                                        Content="定时发送"
+                                        Content="{lan:I18n Tcp.Button_TimedSend}"
                                         IsEnabled="{Binding IsPolling, Converter={StaticResource Inv}}" />
                                 <Button Command="{Binding StopPollingCommand}"
                                         Classes="Danger"
-                                        Content="停止"
+                                        Content="{lan:I18n Common.Button_Stop}"
                                         IsEnabled="{Binding IsPolling}" />
                             </StackPanel>
                         </StackPanel>
@@ -100,7 +100,7 @@
                             MaxHeight="200"
                             IsVisible="{Binding IsRunning}">
                         <Grid RowDefinitions="Auto,*,Auto">
-                            <TextBlock Classes="SectionHeader" Text="已连接客户端" />
+                            <TextBlock Classes="SectionHeader" Text="{lan:I18n Tcp.Group_Clients}" />
                             <ListBox Grid.Row="1"
                                      ItemsSource="{Binding ConnectedClients}"
                                      SelectedItem="{Binding SelectedClient, Mode=TwoWay}"
@@ -108,7 +108,7 @@
                             <Button Grid.Row="2"
                                     Command="{Binding DisconnectClientCommand}"
                                     Classes="Danger"
-                                    Content="断开选中客户端"
+                                    Content="{lan:I18n Tcp.Button_DisconnectClient}"
                                     IsEnabled="{Binding IsRunning}"
                                     Margin="0,4,0,0" />
                         </Grid>
@@ -116,25 +116,24 @@
                 </StackPanel>
             </ScrollViewer>
 
-            <!-- Right: receive / send stacked -->
             <Grid Grid.Column="1" RowDefinitions="3*,8,2*" Margin="10,0,0,0">
 
                 <Border Grid.Row="0" Classes="ToolCard" Padding="0">
                     <Grid RowDefinitions="Auto,*,Auto">
                         <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="16,12,16,8">
-                            <TextBlock Classes="SectionHeader" Grid.Column="0" Text="通信日志" />
+                            <TextBlock Classes="SectionHeader" Grid.Column="0" Text="{lan:I18n Tcp.Group_Log}" />
                             <Button Grid.Column="1" Classes="Quiet"
-                                    Command="{Binding ClearCommand}" Content="清空" />
+                                    Command="{Binding ClearCommand}" Content="{lan:I18n Common.Button_Clear}" />
                         </Grid>
                         <controls:LogBufferView Grid.Row="1" Margin="12,0,12,0" Entries="{Binding Log.Entries}" />
                         <Border Grid.Row="2" Background="{DynamicResource SubtleFillColorTertiaryBrush}"
                                 Padding="16,6" Margin="12,0,12,12" CornerRadius="4">
                             <TextBlock Classes="Caption">
-                                <Run Text="缓冲区: " />
+                                <Run Text="{lan:I18n Tcp.Label_BufferUsage}" />
                                 <Run Text="{Binding Log.Count}" />
                                 <Run Text=" / " />
                                 <Run Text="{Binding Log.MaxLines}" />
-                                <Run Text=" 行" />
+                                <Run Text="{lan:I18n Tcp.Label_BufferLines}" />
                             </TextBlock>
                         </Border>
                     </Grid>
@@ -142,13 +141,13 @@
 
                 <Border Grid.Row="2" Classes="ToolCard" Padding="0">
                     <Grid RowDefinitions="Auto,*,Auto">
-                        <TextBlock Grid.Row="0" Classes="SectionHeader" Text="发送" Margin="16,12,16,8" />
+                        <TextBlock Grid.Row="0" Classes="SectionHeader" Text="{lan:I18n Serial.Group_Send}" Margin="16,12,16,8" />
                         <TextBox Grid.Row="1"
                                  Classes="TerminalInput"
                                  Margin="16,0,16,8"
                                  Text="{Binding SendText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                         <StackPanel Grid.Row="2" Classes="ActionBar" Margin="16,0,16,12">
-                            <Button Command="{Binding SendCommand}" Classes="Primary" Content="发送" />
+                            <Button Command="{Binding SendCommand}" Classes="Primary" Content="{lan:I18n Common.Button_Send}" />
                         </StackPanel>
                     </Grid>
                 </Border>

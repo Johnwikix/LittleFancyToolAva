@@ -3,6 +3,7 @@ using System.Text;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Lang.Avalonia;
 using LittleFancyToolAva.Models;
 using LittleFancyToolAva.Models.ViewStates;
 using LittleFancyToolAva.Services;
@@ -80,7 +81,7 @@ namespace LittleFancyToolAva.ViewModels
         {
             get;
             set => SetProperty(ref field, value);
-        } = "就绪";
+        } = "";
 
         public bool IsHexSend
         {
@@ -187,6 +188,13 @@ namespace LittleFancyToolAva.ViewModels
             _udpService.StatusChanged += OnStatusChanged;
             _udpService.ConnectionStateChanged += OnConnectionStateChanged;
             _viewStateService.Register(this);
+
+            StatusText = LocalizationRegistry.Get("Udp.Status_Ready");
+
+            I18nManager.Instance.CultureChanged += (_, _) =>
+            {
+                StatusText = LocalizationRegistry.Get("Udp.Status_Ready");
+            };
         }
 
         void IViewLifecycle.OnNavigatedTo() { }
@@ -365,7 +373,7 @@ namespace LittleFancyToolAva.ViewModels
         {
             if (!int.TryParse(LocalPort, out int localPort) || localPort < 1 || localPort > 65535)
             {
-                _notificationService.ShowWarn("本地端口须在 1-65535 之间。");
+                _notificationService.ShowWarn(LocalizationRegistry.Get("Udp.Msg_InvalidLocalPort"));
                 return;
             }
 
@@ -381,7 +389,7 @@ namespace LittleFancyToolAva.ViewModels
 
                 if (ModeIndex == 1 && !string.IsNullOrEmpty(multicastAddr) && !System.Net.IPAddress.TryParse(multicastAddr, out _))
                 {
-                    _notificationService.ShowWarn("组播地址格式无效。");
+                    _notificationService.ShowWarn(LocalizationRegistry.Get("Udp.Msg_InvalidMulticast"));
                     ConnectionStatus = ConnectionStatus.Idle;
                     return;
                 }
@@ -397,15 +405,17 @@ namespace LittleFancyToolAva.ViewModels
             {
                 ConnectionStatus = ConnectionStatus.Idle;
                 IsRunning = false;
-                Log.Append(LogKind.Warn, $"启动超时（{timeoutSec}秒），请检查端口是否被占用。");
-                _notificationService.ShowWarn($"启动超时（{timeoutSec}秒），请检查端口是否被占用。");
+                var timeoutMsg = LocalizationRegistry.Get("Udp.Msg_StartTimeout", timeoutSec);
+                Log.Append(LogKind.Warn, timeoutMsg);
+                _notificationService.ShowWarn(timeoutMsg);
             }
             catch (Exception ex)
             {
                 ConnectionStatus = ConnectionStatus.Error;
                 IsRunning = false;
-                Log.Append(LogKind.Error, $"启动失败: {ex.Message}");
-                _notificationService.ShowError($"启动失败: {ex.Message}");
+                var failMsg = LocalizationRegistry.Get("Udp.Msg_StartFail", ex.Message);
+                Log.Append(LogKind.Error, failMsg);
+                _notificationService.ShowError(failMsg);
             }
         }
 
@@ -425,7 +435,7 @@ namespace LittleFancyToolAva.ViewModels
             if (string.IsNullOrEmpty(SendText)) return;
             if (!IsRunning)
             {
-                _notificationService.ShowWarn("请先启动 UDP。");
+                _notificationService.ShowWarn(LocalizationRegistry.Get("Udp.Msg_NotStarted"));
                 return;
             }
 
@@ -440,8 +450,9 @@ namespace LittleFancyToolAva.ViewModels
             }
             catch (Exception ex)
             {
-                Log.Enqueue(LogKind.Error, $"发送失败: {ex.Message}");
-                Dispatcher.UIThread.Post(() => _notificationService.ShowError($"发送失败: {ex.Message}"));
+                var errMsg = LocalizationRegistry.Get("Udp.Msg_SendFail", ex.Message);
+                Log.Enqueue(LogKind.Error, errMsg);
+                Dispatcher.UIThread.Post(() => _notificationService.ShowError(errMsg));
             }
         }
 
@@ -460,7 +471,7 @@ namespace LittleFancyToolAva.ViewModels
         {
             if (!IsRunning)
             {
-                _notificationService.ShowWarn("请先启动 UDP。");
+                _notificationService.ShowWarn(LocalizationRegistry.Get("Udp.Msg_NotStarted"));
                 return;
             }
             if (IsPolling) return;
@@ -492,7 +503,7 @@ namespace LittleFancyToolAva.ViewModels
                         catch (OperationCanceledException) { throw; }
                         catch (Exception ex)
                         {
-                            Log.Enqueue(LogKind.Error, $"定时发送错误: {ex.Message}");
+                            Log.Enqueue(LogKind.Error, LocalizationRegistry.Get("Udp.Msg_TimedSendError", ex.Message));
                         }
                         if (EnableSendCount && ++sentCount >= SendCount) break;
 

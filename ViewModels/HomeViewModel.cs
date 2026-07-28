@@ -1,32 +1,33 @@
+using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Lang.Avalonia;
 using LittleFancyToolAva.Models;
 using LittleFancyToolAva.Services;
-using System.Collections.ObjectModel;
 
 namespace LittleFancyToolAva.ViewModels
 {
     public partial class HomeViewModel : ViewModelBase
     {
-        private static readonly Dictionary<string, string> ToolDescriptions = new()
+        private static readonly Dictionary<Type, (string NameKey, string DescKey)> TileKeyMap = new()
         {
-            ["串口调试"] = "串口数据收发与调试",
-            ["TCP"] = "TCP 服务器调试工具",
-            ["UDP"] = "UDP 通信调试",
-            ["DES"] = "DES 加解密",
-            ["AES"] = "AES 加解密",
-            ["SM4"] = "SM4 国密加解密",
-            ["RSA"] = "RSA 非对称加解密",
-            ["SM2"] = "SM2 国密非对称加解密",
-            ["MD5"] = "MD5 哈希计算",
-            ["SHA"] = "SHA 系列哈希计算",
-            ["SM3"] = "SM3 国密哈希计算",
-            ["Base64"] = "Base64 编码/解码",
-            ["文件夹比较"] = "对比两个文件夹内容差异",
-            ["文件加解密"] = "文件级加解密操作",
-            ["图片转 Base64"] = "将图片转换为 Base64 编码",
-            ["图片转 ICO"] = "将图片转换为 ICO 图标格式",
-            ["图片格式转换"] = "图片格式批量转换",
+            [typeof(SerialPortViewModel)] = ("Home.Tile_Serial_Name", "Home.Tile_Serial_Desc"),
+            [typeof(TcpServerViewModel)] = ("Home.Tile_TCP_Name", "Home.Tile_TCP_Desc"),
+            [typeof(UdpViewModel)] = ("Home.Tile_UDP_Name", "Home.Tile_UDP_Desc"),
+            [typeof(DesViewModel)] = ("Home.Tile_DES_Name", "Home.Tile_DES_Desc"),
+            [typeof(AesViewModel)] = ("Home.Tile_AES_Name", "Home.Tile_AES_Desc"),
+            [typeof(Sm4ViewModel)] = ("Home.Tile_SM4_Name", "Home.Tile_SM4_Desc"),
+            [typeof(RsaViewModel)] = ("Home.Tile_RSA_Name", "Home.Tile_RSA_Desc"),
+            [typeof(Sm2ViewModel)] = ("Home.Tile_SM2_Name", "Home.Tile_SM2_Desc"),
+            [typeof(Md5ViewModel)] = ("Home.Tile_MD5_Name", "Home.Tile_MD5_Desc"),
+            [typeof(ShaViewModel)] = ("Home.Tile_SHA_Name", "Home.Tile_SHA_Desc"),
+            [typeof(Sm3ViewModel)] = ("Home.Tile_SM3_Name", "Home.Tile_SM3_Desc"),
+            [typeof(Base64ViewModel)] = ("Home.Tile_Base64_Name", "Home.Tile_Base64_Desc"),
+            [typeof(FolderCompareViewModel)] = ("Home.Tile_FolderCompare_Name", "Home.Tile_FolderCompare_Desc"),
+            [typeof(FileEncryptionViewModel)] = ("Home.Tile_FileEncrypt_Name", "Home.Tile_FileEncrypt_Desc"),
+            [typeof(Img2Base64ViewModel)] = ("Home.Tile_Img2Base64_Name", "Home.Tile_Img2Base64_Desc"),
+            [typeof(Img2icoViewModel)] = ("Home.Tile_Img2Ico_Name", "Home.Tile_Img2Ico_Desc"),
+            [typeof(ImgConvertViewModel)] = ("Home.Tile_ImgConvert_Name", "Home.Tile_ImgConvert_Desc"),
         };
 
         public Action<PageNavigationItem>? NavigateToPage { get; set; }
@@ -40,10 +41,31 @@ namespace LittleFancyToolAva.ViewModels
             {
                 foreach (var child in category.Children)
                 {
-                    if (ToolDescriptions.TryGetValue(child.Label, out var desc))
-                        child.Description = desc;
+                    ApplyDescription(child);
                 }
                 ToolGroups.Add(category);
+            }
+
+            I18nManager.Instance.CultureChanged += (_, _) => RefreshAll();
+        }
+
+        private void RefreshAll()
+        {
+            foreach (var category in ToolGroups)
+            {
+                foreach (var child in category.Children)
+                {
+                    ApplyDescription(child);
+                }
+            }
+        }
+
+        private static void ApplyDescription(PageNavigationItem child)
+        {
+            if (child.Content is null) return;
+            if (TileKeyMap.TryGetValue(child.Content.GetType(), out var keys))
+            {
+                child.Description = LocalizationRegistry.Get(keys.DescKey);
             }
         }
 

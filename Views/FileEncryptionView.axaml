@@ -3,28 +3,29 @@
              xmlns:vm="using:LittleFancyToolAva.ViewModels"
              xmlns:models="using:LittleFancyToolAva.Models"
              xmlns:controls="using:LittleFancyToolAva.Views.Controls"
+             xmlns:lan="clr-namespace:Lang.Avalonia.MarkupExtensions;assembly=Lang.Avalonia"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d"
              x:Class="LittleFancyToolAva.Views.FileEncryptionView"
              x:DataType="vm:FileEncryptionViewModel">
     <Grid RowDefinitions="Auto,*,Auto" Margin="{StaticResource PageMargin}">
-        <controls:ToolPageHeader Grid.Row="0" Title="文件加解密" Subtitle="批量文件 AES 加解密" />
+        <controls:ToolPageHeader Grid.Row="0" Title="{lan:I18n FileEnc.Title}" Subtitle="{lan:I18n FileEnc.Subtitle}" />
         <Grid Grid.Row="1" ColumnDefinitions="3*,16,7*" Margin="0,16,0,0">
             <ScrollViewer Grid.Column="0">
                 <Border Classes="ToolCard">
                     <StackPanel Classes="ToolCardContent" Spacing="12">
                         <StackPanel Classes="FormRow">
-                            <TextBlock Classes="FieldLabel" Text="输出目录" />
+                            <TextBlock Classes="FieldLabel" Text="{lan:I18n FileEnc.Label_OutputDir}" />
                             <Grid ColumnDefinitions="*,8,Auto,8,Auto">
                                 <TextBox Grid.Column="0"
                                          Text="{Binding OutputDirectory, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
-                                <Button Grid.Column="2" Command="{Binding SelectOutputDirectoryCommand}" Content="选择" />
-                                <Button Grid.Column="4" Command="{Binding OpenOutputFolderCommand}" Content="打开" />
+                                <Button Grid.Column="2" Command="{Binding SelectOutputDirectoryCommand}" Content="{lan:I18n Common.Button_Select}" />
+                                <Button Grid.Column="4" Command="{Binding OpenOutputFolderCommand}" Content="{lan:I18n Common.Button_Open}" />
                             </Grid>
                         </StackPanel>
                         <StackPanel Classes="FormRow">
-                            <TextBlock Classes="FieldLabel" Text="Key 长度" />
+                            <TextBlock Classes="FieldLabel" Text="{lan:I18n FileEnc.Label_KeyLength}" />
                             <Grid ColumnDefinitions="*,8,Auto">
                                 <ComboBox Grid.Column="0" HorizontalAlignment="Stretch"
                                           SelectedIndex="{Binding KeyLengthIndex, Mode=TwoWay}">
@@ -32,11 +33,11 @@
                                     <ComboBoxItem Content="192" />
                                     <ComboBoxItem Content="256" />
                                 </ComboBox>
-                                <Button Grid.Column="2" Command="{Binding GenerateKeyCommand}" Content="生成 Key/IV" />
+                                <Button Grid.Column="2" Command="{Binding GenerateKeyCommand}" Content="{lan:I18n FileEnc.Button_Generate}" />
                             </Grid>
                         </StackPanel>
                         <StackPanel Classes="FormRow">
-                            <TextBlock Classes="FieldLabel" Text="Key/IV 格式" />
+                            <TextBlock Classes="FieldLabel" Text="{lan:I18n FileEnc.Label_KeyIvFormat}" />
                             <ComboBox HorizontalAlignment="Stretch"
                                       SelectedIndex="{Binding KeyIvTypeIndex, Mode=TwoWay}">
                                 <ComboBoxItem Content="Text" />
@@ -55,17 +56,17 @@
                                      Text="{Binding Iv, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Spacing="8">
-                            <Button Command="{Binding ExportKeyIvCommand}" Content="导出 Key/IV" />
-                            <Button Command="{Binding ImportKeyIvCommand}" Content="导入 Key/IV" />
+                            <Button Command="{Binding ExportKeyIvCommand}" Content="{lan:I18n FileEnc.Button_Export}" />
+                            <Button Command="{Binding ImportKeyIvCommand}" Content="{lan:I18n FileEnc.Button_Import}" />
                         </StackPanel>
                         <StackPanel IsVisible="{Binding IsBusy}" Spacing="4">
                             <ProgressBar Value="{Binding ProgressValue}" Minimum="0" Maximum="1" Height="8" />
                             <TextBlock Text="{Binding StatusText}" />
                         </StackPanel>
                         <Button Command="{Binding StartEncryptCommand}" Classes="Primary"
-                                HorizontalAlignment="Stretch" Content="开始加密" />
+                                HorizontalAlignment="Stretch" Content="{lan:I18n FileEnc.Button_StartEncrypt}" />
                         <Button Command="{Binding StartDecryptCommand}" Classes="Danger"
-                                HorizontalAlignment="Stretch" Content="开始解密" />
+                                HorizontalAlignment="Stretch" Content="{lan:I18n FileEnc.Button_StartDecrypt}" />
                     </StackPanel>
                 </Border>
             </ScrollViewer>
@@ -76,11 +77,11 @@
                     DragDrop.Drop="OnDrop">
                 <Grid RowDefinitions="Auto,*">
                     <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="16,12,16,4">
-                        <TextBlock Grid.Column="0" Classes="SectionHeader" Text="{Binding StatusText, FallbackValue='文件列表'}" VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="0" Classes="SectionHeader" Text="{Binding StatusText, FallbackValue='File List'}" VerticalAlignment="Center" />
                         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
-                            <Button Command="{Binding AddFilesCommand}" Content="添加文件" />
-                            <Button Command="{Binding AddFolderCommand}" Content="添加文件夹" />
-                            <Button Command="{Binding ClearListCommand}" Content="清空" />
+                            <Button Command="{Binding AddFilesCommand}" Content="{lan:I18n FileEnc.Button_AddFiles}" />
+                            <Button Command="{Binding AddFolderCommand}" Content="{lan:I18n FileEnc.Button_AddFolder}" />
+                            <Button Command="{Binding ClearListCommand}" Content="{lan:I18n FileEnc.Button_Clear}" />
                         </StackPanel>
                     </Grid>
                     <ListBox Grid.Row="1" ItemsSource="{Binding FileItems}"
@@ -100,7 +101,7 @@
                                             Padding="6,2"
                                             Background="Transparent"
                                             BorderThickness="0"
-                                            ToolTip.Tip="移除"
+                                            ToolTip.Tip="{lan:I18n FileEnc.Tooltip_Remove}"
                                             Content="🗑️" />
                                 </Grid>
                             </DataTemplate>

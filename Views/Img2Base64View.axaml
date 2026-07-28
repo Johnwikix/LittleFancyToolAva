@@ -1,25 +1,25 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:LittleFancyToolAva.ViewModels"
              xmlns:controls="using:LittleFancyToolAva.Views.Controls"
+             xmlns:lan="clr-namespace:Lang.Avalonia.MarkupExtensions;assembly=Lang.Avalonia"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d"
              x:Class="LittleFancyToolAva.Views.Img2Base64View"
              x:DataType="vm:Img2Base64ViewModel">
     <Grid RowDefinitions="Auto,*" Margin="{StaticResource PageMargin}">
-        <controls:ToolPageHeader Grid.Row="0" Title="图片 ↔ Base64"
-                                Subtitle="图片编码为 Base64 字符串，或将 Base64 解码为图片" />
+        <controls:ToolPageHeader Grid.Row="0" Title="{lan:I18n Img2Base64.Title}"
+                                Subtitle="{lan:I18n Img2Base64.Subtitle}" />
 
         <Grid Grid.Row="1" ColumnDefinitions="*,16,*" Margin="0,16,0,0">
 
-            <!-- Left column: 图片 ↔ Base64 预览 -->
             <Border Grid.Column="0" Classes="ToolCard" Padding="0">
                 <Grid RowDefinitions="Auto,*,Auto">
                     <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto" Margin="16,12,16,8">
-                        <TextBlock Classes="SectionHeader" Grid.Column="0" Text="图片预览" />
-                        <Button Grid.Column="1" Command="{Binding UploadImageCommand}" Content="上传" Margin="0,0,6,0" />
-                        <Button Grid.Column="2" Command="{Binding SaveDecodedImageCommand}" Classes="Quiet" Content="保存" />
+                        <TextBlock Classes="SectionHeader" Grid.Column="0" Text="{lan:I18n Img2Base64.Group_Preview}" />
+                        <Button Grid.Column="1" Command="{Binding UploadImageCommand}" Content="{lan:I18n Img2Base64.Button_Upload}" Margin="0,0,6,0" />
+                        <Button Grid.Column="2" Command="{Binding SaveDecodedImageCommand}" Classes="Quiet" Content="{lan:I18n Img2Base64.Button_Save}" />
                     </Grid>
                     <Grid Grid.Row="1" Margin="16,0,16,8">
                         <Grid.RowDefinitions>
@@ -39,32 +39,29 @@
                         </Border>
                     </Grid>
                     <StackPanel Grid.Row="2" Classes="ActionBar" Margin="16,0,16,12">
-                        <Button Command="{Binding EncodeCommand}" Classes="Primary" Content="编码为 Base64 →" />
+                        <Button Command="{Binding EncodeCommand}" Classes="Primary" Content="{lan:I18n Img2Base64.Button_Encode}" />
                     </StackPanel>
                 </Grid>
             </Border>
 
-            <!-- Right column: Base64 输入 / 输出 -->
             <Border Grid.Column="2" Classes="ToolCard" Padding="0">
                 <Grid RowDefinitions="Auto,*,Auto,Auto,Auto,Auto">
-                    <!-- 输入区 -->
-                    <TextBlock Grid.Row="0" Classes="SectionHeader" Text="Base64 输入"
+                    <TextBlock Grid.Row="0" Classes="SectionHeader" Text="{lan:I18n Img2Base64.Group_Input}"
                                Margin="16,12,16,8" />
                     <TextBox Grid.Row="1"
                              Margin="16,0,16,8"
                              AcceptsReturn="True" TextWrapping="Wrap"
                              FontFamily="{StaticResource MonoFontFamily}"
                              Text="{Binding Base64Input, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                             PlaceholderText="在此粘贴 Base64 字符串..." />
+                             PlaceholderText="{lan:I18n Img2Base64.Placeholder_Paste}" />
                     <StackPanel Grid.Row="2" Classes="ActionBar" Margin="16,0,16,4">
-                        <Button Command="{Binding DecodeCommand}" Classes="Danger" Content="解码 Base64" />
-                        <Button Command="{Binding DecodeFromClipboardCommand}" Classes="Quiet" Content="从剪贴板解码" />
-                        <Button Command="{Binding DecodeFromFileCommand}" Classes="Quiet" Content="从文件导入" />
+                        <Button Command="{Binding DecodeCommand}" Classes="Danger" Content="{lan:I18n Img2Base64.Button_Decode}" />
+                        <Button Command="{Binding DecodeFromClipboardCommand}" Classes="Quiet" Content="{lan:I18n Img2Base64.Button_DecodeClipboard}" />
+                        <Button Command="{Binding DecodeFromFileCommand}" Classes="Quiet" Content="{lan:I18n Img2Base64.Button_DecodeFile}" />
                     </StackPanel>
 
-                    <!-- 输出区 -->
                     <Grid Grid.Row="3" ColumnDefinitions="*,Auto" Margin="16,12,16,4">
-                        <TextBlock Classes="SectionHeader" Grid.Column="0" Text="Base64 输出" />
+                        <TextBlock Classes="SectionHeader" Grid.Column="0" Text="{lan:I18n Img2Base64.Group_Output}" />
                         <TextBlock Grid.Column="1"
                                    Text="{Binding Base64Length}"
                                    Classes="Caption"
@@ -81,7 +78,7 @@
                     </Border>
                     <StackPanel Grid.Row="5" Classes="ActionBar" Margin="16,0,16,12">
                         <Button Command="{Binding CopyBase64Command}" Classes="Quiet"
-                                Content="复制到剪贴板" />
+                                Content="{lan:I18n Img2Base64.Button_Copy}" />
                     </StackPanel>
                 </Grid>
             </Border>

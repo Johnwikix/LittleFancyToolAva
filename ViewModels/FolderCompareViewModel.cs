@@ -100,7 +100,7 @@ public partial class FolderCompareViewModel : ViewModelBase, IViewState
     [RelayCommand]
     private async Task SelectSourceFolder()
     {
-        string? folder = await _fileDialogService.PickFolderAsync("选择源文件夹");
+        string? folder = await _fileDialogService.PickFolderAsync(LocalizationRegistry.Get("FolderCompare.Picker_SelectSource"));
         if (folder != null)
             SourceFolder = folder;
     }
@@ -108,7 +108,7 @@ public partial class FolderCompareViewModel : ViewModelBase, IViewState
     [RelayCommand]
     private async Task SelectTargetFolder()
     {
-        string? folder = await _fileDialogService.PickFolderAsync("选择目标文件夹");
+        string? folder = await _fileDialogService.PickFolderAsync(LocalizationRegistry.Get("FolderCompare.Picker_SelectTarget"));
         if (folder != null)
             TargetFolder = folder;
     }
@@ -118,23 +118,23 @@ public partial class FolderCompareViewModel : ViewModelBase, IViewState
     {
         if (string.IsNullOrEmpty(SourceFolder) || string.IsNullOrEmpty(TargetFolder))
         {
-            _notificationService.ShowWarn("请先选择源文件夹和目标文件夹");
+            _notificationService.ShowWarn(LocalizationRegistry.Get("FolderCompare.Msg_NeedBothFolders"));
             return;
         }
         if (!Directory.Exists(SourceFolder))
         {
-            _notificationService.ShowError("源文件夹不存在");
+            _notificationService.ShowError(LocalizationRegistry.Get("FolderCompare.Msg_SourceMissing"));
             return;
         }
         if (!Directory.Exists(TargetFolder))
         {
-            _notificationService.ShowError("目标文件夹不存在");
+            _notificationService.ShowError(LocalizationRegistry.Get("FolderCompare.Msg_TargetMissing"));
             return;
         }
 
         IsComparing = true;
         ProgressValue = 0;
-        StatusText = "正在比较...";
+        StatusText = LocalizationRegistry.Get("FolderCompare.Status_Comparing");
         CompareResults.Clear();
 
         _compareCts?.Cancel();
@@ -158,18 +158,19 @@ public partial class FolderCompareViewModel : ViewModelBase, IViewState
             int diffCount = results.Count(r => r.State == CompareState.Different);
             int sourceOnly = results.Count(r => r.State == CompareState.SourceOnly);
             int targetOnly = results.Count(r => r.State == CompareState.TargetOnly);
-            StatusText = $"匹配: {matchCount}, 不同: {diffCount}, 仅源文件夹: {sourceOnly}, 仅目标文件夹: {targetOnly}";
+            StatusText = LocalizationRegistry.Get("FolderCompare.Status_ResultSummary", matchCount, diffCount, sourceOnly, targetOnly);
 
-            _notificationService.ShowInfo($"比较完成，共 {results.Count} 个文件");
+            _notificationService.ShowInfo(LocalizationRegistry.Get("FolderCompare.Msg_Done", results.Count));
         }
         catch (OperationCanceledException)
         {
-            StatusText = "比较已取消";
+            StatusText = LocalizationRegistry.Get("FolderCompare.Status_Cancelled");
         }
         catch (Exception ex)
         {
-            StatusText = $"比较失败: {ex.Message}";
-            _notificationService.ShowError($"比较失败: {ex.Message}");
+            var failMsg = LocalizationRegistry.Get("FolderCompare.Msg_Fail", ex.Message);
+            StatusText = failMsg;
+            _notificationService.ShowError(failMsg);
         }
         finally
         {

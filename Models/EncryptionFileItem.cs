@@ -21,7 +21,7 @@ public partial class EncryptionFileItem : ObservableObject
     private EncryptionFileStatus _status = EncryptionFileStatus.Pending;
     private string? _errorMessage;
     private double _progress;
-    private string _statusDisplay = "等待中";
+    private string _statusDisplay = "Pending";
     private string _progressDisplay = "";
 
     public string? OutputPath
@@ -84,11 +84,13 @@ public partial class EncryptionFileItem : ObservableObject
     {
         _statusDisplay = _status switch
         {
-            EncryptionFileStatus.Pending => "等待中",
-            EncryptionFileStatus.Encrypting => "加密中",
-            EncryptionFileStatus.Decrypting => "解密中",
-            EncryptionFileStatus.Completed => "已完成",
-            EncryptionFileStatus.Failed => string.IsNullOrEmpty(_errorMessage) ? "失败" : $"失败: {_errorMessage}",
+            EncryptionFileStatus.Pending => LittleFancyToolAva.Services.LocalizationRegistry.Get("FileItem.Status_Pending"),
+            EncryptionFileStatus.Encrypting => LittleFancyToolAva.Services.LocalizationRegistry.Get("FileItem.Status_Encrypting"),
+            EncryptionFileStatus.Decrypting => LittleFancyToolAva.Services.LocalizationRegistry.Get("FileItem.Status_Decrypting"),
+            EncryptionFileStatus.Completed => LittleFancyToolAva.Services.LocalizationRegistry.Get("FileItem.Status_Done"),
+            EncryptionFileStatus.Failed => string.IsNullOrEmpty(_errorMessage)
+                ? LittleFancyToolAva.Services.LocalizationRegistry.Get("FileItem.Status_Failed")
+                : LittleFancyToolAva.Services.LocalizationRegistry.Get("FileItem.Status_FailedWithError", _errorMessage),
             _ => ""
         };
         OnPropertyChanged(nameof(StatusDisplay));

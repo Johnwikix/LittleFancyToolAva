@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using Lang.Avalonia;
 using LittleFancyToolAva.Algorithms;
 using LittleFancyToolAva.Models.ViewStates;
 using LittleFancyToolAva.Services;
@@ -29,12 +30,15 @@ namespace LittleFancyToolAva.ViewModels
         public AesViewModel([FromKeyedServices("AES")] IEncryptionSymmetric encryption, INotificationService notificationService, IViewStateService viewStateService)
             : base(encryption, notificationService)
         {
-            DisplayTitle = "AES 加解密";
-            DisplaySubtitle = "高级加密标准 (AES, Rijndael) 对称加解密";
+            DisplayTitle = LocalizationRegistry.Get("Encrypt.AES_Title");
+            DisplaySubtitle = LocalizationRegistry.Get("Encrypt.AES_Subtitle");
             Paddings = ["PKCS7", "Zeros", "None"];
             GenerateSymmetricKey();
             viewStateService.Register(this);
         }
+
+        protected override (string TitleKey, string SubtitleKey) GetTitleKeys() =>
+            ("Encrypt.AES_Title", "Encrypt.AES_Subtitle");
 
         object IViewState.CaptureState() => new AesViewState
         {

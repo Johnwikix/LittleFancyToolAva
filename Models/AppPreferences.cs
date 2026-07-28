@@ -58,5 +58,13 @@ namespace LittleFancyToolAva.Models
             get => _connectionTimeoutSec;
             set => SetProperty(ref _connectionTimeoutSec, Math.Clamp(value, 1, 30));
         }
+
+        private string _language = "en-US";
+
+        public string Language
+        {
+            get => _language;
+            set => SetProperty(ref _language, string.IsNullOrWhiteSpace(value) ? "en-US" : value);
+        }
     }
 }

@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Lang.Avalonia;
 using LittleFancyToolAva.Algorithms;
 using LittleFancyToolAva.Algorithms.Encryption;
 using LittleFancyToolAva.Models.ViewStates;
@@ -35,10 +36,16 @@ namespace LittleFancyToolAva.ViewModels
 
         public RsaViewModel(IViewStateService viewStateService) : base(new RSAEncryption())
         {
-            DisplayTitle = "RSA 加解密";
-            DisplaySubtitle = "RSA 非对称加密算法，支持多种填充模式";
+            DisplayTitle = LocalizationRegistry.Get("Encrypt.RSA_Title");
+            DisplaySubtitle = LocalizationRegistry.Get("Encrypt.RSA_Subtitle");
             GenerateKeyPair();
             viewStateService.Register(this);
+
+            I18nManager.Instance.CultureChanged += (_, _) =>
+            {
+                DisplayTitle = LocalizationRegistry.Get("Encrypt.RSA_Title");
+                DisplaySubtitle = LocalizationRegistry.Get("Encrypt.RSA_Subtitle");
+            };
         }
 
         object IViewState.CaptureState() => new RsaViewState

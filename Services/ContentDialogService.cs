@@ -14,7 +14,7 @@ namespace LittleFancyToolAva.Services
             {
                 var dialog = new Window
                 {
-                    Title = "设置",
+                    Title = LocalizationRegistry.Get("Dialog.Title_Default"),
                     Content = viewModel,
                     Width = 450,
                     Height = 400,

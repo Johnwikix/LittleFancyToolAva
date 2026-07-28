@@ -5,6 +5,7 @@ using System.Text;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Lang.Avalonia;
 using LittleFancyToolAva.Models;
 using LittleFancyToolAva.Models.ViewStates;
 using LittleFancyToolAva.Services;
@@ -96,7 +97,7 @@ namespace LittleFancyToolAva.ViewModels
         {
             get;
             set => SetProperty(ref field, value);
-        } = "就绪";
+        } = "";
 
         public bool IsHexSend
         {
@@ -436,7 +437,7 @@ namespace LittleFancyToolAva.ViewModels
         {
             if (string.IsNullOrEmpty(SelectedPort))
             {
-                _notificationService.ShowWarn("未选择串口，请先在端口设置中选择串口。");
+                _notificationService.ShowWarn(LocalizationRegistry.Get("Serial.Msg_PortNotSelected"));
                 return;
             }
 
@@ -461,22 +462,24 @@ namespace LittleFancyToolAva.ViewModels
                 IsConnected = _serialPortService.IsOpen;
                 if (IsConnected)
                 {
-                    Log.Append(LogKind.System, $"已连接到 {SelectedPort} @ {baudRate}");
+                    Log.Append(LogKind.System, LocalizationRegistry.Get("Serial.Status_RealtimeConnected", SelectedPort, baudRate));
                 }
             }
             catch (OperationCanceledException)
             {
                 ConnectionStatus = ConnectionStatus.Idle;
                 IsConnected = false;
-                Log.Append(LogKind.Warn, $"连接超时（{timeoutSec}秒），请检查串口是否正确。");
-                _notificationService.ShowWarn($"连接超时（{timeoutSec}秒），请检查串口是否正确。");
+                var timeoutMsg = LocalizationRegistry.Get("Serial.Status_Timeout", timeoutSec);
+                Log.Append(LogKind.Warn, timeoutMsg);
+                _notificationService.ShowWarn(timeoutMsg);
             }
             catch (Exception ex)
             {
                 ConnectionStatus = ConnectionStatus.Error;
                 IsConnected = false;
-                Log.Append(LogKind.Error, $"连接失败: {ex.Message}");
-                _notificationService.ShowError($"连接失败: {ex.Message}");
+                var errMsg = LocalizationRegistry.Get("Serial.Status_ConnectFail", ex.Message);
+                Log.Append(LogKind.Error, errMsg);
+                _notificationService.ShowError(errMsg);
             }
         }
 
@@ -500,8 +503,9 @@ namespace LittleFancyToolAva.ViewModels
             }
             catch (Exception ex)
             {
-                Log.Enqueue(LogKind.Error, $"发送失败: {ex.Message}");
-                Dispatcher.UIThread.Post(() => _notificationService.ShowError($"发送失败: {ex.Message}"));
+                var errMsg = LocalizationRegistry.Get("Serial.Status_SendFail", ex.Message);
+                Log.Enqueue(LogKind.Error, errMsg);
+                Dispatcher.UIThread.Post(() => _notificationService.ShowError(errMsg));
             }
         }
 
@@ -532,13 +536,13 @@ namespace LittleFancyToolAva.ViewModels
         [RelayCommand]
         private void ToggleRts()
         {
-            _notificationService.ShowInfo($"RTS: {(IsRtsEnabled ? "已启用" : "已禁用")}");
+            _notificationService.ShowInfo($"RTS: {LocalizationRegistry.Get(IsRtsEnabled ? "Serial.Label_Enabled" : "Serial.Label_Disabled")}");
         }
 
         [RelayCommand]
         private void ToggleDtr()
         {
-            _notificationService.ShowInfo($"DTR: {(IsDtrEnabled ? "已启用" : "已禁用")}");
+            _notificationService.ShowInfo($"DTR: {LocalizationRegistry.Get(IsDtrEnabled ? "Serial.Label_Enabled" : "Serial.Label_Disabled")}");
         }
 
         [RelayCommand]
@@ -546,7 +550,7 @@ namespace LittleFancyToolAva.ViewModels
         {
             if (Log.Count == 0)
             {
-                _notificationService.ShowWarn("没有可保存的接收数据。");
+                _notificationService.ShowWarn(LocalizationRegistry.Get("Serial.Msg_NoDataToSave"));
                 return;
             }
 
@@ -554,12 +558,13 @@ namespace LittleFancyToolAva.ViewModels
             var dialog = app?.TryGetService<Services.IFileDialogService>();
             if (dialog == null) return;
 
-            string? path = await dialog.PickSaveFileAsync("保存接收数据", "received.txt");
+            string? path = await dialog.PickSaveFileAsync(
+                LocalizationRegistry.Get("Serial.Msg_SaveDialogTitle"), "received.txt");
             if (path != null)
             {
                 var lines = Log.Entries.Select(e => $"{e.TimestampText} {e.Tag}: {e.Text}");
                 await File.WriteAllLinesAsync(path, lines);
-                _notificationService.ShowSuccess($"数据已保存到 {path}");
+                _notificationService.ShowSuccess(LocalizationRegistry.Get("Serial.Msg_SaveSuccess", path));
             }
         }
 
@@ -568,7 +573,7 @@ namespace LittleFancyToolAva.ViewModels
         {
             if (!IsConnected)
             {
-                _notificationService.ShowWarn("请先连接串口。");
+                _notificationService.ShowWarn(LocalizationRegistry.Get("Serial.Msg_NotConnected"));
                 return;
             }
             if (IsPolling) return;
@@ -596,7 +601,7 @@ namespace LittleFancyToolAva.ViewModels
                         catch (OperationCanceledException) { throw; }
                         catch (Exception ex)
                         {
-                            Log.Enqueue(LogKind.Error, $"定时发送错误: {ex.Message}");
+                            Log.Enqueue(LogKind.Error, LocalizationRegistry.Get("Serial.Msg_TimedSendError", ex.Message));
                         }
                         if (EnableSendCount && ++sentCount >= SendCount) break;
 

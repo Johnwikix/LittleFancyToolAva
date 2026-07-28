@@ -1,6 +1,7 @@
 using System.Globalization;
 using Avalonia.Data.Converters;
 using LittleFancyToolAva.Models;
+using LittleFancyToolAva.Services;
 
 namespace LittleFancyToolAva.Helpers
 {
@@ -8,14 +9,14 @@ namespace LittleFancyToolAva.Helpers
     {
         public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
         {
-            if (value is not ConnectionStatus status) return "未知";
+            if (value is not ConnectionStatus status) return LocalizationRegistry.Get("Common.Status_Unknown");
             return status switch
             {
-                ConnectionStatus.Idle => "未连接",
-                ConnectionStatus.Connecting => "连接中",
-                ConnectionStatus.Connected => "已连接",
-                ConnectionStatus.Error => "错误",
-                _ => "未知"
+                ConnectionStatus.Idle => LocalizationRegistry.Get("Common.Status_Idle"),
+                ConnectionStatus.Connecting => LocalizationRegistry.Get("Common.Status_Connecting"),
+                ConnectionStatus.Connected => LocalizationRegistry.Get("Common.Status_Connected"),
+                ConnectionStatus.Error => LocalizationRegistry.Get("Common.Status_Error"),
+                _ => LocalizationRegistry.Get("Common.Status_Unknown")
             };
         }
 

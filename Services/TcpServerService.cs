@@ -1,3 +1,4 @@
+using Lang.Avalonia;
 using LittleFancyToolAva.Models;
 using LittleFancyToolAva.Utils;
 using Microsoft.Extensions.Logging;
@@ -79,9 +80,10 @@ namespace LittleFancyToolAva.Services
                 _cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
 
                 _logger.LogInformation("TCP server started: {Address}:{Port}", ip, port);
-                StatusChanged?.Invoke($"服务器已启动: {ip}:{port}");
+                var startedMsg = LocalizationRegistry.Get("ServiceStatus.Tcp_Started", ip, port);
+                StatusChanged?.Invoke(startedMsg);
                 ConnectionStateChanged?.Invoke(this, new ConnectionEventArgs(
-                    ConnectionEventType.Connected, $"服务器已启动: {ip}:{port}", endpoint: $"{ip}:{port}"));
+                    ConnectionEventType.Connected, startedMsg, endpoint: $"{ip}:{port}"));
 
                 _ = AcceptClientsAsync(_cts.Token);
             }
@@ -89,18 +91,20 @@ namespace LittleFancyToolAva.Services
             {
                 SafeCleanupListener();
                 _logger.LogWarning("TCP server start cancelled: {Address}:{Port}", address, port);
-                StatusChanged?.Invoke("服务器启动已取消");
+                var cancelMsg = LocalizationRegistry.Get("ServiceStatus.Tcp_StartCancelled");
+                StatusChanged?.Invoke(cancelMsg);
                 ConnectionStateChanged?.Invoke(this, new ConnectionEventArgs(
-                    ConnectionEventType.Error, "服务器启动已取消"));
+                    ConnectionEventType.Error, cancelMsg));
                 throw;
             }
             catch (Exception ex)
             {
                 SafeCleanupListener();
                 _logger.LogError(ex, "TCP server start failed: {Address}:{Port}", address, port);
-                StatusChanged?.Invoke($"启动服务器失败: {ex.Message}");
+                var failMsg = LocalizationRegistry.Get("ServiceStatus.Tcp_StartFail", ex.Message);
+                StatusChanged?.Invoke(failMsg);
                 ConnectionStateChanged?.Invoke(this, new ConnectionEventArgs(
-                    ConnectionEventType.Error, $"启动服务器失败: {ex.Message}", ex));
+                    ConnectionEventType.Error, failMsg, ex));
                 throw;
             }
         }
@@ -149,17 +153,18 @@ namespace LittleFancyToolAva.Services
                 _client = null;
 
                 _logger.LogInformation("TCP server stopped by user");
-                StatusChanged?.Invoke("服务器已停止");
+                var stoppedMsg = LocalizationRegistry.Get("ServiceStatus.Tcp_Stopped");
+                StatusChanged?.Invoke(stoppedMsg);
                 if (wasRunning)
                 {
                     ConnectionStateChanged?.Invoke(this, new ConnectionEventArgs(
-                        ConnectionEventType.Disconnected, "服务器已停止"));
+                        ConnectionEventType.Disconnected, stoppedMsg));
                 }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "TCP server stop error");
-                StatusChanged?.Invoke($"停止异常: {ex.Message}");
+                StatusChanged?.Invoke(LocalizationRegistry.Get("ServiceStatus.Tcp_StopError", ex.Message));
             }
         }
 
@@ -180,18 +185,20 @@ namespace LittleFancyToolAva.Services
                 _cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
 
                 _logger.LogInformation("TCP client connected: {Address}:{Port}", address, port);
-                StatusChanged?.Invoke($"已连接: {address}:{port}");
+                var connMsg = LocalizationRegistry.Get("ServiceStatus.Tcp_Connected", address, port);
+                StatusChanged?.Invoke(connMsg);
                 ConnectionStateChanged?.Invoke(this, new ConnectionEventArgs(
-                    ConnectionEventType.Connected, $"已连接: {address}:{port}", endpoint: $"{address}:{port}"));
+                    ConnectionEventType.Connected, connMsg, endpoint: $"{address}:{port}"));
 
                 _ = ReceiveLoopAsync(_client, _cts.Token);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "TCP client connect failed: {Address}:{Port}", address, port);
-                StatusChanged?.Invoke($"连接失败: {ex.Message}");
+                var failMsg = LocalizationRegistry.Get("ServiceStatus.Tcp_ConnectFail", ex.Message);
+                StatusChanged?.Invoke(failMsg);
                 ConnectionStateChanged?.Invoke(this, new ConnectionEventArgs(
-                    ConnectionEventType.Error, $"连接失败: {ex.Message}", ex));
+                    ConnectionEventType.Error, failMsg, ex));
                 throw;
             }
         }
@@ -210,17 +217,18 @@ namespace LittleFancyToolAva.Services
                 _client = null;
 
                 _logger.LogInformation("TCP client disconnected by user");
-                StatusChanged?.Invoke("已断开");
+                var discMsg = LocalizationRegistry.Get("ServiceStatus.Tcp_Disconnected");
+                StatusChanged?.Invoke(discMsg);
                 if (wasConnected)
                 {
                     ConnectionStateChanged?.Invoke(this, new ConnectionEventArgs(
-                        ConnectionEventType.Disconnected, "已断开"));
+                        ConnectionEventType.Disconnected, discMsg));
                 }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "TCP client disconnect error");
-                StatusChanged?.Invoke($"断开异常: {ex.Message}");
+                StatusChanged?.Invoke(LocalizationRegistry.Get("ServiceStatus.Tcp_DisconnectError", ex.Message));
             }
         }
 
@@ -248,15 +256,16 @@ namespace LittleFancyToolAva.Services
                         ConnectedClients.Remove(endpoint);
                     });
                     _logger.LogInformation("TCP server disconnected client: {Endpoint}", endpoint);
-                    StatusChanged?.Invoke($"已断开客户端: {endpoint}");
+                    var msg = LocalizationRegistry.Get("ServiceStatus.Tcp_ClientDisconnected", endpoint);
+                    StatusChanged?.Invoke(msg);
                     ConnectionStateChanged?.Invoke(this, new ConnectionEventArgs(
-                        ConnectionEventType.Disconnected, $"已断开客户端: {endpoint}", endpoint: endpoint));
+                        ConnectionEventType.Disconnected, msg, endpoint: endpoint));
                 }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "TCP disconnect client error: {Endpoint}", endpoint);
-                StatusChanged?.Invoke($"断开客户端异常: {ex.Message}");
+                StatusChanged?.Invoke(LocalizationRegistry.Get("ServiceStatus.Tcp_ClientDisconnectError", ex.Message));
             }
         }
 
@@ -269,9 +278,10 @@ namespace LittleFancyToolAva.Services
                 {
                     if (!ToolMethod.TryHexStringToBytes(data, out bytes))
                     {
-                        StatusChanged?.Invoke("HEX 输入包含非法字符");
+                        var hexMsg = LocalizationRegistry.Get("ServiceStatus.Tcp_HexInvalid");
+                        StatusChanged?.Invoke(hexMsg);
                         ConnectionStateChanged?.Invoke(this, new ConnectionEventArgs(
-                            ConnectionEventType.Error, "HEX 输入包含非法字符"));
+                            ConnectionEventType.Error, hexMsg));
                         return;
                     }
                 }
@@ -291,7 +301,7 @@ namespace LittleFancyToolAva.Services
                     }
                     if (targets.Count == 0)
                     {
-                        StatusChanged?.Invoke("无已连接客户端");
+                        StatusChanged?.Invoke(LocalizationRegistry.Get("ServiceStatus.Tcp_NoClients"));
                         return;
                     }
                     foreach (var c in targets)
@@ -307,7 +317,7 @@ namespace LittleFancyToolAva.Services
                             var ep = c.Client?.RemoteEndPoint?.ToString();
                             if (ep != null)
                                 ConnectionStateChanged?.Invoke(this, new ConnectionEventArgs(
-                                    ConnectionEventType.Lost, $"客户端连接丢失: {ep}", ex, ep));
+                                    ConnectionEventType.Lost, LocalizationRegistry.Get("ServiceStatus.Tcp_ClientLost", ep), ex, ep));
                         }
                         catch (SocketException ex)
                         {
@@ -315,11 +325,11 @@ namespace LittleFancyToolAva.Services
                             var ep = c.Client?.RemoteEndPoint?.ToString();
                             if (ep != null)
                                 ConnectionStateChanged?.Invoke(this, new ConnectionEventArgs(
-                                    ConnectionEventType.PingTimeout, $"客户端连接超时: {ep}", ex, ep));
+                                    ConnectionEventType.PingTimeout, LocalizationRegistry.Get("ServiceStatus.Tcp_ClientTimeout", ep), ex, ep));
                         }
                     }
                     DataSent?.Invoke(bytes);
-                    StatusChanged?.Invoke($"服务器发送: {bytes.Length} 字节");
+                    StatusChanged?.Invoke(LocalizationRegistry.Get("ServiceStatus.Tcp_ServerSent", bytes.Length));
                 }
                 else if (_client?.Connected == true)
                 {
@@ -332,27 +342,27 @@ namespace LittleFancyToolAva.Services
                     catch (IOException ex)
                     {
                         _logger.LogError(ex, "TCP client send IOException - connection lost");
-                        RaiseLost("发送失败，连接已断开");
+                        RaiseLost(LocalizationRegistry.Get("ServiceStatus.Tcp_SendLost"));
                         return;
                     }
                     catch (SocketException ex)
                     {
                         _logger.LogError(ex, "TCP client send SocketException");
-                        RaiseLost($"连接异常: {ex.Message}", ex);
+                        RaiseLost(LocalizationRegistry.Get("ServiceStatus.Tcp_ConnectionError", ex.Message), ex);
                         return;
                     }
                     DataSent?.Invoke(bytes);
-                    StatusChanged?.Invoke($"发送: {bytes.Length} 字节");
+                    StatusChanged?.Invoke(LocalizationRegistry.Get("ServiceStatus.Tcp_Sent", bytes.Length));
                 }
                 else
                 {
-                    StatusChanged?.Invoke("未连接");
+                    StatusChanged?.Invoke(LocalizationRegistry.Get("ServiceStatus.Tcp_NotConnected"));
                 }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "TCP send error");
-                StatusChanged?.Invoke($"发送失败: {ex.Message}");
+                StatusChanged?.Invoke(LocalizationRegistry.Get("ServiceStatus.Tcp_SendFail", ex.Message));
             }
         }
 
@@ -397,7 +407,7 @@ namespace LittleFancyToolAva.Services
                     client.NoDelay = true;
                     EnableTcpKeepAlive(client);
 
-                    var endpoint = client.Client?.RemoteEndPoint?.ToString() ?? "未知";
+                    var endpoint = client.Client?.RemoteEndPoint?.ToString() ?? LocalizationRegistry.Get("ServiceStatus.Tcp_Unknown");
 
                     lock (_clients)
                     {
@@ -410,9 +420,10 @@ namespace LittleFancyToolAva.Services
                     });
 
                     _logger.LogInformation("TCP client connected: {Endpoint}", endpoint);
-                    StatusChanged?.Invoke($"客户端连接: {endpoint}");
+                    var msg = LocalizationRegistry.Get("ServiceStatus.Tcp_ClientConnected", endpoint);
+                    StatusChanged?.Invoke(msg);
                     ConnectionStateChanged?.Invoke(this, new ConnectionEventArgs(
-                        ConnectionEventType.ClientConnected, $"客户端连接: {endpoint}", endpoint: endpoint));
+                        ConnectionEventType.ClientConnected, msg, endpoint: endpoint));
 
                     _ = ReceiveLoopAsync(client, ct);
                 }
@@ -422,13 +433,13 @@ namespace LittleFancyToolAva.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "TCP accept clients error");
-                StatusChanged?.Invoke($"接受连接异常: {ex.Message}");
+                StatusChanged?.Invoke(LocalizationRegistry.Get("ServiceStatus.Tcp_AcceptError", ex.Message));
             }
         }
 
         private async Task ReceiveLoopAsync(TcpClient client, CancellationToken ct)
         {
-            var endpoint = client.Client?.RemoteEndPoint?.ToString() ?? "未知";
+            var endpoint = client.Client?.RemoteEndPoint?.ToString() ?? LocalizationRegistry.Get("ServiceStatus.Tcp_Unknown");
             try
             {
                 byte[] buffer = ArrayPool<byte>.Shared.Rent(4096);
@@ -467,7 +478,7 @@ namespace LittleFancyToolAva.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "TCP receive loop error from {Endpoint}", endpoint);
-                StatusChanged?.Invoke($"接收循环异常: {ex.Message}");
+                StatusChanged?.Invoke(LocalizationRegistry.Get("ServiceStatus.Tcp_ReceiveLoopError", ex.Message));
             }
             finally
             {
@@ -486,17 +497,19 @@ namespace LittleFancyToolAva.Services
                     if (!_isStopping)
                     {
                         _logger.LogWarning("TCP client connection lost: {Endpoint}", endpoint);
-                        StatusChanged?.Invoke("连接已断开");
+                        var lostMsg = LocalizationRegistry.Get("ServiceStatus.Tcp_Disconnected");
+                        StatusChanged?.Invoke(lostMsg);
                         ConnectionStateChanged?.Invoke(this, new ConnectionEventArgs(
-                            ConnectionEventType.Lost, "连接已断开", endpoint: endpoint));
+                            ConnectionEventType.Lost, lostMsg, endpoint: endpoint));
                     }
                 }
                 else
                 {
                     _logger.LogInformation("TCP client disconnected: {Endpoint}", endpoint);
-                    StatusChanged?.Invoke($"客户端断开: {endpoint}");
+                    var discMsg = LocalizationRegistry.Get("ServiceStatus.Tcp_ClientDisconnectedEvt", endpoint);
+                    StatusChanged?.Invoke(discMsg);
                     ConnectionStateChanged?.Invoke(this, new ConnectionEventArgs(
-                        ConnectionEventType.ClientDisconnected, $"客户端断开: {endpoint}", endpoint: endpoint));
+                        ConnectionEventType.ClientDisconnected, discMsg, endpoint: endpoint));
                 }
             }
         }
@@ -572,7 +585,7 @@ namespace LittleFancyToolAva.Services
             {
                 _logger.LogError(ex, "TCP client frame timer error: {Endpoint}",
                     state is (string ep, _) ? ep : "?");
-                StatusChanged?.Invoke($"客户端帧定时器异常: {ex.Message}");
+                StatusChanged?.Invoke(LocalizationRegistry.Get("ServiceStatus.Tcp_ClientFrameTimerError", ex.Message));
             }
         }
 
@@ -590,7 +603,7 @@ namespace LittleFancyToolAva.Services
             BytesReceived?.Invoke(bytes);
             string text = Encoding.UTF8.GetString(bytes);
             _logger.LogDebug("TCP received {ByteCount} bytes from {Endpoint}", bytes.Length, endpoint);
-            StatusChanged?.Invoke($"接收 ({endpoint}): {bytes.Length} 字节");
+            StatusChanged?.Invoke(LocalizationRegistry.Get("ServiceStatus.Tcp_ClientReceived", endpoint, bytes.Length));
             DataReceived?.Invoke($"[{endpoint}] {text}");
         }
 

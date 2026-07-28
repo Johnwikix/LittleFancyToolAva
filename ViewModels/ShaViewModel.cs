@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Lang.Avalonia;
 using LittleFancyToolAva.Algorithms;
 using LittleFancyToolAva.Algorithms.Encryption;
 using LittleFancyToolAva.Models.ViewStates;
@@ -21,9 +22,15 @@ namespace LittleFancyToolAva.ViewModels
 
         public ShaViewModel(IViewStateService viewStateService) : base(new SHAEncrpytion())
         {
-            DisplayTitle = "SHA 哈希";
-            DisplaySubtitle = "SHA-1 / SHA-256 / SHA-384 / SHA-512 安全散列算法";
+            DisplayTitle = LocalizationRegistry.Get("Hash.SHA_Title");
+            DisplaySubtitle = LocalizationRegistry.Get("Hash.SHA_Subtitle");
             viewStateService.Register(this);
+
+            I18nManager.Instance.CultureChanged += (_, _) =>
+            {
+                DisplayTitle = LocalizationRegistry.Get("Hash.SHA_Title");
+                DisplaySubtitle = LocalizationRegistry.Get("Hash.SHA_Subtitle");
+            };
         }
 
         object IViewState.CaptureState() => new ShaViewState

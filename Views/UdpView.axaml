@@ -1,8 +1,9 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:LittleFancyToolAva.ViewModels"
              xmlns:controls="using:LittleFancyToolAva.Views.Controls"
              xmlns:helpers="using:LittleFancyToolAva.Helpers"
+             xmlns:lan="clr-namespace:Lang.Avalonia.MarkupExtensions;assembly=Lang.Avalonia"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d"
@@ -17,8 +18,8 @@
           Margin="{StaticResource PageMargin}">
 
         <controls:ToolPageHeader Grid.Row="0"
-                                Title="UDP 调试"
-                                Subtitle="UDP 数据收发与组播通信">
+                                 Title="{lan:I18n Udp.Title}"
+                                 Subtitle="{lan:I18n Udp.Subtitle}">
             <controls:ToolPageHeader.Actions>
                 <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                     <controls:StatusPill Status="{Binding ConnectionStatus}"
@@ -30,52 +31,51 @@
 
         <Grid Grid.Row="1" ColumnDefinitions="320,3*" Margin="0,8,0,0">
 
-            <!-- Left: settings sidebar -->
             <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto" Margin="0">
                 <StackPanel Spacing="4">
                     <Border Classes="ToolCard">
                         <StackPanel Classes="ToolCardContent" Spacing="4">
-                            <TextBlock Classes="SectionHeader" Text="连接设置" />
+                            <TextBlock Classes="SectionHeader" Text="{lan:I18n Udp.Group_ConnectSettings}" />
                             <StackPanel Spacing="4">
-                                <RadioButton Content="普通模式"
+                                <RadioButton Content="{lan:I18n Udp.Mode_Normal}"
                                              GroupName="UdpMode"
                                              IsChecked="{Binding ModeIndex, Mode=TwoWay, Converter={StaticResource IntEq}, ConverterParameter=0}" />
-                                <RadioButton Content="组播模式"
+                                <RadioButton Content="{lan:I18n Udp.Mode_Multicast}"
                                              GroupName="UdpMode"
                                              IsChecked="{Binding ModeIndex, Mode=TwoWay, Converter={StaticResource IntEq}, ConverterParameter=1}" />
                             </StackPanel>
                             <StackPanel Classes="FormRow">
-                                <TextBlock Classes="FieldLabel" Text="本地地址" />
+                                <TextBlock Classes="FieldLabel" Text="{lan:I18n Udp.Label_LocalAddress}" />
                                 <TextBox Text="{Binding LocalAddress, Mode=TwoWay}" />
                             </StackPanel>
                             <StackPanel Classes="FormRow">
-                                <TextBlock Classes="FieldLabel" Text="本地端口" />
+                                <TextBlock Classes="FieldLabel" Text="{lan:I18n Udp.Label_LocalPort}" />
                                 <TextBox Text="{Binding LocalPort, Mode=TwoWay}" />
                             </StackPanel>
                             <StackPanel Classes="FormRow"
                                         IsVisible="{Binding ModeIndex, Converter={StaticResource IntEq}, ConverterParameter=1}">
-                                <TextBlock Classes="FieldLabel" Text="组播地址" />
+                                <TextBlock Classes="FieldLabel" Text="{lan:I18n Udp.Label_MulticastAddress}" />
                                 <TextBox Text="{Binding MulticastAddress, Mode=TwoWay}" />
                             </StackPanel>
                             <StackPanel Classes="FormRow"
                                         IsVisible="{Binding ModeIndex, Converter={StaticResource IntEq}, ConverterParameter=1}">
-                                <TextBlock Classes="FieldLabel" Text="组播端口" />
+                                <TextBlock Classes="FieldLabel" Text="{lan:I18n Udp.Label_MulticastPort}" />
                                 <TextBox Text="{Binding MulticastPort, Mode=TwoWay}" />
                             </StackPanel>
                             <StackPanel Classes="FormRow"
                                         IsVisible="{Binding ModeIndex, Converter={StaticResource IntEq}, ConverterParameter=0}">
-                                <TextBlock Classes="FieldLabel" Text="远程地址" />
+                                <TextBlock Classes="FieldLabel" Text="{lan:I18n Udp.Label_RemoteAddress}" />
                                 <TextBox Text="{Binding RemoteAddress, Mode=TwoWay}" />
                             </StackPanel>
                             <StackPanel Classes="FormRow"
                                         IsVisible="{Binding ModeIndex, Converter={StaticResource IntEq}, ConverterParameter=0}">
-                                <TextBlock Classes="FieldLabel" Text="远程端口" />
+                                <TextBlock Classes="FieldLabel" Text="{lan:I18n Udp.Label_RemotePort}" />
                                 <TextBox Text="{Binding RemotePort, Mode=TwoWay}" />
                             </StackPanel>
                             <StackPanel Classes="ActionBar">
-                                <Button Command="{Binding StartCommand}" Classes="Primary" Content="启动"
+                                <Button Command="{Binding StartCommand}" Classes="Primary" Content="{lan:I18n Common.Button_Start}"
                                         IsEnabled="{Binding IsAnyActive, Converter={StaticResource Inv}}" />
-                                <Button Command="{Binding StopCommand}" Classes="Danger" Content="停止"
+                                <Button Command="{Binding StopCommand}" Classes="Danger" Content="{lan:I18n Common.Button_Stop}"
                                         IsEnabled="{Binding IsAnyActive}" />
                             </StackPanel>
                         </StackPanel>
@@ -83,27 +83,27 @@
 
                     <Border Classes="ToolCard">
                         <StackPanel Classes="ToolCardContent" Spacing="4">
-                            <TextBlock Classes="SectionHeader" Text="选项" />
-                            <CheckBox Content="HEX 发送" IsChecked="{Binding IsHexSend, Mode=TwoWay}" />
-                            <CheckBox Content="HEX 显示" IsChecked="{Binding IsHexDisplay, Mode=TwoWay}" />
+                            <TextBlock Classes="SectionHeader" Text="{lan:I18n Udp.Group_Options}" />
+                            <CheckBox Content="{lan:I18n Udp.Option_HexSend}" IsChecked="{Binding IsHexSend, Mode=TwoWay}" />
+                            <CheckBox Content="{lan:I18n Udp.Option_HexDisplay}" IsChecked="{Binding IsHexDisplay, Mode=TwoWay}" />
                             <StackPanel Classes="FormRow">
-                                <TextBlock Classes="FieldLabel" Text="轮询间隔 (ms)" />
+                                <TextBlock Classes="FieldLabel" Text="{lan:I18n Udp.Label_PollInterval}" />
                                 <NumericUpDown Minimum="1" Value="{Binding PollInterval, Mode=TwoWay}" />
                             </StackPanel>
-                            <CheckBox Content="启用发送总数" IsChecked="{Binding EnableSendCount, Mode=TwoWay}" />
+                            <CheckBox Content="{lan:I18n Udp.Option_EnableSendCount}" IsChecked="{Binding EnableSendCount, Mode=TwoWay}" />
                             <StackPanel Classes="FormRow"
                                         IsVisible="{Binding EnableSendCount}">
-                                <TextBlock Classes="FieldLabel" Text="发送总数" />
+                                <TextBlock Classes="FieldLabel" Text="{lan:I18n Udp.Label_SendCount}" />
                                 <NumericUpDown Minimum="1" Maximum="999999"
                                                Value="{Binding SendCount, Mode=TwoWay}" />
                             </StackPanel>
                             <StackPanel Classes="ActionBar">
                                 <Button Command="{Binding StartPollingCommand}"
-                                        Content="定时发送"
+                                        Content="{lan:I18n Udp.Button_TimedSend}"
                                         IsEnabled="{Binding IsPolling, Converter={StaticResource Inv}}" />
                                 <Button Command="{Binding StopPollingCommand}"
                                         Classes="Danger"
-                                        Content="停止"
+                                        Content="{lan:I18n Common.Button_Stop}"
                                         IsEnabled="{Binding IsPolling}" />
                             </StackPanel>
                         </StackPanel>
@@ -111,25 +111,24 @@
                 </StackPanel>
             </ScrollViewer>
 
-            <!-- Right: receive / send stacked -->
             <Grid Grid.Column="1" RowDefinitions="3*,8,2*" Margin="10,0,0,0">
 
                 <Border Grid.Row="0" Classes="ToolCard" Padding="0">
                     <Grid RowDefinitions="Auto,*,Auto">
                         <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="16,12,16,8">
-                            <TextBlock Classes="SectionHeader" Grid.Column="0" Text="通信日志" />
+                            <TextBlock Classes="SectionHeader" Grid.Column="0" Text="{lan:I18n Udp.Group_Log}" />
                             <Button Grid.Column="1" Classes="Quiet"
-                                    Command="{Binding ClearCommand}" Content="清空" />
+                                    Command="{Binding ClearCommand}" Content="{lan:I18n Common.Button_Clear}" />
                         </Grid>
                         <controls:LogBufferView Grid.Row="1" Margin="12,0,12,0" Entries="{Binding Log.Entries}" />
                         <Border Grid.Row="2" Background="{DynamicResource SubtleFillColorTertiaryBrush}"
                                 Padding="16,6" Margin="12,0,12,12" CornerRadius="4">
                             <TextBlock Classes="Caption">
-                                <Run Text="缓冲区: " />
+                                <Run Text="{lan:I18n Udp.Label_BufferUsage}" />
                                 <Run Text="{Binding Log.Count}" />
                                 <Run Text=" / " />
                                 <Run Text="{Binding Log.MaxLines}" />
-                                <Run Text=" 行" />
+                                <Run Text="{lan:I18n Udp.Label_BufferLines}" />
                             </TextBlock>
                         </Border>
                     </Grid>
@@ -137,13 +136,13 @@
 
                 <Border Grid.Row="2" Classes="ToolCard" Padding="0">
                     <Grid RowDefinitions="Auto,*,Auto">
-                        <TextBlock Grid.Row="0" Classes="SectionHeader" Text="发送" Margin="16,12,16,8" />
+                        <TextBlock Grid.Row="0" Classes="SectionHeader" Text="{lan:I18n Serial.Group_Send}" Margin="16,12,16,8" />
                         <TextBox Grid.Row="1"
                                  Classes="TerminalInput"
                                  Margin="16,0,16,8"
                                  Text="{Binding SendText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                         <StackPanel Grid.Row="2" Classes="ActionBar" Margin="16,0,16,12">
-                            <Button Command="{Binding SendCommand}" Classes="Primary" Content="发送" />
+                            <Button Command="{Binding SendCommand}" Classes="Primary" Content="{lan:I18n Common.Button_Send}" />
                         </StackPanel>
                     </Grid>
                 </Border>

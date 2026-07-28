@@ -24,7 +24,7 @@ public class FolderCompareService : IFolderCompareService
     {
         if (!useHashComparison && !useMusicTitleComparison)
         {
-            throw new InvalidOperationException("至少需要选择一种比较方式（哈希比较或音乐标题比较）");
+            throw new InvalidOperationException(LocalizationRegistry.Get("FolderCompare.Service_NeedCompareMode"));
         }
 
         var sourceFiles = SafeEnumerate(sourceFolder, _logger);

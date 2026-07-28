@@ -19,7 +19,7 @@ public partial class IcoFileItem : ObservableObject
     private IcoFileStatus _status = IcoFileStatus.Pending;
     private string? _errorMessage;
     private double _progress;
-    private string _statusDisplay = "等待中";
+    private string _statusDisplay = "Pending";
     private string _progressDisplay = "";
 
     public IcoFileStatus Status
@@ -76,10 +76,12 @@ public partial class IcoFileItem : ObservableObject
     {
         _statusDisplay = _status switch
         {
-            IcoFileStatus.Pending => "等待中",
-            IcoFileStatus.Converting => "转换中",
-            IcoFileStatus.Completed => "已完成",
-            IcoFileStatus.Failed => string.IsNullOrEmpty(_errorMessage) ? "失败" : $"失败: {_errorMessage}",
+            IcoFileStatus.Pending => LittleFancyToolAva.Services.LocalizationRegistry.Get("FileItem.Status_Pending"),
+            IcoFileStatus.Converting => LittleFancyToolAva.Services.LocalizationRegistry.Get("FileItem.Status_Converting"),
+            IcoFileStatus.Completed => LittleFancyToolAva.Services.LocalizationRegistry.Get("FileItem.Status_Done"),
+            IcoFileStatus.Failed => string.IsNullOrEmpty(_errorMessage)
+                ? LittleFancyToolAva.Services.LocalizationRegistry.Get("FileItem.Status_Failed")
+                : LittleFancyToolAva.Services.LocalizationRegistry.Get("FileItem.Status_FailedWithError", _errorMessage),
             _ => ""
         };
         OnPropertyChanged(nameof(StatusDisplay));

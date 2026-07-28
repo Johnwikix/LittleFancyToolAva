@@ -1,8 +1,9 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:LittleFancyToolAva.ViewModels"
              xmlns:helpers="using:LittleFancyToolAva.Helpers"
              xmlns:controls="using:LittleFancyToolAva.Views.Controls"
+             xmlns:lan="clr-namespace:Lang.Avalonia.MarkupExtensions;assembly=Lang.Avalonia"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d"
@@ -16,10 +17,9 @@
     <Grid RowDefinitions="Auto,*,Auto"
           Margin="{StaticResource PageMargin}">
 
-        <!-- Row 0: Header + StatusPill in actions slot -->
         <controls:ToolPageHeader Grid.Row="0"
-                                Title="串口调试"
-                                Subtitle="串行端口数据收发与轮询">
+                                 Title="{lan:I18n Serial.Title}"
+                                 Subtitle="{lan:I18n Serial.Subtitle}">
             <controls:ToolPageHeader.Actions>
                 <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                     <controls:StatusPill Status="{Binding ConnectionStatus}"
@@ -29,62 +29,60 @@
             </controls:ToolPageHeader.Actions>
         </controls:ToolPageHeader>
 
-        <!-- Row 1: Main split — settings sidebar | receive/send -->
         <Grid Grid.Row="1" ColumnDefinitions="320,3*" Margin="0,8,0,0">
 
-            <!-- Left: settings sidebar -->
             <ScrollViewer Grid.Column="0"
                           VerticalScrollBarVisibility="Auto"
                           Margin="0">
                 <StackPanel Spacing="4">
                     <Border Classes="ToolCard">
                         <StackPanel Classes="ToolCardContent" Spacing="4">
-                            <TextBlock Classes="SectionHeader" Text="端口设置" />
+                            <TextBlock Classes="SectionHeader" Text="{lan:I18n Serial.Group_PortSettings}" />
                             <StackPanel Classes="FormRow">
-                                <TextBlock Classes="FieldLabel" Text="串口" />
+                                <TextBlock Classes="FieldLabel" Text="{lan:I18n Serial.Label_Port}" />
                                 <ComboBox HorizontalAlignment="Stretch"
                                           ItemsSource="{Binding PortNames}"
                                           SelectedItem="{Binding SelectedPort, Mode=TwoWay}" />
                             </StackPanel>
                             <StackPanel Classes="FormRow">
-                                <TextBlock Classes="FieldLabel" Text="波特率" />
+                                <TextBlock Classes="FieldLabel" Text="{lan:I18n Serial.Label_BaudRate}" />
                                 <ComboBox HorizontalAlignment="Stretch"
                                           ItemsSource="{Binding BaudRates}"
                                           SelectedIndex="{Binding BaudRateIndex, Mode=TwoWay}" />
                             </StackPanel>
                             <StackPanel Classes="FormRow">
-                                <TextBlock Classes="FieldLabel" Text="校验位" />
+                                <TextBlock Classes="FieldLabel" Text="{lan:I18n Serial.Label_Parity}" />
                                 <ComboBox HorizontalAlignment="Stretch"
                                           ItemsSource="{Binding Parities}"
                                           SelectedIndex="{Binding ParityIndex, Mode=TwoWay}" />
                             </StackPanel>
                             <StackPanel Classes="FormRow">
-                                <TextBlock Classes="FieldLabel" Text="数据位" />
+                                <TextBlock Classes="FieldLabel" Text="{lan:I18n Serial.Label_DataBits}" />
                                 <ComboBox HorizontalAlignment="Stretch"
                                           ItemsSource="{Binding DataBitsList}"
                                           SelectedIndex="{Binding DataBitsIndex, Mode=TwoWay}" />
                             </StackPanel>
                             <StackPanel Classes="FormRow">
-                                <TextBlock Classes="FieldLabel" Text="停止位" />
+                                <TextBlock Classes="FieldLabel" Text="{lan:I18n Serial.Label_StopBits}" />
                                 <ComboBox HorizontalAlignment="Stretch"
                                           ItemsSource="{Binding StopBitsList}"
                                           SelectedIndex="{Binding StopBitsIndex, Mode=TwoWay}" />
                             </StackPanel>
                             <StackPanel Classes="FormRow">
-                                <TextBlock Classes="FieldLabel" Text="编码" />
+                                <TextBlock Classes="FieldLabel" Text="{lan:I18n Serial.Label_Encoding}" />
                                 <ComboBox HorizontalAlignment="Stretch"
                                           ItemsSource="{Binding Encodings}"
                                           SelectedIndex="{Binding EncodingIndex, Mode=TwoWay}" />
                             </StackPanel>
                             <StackPanel Classes="ActionBar">
-                                <Button Command="{Binding RefreshPortsCommand}" Content="刷新端口" />
+                                <Button Command="{Binding RefreshPortsCommand}" Content="{lan:I18n Serial.Button_RefreshPorts}" />
                                 <Button Command="{Binding ConnectCommand}"
                                         Classes="Primary"
-                                        Content="连接"
+                                        Content="{lan:I18n Serial.Button_Connect}"
                                         IsEnabled="{Binding IsConnected, Converter={StaticResource Inv}}" />
                                 <Button Command="{Binding DisconnectCommand}"
                                         Classes="Danger"
-                                        Content="断开"
+                                        Content="{lan:I18n Serial.Button_Disconnect}"
                                         IsEnabled="{Binding IsConnected}" />
                             </StackPanel>
                         </StackPanel>
@@ -92,36 +90,36 @@
 
                     <Border Classes="ToolCard">
                         <StackPanel Classes="ToolCardContent" Spacing="4">
-                            <TextBlock Classes="SectionHeader" Text="选项" />
-                            <CheckBox Content="HEX 发送" IsChecked="{Binding IsHexSend, Mode=TwoWay}" />
-                            <CheckBox Content="HEX 显示" IsChecked="{Binding IsHexDisplay, Mode=TwoWay}" />
-                            <CheckBox Content="RTS" IsChecked="{Binding IsRtsEnabled, Mode=TwoWay}"
+                            <TextBlock Classes="SectionHeader" Text="{lan:I18n Serial.Group_Options}" />
+                            <CheckBox Content="{lan:I18n Serial.Option_HexSend}" IsChecked="{Binding IsHexSend, Mode=TwoWay}" />
+                            <CheckBox Content="{lan:I18n Serial.Option_HexDisplay}" IsChecked="{Binding IsHexDisplay, Mode=TwoWay}" />
+                            <CheckBox Content="{lan:I18n Serial.Option_RTS}" IsChecked="{Binding IsRtsEnabled, Mode=TwoWay}"
                                       Command="{Binding ToggleRtsCommand}" />
-                            <CheckBox Content="DTR" IsChecked="{Binding IsDtrEnabled, Mode=TwoWay}"
+                            <CheckBox Content="{lan:I18n Serial.Option_DTR}" IsChecked="{Binding IsDtrEnabled, Mode=TwoWay}"
                                       Command="{Binding ToggleDtrCommand}" />
                             <StackPanel Classes="FormRow">
-                                <TextBlock Classes="FieldLabel" Text="帧间隔 (ms)" />
+                                <TextBlock Classes="FieldLabel" Text="{lan:I18n Serial.Label_FrameBreak}" />
                                 <NumericUpDown Minimum="10" Maximum="500"
                                                Value="{Binding FrameBreakInterval, Mode=TwoWay}" />
                             </StackPanel>
                             <StackPanel Classes="FormRow">
-                                <TextBlock Classes="FieldLabel" Text="轮询间隔 (ms)" />
+                                <TextBlock Classes="FieldLabel" Text="{lan:I18n Serial.Label_PollInterval}" />
                                 <NumericUpDown Minimum="1" Value="{Binding PollInterval, Mode=TwoWay}" />
                             </StackPanel>
-                            <CheckBox Content="启用发送总数" IsChecked="{Binding EnableSendCount, Mode=TwoWay}" />
+                            <CheckBox Content="{lan:I18n Serial.Option_EnableSendCount}" IsChecked="{Binding EnableSendCount, Mode=TwoWay}" />
                             <StackPanel Classes="FormRow"
                                         IsVisible="{Binding EnableSendCount}">
-                                <TextBlock Classes="FieldLabel" Text="发送总数" />
+                                <TextBlock Classes="FieldLabel" Text="{lan:I18n Serial.Label_SendCount}" />
                                 <NumericUpDown Minimum="1" Maximum="999999"
                                                Value="{Binding SendCount, Mode=TwoWay}" />
                             </StackPanel>
                             <StackPanel Classes="ActionBar">
                                 <Button Command="{Binding StartPollingCommand}"
-                                        Content="定时发送"
+                                        Content="{lan:I18n Serial.Button_TimedSend}"
                                         IsEnabled="{Binding IsPolling, Converter={StaticResource Inv}}" />
                                 <Button Command="{Binding StopPollingCommand}"
                                         Classes="Danger"
-                                        Content="停止"
+                                        Content="{lan:I18n Common.Button_Stop}"
                                         IsEnabled="{Binding IsPolling}" />
                             </StackPanel>
                         </StackPanel>
@@ -129,37 +127,34 @@
                 </StackPanel>
             </ScrollViewer>
 
-            <!-- Right: receive / send stacked, 60/40 -->
             <Grid Grid.Column="1" RowDefinitions="3*,8,2*" Margin="10,0,0,0">
 
-                <!-- Receive (60%) -->
                 <Border Grid.Row="0" Classes="ToolCard" Padding="0">
                     <Grid RowDefinitions="Auto,*,Auto">
                         <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="16,12,16,8">
-                            <TextBlock Classes="SectionHeader" Grid.Column="0" Text="通信日志" />
+                            <TextBlock Classes="SectionHeader" Grid.Column="0" Text="{lan:I18n Serial.Group_Log}" />
                             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
-                                <Button Classes="Quiet" Command="{Binding ClearCommand}" Content="清空" />
-                                <Button Classes="Quiet" Command="{Binding SaveDataCommand}" Content="保存数据" />
+                                <Button Classes="Quiet" Command="{Binding ClearCommand}" Content="{lan:I18n Common.Button_Clear}" />
+                                <Button Classes="Quiet" Command="{Binding SaveDataCommand}" Content="{lan:I18n Serial.Button_SaveData}" />
                             </StackPanel>
                         </Grid>
                         <controls:LogBufferView Grid.Row="1" Margin="12,0,12,0" Entries="{Binding Log.Entries}" />
                         <Border Grid.Row="2" Background="{DynamicResource SubtleFillColorTertiaryBrush}"
                                 Padding="16,6" Margin="12,0,12,12" CornerRadius="4">
                             <TextBlock Classes="Caption">
-                                <Run Text="缓冲区: " />
+                                <Run Text="{lan:I18n Serial.Label_BufferUsage}" />
                                 <Run Text="{Binding Log.Count}" />
                                 <Run Text=" / " />
                                 <Run Text="{Binding Log.MaxLines}" />
-                                <Run Text=" 行" />
+                                <Run Text="{lan:I18n Serial.Label_BufferLines}" />
                             </TextBlock>
                         </Border>
                     </Grid>
                 </Border>
 
-                <!-- Send (40%) -->
                 <Border Grid.Row="2" Classes="ToolCard" Padding="0">
                     <Grid RowDefinitions="Auto,*,Auto">
-                        <TextBlock Grid.Row="0" Classes="SectionHeader" Text="发送" Margin="16,12,16,8" />
+                        <TextBlock Grid.Row="0" Classes="SectionHeader" Text="{lan:I18n Serial.Group_Send}" Margin="16,12,16,8" />
                         <TextBox Grid.Row="1"
                                  Classes="TerminalInput"
                                  Margin="16,0,16,8"
@@ -167,7 +162,7 @@
                         <StackPanel Grid.Row="2" Classes="ActionBar" Margin="16,0,16,12">
                             <Button Command="{Binding SendCommand}"
                                     Classes="Primary"
-                                    Content="发送"
+                                    Content="{lan:I18n Common.Button_Send}"
                                     IsEnabled="{Binding IsConnected}" />
                         </StackPanel>
                     </Grid>
@@ -175,7 +170,6 @@
             </Grid>
         </Grid>
 
-        <!-- Row 3: Status bar -->
         <controls:TerminalStatusBar Grid.Row="2"
                                     Margin="0,10,0,0"
                                     RxCount="{Binding RxCount}"

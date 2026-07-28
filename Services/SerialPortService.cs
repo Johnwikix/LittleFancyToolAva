@@ -3,6 +3,7 @@ using System.Collections.ObjectModel;
 using System.IO.Ports;
 using System.Runtime.InteropServices;
 using System.Text;
+using Lang.Avalonia;
 using LittleFancyToolAva.Models;
 using LittleFancyToolAva.Utils;
 using Microsoft.Extensions.Logging;
@@ -63,26 +64,26 @@ namespace LittleFancyToolAva.Services
                 _logger.LogInformation("SerialPort opened: {PortName} ({BaudRate},{Parity},{DataBits},{StopBits})",
                     portName, baudRate, parity, dataBits, stopBits);
 
-                StatusChanged?.Invoke($"已连接 {portName} ({baudRate},{parity},{dataBits},{stopBits})");
+                StatusChanged?.Invoke(LocalizationRegistry.Get("ServiceStatus.Serial_Connected", portName, baudRate, parity, dataBits, stopBits));
                 ConnectionStateChanged?.Invoke(this, new ConnectionEventArgs(
-                    ConnectionEventType.Connected, $"已连接 {portName}"));
+                    ConnectionEventType.Connected, LocalizationRegistry.Get("ServiceStatus.Serial_ConnectedShort", portName)));
             }
             catch (OperationCanceledException)
             {
                 SafeCleanupSerialPort();
                 _logger.LogWarning("SerialPort open cancelled: {PortName}", portName);
-                StatusChanged?.Invoke("连接已取消");
+                StatusChanged?.Invoke(LocalizationRegistry.Get("ServiceStatus.Serial_Cancel"));
                 ConnectionStateChanged?.Invoke(this, new ConnectionEventArgs(
-                    ConnectionEventType.Error, "连接超时或已取消"));
+                    ConnectionEventType.Error, LocalizationRegistry.Get("ServiceStatus.Serial_Timeout")));
                 throw;
             }
             catch (Exception ex)
             {
                 SafeCleanupSerialPort();
                 _logger.LogError(ex, "SerialPort open failed: {PortName}", portName);
-                StatusChanged?.Invoke($"连接失败: {ex.Message}");
+                StatusChanged?.Invoke(LocalizationRegistry.Get("ServiceStatus.Serial_ConnectFail", ex.Message));
                 ConnectionStateChanged?.Invoke(this, new ConnectionEventArgs(
-                    ConnectionEventType.Error, $"连接失败: {ex.Message}", ex));
+                    ConnectionEventType.Error, LocalizationRegistry.Get("ServiceStatus.Serial_ConnectFail", ex.Message), ex));
                 throw;
             }
         }
@@ -130,17 +131,17 @@ namespace LittleFancyToolAva.Services
                     _serialPort.Dispose();
                     _serialPort = null;
                 }
-                StatusChanged?.Invoke("已断开");
+                StatusChanged?.Invoke(LocalizationRegistry.Get("ServiceStatus.Serial_Disconnected"));
                 if (wasOpen)
                 {
                     ConnectionStateChanged?.Invoke(this, new ConnectionEventArgs(
-                        ConnectionEventType.Disconnected, "已断开"));
+                        ConnectionEventType.Disconnected, LocalizationRegistry.Get("ServiceStatus.Serial_Closed")));
                 }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "SerialPort close error");
-                StatusChanged?.Invoke($"关闭异常: {ex.Message}");
+                StatusChanged?.Invoke(LocalizationRegistry.Get("ServiceStatus.Serial_CloseError", ex.Message));
             }
         }
 
@@ -149,7 +150,7 @@ namespace LittleFancyToolAva.Services
             if (_serialPort is not { IsOpen: true })
             {
                 _logger.LogWarning("SendAsync called but port not open");
-                StatusChanged?.Invoke("串口未打开");
+                StatusChanged?.Invoke(LocalizationRegistry.Get("ServiceStatus.Serial_NotOpen"));
                 return;
             }
 
@@ -160,9 +161,9 @@ namespace LittleFancyToolAva.Services
                 {
                     if (!ToolMethod.TryHexStringToBytes(data, out bytes) || bytes.Length == 0)
                     {
-                        StatusChanged?.Invoke("HEX 输入包含非法字符或为空");
+                        StatusChanged?.Invoke(LocalizationRegistry.Get("ServiceStatus.Serial_HexInvalid"));
                         ConnectionStateChanged?.Invoke(this, new ConnectionEventArgs(
-                            ConnectionEventType.Error, "HEX 输入包含非法字符或为空"));
+                            ConnectionEventType.Error, LocalizationRegistry.Get("ServiceStatus.Serial_HexInvalid")));
                         return;
                     }
                 }
@@ -183,28 +184,28 @@ namespace LittleFancyToolAva.Services
 
                 DataSent?.Invoke(bytes);
                 _logger.LogDebug("SerialPort sent {ByteCount} bytes", bytes.Length);
-                StatusChanged?.Invoke($"发送: {bytes.Length} 字节");
+                StatusChanged?.Invoke(LocalizationRegistry.Get("ServiceStatus.Serial_BytesSent", bytes.Length));
             }
             catch (IOException ex)
             {
                 _logger.LogError(ex, "SerialPort send IOException - connection lost");
-                StatusChanged?.Invoke($"发送失败: {ex.Message}");
+                StatusChanged?.Invoke(LocalizationRegistry.Get("ServiceStatus.Serial_SendFail", ex.Message));
                 ConnectionStateChanged?.Invoke(this, new ConnectionEventArgs(
-                    ConnectionEventType.Lost, $"发送失败，连接已断开: {ex.Message}", ex));
+                    ConnectionEventType.Lost, LocalizationRegistry.Get("ServiceStatus.Serial_SendLost", ex.Message), ex));
                 RaiseLostIfOpen();
             }
             catch (InvalidOperationException ex)
             {
                 _logger.LogError(ex, "SerialPort send InvalidOperation - port closed");
-                StatusChanged?.Invoke($"发送失败: {ex.Message}");
+                StatusChanged?.Invoke(LocalizationRegistry.Get("ServiceStatus.Serial_SendFail", ex.Message));
                 ConnectionStateChanged?.Invoke(this, new ConnectionEventArgs(
-                    ConnectionEventType.Lost, $"端口已关闭: {ex.Message}", ex));
+                    ConnectionEventType.Lost, LocalizationRegistry.Get("ServiceStatus.Serial_PortClosed", ex.Message), ex));
                 RaiseLostIfOpen();
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "SerialPort send error");
-                StatusChanged?.Invoke($"发送失败: {ex.Message}");
+                StatusChanged?.Invoke(LocalizationRegistry.Get("ServiceStatus.Serial_SendFail", ex.Message));
             }
         }
 
@@ -255,19 +256,19 @@ namespace LittleFancyToolAva.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "SerialPort receive error");
-                StatusChanged?.Invoke($"接收异常: {ex.Message}");
+                StatusChanged?.Invoke(LocalizationRegistry.Get("ServiceStatus.Serial_ReceiveError", ex.Message));
             }
         }
 
         private void OnSerialErrorReceived(object? sender, SerialErrorReceivedEventArgs e)
         {
             _logger.LogWarning("SerialPort error received: {EventType}", e.EventType);
-            StatusChanged?.Invoke($"串口错误: {e.EventType}");
+            StatusChanged?.Invoke(LocalizationRegistry.Get("ServiceStatus.Serial_PortError", e.EventType));
 
             if (e.EventType is SerialError.Frame or SerialError.RXOver or SerialError.TXFull or SerialError.RXParity)
             {
                 ConnectionStateChanged?.Invoke(this, new ConnectionEventArgs(
-                    ConnectionEventType.Error, $"串口错误: {e.EventType}"));
+                    ConnectionEventType.Error, LocalizationRegistry.Get("ServiceStatus.Serial_PortError", e.EventType)));
             }
         }
 
@@ -279,12 +280,14 @@ namespace LittleFancyToolAva.Services
             {
                 bool cdState = _serialPort.CDHolding;
                 _logger.LogInformation("SerialPort CD (Carrier Detect) changed: {CDState}", cdState);
-                StatusChanged?.Invoke($"CD 信号: {(cdState ? "检测到" : "丢失")}");
+                StatusChanged?.Invoke(LocalizationRegistry.Get(
+                    "ServiceStatus.Serial_CDSignal",
+                    cdState ? LocalizationRegistry.Get("ServiceStatus.Serial_CDDetect") : LocalizationRegistry.Get("ServiceStatus.Serial_CDLost")));
 
                 if (!cdState)
                 {
                     ConnectionStateChanged?.Invoke(this, new ConnectionEventArgs(
-                        ConnectionEventType.LineDisconnect, "CD 信号丢失，物理连接可能已断开"));
+                        ConnectionEventType.LineDisconnect, LocalizationRegistry.Get("ServiceStatus.Serial_CDLineDisconnect")));
                 }
             }
         }
@@ -294,7 +297,7 @@ namespace LittleFancyToolAva.Services
             if (IsOpen && !_isClosing)
             {
                 ConnectionStateChanged?.Invoke(this, new ConnectionEventArgs(
-                    ConnectionEventType.Lost, "连接已断开"));
+                    ConnectionEventType.Lost, LocalizationRegistry.Get("ServiceStatus.Serial_Disconnected")));
             }
         }
 
@@ -325,7 +328,7 @@ namespace LittleFancyToolAva.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "SerialPort frame timer error");
-                StatusChanged?.Invoke($"帧定时器异常: {ex.Message}");
+                StatusChanged?.Invoke(LocalizationRegistry.Get("ServiceStatus.Serial_FrameTimerError", ex.Message));
             }
         }
 
@@ -340,7 +343,7 @@ namespace LittleFancyToolAva.Services
             }
 
             _logger.LogDebug("SerialPort received {ByteCount} bytes", bytes.Length);
-            StatusChanged?.Invoke($"接收: {bytes.Length} 字节");
+            StatusChanged?.Invoke(LocalizationRegistry.Get("ServiceStatus.Serial_BytesReceived", bytes.Length));
             BytesReceived?.Invoke(bytes);
             DataReceived?.Invoke(DecodeBytes(bytes, "Auto"));
         }

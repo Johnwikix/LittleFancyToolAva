@@ -133,8 +133,8 @@ public partial class Img2icoViewModel : ViewModelBase, IViewState, IIcoFileItemO
     [RelayCommand(CanExecute = nameof(CanModify))]
     private async Task AddFiles()
     {
-        IReadOnlyList<FilePickerFileType> filters = [new("图片文件") { Patterns = ["*.png", "*.jpg", "*.jpeg", "*.bmp", "*.webp", "*.tiff", "*.gif", "*.dds", "*.jxl", "*.heic"] }];
-        var paths = await _fileDialogService.PickOpenFilesAsync("选择图片", filters);
+        IReadOnlyList<FilePickerFileType> filters = [new(LocalizationRegistry.Get("Img2Ico.Picker_ImageFile")) { Patterns = ["*.png", "*.jpg", "*.jpeg", "*.bmp", "*.webp", "*.tiff", "*.gif", "*.dds", "*.jxl", "*.heic"] }];
+        var paths = await _fileDialogService.PickOpenFilesAsync(LocalizationRegistry.Get("Img2Ico.Picker_SelectImage"), filters);
         if (paths == null) return;
 
         var existing = new HashSet<string>(FileItems.Select(x => x.FilePath), StringComparer.OrdinalIgnoreCase);
@@ -152,7 +152,7 @@ public partial class Img2icoViewModel : ViewModelBase, IViewState, IIcoFileItemO
     [RelayCommand(CanExecute = nameof(CanModify))]
     private async Task AddFolder()
     {
-        string? folder = await _fileDialogService.PickFolderAsync("选择图片文件夹");
+        string? folder = await _fileDialogService.PickFolderAsync(LocalizationRegistry.Get("Img2Ico.Picker_SelectImageFolder"));
         if (folder == null) return;
 
         var existing = new HashSet<string>(FileItems.Select(x => x.FilePath), StringComparer.OrdinalIgnoreCase);
@@ -220,7 +220,7 @@ public partial class Img2icoViewModel : ViewModelBase, IViewState, IIcoFileItemO
     [RelayCommand(CanExecute = nameof(CanModify))]
     private async Task PickOutputFolder()
     {
-        string? folder = await _fileDialogService.PickFolderAsync("选择输出目录");
+        string? folder = await _fileDialogService.PickFolderAsync(LocalizationRegistry.Get("Img2Ico.Picker_SelectOutputDir"));
         if (folder != null)
             OutputFolder = folder;
     }
@@ -240,14 +240,14 @@ public partial class Img2icoViewModel : ViewModelBase, IViewState, IIcoFileItemO
     {
         if (string.IsNullOrEmpty(OutputFolder))
         {
-            string? folder = await _fileDialogService.PickFolderAsync("选择输出目录");
+            string? folder = await _fileDialogService.PickFolderAsync(LocalizationRegistry.Get("Img2Ico.Picker_SelectOutputDir"));
             if (folder == null) return;
             OutputFolder = folder;
         }
 
         if (!Directory.Exists(OutputFolder))
         {
-            _notificationService.ShowError("输出目录不存在");
+            _notificationService.ShowError(LocalizationRegistry.Get("Img2Ico.Msg_OutputDirMissing"));
             return;
         }
 
@@ -317,9 +317,9 @@ public partial class Img2icoViewModel : ViewModelBase, IViewState, IIcoFileItemO
         IsBusy = false;
 
         if (FailedCount == 0)
-            _notificationService.ShowSuccess($"全部转换完成（共 {TotalCount} 个）");
+            _notificationService.ShowSuccess(LocalizationRegistry.Get("Img2Ico.Msg_AllDone", TotalCount));
         else
-            _notificationService.ShowWarn($"转换完成，{FailedCount} 个失败 / {TotalCount} 个");
+            _notificationService.ShowWarn(LocalizationRegistry.Get("Img2Ico.Msg_PartialFail", FailedCount, TotalCount));
     }
 
     private bool CanStartConvert() => !IsBusy && FileItems.Count > 0;
@@ -342,7 +342,7 @@ public partial class Img2icoViewModel : ViewModelBase, IViewState, IIcoFileItemO
     private void UpdateStatusText()
     {
         StatusText = FileItems.Count == 0
-            ? "文件列表"
-            : $"共 {FileItems.Count} 个文件";
+            ? LocalizationRegistry.Get("Img2Ico.Status_Files")
+            : LocalizationRegistry.Get("Img2Ico.Status_FileCount", FileItems.Count);
     }
 }

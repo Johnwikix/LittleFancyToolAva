@@ -53,7 +53,7 @@ public partial class Img2Base64ViewModel : ViewModelBase
 
     public string Base64Length => string.IsNullOrEmpty(Base64Output)
         ? string.Empty
-        : $"共 {Base64Output.Length:N0} 字符";
+        : LocalizationRegistry.Get("Img2Base64.Label_CharCount", Base64Output.Length);
 
     public bool IsBusy
     {
@@ -86,8 +86,8 @@ public partial class Img2Base64ViewModel : ViewModelBase
     [RelayCommand(CanExecute = nameof(CanUpload))]
     private async Task UploadImage()
     {
-        IReadOnlyList<FilePickerFileType> filters = [new("Image Files") { Patterns = ["*.png", "*.jpg", "*.jpeg", "*.gif", "*.bmp", "*.webp", "*.tiff"] }];
-        string? path = await _fileDialogService.PickOpenFileAsync("选择图片", filters);
+        IReadOnlyList<FilePickerFileType> filters = [new(LocalizationRegistry.Get("Img2Base64.Picker_SelectImage")) { Patterns = ["*.png", "*.jpg", "*.jpeg", "*.gif", "*.bmp", "*.webp", "*.tiff"] }];
+        string? path = await _fileDialogService.PickOpenFileAsync(LocalizationRegistry.Get("Img2Base64.Picker_SelectImage"), filters);
         if (path == null) return;
 
         await LoadImageFromPathAsync(path);
@@ -117,7 +117,7 @@ public partial class Img2Base64ViewModel : ViewModelBase
     {
         if (string.IsNullOrEmpty(ImagePath))
         {
-            _notificationService.ShowWarn("请先上传图片");
+            _notificationService.ShowWarn(LocalizationRegistry.Get("Img2Base64.Msg_UploadFirst"));
             return;
         }
 
@@ -131,7 +131,7 @@ public partial class Img2Base64ViewModel : ViewModelBase
             {
                 Base64Output = base64;
                 await ClipboardHelper.SetTextAsync(base64);
-                _notificationService.ShowSuccess($"编码完成，已复制到剪贴板（共 {base64.Length:N0} 字符）");
+                _notificationService.ShowSuccess(LocalizationRegistry.Get("Img2Base64.Msg_CharCountCopied", base64.Length));
             }
         }
         catch (OperationCanceledException) { }
@@ -146,14 +146,13 @@ public partial class Img2Base64ViewModel : ViewModelBase
     {
         if (string.IsNullOrEmpty(Base64Input))
         {
-            _notificationService.ShowWarn("请先输入 Base64 字符串");
+            _notificationService.ShowWarn(LocalizationRegistry.Get("Img2Base64.Msg_NeedInput"));
             return;
         }
 
         if (Base64Input.Length > MaxTextBoxChars)
         {
-            _notificationService.ShowWarn(
-                $"Base64 字符串过长（{Base64Input.Length:N0} 字符），建议使用「从剪贴板解码」或「从文件导入」以避免界面卡顿");
+            _notificationService.ShowWarn(LocalizationRegistry.Get("Img2Base64.Msg_TooLongTip", Base64Input.Length));
             return;
         }
 
@@ -163,12 +162,12 @@ public partial class Img2Base64ViewModel : ViewModelBase
         try
         {
             SetImagePreview(await _imageConversionService.Base64ToBitmapAsync(Base64Input, _cts.Token));
-            _notificationService.ShowSuccess("解码完成");
+            _notificationService.ShowSuccess(LocalizationRegistry.Get("Img2Base64.Msg_Decoded"));
         }
         catch (OperationCanceledException) { }
         catch
         {
-            _notificationService.ShowError("Base64 解码失败，请检查输入是否正确");
+            _notificationService.ShowError(LocalizationRegistry.Get("Img2Base64.Msg_DecodeFailInput"));
         }
         finally
         {
@@ -182,14 +181,14 @@ public partial class Img2Base64ViewModel : ViewModelBase
         if (Application.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop
             || desktop.MainWindow?.Clipboard is not { } clipboard)
         {
-            _notificationService.ShowError("无法访问剪贴板");
+            _notificationService.ShowError(LocalizationRegistry.Get("Img2Base64.Msg_ClipboardFail"));
             return;
         }
 
         IAsyncDataTransfer? data = await clipboard.TryGetDataAsync();
         if (data is null)
         {
-            _notificationService.ShowWarn("剪贴板中没有数据");
+            _notificationService.ShowWarn(LocalizationRegistry.Get("Img2Base64.Msg_ClipboardNoData"));
             return;
         }
 
@@ -200,14 +199,14 @@ public partial class Img2Base64ViewModel : ViewModelBase
 
             if (textItem is null)
             {
-                _notificationService.ShowWarn("剪贴板中没有文本数据");
+                _notificationService.ShowWarn(LocalizationRegistry.Get("Img2Base64.Msg_ClipboardNoText"));
                 return;
             }
 
             object? raw = await textItem.TryGetRawAsync(DataFormat.Text);
             if (raw is not string text || string.IsNullOrWhiteSpace(text))
             {
-                _notificationService.ShowWarn("剪贴板文本为空");
+                _notificationService.ShowWarn(LocalizationRegistry.Get("Img2Base64.Msg_ClipboardEmpty"));
                 return;
             }
 
@@ -217,12 +216,12 @@ public partial class Img2Base64ViewModel : ViewModelBase
             try
             {
                 SetImagePreview(await _imageConversionService.Base64ToBitmapAsync(text, _cts.Token));
-                _notificationService.ShowSuccess("解码完成");
+                _notificationService.ShowSuccess(LocalizationRegistry.Get("Img2Base64.Msg_Decoded"));
             }
             catch (OperationCanceledException) { }
             catch
             {
-                _notificationService.ShowError("Base64 解码失败，请检查剪贴板内容是否为有效的 Base64 编码");
+                _notificationService.ShowError(LocalizationRegistry.Get("Img2Base64.Msg_DecodeFailClipboard"));
             }
             finally
             {
@@ -235,7 +234,7 @@ public partial class Img2Base64ViewModel : ViewModelBase
     private async Task DecodeFromFile()
     {
         IReadOnlyList<FilePickerFileType> filters = [new("Base64 Files") { Patterns = ["*.txt", "*.b64", "*.base64", "*.b64txt"] }];
-        string? path = await _fileDialogService.PickOpenFileAsync("选择 Base64 文件", filters);
+        string? path = await _fileDialogService.PickOpenFileAsync(LocalizationRegistry.Get("Img2Base64.Picker_SelectBase64File"), filters);
         if (path == null) return;
 
         _cts?.Cancel();
@@ -246,17 +245,17 @@ public partial class Img2Base64ViewModel : ViewModelBase
             string text = await File.ReadAllTextAsync(path, _cts.Token);
             if (string.IsNullOrWhiteSpace(text))
             {
-                _notificationService.ShowWarn("文件内容为空");
+                _notificationService.ShowWarn(LocalizationRegistry.Get("Img2Base64.Msg_ClipboardEmpty"));
                 return;
             }
 
             SetImagePreview(await _imageConversionService.Base64ToBitmapAsync(text.Trim(), _cts.Token));
-            _notificationService.ShowSuccess("解码完成");
+            _notificationService.ShowSuccess(LocalizationRegistry.Get("Img2Base64.Msg_Decoded"));
         }
         catch (OperationCanceledException) { }
         catch
         {
-            _notificationService.ShowError("Base64 解码失败，请检查文件内容是否为有效的 Base64 编码");
+            _notificationService.ShowError(LocalizationRegistry.Get("Img2Base64.Msg_DecodeFailFile"));
         }
         finally
         {
@@ -269,12 +268,12 @@ public partial class Img2Base64ViewModel : ViewModelBase
     {
         if (string.IsNullOrEmpty(Base64Output))
         {
-            _notificationService.ShowWarn("没有可复制的 Base64 字符串");
+            _notificationService.ShowWarn(LocalizationRegistry.Get("Img2Base64.Msg_NoCopyData"));
             return;
         }
 
         await ClipboardHelper.SetTextAsync(Base64Output);
-        _notificationService.ShowSuccess("已复制到剪贴板");
+        _notificationService.ShowSuccess(LocalizationRegistry.Get("Img2Base64.Msg_Copied"));
     }
 
     [RelayCommand(CanExecute = nameof(CanSaveDecodedImage))]
@@ -282,22 +281,22 @@ public partial class Img2Base64ViewModel : ViewModelBase
     {
         if (ImagePreview == null)
         {
-            _notificationService.ShowWarn("没有可保存的图片");
+            _notificationService.ShowWarn(LocalizationRegistry.Get("Img2Base64.Msg_NoImageToSave"));
             return;
         }
 
         IReadOnlyList<FilePickerFileType> filters = [new("PNG Image") { Patterns = ["*.png"] }];
-        string? path = await _fileDialogService.PickSaveFileAsync("保存图片", "decoded.png", filters);
+        string? path = await _fileDialogService.PickSaveFileAsync(LocalizationRegistry.Get("Img2Base64.Picker_SaveImage"), "decoded.png", filters);
         if (path == null) return;
 
         try
         {
             ImagePreview.Save(path);
-            _notificationService.ShowSuccess($"图片已保存到: {path}");
+            _notificationService.ShowSuccess(LocalizationRegistry.Get("Img2Base64.Msg_ImageSaved", path));
         }
         catch (Exception ex)
         {
-            _notificationService.ShowError($"保存失败: {ex.Message}");
+            _notificationService.ShowError(LocalizationRegistry.Get("Img2Base64.Msg_SaveFail", ex.Message));
         }
     }
 

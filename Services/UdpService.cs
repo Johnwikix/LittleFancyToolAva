@@ -1,3 +1,4 @@
+using Lang.Avalonia;
 using LittleFancyToolAva.Models;
 using LittleFancyToolAva.Utils;
 using Microsoft.Extensions.Logging;
@@ -54,31 +55,34 @@ namespace LittleFancyToolAva.Services
                 if (!string.IsNullOrEmpty(multicastAddress) && IPAddress.TryParse(multicastAddress, out var multicastIp))
                 {
                     _logger.LogInformation("UDP joined multicast: {Address}:{Port}", multicastAddress, multicastPort ?? localPort);
-                    StatusChanged?.Invoke($"已加入组播 {multicastAddress}:{multicastPort ?? localPort}");
+                    StatusChanged?.Invoke(LocalizationRegistry.Get("ServiceStatus.Udp_MulticastJoined", multicastAddress, multicastPort ?? localPort));
                 }
 
                 _logger.LogInformation("UDP started: {Address}:{Port}", localAddress, localPort);
-                StatusChanged?.Invoke($"UDP 已启动: {localAddress}:{localPort}");
+                var startedMsg = LocalizationRegistry.Get("ServiceStatus.Udp_Started", localAddress, localPort);
+                StatusChanged?.Invoke(startedMsg);
                 ConnectionStateChanged?.Invoke(this, new ConnectionEventArgs(
-                    ConnectionEventType.Connected, $"UDP 已启动: {localAddress}:{localPort}"));
+                    ConnectionEventType.Connected, startedMsg));
                 _ = ReceiveLoopAsync(_cts.Token);
             }
             catch (OperationCanceledException)
             {
                 SafeCleanupUdp();
                 _logger.LogWarning("UDP start cancelled: {Address}:{Port}", localAddress, localPort);
-                StatusChanged?.Invoke("UDP 启动已取消");
+                var cancelMsg = LocalizationRegistry.Get("ServiceStatus.Udp_StartCancelled");
+                StatusChanged?.Invoke(cancelMsg);
                 ConnectionStateChanged?.Invoke(this, new ConnectionEventArgs(
-                    ConnectionEventType.Error, "UDP 启动已取消"));
+                    ConnectionEventType.Error, cancelMsg));
                 throw;
             }
             catch (Exception ex)
             {
                 SafeCleanupUdp();
                 _logger.LogError(ex, "UDP start failed: {Address}:{Port}", localAddress, localPort);
-                StatusChanged?.Invoke($"启动失败: {ex.Message}");
+                var failMsg = LocalizationRegistry.Get("ServiceStatus.Udp_StartFail", ex.Message);
+                StatusChanged?.Invoke(failMsg);
                 ConnectionStateChanged?.Invoke(this, new ConnectionEventArgs(
-                    ConnectionEventType.Error, $"启动失败: {ex.Message}", ex));
+                    ConnectionEventType.Error, failMsg, ex));
                 throw;
             }
         }
@@ -116,17 +120,18 @@ namespace LittleFancyToolAva.Services
                 lock (_receiveBuffer) { _receiveBuffer.Clear(); }
 
                 _logger.LogInformation("UDP stopped");
-                StatusChanged?.Invoke("UDP 已停止");
+                var stoppedMsg = LocalizationRegistry.Get("ServiceStatus.Udp_Stopped");
+                StatusChanged?.Invoke(stoppedMsg);
                 if (wasRunning)
                 {
                     ConnectionStateChanged?.Invoke(this, new ConnectionEventArgs(
-                        ConnectionEventType.Disconnected, "UDP 已停止"));
+                        ConnectionEventType.Disconnected, stoppedMsg));
                 }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "UDP stop error");
-                StatusChanged?.Invoke($"停止异常: {ex.Message}");
+                StatusChanged?.Invoke(LocalizationRegistry.Get("ServiceStatus.Udp_StopError", ex.Message));
             }
         }
 
@@ -135,7 +140,7 @@ namespace LittleFancyToolAva.Services
             if (_udpClient == null)
             {
                 _logger.LogWarning("SendAsync called but UDP client is null");
-                StatusChanged?.Invoke("连接未就绪");
+                StatusChanged?.Invoke(LocalizationRegistry.Get("ServiceStatus.Udp_NotReady"));
                 return;
             }
 
@@ -146,9 +151,10 @@ namespace LittleFancyToolAva.Services
                 {
                     if (!ToolMethod.TryHexStringToBytes(data, out bytes))
                     {
-                        StatusChanged?.Invoke("HEX 输入包含非法字符");
+                        var hexMsg = LocalizationRegistry.Get("ServiceStatus.Udp_HexInvalid");
+                        StatusChanged?.Invoke(hexMsg);
                         ConnectionStateChanged?.Invoke(this, new ConnectionEventArgs(
-                            ConnectionEventType.Error, "HEX 输入包含非法字符"));
+                            ConnectionEventType.Error, hexMsg));
                         return;
                     }
                 }
@@ -165,7 +171,7 @@ namespace LittleFancyToolAva.Services
                 DataSent?.Invoke(bytes);
                 _logger.LogDebug("UDP sent {ByteCount} bytes to {Address}:{Port}",
                     bytes.Length, remoteAddress, remotePort);
-                StatusChanged?.Invoke($"发送: {bytes.Length} 字节");
+                StatusChanged?.Invoke(LocalizationRegistry.Get("ServiceStatus.Udp_Sent", bytes.Length));
             }
             catch (SocketException ex) when (
                 ex.SocketErrorCode == SocketError.NetworkDown ||
@@ -173,21 +179,25 @@ namespace LittleFancyToolAva.Services
                 ex.SocketErrorCode == SocketError.HostUnreachable)
             {
                 _logger.LogError(ex, "UDP send failed - network unavailable");
-                StatusChanged?.Invoke($"网络不可达: {ex.Message}");
+                var detailMsg = LocalizationRegistry.Get("ServiceStatus.Udp_NetworkUnreachDetail", ex.Message);
+                var shortMsg = LocalizationRegistry.Get("ServiceStatus.Udp_NetworkUnreach");
+                StatusChanged?.Invoke(detailMsg);
                 ConnectionStateChanged?.Invoke(this, new ConnectionEventArgs(
-                    ConnectionEventType.Error, $"网络不可达", ex));
+                    ConnectionEventType.Error, shortMsg, ex));
             }
             catch (ObjectDisposedException ex)
             {
                 _logger.LogWarning(ex, "UDP send on disposed client");
-                StatusChanged?.Invoke($"连接已关闭: {ex.Message}");
+                var closedMsg = LocalizationRegistry.Get("ServiceStatus.Udp_ConnectionClosed", ex.Message);
+                var closedShort = LocalizationRegistry.Get("ServiceStatus.Udp_Closed");
+                StatusChanged?.Invoke(closedMsg);
                 ConnectionStateChanged?.Invoke(this, new ConnectionEventArgs(
-                    ConnectionEventType.Lost, "UDP 连接已关闭", ex));
+                    ConnectionEventType.Lost, closedShort, ex));
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "UDP send error");
-                StatusChanged?.Invoke($"发送失败: {ex.Message}");
+                StatusChanged?.Invoke(LocalizationRegistry.Get("ServiceStatus.Udp_SendFail", ex.Message));
             }
         }
 
@@ -211,9 +221,11 @@ namespace LittleFancyToolAva.Services
                         ex.SocketErrorCode == SocketError.NetworkUnreachable)
                     {
                         _logger.LogError(ex, "UDP receive - network unavailable, stopping");
-                        StatusChanged?.Invoke($"网络不可达，UDP 已停止");
+                        var stoppedMsg = LocalizationRegistry.Get("ServiceStatus.Udp_NetworkStopped");
+                        var netMsg = LocalizationRegistry.Get("ServiceStatus.Udp_NetworkUnreach");
+                        StatusChanged?.Invoke(stoppedMsg);
                         ConnectionStateChanged?.Invoke(this, new ConnectionEventArgs(
-                            ConnectionEventType.Lost, "网络不可达"));
+                            ConnectionEventType.Lost, netMsg));
                         Stop();
                         return;
                     }
@@ -225,9 +237,9 @@ namespace LittleFancyToolAva.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "UDP receive loop error");
-                StatusChanged?.Invoke($"接收循环异常: {ex.Message}");
+                StatusChanged?.Invoke(LocalizationRegistry.Get("ServiceStatus.Udp_ReceiveLoopError", ex.Message));
                 ConnectionStateChanged?.Invoke(this, new ConnectionEventArgs(
-                    ConnectionEventType.Error, $"接收循环异常: {ex.Message}", ex));
+                    ConnectionEventType.Error, LocalizationRegistry.Get("ServiceStatus.Udp_ReceiveLoopError", ex.Message), ex));
             }
         }
 
@@ -254,7 +266,7 @@ namespace LittleFancyToolAva.Services
             }
             BytesReceived?.Invoke(payload);
             _logger.LogDebug("UDP received {ByteCount} bytes", payload.Length);
-            StatusChanged?.Invoke($"接收: {payload.Length} 字节");
+            StatusChanged?.Invoke(LocalizationRegistry.Get("ServiceStatus.Udp_Received", payload.Length));
         }
 
         public void Dispose()

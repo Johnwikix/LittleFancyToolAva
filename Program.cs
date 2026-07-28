@@ -33,7 +33,7 @@ namespace LittleFancyToolAva
             {
                 var ex = e.ExceptionObject as Exception;
                 Log.Fatal(ex, "Unhandled domain exception (terminating={IsTerminating})", e.IsTerminating);
-                ShowFatalError(ex?.Message ?? "未知错误");
+                ShowFatalError(ex?.Message ?? "Unknown error");
             };
 
             TaskScheduler.UnobservedTaskException += (s, e) =>
@@ -60,7 +60,7 @@ namespace LittleFancyToolAva
         {
             try
             {
-                MessageBoxW(0, message, "致命错误", 0x00000010u);
+                MessageBoxW(0, message, "Fatal Error", 0x00000010u);
             }
             catch
             {

@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Lang.Avalonia;
 using LittleFancyToolAva.Algorithms;
 using LittleFancyToolAva.Services;
 using LittleFancyToolAva.Utils;
@@ -89,6 +90,17 @@ namespace LittleFancyToolAva.ViewModels
         {
             _encryption = encryption;
             _notificationService = notificationService;
+
+            I18nManager.Instance.CultureChanged += OnCultureChanged;
+        }
+
+        protected abstract (string TitleKey, string SubtitleKey) GetTitleKeys();
+
+        private void OnCultureChanged(object? sender, EventArgs e)
+        {
+            var (titleKey, subtitleKey) = GetTitleKeys();
+            DisplayTitle = LocalizationRegistry.Get(titleKey);
+            DisplaySubtitle = LocalizationRegistry.Get(subtitleKey);
         }
 
         protected void GenerateSymmetricKey()
@@ -117,7 +129,7 @@ namespace LittleFancyToolAva.ViewModels
             }
             catch (Exception ex)
             {
-                _notificationService.ShowError($"加密失败: {ex.Message}");
+                _notificationService.ShowError(LocalizationRegistry.Get("Encrypt.Msg_EncryptFail", ex.Message));
             }
         }
 
@@ -133,7 +145,7 @@ namespace LittleFancyToolAva.ViewModels
             }
             catch (Exception ex)
             {
-                _notificationService.ShowError($"解密失败: {ex.Message}");
+                _notificationService.ShowError(LocalizationRegistry.Get("Encrypt.Msg_DecryptFail", ex.Message));
             }
         }
 

@@ -1,32 +1,33 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:LittleFancyToolAva.ViewModels"
              xmlns:controls="using:LittleFancyToolAva.Views.Controls"
+             xmlns:lan="clr-namespace:Lang.Avalonia.MarkupExtensions;assembly=Lang.Avalonia"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d"
              x:Class="LittleFancyToolAva.Views.Md5View"
              x:DataType="vm:Md5ViewModel">
     <Grid RowDefinitions="Auto,*,Auto" Margin="{StaticResource PageMargin}">
-        <controls:ToolPageHeader Grid.Row="0" Title="MD5 哈希" Subtitle="MD5 消息摘要算法 (128-bit)" />
+        <controls:ToolPageHeader Grid.Row="0" Title="{lan:I18n Hash.MD5_Title}" Subtitle="{lan:I18n Hash.MD5_Subtitle}" />
         <Grid Grid.Row="1" ColumnDefinitions="*,16,*" Margin="0,16,0,0">
             <Grid Grid.Column="0" RowDefinitions="Auto,16,*">
                 <Border Grid.Row="0" Classes="ToolCard">
                     <StackPanel Classes="ToolCardContent">
-                        <TextBlock Classes="SectionHeader" Text="参数" />
+                        <TextBlock Classes="SectionHeader" Text="{lan:I18n Hash.Group_Param}" />
                         <Grid Classes="FormRow2" ColumnDefinitions="*,12,*">
                             <StackPanel Grid.Column="0">
-                                <TextBlock Classes="FieldLabel" Text="大小写" />
+                                <TextBlock Classes="FieldLabel" Text="{lan:I18n Hash.Label_Case}" />
                                 <ComboBox HorizontalAlignment="Stretch" SelectedIndex="{Binding CaseIndex, Mode=TwoWay}">
-                                    <ComboBoxItem Content="大写 (UPPER)" />
-                                    <ComboBoxItem Content="小写 (lower)" />
+                                    <ComboBoxItem Content="{lan:I18n Hash.Case_Upper}" />
+                                    <ComboBoxItem Content="{lan:I18n Hash.Case_Lower}" />
                                 </ComboBox>
                             </StackPanel>
                             <StackPanel Grid.Column="2">
-                                <TextBlock Classes="FieldLabel" Text="输出长度" />
+                                <TextBlock Classes="FieldLabel" Text="{lan:I18n Hash.Label_OutputLength}" />
                                 <ComboBox HorizontalAlignment="Stretch" SelectedIndex="{Binding OutputLengthIndex, Mode=TwoWay}">
-                                    <ComboBoxItem Content="32 字符" />
-                                    <ComboBoxItem Content="16 字符" />
+                                    <ComboBoxItem Content="{lan:I18n Hash.Length_32}" />
+                                    <ComboBoxItem Content="{lan:I18n Hash.Length_16}" />
                                 </ComboBox>
                             </StackPanel>
                         </Grid>
@@ -35,9 +36,9 @@
                 <Border Grid.Row="2" Classes="ToolCard" Padding="0">
                     <Grid RowDefinitions="Auto,*">
                         <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="16,12,16,8">
-                            <TextBlock Classes="SectionHeader" Text="输入" />
+                            <TextBlock Classes="SectionHeader" Text="{lan:I18n Hash.Group_Input}" />
                             <Button Grid.Column="1" Classes="Primary"
-                                    Command="{Binding EncryptCommand}" Content="计算 MD5" />
+                                    Command="{Binding EncryptCommand}" Content="{lan:I18n Hash.MD5_Title}" />
                         </Grid>
                         <TextBox Grid.Row="1" Margin="16,0,16,12" AcceptsReturn="True" TextWrapping="Wrap"
                                  Text="{Binding InputText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
@@ -46,7 +47,7 @@
             </Grid>
             <Border Grid.Column="2" Classes="ToolCard" Padding="0">
                 <Grid RowDefinitions="Auto,*">
-                    <TextBlock Grid.Row="0" Classes="SectionHeader" Text="输出" Margin="16,12,16,8" />
+                    <TextBlock Grid.Row="0" Classes="SectionHeader" Text="{lan:I18n Hash.Group_Output}" Margin="16,12,16,8" />
                     <TextBox Grid.Row="1" Margin="16,0,16,12" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap"
                              FontFamily="{StaticResource MonoFontFamily}"
                              Text="{Binding OutputText, Mode=OneWay}" />

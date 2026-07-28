@@ -184,7 +184,7 @@ public partial class FileEncryptionViewModel : ViewModelBase, IViewState, IEncry
     private async Task AddFiles()
     {
         IReadOnlyList<FilePickerFileType> filters = [new("All Files") { Patterns = ["*.*"] }];
-        var paths = await _fileDialogService.PickOpenFilesAsync("选择文件", filters);
+        var paths = await _fileDialogService.PickOpenFilesAsync(LocalizationRegistry.Get("FileEnc.Picker_SelectFiles"), filters);
         if (paths == null) return;
 
         var existing = new HashSet<string>(FileItems.Select(x => x.FilePath), StringComparer.OrdinalIgnoreCase);
@@ -201,7 +201,7 @@ public partial class FileEncryptionViewModel : ViewModelBase, IViewState, IEncry
     [RelayCommand(CanExecute = nameof(CanModify))]
     private async Task AddFolder()
     {
-        string? folder = await _fileDialogService.PickFolderAsync("选择文件夹");
+        string? folder = await _fileDialogService.PickFolderAsync(LocalizationRegistry.Get("FileEnc.Picker_SelectFolder"));
         if (folder == null) return;
 
         var existing = new HashSet<string>(FileItems.Select(x => x.FilePath), StringComparer.OrdinalIgnoreCase);
@@ -267,7 +267,7 @@ public partial class FileEncryptionViewModel : ViewModelBase, IViewState, IEncry
     [RelayCommand(CanExecute = nameof(CanModify))]
     private async Task SelectOutputDirectory()
     {
-        string? folder = await _fileDialogService.PickFolderAsync("选择输出目录");
+        string? folder = await _fileDialogService.PickFolderAsync(LocalizationRegistry.Get("FileEnc.Picker_SelectOutputDir"));
         if (folder != null)
         {
             OutputDirectory = folder;
@@ -298,13 +298,13 @@ public partial class FileEncryptionViewModel : ViewModelBase, IViewState, IEncry
     private async Task ExportKeyIv()
     {
         IReadOnlyList<FilePickerFileType> filters = [new("JSON File") { Patterns = ["*.json"] }];
-        string? path = await _fileDialogService.PickSaveFileAsync("导出 Key/IV", "key-iv.json", filters);
+        string? path = await _fileDialogService.PickSaveFileAsync(LocalizationRegistry.Get("FileEnc.Picker_ExportKey"), "key-iv.json", filters);
         if (path == null) return;
 
         var dto = new KeyIvDto(Key, Iv, GetSelectedKeyIvType());
         string content = JsonSerializer.Serialize(dto, ViewStatesJsonContext.Default.KeyIvDto);
         await File.WriteAllTextAsync(path, content);
-        _notificationService.ShowSuccess($"Key/IV 已导出到 {path}");
+        _notificationService.ShowSuccess(LocalizationRegistry.Get("FileEnc.Msg_ExportSuccess", path));
     }
 
     [RelayCommand(CanExecute = nameof(CanExportImportKeyIv))]
@@ -315,7 +315,7 @@ public partial class FileEncryptionViewModel : ViewModelBase, IViewState, IEncry
             new("JSON File") { Patterns = ["*.json"] },
             new("All Files") { Patterns = ["*.*"] }
         ];
-        string? path = await _fileDialogService.PickOpenFileAsync("导入 Key/IV", filters);
+        string? path = await _fileDialogService.PickOpenFileAsync(LocalizationRegistry.Get("FileEnc.Picker_ImportKey"), filters);
         if (path == null) return;
 
         try
@@ -324,7 +324,7 @@ public partial class FileEncryptionViewModel : ViewModelBase, IViewState, IEncry
             KeyIvDto? dto = JsonSerializer.Deserialize(content, ViewStatesJsonContext.Default.KeyIvDto);
             if (dto == null || string.IsNullOrEmpty(dto.Key) || string.IsNullOrEmpty(dto.Iv))
             {
-                _notificationService.ShowError("文件格式错误,需包含 key 与 iv 字段");
+                _notificationService.ShowError(LocalizationRegistry.Get("FileEnc.Msg_FileFormatError"));
                 return;
             }
 
@@ -340,11 +340,11 @@ public partial class FileEncryptionViewModel : ViewModelBase, IViewState, IEncry
 
             Key = dto.Key;
             Iv = dto.Iv;
-            _notificationService.ShowSuccess($"Key/IV 已从 {Path.GetFileName(path)} 导入");
+            _notificationService.ShowSuccess(LocalizationRegistry.Get("FileEnc.Msg_ImportSuccess", Path.GetFileName(path)));
         }
         catch (Exception ex)
         {
-            _notificationService.ShowError($"导入失败: {ex.Message}");
+            _notificationService.ShowError(LocalizationRegistry.Get("FileEnc.Msg_ImportFail", ex.Message));
         }
     }
 
@@ -382,20 +382,20 @@ public partial class FileEncryptionViewModel : ViewModelBase, IViewState, IEncry
     {
         if (string.IsNullOrEmpty(OutputDirectory))
         {
-            string? folder = await _fileDialogService.PickFolderAsync("选择输出目录");
+            string? folder = await _fileDialogService.PickFolderAsync(LocalizationRegistry.Get("FileEnc.Picker_SelectOutputDir"));
             if (folder == null) return;
             OutputDirectory = folder;
         }
 
         if (!Directory.Exists(OutputDirectory))
         {
-            _notificationService.ShowError("输出目录不存在");
+            _notificationService.ShowError(LocalizationRegistry.Get("FileEnc.Msg_OutputDirMissing"));
             return;
         }
 
         if (string.IsNullOrEmpty(Key) || string.IsNullOrEmpty(Iv))
         {
-            _notificationService.ShowWarn("请生成 Key 和 IV");
+            _notificationService.ShowWarn(LocalizationRegistry.Get("FileEnc.Msg_NeedKeyAndIv"));
             return;
         }
 
@@ -410,7 +410,9 @@ public partial class FileEncryptionViewModel : ViewModelBase, IViewState, IEncry
         ProgressValue = 0;
         UpdateStatusText();
 
-        string action = encrypt ? "加密" : "解密";
+        string action = encrypt
+            ? LocalizationRegistry.Get("FileEnc.Action_Encrypt")
+            : LocalizationRegistry.Get("FileEnc.Action_Decrypt");
         var inProgress = encrypt ? EncryptionFileStatus.Encrypting : EncryptionFileStatus.Decrypting;
         string keyIvType = GetSelectedKeyIvType();
 
@@ -480,9 +482,9 @@ public partial class FileEncryptionViewModel : ViewModelBase, IViewState, IEncry
         IsBusy = false;
 
         if (FailedCount == 0)
-            _notificationService.ShowSuccess($"{action}完成(共 {TotalCount} 个)");
+            _notificationService.ShowSuccess(LocalizationRegistry.Get("FileEnc.Msg_Done", action, TotalCount));
         else
-            _notificationService.ShowWarn($"{action}完成，{FailedCount} 个失败 / {TotalCount} 个");
+            _notificationService.ShowWarn(LocalizationRegistry.Get("FileEnc.Msg_PartialFail", action, FailedCount, TotalCount));
     }
 
     private string ResolveUniqueOutputPath(string folder, string baseName)
@@ -515,7 +517,7 @@ public partial class FileEncryptionViewModel : ViewModelBase, IViewState, IEncry
     private void UpdateStatusText()
     {
         StatusText = FileItems.Count == 0
-            ? "文件列表"
-            : $"共 {FileItems.Count} 个文件";
+            ? LocalizationRegistry.Get("FileEnc.Status_Files")
+            : LocalizationRegistry.Get("FileEnc.Status_FileCount", FileItems.Count);
     }
 }

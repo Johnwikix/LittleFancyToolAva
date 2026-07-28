@@ -4,6 +4,7 @@ using System.Text;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Lang.Avalonia;
 using LittleFancyToolAva.Models;
 using LittleFancyToolAva.Models.ViewStates;
 using LittleFancyToolAva.Services;
@@ -27,7 +28,7 @@ namespace LittleFancyToolAva.ViewModels
         private long _pendingRxCount;
         private long _pendingTxCount;
 
-        public ObservableCollection<string> Modes { get; } = ["服务器模式", "客户端模式"];
+        public ObservableCollection<string> Modes { get; } = ["", ""];
         public ObservableCollection<string> ConnectedClients => _tcpService.ConnectedClients;
 
         public LogBuffer Log { get; } = new();
@@ -66,7 +67,7 @@ namespace LittleFancyToolAva.ViewModels
         {
             get;
             set => SetProperty(ref field, value);
-        } = "就绪";
+        } = "";
 
         public bool IsHexSend
         {
@@ -203,6 +204,20 @@ namespace LittleFancyToolAva.ViewModels
             _tcpService.StatusChanged += OnStatusChanged;
             _tcpService.ConnectionStateChanged += OnConnectionStateChanged;
             _viewStateService.Register(this);
+
+            Modes[0] = LocalizationRegistry.Get("Tcp.Mode_Server");
+            Modes[1] = LocalizationRegistry.Get("Tcp.Mode_Client");
+            StatusText = LocalizationRegistry.Get("Tcp.Status_Ready");
+
+            I18nManager.Instance.CultureChanged += OnCultureChanged;
+        }
+
+        private void OnCultureChanged(object? sender, EventArgs e)
+        {
+            Modes[0] = LocalizationRegistry.Get("Tcp.Mode_Server");
+            Modes[1] = LocalizationRegistry.Get("Tcp.Mode_Client");
+            StatusText = LocalizationRegistry.Get(ModeIndex == 0 ? "Tcp.Status_ReadyServer" : "Tcp.Status_ReadyClient");
+            OnPropertyChanged(nameof(StatusDetail));
         }
 
         void IViewLifecycle.OnNavigatedTo() { }
@@ -380,8 +395,8 @@ namespace LittleFancyToolAva.ViewModels
             {
                 ConnectionStatus = ConnectionStatus.Connected;
                 StatusDetail = ModeIndex == 0
-                    ? $"服务器 {Address}:{Port}"
-                    : $"客户端 {Address}:{Port}";
+                    ? LocalizationRegistry.Get("Tcp.Status_Server", Address, Port)
+                    : LocalizationRegistry.Get("Tcp.Status_Client", Address, Port);
                 StartElapsedTimer();
                 StartUiFlushTimer();
             }
@@ -403,7 +418,7 @@ namespace LittleFancyToolAva.ViewModels
         {
             if (!int.TryParse(Port, out int portNum) || portNum < 1 || portNum > 65535)
             {
-                _notificationService.ShowWarn("端口号须在 1-65535 之间。");
+                _notificationService.ShowWarn(LocalizationRegistry.Get("Tcp.Msg_InvalidPort"));
                 return;
             }
 
@@ -434,16 +449,18 @@ namespace LittleFancyToolAva.ViewModels
                 ConnectionStatus = ConnectionStatus.Idle;
                 IsRunning = false;
                 IsConnected = false;
-                Log.Append(LogKind.Warn, $"连接超时（{timeoutSec}秒），请检查地址/端口是否正确。");
-                _notificationService.ShowWarn($"连接超时（{timeoutSec}秒），请检查地址/端口是否正确。");
+                var timeoutMsg = LocalizationRegistry.Get("Tcp.Msg_Timeout", timeoutSec);
+                Log.Append(LogKind.Warn, timeoutMsg);
+                _notificationService.ShowWarn(timeoutMsg);
             }
             catch (Exception ex)
             {
                 ConnectionStatus = ConnectionStatus.Error;
                 IsRunning = false;
                 IsConnected = false;
-                Log.Append(LogKind.Error, $"启动失败: {ex.Message}");
-                _notificationService.ShowError($"启动失败: {ex.Message}");
+                var failMsg = LocalizationRegistry.Get("Tcp.Msg_StartFail", ex.Message);
+                Log.Append(LogKind.Error, failMsg);
+                _notificationService.ShowError(failMsg);
             }
         }
 
@@ -470,7 +487,7 @@ namespace LittleFancyToolAva.ViewModels
         {
             if (string.IsNullOrEmpty(SelectedClient))
             {
-                _notificationService.ShowWarn("请先选择一个客户端。");
+                _notificationService.ShowWarn(LocalizationRegistry.Get("Tcp.Msg_NoClientSelected"));
                 return;
             }
             _tcpService.DisconnectClient(SelectedClient);
@@ -484,12 +501,12 @@ namespace LittleFancyToolAva.ViewModels
 
             if (ModeIndex == 0 && !IsRunning)
             {
-                _notificationService.ShowWarn("请先启动服务器。");
+                _notificationService.ShowWarn(LocalizationRegistry.Get("Tcp.Msg_ServerNotStarted"));
                 return;
             }
             if (ModeIndex != 0 && !IsConnected)
             {
-                _notificationService.ShowWarn("请先连接服务器。");
+                _notificationService.ShowWarn(LocalizationRegistry.Get("Tcp.Msg_ClientNotConnected"));
                 return;
             }
 
@@ -505,8 +522,9 @@ namespace LittleFancyToolAva.ViewModels
             }
             catch (Exception ex)
             {
-                Log.Enqueue(LogKind.Error, $"发送失败: {ex.Message}");
-                Dispatcher.UIThread.Post(() => _notificationService.ShowError($"发送失败: {ex.Message}"));
+                var errMsg = LocalizationRegistry.Get("Tcp.Msg_SendFail", ex.Message);
+                Log.Enqueue(LogKind.Error, errMsg);
+                Dispatcher.UIThread.Post(() => _notificationService.ShowError(errMsg));
             }
         }
 
@@ -525,7 +543,7 @@ namespace LittleFancyToolAva.ViewModels
         {
             if (!IsRunning && !IsConnected)
             {
-                _notificationService.ShowWarn("请先启动服务器或连接客户端。");
+                _notificationService.ShowWarn(LocalizationRegistry.Get("Tcp.Msg_NotActive"));
                 return;
             }
             if (IsPolling) return;
@@ -552,7 +570,7 @@ namespace LittleFancyToolAva.ViewModels
                         catch (OperationCanceledException) { throw; }
                         catch (Exception ex)
                         {
-                            Log.Enqueue(LogKind.Error, $"定时发送错误: {ex.Message}");
+                            Log.Enqueue(LogKind.Error, LocalizationRegistry.Get("Tcp.Msg_TimedSendError", ex.Message));
                         }
                         if (EnableSendCount && ++sentCount >= SendCount) break;
 
@@ -606,13 +624,13 @@ namespace LittleFancyToolAva.ViewModels
             {
                 _tcpService.DisconnectClient();
                 IsConnected = false;
-                StatusText = "就绪 (服务器模式)";
+                StatusText = LocalizationRegistry.Get("Tcp.Status_ReadyServer");
             }
             else
             {
                 _tcpService.StopServer();
                 IsRunning = false;
-                StatusText = "就绪 (客户端模式)";
+                StatusText = LocalizationRegistry.Get("Tcp.Status_ReadyClient");
             }
         }
     }

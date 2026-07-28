@@ -1,3 +1,4 @@
+using Lang.Avalonia;
 using LittleFancyToolAva.Algorithms;
 using LittleFancyToolAva.Models.ViewStates;
 using LittleFancyToolAva.Services;
@@ -14,12 +15,15 @@ namespace LittleFancyToolAva.ViewModels
         public Sm4ViewModel([FromKeyedServices("SM4")] IEncryptionSymmetric encryption, INotificationService notificationService, IViewStateService viewStateService)
             : base(encryption, notificationService)
         {
-            DisplayTitle = "SM4 加解密";
-            DisplaySubtitle = "国密 SM4 对称分组密码算法";
+            DisplayTitle = LocalizationRegistry.Get("Encrypt.SM4_Title");
+            DisplaySubtitle = LocalizationRegistry.Get("Encrypt.SM4_Subtitle");
             Paddings = ["PKCS7", "ISO10126", "ZEROBYTE"];
             GenerateSymmetricKey();
             viewStateService.Register(this);
         }
+
+        protected override (string TitleKey, string SubtitleKey) GetTitleKeys() =>
+            ("Encrypt.SM4_Title", "Encrypt.SM4_Subtitle");
 
         object IViewState.CaptureState() => new SymmetricCipherViewState
         {

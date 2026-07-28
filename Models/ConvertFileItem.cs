@@ -19,7 +19,7 @@ public partial class ConvertFileItem : ObservableObject
     private ConvertFileStatus _status = ConvertFileStatus.Pending;
     private string? _errorMessage;
     private double _progress;
-    private string _statusDisplay = "等待中";
+    private string _statusDisplay = "Pending";
     private string _progressDisplay = "";
 
     public ConvertFileStatus Status
@@ -76,10 +76,12 @@ public partial class ConvertFileItem : ObservableObject
     {
         _statusDisplay = _status switch
         {
-            ConvertFileStatus.Pending => "等待中",
-            ConvertFileStatus.Converting => "转换中",
-            ConvertFileStatus.Completed => "已完成",
-            ConvertFileStatus.Failed => string.IsNullOrEmpty(_errorMessage) ? "失败" : $"失败: {_errorMessage}",
+            ConvertFileStatus.Pending => LittleFancyToolAva.Services.LocalizationRegistry.Get("FileItem.Status_Pending"),
+            ConvertFileStatus.Converting => LittleFancyToolAva.Services.LocalizationRegistry.Get("FileItem.Status_Converting"),
+            ConvertFileStatus.Completed => LittleFancyToolAva.Services.LocalizationRegistry.Get("FileItem.Status_Done"),
+            ConvertFileStatus.Failed => string.IsNullOrEmpty(_errorMessage)
+                ? LittleFancyToolAva.Services.LocalizationRegistry.Get("FileItem.Status_Failed")
+                : LittleFancyToolAva.Services.LocalizationRegistry.Get("FileItem.Status_FailedWithError", _errorMessage),
             _ => ""
         };
         OnPropertyChanged(nameof(StatusDisplay));

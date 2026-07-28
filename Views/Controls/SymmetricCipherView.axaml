@@ -1,9 +1,15 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:controls="using:LittleFancyToolAva.Views.Controls"
              xmlns:vm="using:LittleFancyToolAva.ViewModels"
+             xmlns:controls="using:LittleFancyToolAva.Views.Controls"
+             xmlns:helpers="using:LittleFancyToolAva.Helpers"
+             xmlns:lan="clr-namespace:Lang.Avalonia.MarkupExtensions;assembly=Lang.Avalonia"
              x:Class="LittleFancyToolAva.Views.Controls.SymmetricCipherView"
              x:DataType="vm:SymmetricCipherViewModelBase">
+
+    <UserControl.Resources>
+        <helpers:IntEqualsToBoolConverter x:Key="IntEq" />
+    </UserControl.Resources>
 
     <Grid RowDefinitions="Auto,*"
           Margin="{StaticResource PageMargin}">
@@ -16,16 +22,16 @@
             <Grid Grid.Column="0" RowDefinitions="Auto,16,*">
                 <Border Grid.Row="0" Classes="ToolCard">
                     <StackPanel Classes="ToolCardContent">
-                        <TextBlock Classes="SectionHeader" Text="参数" />
+                        <TextBlock Classes="SectionHeader" Text="{lan:I18n Encrypt.Group_Param}" />
                         <Grid Classes="FormRow2" ColumnDefinitions="*,12,*">
                             <StackPanel Grid.Column="0">
-                                <TextBlock Classes="FieldLabel" Text="填充模式" />
+                                <TextBlock Classes="FieldLabel" Text="{lan:I18n Encrypt.Label_Padding}" />
                                 <ComboBox HorizontalAlignment="Stretch"
                                           ItemsSource="{Binding Paddings}"
                                           SelectedIndex="{Binding PaddingIndex, Mode=TwoWay}" />
                             </StackPanel>
                             <StackPanel Grid.Column="2">
-                                <TextBlock Classes="FieldLabel" Text="加密模式" />
+                                <TextBlock Classes="FieldLabel" Text="{lan:I18n Encrypt.Label_EncryptMode}" />
                                 <ComboBox HorizontalAlignment="Stretch"
                                           SelectedIndex="{Binding EncryptModeIndex, Mode=TwoWay}">
                                     <ComboBoxItem Content="ECB" />
@@ -35,7 +41,7 @@
                         </Grid>
                         <Grid Classes="FormRow2" ColumnDefinitions="*,12,*">
                             <StackPanel Grid.Column="0">
-                                <TextBlock Classes="FieldLabel" Text="输出格式" />
+                                <TextBlock Classes="FieldLabel" Text="{lan:I18n Encrypt.Label_OutputFormat}" />
                                 <ComboBox HorizontalAlignment="Stretch"
                                           SelectedIndex="{Binding OutputTypeIndex, Mode=TwoWay}">
                                     <ComboBoxItem Content="Base64" />
@@ -43,7 +49,7 @@
                                 </ComboBox>
                             </StackPanel>
                             <StackPanel Grid.Column="2">
-                                <TextBlock Classes="FieldLabel" Text="Key/IV 格式" />
+                                <TextBlock Classes="FieldLabel" Text="{lan:I18n Encrypt.Label_KeyIvFormat}" />
                                 <ComboBox HorizontalAlignment="Stretch"
                                           SelectedIndex="{Binding KeyIvTypeIndex, Mode=TwoWay}">
                                     <ComboBoxItem Content="Text" />
@@ -54,24 +60,24 @@
                         </Grid>
                         <StackPanel Classes="FormRow"
                                     IsEnabled="{Binding IsKeyLengthSelectable}">
-                            <TextBlock Classes="FieldLabel" Text="密钥长度 (bits)" />
+                            <TextBlock Classes="FieldLabel" Text="{lan:I18n Encrypt.Label_KeyLength}" />
                             <ComboBox Classes="Compact" HorizontalAlignment="Stretch"
                                       ItemsSource="{Binding KeyLengthOptions}"
                                       SelectedIndex="{Binding KeyLengthIndex, Mode=TwoWay}" />
                         </StackPanel>
                         <StackPanel Classes="FormRow">
-                            <TextBlock Classes="FieldLabel" Text="Key" />
+                            <TextBlock Classes="FieldLabel" Text="{lan:I18n Encrypt.Label_Key}" />
                             <Grid ColumnDefinitions="*,8,Auto">
                                 <TextBox Grid.Column="0"
                                          Text="{Binding Key, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                 <Button Grid.Column="2"
                                         Command="{Binding GenerateNewKeyCommand}"
-                                        Content="生成 Key/IV" />
+                                        Content="{lan:I18n Encrypt.Button_GenerateKey}" />
                             </Grid>
                         </StackPanel>
                         <StackPanel Classes="FormRow"
                                     IsEnabled="{Binding EncryptModeIndex, Converter={StaticResource IntEq}, ConverterParameter=1}">
-                            <TextBlock Classes="FieldLabel" Text="IV" />
+                            <TextBlock Classes="FieldLabel" Text="{lan:I18n Encrypt.Label_IV}" />
                             <TextBox Text="{Binding Iv, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                         </StackPanel>
                     </StackPanel>
@@ -80,9 +86,9 @@
                 <Border Grid.Row="2" Classes="ToolCard" Padding="0">
                     <Grid RowDefinitions="Auto,*">
                         <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="16,12,16,8">
-                            <TextBlock Classes="SectionHeader" Text="输入" />
+                            <TextBlock Classes="SectionHeader" Text="{lan:I18n Encrypt.Group_Input}" />
                             <Button Grid.Column="1" Classes="Primary"
-                                    Command="{Binding EncryptCommand}" Content="加密" />
+                                    Command="{Binding EncryptCommand}" Content="{lan:I18n Encrypt.Button_Encrypt}" />
                         </Grid>
                         <TextBox Grid.Row="1"
                                  Margin="16,0,16,12"
@@ -95,9 +101,9 @@
             <Border Grid.Column="2" Classes="ToolCard" Padding="0">
                 <Grid RowDefinitions="Auto,*">
                     <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="16,12,16,8">
-                        <TextBlock Classes="SectionHeader" Text="输出" />
+                        <TextBlock Classes="SectionHeader" Text="{lan:I18n Encrypt.Group_Output}" />
                         <Button Grid.Column="1" Classes="Danger"
-                                Command="{Binding DecryptCommand}" Content="解密" />
+                                Command="{Binding DecryptCommand}" Content="{lan:I18n Encrypt.Button_Decrypt}" />
                     </Grid>
                     <TextBox Grid.Row="1"
                              Margin="16,0,16,12"

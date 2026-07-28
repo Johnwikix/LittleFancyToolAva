@@ -1,6 +1,9 @@
+using System.Globalization;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using Lang.Avalonia;
+using Lang.Avalonia.Json;
 using LittleFancyToolAva.Algorithms;
 using LittleFancyToolAva.Algorithms.Encryption;
 using LittleFancyToolAva.Models;
@@ -21,6 +24,30 @@ namespace LittleFancyToolAva
         public override void Initialize()
         {
             AvaloniaXamlLoader.Load(this);
+
+            var initial = LocalizationRegistry.ResolveInitialCulture(
+                TryReadStoredLanguage());
+
+            I18nManager.Instance.Register(
+                new JsonLangPlugin(),
+                initial,
+                out var error);
+
+            if (!string.IsNullOrWhiteSpace(error))
+            {
+                Log.Warning("I18n init: {Error}", error);
+            }
+
+            LocalizationStrings.Initialize(initial);
+        }
+
+        public static void ForceCultureRefresh()
+        {
+            var current = I18nManager.Instance.Culture;
+            if (current is null) return;
+            var temp = current.Name == "zh-CN" ? new CultureInfo("en-US") : new CultureInfo("zh-CN");
+            I18nManager.Instance.Culture = temp;
+            I18nManager.Instance.Culture = current;
         }
 
         public T? TryGetService<T>() where T : class
@@ -66,7 +93,30 @@ namespace LittleFancyToolAva
                 };
             }
 
+            ForceCultureRefresh();
+            LocalizationStrings.Reload();
+
             base.OnFrameworkInitializationCompleted();
+        }
+
+        private static string? TryReadStoredLanguage()
+        {
+            try
+            {
+                var path = Path.Combine(AppContext.BaseDirectory, "preferences.json");
+                if (!File.Exists(path)) return null;
+                var json = File.ReadAllText(path);
+                using var doc = System.Text.Json.JsonDocument.Parse(json);
+                if (doc.RootElement.TryGetProperty("Preferences", out var prefs)
+                    && prefs.TryGetProperty("Language", out var lang))
+                {
+                    return lang.GetString();
+                }
+            }
+            catch
+            {
+            }
+            return null;
         }
 
         private void ConfigureServices(IServiceCollection services)

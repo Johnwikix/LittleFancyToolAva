@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Lang.Avalonia;
 using LittleFancyToolAva.Algorithms;
 using LittleFancyToolAva.Algorithms.Encryption;
 using LittleFancyToolAva.Models.ViewStates;
@@ -21,10 +22,16 @@ namespace LittleFancyToolAva.ViewModels
 
         public Sm2ViewModel(IViewStateService viewStateService) : base(new SM2Encryption())
         {
-            DisplayTitle = "SM2 加解密";
-            DisplaySubtitle = "国密 SM2 非对称椭圆曲线密码算法";
+            DisplayTitle = LocalizationRegistry.Get("Encrypt.SM2_Title");
+            DisplaySubtitle = LocalizationRegistry.Get("Encrypt.SM2_Subtitle");
             GenerateKeyPair();
             viewStateService.Register(this);
+
+            I18nManager.Instance.CultureChanged += (_, _) =>
+            {
+                DisplayTitle = LocalizationRegistry.Get("Encrypt.SM2_Title");
+                DisplaySubtitle = LocalizationRegistry.Get("Encrypt.SM2_Subtitle");
+            };
         }
 
         object IViewState.CaptureState() => new Sm2ViewState
