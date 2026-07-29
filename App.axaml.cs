@@ -167,13 +167,11 @@ namespace LittleFancyToolAva
             services.AddSingleton<IFileEncryptionService, FileEncryptionService>();
             services.AddSingleton<IFolderCompareService, FolderCompareService>();
             services.AddSingleton<IImageConversionService, ImageConversionService>();
-            services.AddSingleton<IIconConversionService, IconConversionService>();
 
             services.AddTransient<FileEncryptionViewModel>();
             services.AddTransient<FolderCompareViewModel>();
             services.AddTransient<Img2Base64ViewModel>();
-            services.AddTransient<Img2icoViewModel>();
-            services.AddTransient<ImgConvertViewModel>();
+            services.AddTransient<ImageConvertViewModel>();
         }
     }
 }

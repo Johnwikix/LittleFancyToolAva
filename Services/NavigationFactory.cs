@@ -20,6 +20,11 @@ namespace LittleFancyToolAva.Services
             _map[typeof(TViewModel)] = () => new TView();
         }
 
+        public void Unregister<TViewModel>()
+        {
+            _map.Remove(typeof(TViewModel));
+        }
+
         public Control GetPage(Type srcType)
         {
             throw new NotSupportedException($"GetPage(Type) is not supported. Use GetPageFromObject instead. Type={srcType?.Name}");

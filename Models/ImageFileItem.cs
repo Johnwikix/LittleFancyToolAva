@@ -3,7 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 
 namespace LittleFancyToolAva.Models;
 
-public enum ConvertFileStatus
+public enum FileStatus
 {
     Pending,
     Converting,
@@ -11,18 +11,18 @@ public enum ConvertFileStatus
     Failed
 }
 
-public partial class ConvertFileItem : ObservableObject
+public partial class ImageFileItem : ObservableObject
 {
     public string FilePath { get; }
     public string FileName => Path.GetFileName(FilePath);
 
-    private ConvertFileStatus _status = ConvertFileStatus.Pending;
+    private FileStatus _status = FileStatus.Pending;
     private string? _errorMessage;
     private double _progress;
     private string _statusDisplay = "Pending";
     private string _progressDisplay = "";
 
-    public ConvertFileStatus Status
+    public FileStatus Status
     {
         get => _status;
         set
@@ -52,7 +52,7 @@ public partial class ConvertFileItem : ObservableObject
         }
     }
 
-    public ConvertFileItem(string filePath)
+    public ImageFileItem(string filePath)
     {
         FilePath = filePath;
     }
@@ -66,7 +66,7 @@ public partial class ConvertFileItem : ObservableObject
         }
     }
 
-    internal IConvertFileItemOwner? Owner { get; set; }
+    internal IFileItemOwner? Owner { get; set; }
 
     public string StatusDisplay => _statusDisplay;
 
@@ -76,10 +76,10 @@ public partial class ConvertFileItem : ObservableObject
     {
         _statusDisplay = _status switch
         {
-            ConvertFileStatus.Pending => LittleFancyToolAva.Services.LocalizationRegistry.Get("FileItem.Status_Pending"),
-            ConvertFileStatus.Converting => LittleFancyToolAva.Services.LocalizationRegistry.Get("FileItem.Status_Converting"),
-            ConvertFileStatus.Completed => LittleFancyToolAva.Services.LocalizationRegistry.Get("FileItem.Status_Done"),
-            ConvertFileStatus.Failed => string.IsNullOrEmpty(_errorMessage)
+            FileStatus.Pending => LittleFancyToolAva.Services.LocalizationRegistry.Get("FileItem.Status_Pending"),
+            FileStatus.Converting => LittleFancyToolAva.Services.LocalizationRegistry.Get("FileItem.Status_Converting"),
+            FileStatus.Completed => LittleFancyToolAva.Services.LocalizationRegistry.Get("FileItem.Status_Done"),
+            FileStatus.Failed => string.IsNullOrEmpty(_errorMessage)
                 ? LittleFancyToolAva.Services.LocalizationRegistry.Get("FileItem.Status_Failed")
                 : LittleFancyToolAva.Services.LocalizationRegistry.Get("FileItem.Status_FailedWithError", _errorMessage),
             _ => ""
@@ -91,15 +91,15 @@ public partial class ConvertFileItem : ObservableObject
     {
         _progressDisplay = _status switch
         {
-            ConvertFileStatus.Converting => $" {_progress * 100:F0}%",
-            ConvertFileStatus.Completed => " 100%",
+            FileStatus.Converting => $" {_progress * 100:F0}%",
+            FileStatus.Completed => " 100%",
             _ => ""
         };
         OnPropertyChanged(nameof(ProgressDisplay));
     }
 }
 
-internal interface IConvertFileItemOwner
+internal interface IFileItemOwner
 {
-    void Remove(ConvertFileItem item);
+    void Remove(ImageFileItem item);
 }

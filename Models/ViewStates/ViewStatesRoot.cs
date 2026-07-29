@@ -18,8 +18,7 @@ public class ViewStatesRoot
     public UdpViewState? UdpView { get; set; }
     public FileEncryptionViewState? FileEncryptionView { get; set; }
     public FolderCompareViewState? FolderCompareView { get; set; }
-    public Img2icoViewState? Img2icoView { get; set; }
-    public ImgConvertViewState? ImgConvertView { get; set; }
+    public ImageConvertViewState? ImageConvertView { get; set; }
 }
 
 [JsonSourceGenerationOptions(WriteIndented = true)]
@@ -39,8 +38,7 @@ public class ViewStatesRoot
 [JsonSerializable(typeof(FileEncryptionViewState))]
 [JsonSerializable(typeof(KeyIvDto))]
 [JsonSerializable(typeof(FolderCompareViewState))]
-[JsonSerializable(typeof(Img2icoViewState))]
-[JsonSerializable(typeof(ImgConvertViewState))]
+[JsonSerializable(typeof(ImageConvertViewState))]
 internal partial class ViewStatesJsonContext : JsonSerializerContext
 {
 }

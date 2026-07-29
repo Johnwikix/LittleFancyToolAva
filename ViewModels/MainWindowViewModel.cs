@@ -92,8 +92,7 @@ namespace LittleFancyToolAva.ViewModels
             categories[3].Children[1].Label = L.Localize("Nav.Item_FileEncrypt");
             categories[4].Label = L.Localize("Nav.Category_Image");
             categories[4].Children[0].Label = L.Localize("Nav.Item_Img2Base64");
-            categories[4].Children[1].Label = L.Localize("Nav.Item_Img2Ico");
-            categories[4].Children[2].Label = L.Localize("Nav.Item_ImgConvert");
+            categories[4].Children[1].Label = L.Localize("Nav.Item_ImageConvert");
         }
 
         private static PageNavigationItem BuildSerialCategory(IServiceProvider sp)
@@ -138,8 +137,7 @@ namespace LittleFancyToolAva.ViewModels
         {
             var category = new PageNavigationItem(L.Localize("Nav.Category_Image"), FASymbol.Image);
             category.Children.Add(new PageNavigationItem(L.Localize("Nav.Item_Img2Base64"), FASymbol.ImageAltText, sp.GetRequiredService<Img2Base64ViewModel>()));
-            category.Children.Add(new PageNavigationItem(L.Localize("Nav.Item_Img2Ico"), FASymbol.ImageCopy, sp.GetRequiredService<Img2icoViewModel>()));
-            category.Children.Add(new PageNavigationItem(L.Localize("Nav.Item_ImgConvert"), FASymbol.ImageCopyFilled, sp.GetRequiredService<ImgConvertViewModel>()));
+            category.Children.Add(new PageNavigationItem(L.Localize("Nav.Item_ImageConvert"), FASymbol.ImageCopyFilled, sp.GetRequiredService<ImageConvertViewModel>()));
             return category;
         }
 

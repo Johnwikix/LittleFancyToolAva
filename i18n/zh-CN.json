@@ -79,10 +79,8 @@
     "Tile_FileEncrypt_Desc": "文件级加解密操作",
     "Tile_Img2Base64_Name": "图片转 Base64",
     "Tile_Img2Base64_Desc": "将图片转换为 Base64 编码",
-    "Tile_Img2Ico_Name": "图片转 ICO",
-    "Tile_Img2Ico_Desc": "将图片转换为 ICO 图标格式",
-    "Tile_ImgConvert_Name": "图片格式转换",
-    "Tile_ImgConvert_Desc": "图片格式批量转换"
+    "Tile_ImageConvert_Name": "图片转换",
+    "Tile_ImageConvert_Desc": "图片格式批量转换，支持 ICO / JPG / PNG / WebP 等格式"
   },
   "Nav": {
     "Home": "首页",
@@ -107,8 +105,7 @@
     "Item_FolderCompare": "文件夹比较",
     "Item_FileEncrypt": "文件加解密",
     "Item_Img2Base64": "图片转 Base64",
-    "Item_Img2Ico": "图片转 ICO",
-    "Item_ImgConvert": "图片格式转换"
+    "Item_ImageConvert": "图片转换"
   },
   "Settings": {
     "Page_Title": "设置",
@@ -422,36 +419,14 @@
     "Picker_SelectBase64File": "选择 Base64 文件",
     "Picker_SaveImage": "保存图片"
   },
-  "Img2Ico": {
-    "Title": "图片转 ICO",
-    "Subtitle": "将 PNG/JPG 等格式图片批量转换为 ICO 图标文件",
-    "Label_OutputDir": "输出目录",
-    "Button_Select": "选择",
-    "Button_Open": "打开",
-    "Label_IcoSize": "ICO 尺寸",
-    "Button_Start": "开始批量转换",
-    "Group_Files": "文件列表",
-    "Button_AddFiles": "添加文件",
-    "Button_AddFolder": "添加文件夹",
-    "Button_Clear": "清空",
-    "Tooltip_Remove": "移除",
-    "Status_Files": "文件列表",
-    "Status_FileCount": "共 {0} 个文件",
-    "Msg_AllDone": "全部转换完成（共 {0} 个）",
-    "Msg_PartialFail": "转换完成，{0} 个失败 / {1} 个",
-    "Msg_OutputDirMissing": "输出目录不存在",
-    "Picker_ImageFile": "图片文件",
-    "Picker_SelectImage": "选择图片",
-    "Picker_SelectImageFolder": "选择图片文件夹",
-    "Picker_SelectOutputDir": "选择输出目录"
-  },
-  "ImgConvert": {
-    "Title": "图片格式转换",
-    "Subtitle": "PNG / JPG / WebP / BMP 等格式批量转换",
+  "ImageConvert": {
+    "Title": "图片转换",
+    "Subtitle": "批量转换图片格式，支持 ICO / JPG / PNG / WebP / BMP 等",
     "Label_OutputDir": "输出目录",
     "Button_Select": "选择",
     "Button_Open": "打开",
     "Label_TargetFormat": "目标格式",
+    "Label_IcoSize": "ICO 尺寸",
     "Label_Downscale": "降采样",
     "Option_Enable": "启用",
     "Button_Start": "开始批量转换",

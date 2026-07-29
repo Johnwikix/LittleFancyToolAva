@@ -79,10 +79,8 @@
     "Tile_FileEncrypt_Desc": "File-level encryption operations",
     "Tile_Img2Base64_Name": "Image to Base64",
     "Tile_Img2Base64_Desc": "Convert image to Base64 encoding",
-    "Tile_Img2Ico_Name": "Image to ICO",
-    "Tile_Img2Ico_Desc": "Convert image to ICO icon format",
-    "Tile_ImgConvert_Name": "Image Format Convert",
-    "Tile_ImgConvert_Desc": "Batch convert image formats"
+    "Tile_ImageConvert_Name": "Image Convert",
+    "Tile_ImageConvert_Desc": "Batch convert image formats, supports ICO / JPG / PNG / WebP / BMP"
   },
   "Nav": {
     "Home": "Home",
@@ -107,8 +105,7 @@
     "Item_FolderCompare": "Folder Compare",
     "Item_FileEncrypt": "File Encryption",
     "Item_Img2Base64": "Image to Base64",
-    "Item_Img2Ico": "Image to ICO",
-    "Item_ImgConvert": "Image Format Convert"
+    "Item_ImageConvert": "Image Convert"
   },
   "Settings": {
     "Page_Title": "Settings",
@@ -422,36 +419,14 @@
     "Picker_SelectBase64File": "Select Base64 File",
     "Picker_SaveImage": "Save Image"
   },
-  "Img2Ico": {
-    "Title": "Image to ICO",
-    "Subtitle": "Batch convert PNG/JPG images to ICO icon files",
-    "Label_OutputDir": "Output Directory",
-    "Button_Select": "Select",
-    "Button_Open": "Open",
-    "Label_IcoSize": "ICO Size",
-    "Button_Start": "Start Batch Convert",
-    "Group_Files": "File List",
-    "Button_AddFiles": "Add Files",
-    "Button_AddFolder": "Add Folder",
-    "Button_Clear": "Clear",
-    "Tooltip_Remove": "Remove",
-    "Status_Files": "File List",
-    "Status_FileCount": "{0} files in total",
-    "Msg_AllDone": "All conversions complete ({0} files)",
-    "Msg_PartialFail": "Conversion complete, {0} failed / {1} total",
-    "Msg_OutputDirMissing": "Output directory does not exist",
-    "Picker_ImageFile": "Image Files",
-    "Picker_SelectImage": "Select Image",
-    "Picker_SelectImageFolder": "Select Image Folder",
-    "Picker_SelectOutputDir": "Select Output Directory"
-  },
-  "ImgConvert": {
-    "Title": "Image Format Convert",
-    "Subtitle": "Batch convert PNG / JPG / WebP / BMP formats",
+  "ImageConvert": {
+    "Title": "Image Convert",
+    "Subtitle": "Batch convert images, supports ICO / JPG / PNG / WebP / BMP / TIFF / DDS / JXL / HEIC",
     "Label_OutputDir": "Output Directory",
     "Button_Select": "Select",
     "Button_Open": "Open",
     "Label_TargetFormat": "Target Format",
+    "Label_IcoSize": "ICO Size",
     "Label_Downscale": "Downscale",
     "Option_Enable": "Enable",
     "Button_Start": "Start Batch Convert",

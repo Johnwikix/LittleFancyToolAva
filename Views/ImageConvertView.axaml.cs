@@ -5,9 +5,14 @@ using LittleFancyToolAva.ViewModels;
 
 namespace LittleFancyToolAva.Views;
 
-public partial class ImgConvertView : UserControl
+public partial class ImageConvertView : UserControl
 {
-    public ImgConvertView()
+    private static readonly HashSet<string> ImageExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".png", ".jpg", ".jpeg", ".bmp", ".webp", ".tiff", ".gif", ".dds", ".jxl", ".heic"
+    };
+
+    public ImageConvertView()
     {
         InitializeComponent();
     }
@@ -22,10 +27,10 @@ public partial class ImgConvertView : UserControl
         e.DragEffects = CanAccept(e) ? DragDropEffects.Copy : DragDropEffects.None;
     }
 
-    private void OnDrop(object? sender, DragEventArgs e)
+    private async void OnDrop(object? sender, DragEventArgs e)
     {
         if (!CanAccept(e)) return;
-        if (DataContext is not ImgConvertViewModel vm) return;
+        if (DataContext is not ImageConvertViewModel vm) return;
         if (vm.IsBusy) return;
 
         var paths = ExtractPaths(e);
@@ -35,10 +40,13 @@ public partial class ImgConvertView : UserControl
 
     private bool CanAccept(DragEventArgs e)
     {
-        if (DataContext is ImgConvertViewModel vm && vm.IsBusy) return false;
+        if (DataContext is ImageConvertViewModel vm && vm.IsBusy) return false;
         foreach (var item in e.DataTransfer.Items)
         {
-            if (item.Contains(DataFormat.File))
+            if (!item.Contains(DataFormat.File)) continue;
+            var storageItem = item.TryGetFile();
+            var path = storageItem?.TryGetLocalPath();
+            if (!string.IsNullOrEmpty(path) && ImageExtensions.Contains(Path.GetExtension(path)))
                 return true;
         }
         return false;

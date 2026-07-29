@@ -10,7 +10,7 @@ using LittleFancyToolAva.Utils;
 
 namespace LittleFancyToolAva.ViewModels;
 
-public partial class ImgConvertViewModel : ViewModelBase, IViewState, IConvertFileItemOwner
+public partial class ImageConvertViewModel : ViewModelBase, IViewState, IFileItemOwner
 {
     private static readonly HashSet<string> ImageExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -25,11 +25,11 @@ public partial class ImgConvertViewModel : ViewModelBase, IViewState, IConvertFi
     private int _completedCountField;
     private int _failedCountField;
 
-    string IViewState.ViewName => "imgConvertView";
+    string IViewState.ViewName => "imageConvertView";
 
-    public ObservableCollection<ConvertFileItem> FileItems { get; } = [];
+    public ObservableCollection<ImageFileItem> FileItems { get; } = [];
 
-    public ConvertFileItem? SelectedFileItem
+    public ImageFileItem? SelectedFileItem
     {
         get => field;
         set => SetProperty(ref field, value);
@@ -48,7 +48,11 @@ public partial class ImgConvertViewModel : ViewModelBase, IViewState, IConvertFi
     public int FormatIndex
     {
         get => field;
-        set => SetProperty(ref field, value);
+        set
+        {
+            if (SetProperty(ref field, value))
+                OnPropertyChanged(nameof(IsIcoMode));
+        }
     }
 
     public bool IsDownscaleEnabled
@@ -68,6 +72,14 @@ public partial class ImgConvertViewModel : ViewModelBase, IViewState, IConvertFi
         get => field;
         set => SetProperty(ref field, value);
     }
+
+    public int SelectedSizeIndex
+    {
+        get => field;
+        set => SetProperty(ref field, value);
+    } = 2;
+
+    public bool IsIcoMode => FormatIndex >= 0 && FormatIndex < AvailableFormats.Count && AvailableFormats[FormatIndex] == "ico";
 
     public bool IsBusy
     {
@@ -116,10 +128,11 @@ public partial class ImgConvertViewModel : ViewModelBase, IViewState, IConvertFi
         set => SetProperty(ref field, value);
     } = string.Empty;
 
-    public List<string> AvailableFormats { get; } = ["jpg", "png", "bmp", "webp", "tiff", "dds", "jxl", "heic"];
+    public List<string> AvailableFormats { get; } = ["jpg", "png", "bmp", "webp", "tiff", "dds", "jxl", "heic", "ico"];
     public List<string> AvailableFilters { get; } = ["Lanczos", "Mitchell", "Catrom", "Cubic", "Triangle", "Box"];
+    public List<int> AvailableSizes { get; } = [16, 32, 48, 64, 128, 256];
 
-    public ImgConvertViewModel(
+    public ImageConvertViewModel(
         IImageConversionService imageConversionService,
         IFileDialogService fileDialogService,
         INotificationService notificationService,
@@ -134,38 +147,34 @@ public partial class ImgConvertViewModel : ViewModelBase, IViewState, IConvertFi
         UpdateStatusText();
     }
 
-    private int? GetMaxDimension()
-    {
-        if (!IsDownscaleEnabled || DownscalePercent >= 100) return null;
-        return DownscalePercent;
-    }
-
-    object IViewState.CaptureState() => new ImgConvertViewState
+    object IViewState.CaptureState() => new ImageConvertViewState
     {
         FormatIndex = FormatIndex,
         OutputFolder = OutputFolder,
         IsDownscaleEnabled = IsDownscaleEnabled,
         DownscalePercent = DownscalePercent,
-        SelectedFilterIndex = SelectedFilterIndex
+        SelectedFilterIndex = SelectedFilterIndex,
+        SelectedSizeIndex = SelectedSizeIndex
     };
 
     void IViewState.RestoreState(object state)
     {
-        if (state is ImgConvertViewState s)
+        if (state is ImageConvertViewState s)
         {
             FormatIndex = s.FormatIndex;
             OutputFolder = s.OutputFolder;
             IsDownscaleEnabled = s.IsDownscaleEnabled;
             DownscalePercent = s.DownscalePercent is > 10 and <= 100 ? s.DownscalePercent : 100;
             SelectedFilterIndex = s.SelectedFilterIndex;
+            SelectedSizeIndex = s.SelectedSizeIndex;
         }
     }
 
     [RelayCommand(CanExecute = nameof(CanModify))]
     private async Task AddFiles()
     {
-        IReadOnlyList<FilePickerFileType> filters = [new(LocalizationRegistry.Get("ImgConvert.Picker_ImageFile")) { Patterns = ["*.png", "*.jpg", "*.jpeg", "*.bmp", "*.webp", "*.tiff", "*.gif", "*.dds", "*.jxl", "*.heic"] }];
-        var paths = await _fileDialogService.PickOpenFilesAsync(LocalizationRegistry.Get("ImgConvert.Picker_SelectImage"), filters);
+        IReadOnlyList<FilePickerFileType> filters = [new(LocalizationRegistry.Get("ImageConvert.Picker_ImageFile")) { Patterns = ["*.png", "*.jpg", "*.jpeg", "*.bmp", "*.webp", "*.tiff", "*.gif", "*.dds", "*.jxl", "*.heic"] }];
+        var paths = await _fileDialogService.PickOpenFilesAsync(LocalizationRegistry.Get("ImageConvert.Picker_SelectImage"), filters);
         if (paths == null) return;
 
         var existing = new HashSet<string>(FileItems.Select(x => x.FilePath), StringComparer.OrdinalIgnoreCase);
@@ -183,7 +192,7 @@ public partial class ImgConvertViewModel : ViewModelBase, IViewState, IConvertFi
     [RelayCommand(CanExecute = nameof(CanModify))]
     private async Task AddFolder()
     {
-        string? folder = await _fileDialogService.PickFolderAsync(LocalizationRegistry.Get("ImgConvert.Picker_SelectImageFolder"));
+        string? folder = await _fileDialogService.PickFolderAsync(LocalizationRegistry.Get("ImageConvert.Picker_SelectImageFolder"));
         if (folder == null) return;
 
         var existing = new HashSet<string>(FileItems.Select(x => x.FilePath), StringComparer.OrdinalIgnoreCase);
@@ -205,15 +214,15 @@ public partial class ImgConvertViewModel : ViewModelBase, IViewState, IConvertFi
         UpdateStatusText();
     }
 
-    void IConvertFileItemOwner.Remove(ConvertFileItem item)
+    void IFileItemOwner.Remove(ImageFileItem item)
     {
         FileItems.Remove(item);
         UpdateStatusText();
     }
 
-    private ConvertFileItem CreateItem(string path)
+    private ImageFileItem CreateItem(string path)
     {
-        var item = new ConvertFileItem(path);
+        var item = new ImageFileItem(path);
         item.Owner = this;
         return item;
     }
@@ -251,7 +260,7 @@ public partial class ImgConvertViewModel : ViewModelBase, IViewState, IConvertFi
     [RelayCommand(CanExecute = nameof(CanModify))]
     private async Task PickOutputFolder()
     {
-        string? folder = await _fileDialogService.PickFolderAsync(LocalizationRegistry.Get("ImgConvert.Picker_SelectOutputDir"));
+        string? folder = await _fileDialogService.PickFolderAsync(LocalizationRegistry.Get("ImageConvert.Picker_SelectOutputDir"));
         if (folder != null)
             OutputFolder = folder;
     }
@@ -271,14 +280,14 @@ public partial class ImgConvertViewModel : ViewModelBase, IViewState, IConvertFi
     {
         if (string.IsNullOrEmpty(OutputFolder))
         {
-            string? folder = await _fileDialogService.PickFolderAsync(LocalizationRegistry.Get("ImgConvert.Picker_SelectOutputDir"));
+            string? folder = await _fileDialogService.PickFolderAsync(LocalizationRegistry.Get("ImageConvert.Picker_SelectOutputDir"));
             if (folder == null) return;
             OutputFolder = folder;
         }
 
         if (!Directory.Exists(OutputFolder))
         {
-            _notificationService.ShowError(LocalizationRegistry.Get("ImgConvert.Msg_OutputDirMissing"));
+            _notificationService.ShowError(LocalizationRegistry.Get("ImageConvert.Msg_OutputDirMissing"));
             return;
         }
 
@@ -294,11 +303,9 @@ public partial class ImgConvertViewModel : ViewModelBase, IViewState, IConvertFi
         UpdateStatusText();
 
         string format = AvailableFormats[FormatIndex];
-        string? filter = IsDownscaleEnabled ? AvailableFilters[SelectedFilterIndex] : null;
-        int? scalePct = IsDownscaleEnabled && DownscalePercent < 100 ? DownscalePercent : null;
 
         foreach (var item in FileItems)
-            item.Status = ConvertFileStatus.Pending;
+            item.Status = FileStatus.Pending;
 
         await Parallel.ForEachAsync(FileItems,
             new ParallelOptions
@@ -308,7 +315,7 @@ public partial class ImgConvertViewModel : ViewModelBase, IViewState, IConvertFi
             },
             async (item, ct) =>
             {
-                item.Status = ConvertFileStatus.Converting;
+                item.Status = FileStatus.Converting;
                 item.Progress = 0;
                 var progress = new ThrottledProgress<double>(p =>
                 {
@@ -316,23 +323,34 @@ public partial class ImgConvertViewModel : ViewModelBase, IViewState, IConvertFi
                 }, TimeSpan.FromMilliseconds(50));
                 try
                 {
-                    string outputPath = GetUniqueOutputPath(OutputFolder!, item.FileName, format);
-                    await _imageConversionService.ConvertImageFormatAsync(item.FilePath, outputPath, format, ct, null, filter, progress, scalePercent: scalePct);
+                    if (format == "ico")
+                    {
+                        int size = AvailableSizes[SelectedSizeIndex];
+                        string outputPath = GetUniqueOutputPath(OutputFolder!, item.FileName, "ico");
+                        await _imageConversionService.SaveAsIcoAsync(item.FilePath, outputPath, size, ct);
+                    }
+                    else
+                    {
+                        string? filter = IsDownscaleEnabled ? AvailableFilters[SelectedFilterIndex] : null;
+                        int? scalePct = IsDownscaleEnabled && DownscalePercent < 100 ? DownscalePercent : null;
+                        string outputPath = GetUniqueOutputPath(OutputFolder!, item.FileName, format);
+                        await _imageConversionService.ConvertImageFormatAsync(item.FilePath, outputPath, format, ct, null, filter, progress, scalePercent: scalePct);
+                    }
                     item.Progress = 1.0;
-                    item.Status = ConvertFileStatus.Completed;
+                    item.Status = FileStatus.Completed;
                 }
                 catch (OperationCanceledException)
                 {
-                    item.Status = ConvertFileStatus.Pending;
+                    item.Status = FileStatus.Pending;
                 }
                 catch (Exception ex)
                 {
-                    item.Status = ConvertFileStatus.Failed;
+                    item.Status = FileStatus.Failed;
                     item.ErrorMessage = ex.Message;
                 }
                 finally
                 {
-                    bool isFailed = item.Status == ConvertFileStatus.Failed;
+                    bool isFailed = item.Status == FileStatus.Failed;
                     if (isFailed)
                         Interlocked.Increment(ref _failedCountField);
                     int processed = Interlocked.Increment(ref _completedCountField);
@@ -350,21 +368,21 @@ public partial class ImgConvertViewModel : ViewModelBase, IViewState, IConvertFi
         IsBusy = false;
 
         if (FailedCount == 0)
-            _notificationService.ShowSuccess(LocalizationRegistry.Get("ImgConvert.Msg_AllDone", TotalCount));
+            _notificationService.ShowSuccess(LocalizationRegistry.Get("ImageConvert.Msg_AllDone", TotalCount));
         else
-            _notificationService.ShowWarn(LocalizationRegistry.Get("ImgConvert.Msg_PartialFail", FailedCount, TotalCount));
+            _notificationService.ShowWarn(LocalizationRegistry.Get("ImageConvert.Msg_PartialFail", FailedCount, TotalCount));
     }
 
     private bool CanStartConvert() => !IsBusy && FileItems.Count > 0;
 
-    private static string GetUniqueOutputPath(string folder, string fileName, string format)
+    private static string GetUniqueOutputPath(string folder, string fileName, string extension)
     {
-        string basePath = Path.Combine(folder, Path.ChangeExtension(fileName, format));
+        string ext = "." + extension;
+        string basePath = Path.Combine(folder, Path.ChangeExtension(fileName, ext));
         if (!File.Exists(basePath))
             return basePath;
 
         string nameWithoutExt = Path.GetFileNameWithoutExtension(fileName);
-        string ext = "." + format;
         for (int i = 1; ; i++)
         {
             string candidate = Path.Combine(folder, $"{nameWithoutExt}_{i}{ext}");
@@ -376,7 +394,7 @@ public partial class ImgConvertViewModel : ViewModelBase, IViewState, IConvertFi
     private void UpdateStatusText()
     {
         StatusText = FileItems.Count == 0
-            ? LocalizationRegistry.Get("ImgConvert.Status_Files")
-            : LocalizationRegistry.Get("ImgConvert.Status_FileCount", FileItems.Count);
+            ? LocalizationRegistry.Get("ImageConvert.Status_Files")
+            : LocalizationRegistry.Get("ImageConvert.Status_FileCount", FileItems.Count);
     }
 }

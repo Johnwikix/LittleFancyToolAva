@@ -142,8 +142,7 @@ public class ViewStateService : IViewStateService
         "udpView" => root.UdpView,
         "fileEncryptionView" => root.FileEncryptionView,
         "folderCompareView" => root.FolderCompareView,
-        "img2icoView" => root.Img2icoView,
-        "imgConvertView" => root.ImgConvertView,
+        "imageConvertView" => root.ImageConvertView,
         _ => null
     };
 
@@ -165,8 +164,7 @@ public class ViewStateService : IViewStateService
             case "udpView": root.UdpView = (UdpViewState?)state; break;
             case "fileEncryptionView": root.FileEncryptionView = (FileEncryptionViewState?)state; break;
             case "folderCompareView": root.FolderCompareView = (FolderCompareViewState?)state; break;
-            case "img2icoView": root.Img2icoView = (Img2icoViewState?)state; break;
-            case "imgConvertView": root.ImgConvertView = (ImgConvertViewState?)state; break;
+            case "imageConvertView": root.ImageConvertView = (ImageConvertViewState?)state; break;
         }
     }
 

@@ -31,8 +31,7 @@ namespace LittleFancyToolAva.Views
                 navFactory.Register<FileEncryptionViewModel, FileEncryptionView>();
                 navFactory.Register<FolderCompareViewModel, FolderCompareView>();
                 navFactory.Register<Img2Base64ViewModel, Img2Base64View>();
-                navFactory.Register<Img2icoViewModel, Img2icoView>();
-                navFactory.Register<ImgConvertViewModel, ImgConvertView>();
+                navFactory.Register<ImageConvertViewModel, ImageConvertView>();
                 FrameView.NavigationPageFactory = navFactory;
             }
 

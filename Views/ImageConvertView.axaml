@@ -1,4 +1,4 @@
-﻿<UserControl xmlns="https://github.com/avaloniaui"
+<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:LittleFancyToolAva.ViewModels"
              xmlns:models="using:LittleFancyToolAva.Models"
@@ -7,16 +7,16 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d"
-             x:Class="LittleFancyToolAva.Views.ImgConvertView"
-             x:DataType="vm:ImgConvertViewModel">
+             x:Class="LittleFancyToolAva.Views.ImageConvertView"
+             x:DataType="vm:ImageConvertViewModel">
     <Grid RowDefinitions="Auto,*,Auto" Margin="{StaticResource PageMargin}">
-        <controls:ToolPageHeader Grid.Row="0" Title="{lan:I18n ImgConvert.Title}" Subtitle="{lan:I18n ImgConvert.Subtitle}" />
+        <controls:ToolPageHeader Grid.Row="0" Title="{lan:I18n ImageConvert.Title}" Subtitle="{lan:I18n ImageConvert.Subtitle}" />
         <Grid Grid.Row="1" ColumnDefinitions="3*,16,7*" Margin="0,16,0,0">
             <ScrollViewer Grid.Column="0">
                 <Border Classes="ToolCard">
                     <StackPanel Classes="ToolCardContent" Spacing="12">
                         <StackPanel Classes="FormRow">
-                            <TextBlock Classes="FieldLabel" Text="{lan:I18n ImgConvert.Label_OutputDir}" />
+                            <TextBlock Classes="FieldLabel" Text="{lan:I18n ImageConvert.Label_OutputDir}" />
                             <Grid ColumnDefinitions="*,8,Auto,8,Auto">
                                 <TextBox Grid.Column="0"
                                          Text="{Binding OutputFolder, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
@@ -25,16 +25,22 @@
                             </Grid>
                         </StackPanel>
                         <StackPanel Classes="FormRow">
-                            <TextBlock Classes="FieldLabel" Text="{lan:I18n ImgConvert.Label_TargetFormat}" />
+                            <TextBlock Classes="FieldLabel" Text="{lan:I18n ImageConvert.Label_TargetFormat}" />
                             <ComboBox HorizontalAlignment="Stretch"
                                       ItemsSource="{Binding AvailableFormats}"
                                       SelectedIndex="{Binding FormatIndex, Mode=TwoWay}" />
                         </StackPanel>
-                        <StackPanel Classes="FormRow">
-                            <TextBlock Classes="FieldLabel" Text="{lan:I18n ImgConvert.Label_Downscale}" />
+                        <StackPanel Classes="FormRow" IsVisible="{Binding IsIcoMode}">
+                            <TextBlock Classes="FieldLabel" Text="{lan:I18n ImageConvert.Label_IcoSize}" />
+                            <ComboBox HorizontalAlignment="Stretch"
+                                      ItemsSource="{Binding AvailableSizes}"
+                                      SelectedIndex="{Binding SelectedSizeIndex, Mode=TwoWay}" />
+                        </StackPanel>
+                        <StackPanel Classes="FormRow" IsVisible="{Binding !IsIcoMode}">
+                            <TextBlock Classes="FieldLabel" Text="{lan:I18n ImageConvert.Label_Downscale}" />
                             <StackPanel Spacing="8">
                                 <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">
-                                    <CheckBox Grid.Column="0" IsChecked="{Binding IsDownscaleEnabled}" Content="{lan:I18n ImgConvert.Option_Enable}" />
+                                    <CheckBox Grid.Column="0" IsChecked="{Binding IsDownscaleEnabled}" Content="{lan:I18n ImageConvert.Option_Enable}" />
                                     <ComboBox Grid.Column="2" IsVisible="{Binding IsDownscaleEnabled}"
                                               ItemsSource="{Binding AvailableFilters}"
                                               SelectedIndex="{Binding SelectedFilterIndex}" Width="120" />
@@ -54,7 +60,7 @@
                             <TextBlock Text="{Binding StatusText}" />
                         </StackPanel>
                         <Button Command="{Binding StartConvertCommand}" Classes="Primary"
-                                HorizontalAlignment="Stretch" Content="{lan:I18n ImgConvert.Button_Start}" />
+                                HorizontalAlignment="Stretch" Content="{lan:I18n ImageConvert.Button_Start}" />
                     </StackPanel>
                 </Border>
             </ScrollViewer>
@@ -76,7 +82,7 @@
                              SelectedItem="{Binding SelectedFileItem}"
                              BorderThickness="0" Margin="8,0,8,8">
                         <ListBox.ItemTemplate>
-                            <DataTemplate x:DataType="models:ConvertFileItem">
+                            <DataTemplate x:DataType="models:ImageFileItem">
                                 <Grid ColumnDefinitions="Auto,*,Auto,Auto" Margin="4,2">
                                     <SelectableTextBlock Grid.Column="0" Text="IMG" Margin="0,0,8,0" VerticalAlignment="Center" />
                                     <SelectableTextBlock Grid.Column="1" Text="{Binding FileName}" VerticalAlignment="Center" />

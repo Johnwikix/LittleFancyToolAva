@@ -26,8 +26,7 @@ namespace LittleFancyToolAva.ViewModels
             [typeof(FolderCompareViewModel)] = ("Home.Tile_FolderCompare_Name", "Home.Tile_FolderCompare_Desc"),
             [typeof(FileEncryptionViewModel)] = ("Home.Tile_FileEncrypt_Name", "Home.Tile_FileEncrypt_Desc"),
             [typeof(Img2Base64ViewModel)] = ("Home.Tile_Img2Base64_Name", "Home.Tile_Img2Base64_Desc"),
-            [typeof(Img2icoViewModel)] = ("Home.Tile_Img2Ico_Name", "Home.Tile_Img2Ico_Desc"),
-            [typeof(ImgConvertViewModel)] = ("Home.Tile_ImgConvert_Name", "Home.Tile_ImgConvert_Desc"),
+            [typeof(ImageConvertViewModel)] = ("Home.Tile_ImageConvert_Name", "Home.Tile_ImageConvert_Desc"),
         };
 
         public Action<PageNavigationItem>? NavigateToPage { get; set; }
