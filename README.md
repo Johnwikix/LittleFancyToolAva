@@ -77,7 +77,7 @@ dotnet publish -c Release -p:PublishProfile=FolderProfile
 
 ### 🗂️ 文件与图片工具
 
-- 📁 **文件夹比较**：对比两个目录的内容与文件差异（按相对路径、大小匹配）
+- 📁 **文件夹比较**：对比两个目录的内容与文件差异（按相对路径、SHA-256 哈希、音乐标题匹配）
 - 🔐 **文件加解密**：批量的文件级加密 / 解密操作，支持进度跟踪
 - 🖼️ **图片转 Base64**：将图片转换为 Base64 编码字符串
 - 🖼️ **图片转 ICO**：将位图转换为 ICO 图标格式
@@ -99,9 +99,9 @@ dotnet publish -c Release -p:PublishProfile=FolderProfile
 | 哈希 | SHA | SHA-1/256/384/512 | SHA 系列 | BouncyCastle.Cryptography |
 | 哈希 | SM3 | SM3 国密摘要 | SM3 | BouncyCastle.Cryptography |
 | 编码 | Base64 | 文本编解码 | Base64 | .NET BCL |
-| 文件 | 文件夹比较 | 两个目录差异对比 | 路径 / 大小比较 | .NET BCL |
+| 文件 | 文件夹比较 | 两个目录差异对比 | SHA-256 哈希 / 音乐标题 | .NET BCL / ATL |
 | 文件 | 文件加解密 | 文件级加密 / 解密 | AES / SM4 等（可扩展） | BouncyCastle.Cryptography |
-| 图片 | 图片转 Base64 | 图片 → Base64 | 字节流编码 | .NET BCL / TagLibSharp |
+| 图片 | 图片转 Base64 | 图片 → Base64 | 字节流编码 | .NET BCL |
 | 图片 | 图片转 ICO | 位图 → ICO | ICO 编码 | SkiaSharp |
 | 图片 | 图片格式转换 | 图片批量格式转换 | 图像重编码 | SkiaSharp |
 
@@ -114,7 +114,7 @@ dotnet publish -c Release -p:PublishProfile=FolderProfile
 - **状态持久化**：`IViewStateService` 序列化各工具页面状态；`AppPreferences` 持久化主题、动画、阴影、通知位置等设置；`ApplicationHostService` 在启动时 `LoadState` / `LoadViewStates`，退出时 `SaveState`
 - **日志**：`Serilog` 4 + `Serilog.Extensions.Logging` 桥接 `Microsoft.Extensions.Logging`；按天滚动写入 `{AppBaseDirectory}\logs\tool-.log`，单文件上限 50 MB，保留 30 天
 - **稳定性**：`Program.cs` 注册 `AppDomain.UnhandledException` 与 `TaskScheduler.UnobservedTaskException`；启动失败时通过 `MessageBoxW` 兜底提示
-- **发布**：`PublishTrimmed` + `PublishReadyToRun` + `SelfContained`（`FolderProfile.pubxml`）
+- **发布**：非 Debug 启用 Native AOT（`PublishAot`）；`FolderProfile.pubxml` 提供 `SelfContained` + `PublishSingleFile` 文件夹发布
 
 ## ✍️ 贡献与构建
 
@@ -163,7 +163,7 @@ dotnet publish -c Release -p:PublishProfile=FolderProfile
 | [Serilog.Sinks.File](https://github.com/serilog/serilog-sinks-file) | 文件日志输出 | Apache-2.0 |
 | [BouncyCastle.Cryptography](https://www.bouncycastle.org/csharp/) | 加密算法（AES / DES / RSA / SM2 / SM3 / SM4 / SHA / MD5） | MIT |
 | [SkiaSharp](https://github.com/mono/SkiaSharp) | 图片处理与格式转换（Avalonia 内置渲染引擎） | MIT |
-| [TagLibSharp](https://github.com/mono/taglib-sharp) | 媒体元数据（图片） | LGPL-2.1 |
+| [z440.atl.core](https://github.com/Zeugma440/atldotnet) | 音频元数据（音乐标题提取） | MIT |
 | [System.IO.Ports](https://learn.microsoft.com/dotnet/api/system.io.ports) | 串口通信 | MIT |
 | [System.Windows.Extensions](https://learn.microsoft.com/dotnet/api/) | Windows 扩展 | MIT |
 

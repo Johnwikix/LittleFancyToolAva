@@ -77,7 +77,7 @@ Output is placed at `bin/Release/net10.0-windows/win-x64/publish/win-x64/`.
 
 ### 🗂️ File & Image Tools
 
-- 📁 **Folder Compare**: compare two folders and list differences by relative path and size
+- 📁 **Folder Compare**: compare two folders and list differences by relative path, SHA-256 hash, and music title
 - 🔐 **File Encryption**: batch file-level encryption / decryption with progress tracking
 - 🖼️ **Image → Base64**: convert an image into a Base64 string
 - 🖼️ **Image → ICO**: convert a bitmap into an ICO icon
@@ -99,9 +99,9 @@ Output is placed at `bin/Release/net10.0-windows/win-x64/publish/win-x64/`.
 | Hash | SHA | SHA-1/256/384/512 | SHA family | BouncyCastle.Cryptography |
 | Hash | SM3 | SM3 national digest | SM3 | BouncyCastle.Cryptography |
 | Encoding | Base64 | Text encode/decode | Base64 | .NET BCL |
-| File | Folder Compare | Diff two directories | Path / size comparison | .NET BCL |
+| File | Folder Compare | Diff two directories | SHA-256 hash / music title | .NET BCL / ATL |
 | File | File Encryption | Batch file encrypt / decrypt | AES / SM4 (extensible) | BouncyCastle.Cryptography |
-| Image | Image → Base64 | Image → Base64 | Stream encoding | .NET BCL / TagLibSharp |
+| Image | Image → Base64 | Image → Base64 | Stream encoding | .NET BCL |
 | Image | Image → ICO | Bitmap → ICO | ICO encoding | SkiaSharp |
 | Image | Image Format Conversion | Batch format conversion | Image re-encoding | SkiaSharp |
 
@@ -114,7 +114,7 @@ Output is placed at `bin/Release/net10.0-windows/win-x64/publish/win-x64/`.
 - **State Persistence**: `IViewStateService` serializes per-tool page state; `AppPreferences` persists theme, animations, shadows, notification placement, etc.; `ApplicationHostService` calls `LoadState` / `LoadViewStates` on launch and `SaveState` on exit
 - **Logging**: `Serilog` 4 + `Serilog.Extensions.Logging` bridging `Microsoft.Extensions.Logging`; daily-rolling output to `{AppBaseDirectory}\logs\tool-.log`, capped at 50 MB per file, 30 days retained
 - **Stability**: `Program.cs` registers `AppDomain.UnhandledException` and `TaskScheduler.UnobservedTaskException`; startup failures surface through `MessageBoxW`
-- **Publishing**: `PublishTrimmed` + `PublishReadyToRun` + `SelfContained` (`FolderProfile.pubxml`)
+- **Publishing**: Native AOT for non-Debug builds (`PublishAot`); `FolderProfile.pubxml` provides `SelfContained` + `PublishSingleFile` folder publishing
 
 ## ✍️ Contributing & Building
 
@@ -163,7 +163,7 @@ Issues and Pull Requests are welcome.
 | [Serilog.Sinks.File](https://github.com/serilog/serilog-sinks-file) | File log sink | Apache-2.0 |
 | [BouncyCastle.Cryptography](https://www.bouncycastle.org/csharp/) | Ciphers (AES / DES / RSA / SM2 / SM3 / SM4 / SHA / MD5) | MIT |
 | [SkiaSharp](https://github.com/mono/SkiaSharp) | Image processing & format conversion (Avalonia built-in renderer) | MIT |
-| [TagLibSharp](https://github.com/mono/taglib-sharp) | Media (image) metadata | LGPL-2.1 |
+| [z440.atl.core](https://github.com/Zeugma440/atldotnet) | Audio metadata (music title extraction) | MIT |
 | [System.IO.Ports](https://learn.microsoft.com/dotnet/api/system.io.ports) | Serial port communication | MIT |
 | [System.Windows.Extensions](https://learn.microsoft.com/dotnet/api/) | Windows extensions | MIT |
 

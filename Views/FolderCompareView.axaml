@@ -45,35 +45,35 @@
                 </Border>
                 <Border Grid.Row="4" Classes="ToolCard" Padding="0">
                     <Grid RowDefinitions="Auto,*">
-                        <TextBlock Grid.Row="0" Classes="SectionHeader" Text="{lan:I18n FolderCompare.Group_Result}" Margin="16,12,16,4" />
-                        <ListBox Grid.Row="1" Margin="8,0,8,8"
-                                 ItemsSource="{Binding CompareResults}">
-                            <ListBox.ItemTemplate>
-                                <DataTemplate DataType="models:FolderCompareResult">
-                                    <Border Classes="ToolCardTight" Margin="2,2">
-                                        <StackPanel>
-                                            <TextBlock Text="{Binding RelativePath}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                                            <TextBlock Text="{Binding State}" Classes="Caption" />
-                                            <TextBlock Text="{Binding SourceDetail}" Classes="Caption" TextTrimming="CharacterEllipsis" />
-                                            <TextBlock Text="{Binding TargetDetail}" Classes="Caption" TextTrimming="CharacterEllipsis" />
-                                        </StackPanel>
-                                    </Border>
-                                </DataTemplate>
-                            </ListBox.ItemTemplate>
-                        </ListBox>
+                        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="16,12,16,8">
+                            <TextBlock Classes="SectionHeader" Grid.Column="0" Text="{lan:I18n FolderCompare.Group_Status}" />
+                            <TextBlock Classes="Caption" Grid.Column="1" Text="{Binding StatusText}" />
+                        </Grid>
+                        <StackPanel Grid.Row="1" Margin="16,0,16,12" Spacing="12">
+                            <TextBlock Classes="Caption" Text="{lan:I18n FolderCompare.Label_Tip}" />
+                            <TextBlock TextWrapping="Wrap" Text="{lan:I18n FolderCompare.Tip_Content}" />
+                        </StackPanel>
                     </Grid>
                 </Border>
             </Grid>
             <Border Grid.Column="2" Classes="ToolCard" Padding="0">
                 <Grid RowDefinitions="Auto,*">
-                    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="16,12,16,8">
-                        <TextBlock Classes="SectionHeader" Grid.Column="0" Text="{lan:I18n FolderCompare.Group_Status}" />
-                        <TextBlock Classes="Caption" Grid.Column="1" Text="{Binding StatusText}" />
-                    </Grid>
-                    <StackPanel Grid.Row="1" Margin="16,0,16,12" Spacing="12">
-                        <TextBlock Classes="Caption" Text="{lan:I18n FolderCompare.Label_Tip}" />
-                        <TextBlock TextWrapping="Wrap" Text="{lan:I18n FolderCompare.Tip_Content}" />
-                    </StackPanel>
+                    <TextBlock Grid.Row="0" Classes="SectionHeader" Text="{lan:I18n FolderCompare.Group_Result}" Margin="16,12,16,4" />
+                    <ListBox Grid.Row="1" Margin="8,0,8,8"
+                             ItemsSource="{Binding CompareResults}">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate DataType="models:FolderCompareResult">
+                                <Border Classes="ToolCardTight" Margin="2,2">
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding RelativePath}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding State}" Classes="Caption" />
+                                        <TextBlock Text="{Binding SourceDetail}" Classes="Caption" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding TargetDetail}" Classes="Caption" TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
                 </Grid>
             </Border>
         </Grid>

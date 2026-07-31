@@ -182,20 +182,10 @@ public class FolderCompareService : IFolderCompareService
 
         try
         {
-            using TagLib.File tagFile = TagLib.File.Create(filePath);
-            return string.IsNullOrEmpty(tagFile.Tag.Title)
+            string title = new ATL.Track(filePath).Title;
+            return string.IsNullOrEmpty(title)
                 ? Path.GetFileNameWithoutExtension(filePath)
-                : tagFile.Tag.Title;
-        }
-        catch (TagLib.CorruptFileException ex)
-        {
-            _logger.LogDebug(ex, "Corrupt music file: {Path}", filePath);
-            return Path.GetFileNameWithoutExtension(filePath);
-        }
-        catch (TagLib.UnsupportedFormatException ex)
-        {
-            _logger.LogDebug(ex, "Unsupported music format: {Path}", filePath);
-            return Path.GetFileNameWithoutExtension(filePath);
+                : title;
         }
         catch (Exception ex)
         {

@@ -11,13 +11,6 @@ public class ViewStateService : IViewStateService
     private readonly List<IViewState> _activeViews = [];
     private ViewStatesRoot? _loadedRoot;
 
-    private static readonly JsonSerializerOptions _jsonOptions = new()
-    {
-        WriteIndented = true,
-        TypeInfoResolver = ViewStatesJsonContext.Default,
-        MaxDepth = 64
-    };
-
     public ViewStateService(ILogger<ViewStateService> logger)
     {
         _logger = logger;
@@ -65,7 +58,7 @@ public class ViewStateService : IViewStateService
         try
         {
             string json = File.ReadAllText(path);
-            _loadedRoot = JsonSerializer.Deserialize<ViewStatesRoot>(json, _jsonOptions);
+            _loadedRoot = JsonSerializer.Deserialize(json, ViewStatesJsonContext.Default.ViewStatesRoot);
             foreach (var view in _activeViews)
             {
                 TryRestore(view);
@@ -87,7 +80,7 @@ public class ViewStateService : IViewStateService
         try
         {
             var root = BuildRoot();
-            string json = JsonSerializer.Serialize(root, _jsonOptions);
+            string json = JsonSerializer.Serialize(root, ViewStatesJsonContext.Default.ViewStatesRoot);
             AtomicWrite(_filePath, json);
             _logger.LogInformation("View states saved ({Count} views)", _activeViews.Count);
         }

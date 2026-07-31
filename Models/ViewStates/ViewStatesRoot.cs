@@ -21,7 +21,7 @@ public class ViewStatesRoot
     public ImageConvertViewState? ImageConvertView { get; set; }
 }
 
-[JsonSourceGenerationOptions(WriteIndented = true)]
+[JsonSourceGenerationOptions(WriteIndented = true, MaxDepth = 64)]
 [JsonSerializable(typeof(ViewStatesRoot))]
 [JsonSerializable(typeof(SymmetricCipherViewState))]
 [JsonSerializable(typeof(AesViewState))]
