@@ -58,6 +58,12 @@ namespace LittleFancyToolAva
 
         private static void ShowFatalError(string message)
         {
+            if (!OperatingSystem.IsWindows())
+            {
+                Log.Error("Fatal error on non-Windows platform: {Message}", message);
+                return;
+            }
+
             try
             {
                 MessageBoxW(0, message, "Fatal Error", 0x00000010u);

@@ -80,7 +80,18 @@ namespace LittleFancyToolAva.Services
         {
             try
             {
-                Process.Start("explorer.exe", folderPath);
+                if (OperatingSystem.IsWindows())
+                {
+                    Process.Start("explorer.exe", folderPath);
+                }
+                else if (OperatingSystem.IsLinux())
+                {
+                    Process.Start("xdg-open", folderPath);
+                }
+                else if (OperatingSystem.IsMacOS())
+                {
+                    Process.Start("open", folderPath);
+                }
             }
             catch
             {
