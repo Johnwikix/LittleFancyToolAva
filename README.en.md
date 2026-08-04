@@ -31,7 +31,7 @@
 
 <div align="center">
 
-[TODO: Product Page / User Guide](#) | [**🐞 Report Issue**](#)
+[TODO: Product Page / User Guide](#)
 
 </div>
 
@@ -171,13 +171,10 @@ Issues and Pull Requests are welcome.
 
 This project is licensed under the [MIT License](LICENSE).
 
-> The `LICENSE` file is not yet included — please add a standard MIT license text to the project root, with author / year placeholders.
-
 ## 📬 Contact
 
-- Author: `<TODO: author>`
-- Email: `<TODO: email>`
-- Feedback: `<TODO: Issue tracker / QQ group / Forum>`
+- Author: Sennpei Studio
+- Email: dannypan9709@foxmail.com
 
 ## 🗂️ Data Storage
 
@@ -190,5 +187,5 @@ Application data is stored at:
 ---
 
 <div align="center">
-  <sub>Crafted with ❤ by <TODO: author / team></sub>
+  <sub>Crafted with ❤ by Sennpei Studio</sub>
 </div>

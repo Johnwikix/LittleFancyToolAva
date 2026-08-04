@@ -31,7 +31,7 @@
 
 <div align="center">
 
-[TODO: 产品主页 / 使用说明](#) | [**🐞 反馈问题**](#)
+[TODO: 产品主页 / 使用说明](#)
 
 </div>
 
@@ -171,13 +171,10 @@ dotnet publish -c Release -p:PublishProfile=FolderProfile
 
 本项目基于 [MIT 许可证](LICENSE) 授权。
 
-> 仓库中尚未包含 `LICENSE` 文件，请补入标准 MIT 许可证文本（项目根目录，作者 / 年份占位即可）。
-
 ## 📬 联系方式
 
-- 作者：`<TODO: 作者>`
-- 邮箱：`<TODO: 邮箱>`
-- 反馈渠道：`<TODO: Issue / QQ 群 / 讨论区>`
+- 作者：Sennpei Studio
+- 邮箱：dannypan9709@foxmail.com
 
 ## 🗂️ 数据存储
 
@@ -190,5 +187,5 @@ dotnet publish -c Release -p:PublishProfile=FolderProfile
 ---
 
 <div align="center">
-  <sub>由 <TODO: 作者 / 团队> 用 ❤ 制作</sub>
+  <sub>由 Sennpei Studio 用 ❤ 制作</sub>
 </div>
