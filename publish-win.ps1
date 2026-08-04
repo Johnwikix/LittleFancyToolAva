@@ -10,7 +10,7 @@ $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $publishArgs = @(
     "publish", "$root\LittleFancyToolAva.csproj",
     "-c", $Configuration,
-    "-f", "net10.0-windows",
+    "-f", "net10.0",
     "-r", "win-x64",
     "-p:PublishSelfContained=true"
 )
@@ -18,3 +18,4 @@ $publishArgs = @(
 if ($Output) { $publishArgs += "-o", $Output }
 
 & dotnet $publishArgs
+if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed" }

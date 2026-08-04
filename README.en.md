@@ -58,7 +58,7 @@ Produce a distributable folder via `Properties/PublishProfiles/FolderProfile.pub
 dotnet publish -c Release -p:PublishProfile=FolderProfile
 ```
 
-Output is placed at `bin/Release/net10.0-windows/win-x64/publish/win-x64/`.
+Output is placed at `bin/Release/net10.0/win-x64/publish/win-x64/`.
 
 ## 🌟 Features
 

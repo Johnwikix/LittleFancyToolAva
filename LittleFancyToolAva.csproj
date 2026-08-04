@@ -1,10 +1,10 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFrameworks>net10.0-windows;net10.0</TargetFrameworks>
+    <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <ApplicationManifest Condition="'$(TargetFramework)' == 'net10.0-windows'">app.manifest</ApplicationManifest>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <Platforms>AnyCPU;x64</Platforms>
     <RuntimeIdentifiers>win-x64;linux-x64</RuntimeIdentifiers>
@@ -46,7 +46,6 @@
     <PackageReference Include="Serilog.Extensions.Logging" Version="10.0.0" />
     <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
     <PackageReference Include="System.IO.Ports" Version="10.0.10" />
-    <PackageReference Include="System.Windows.Extensions" Version="10.0.10" Condition="'$(TargetFramework)' == 'net10.0-windows'" />
     <PackageReference Include="z440.atl.core" Version="7.15.3" />
   </ItemGroup>
 </Project>
