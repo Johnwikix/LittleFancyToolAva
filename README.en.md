@@ -182,7 +182,7 @@ Application data is stored at:
 
 - **Log directory**: `{AppBaseDirectory}\logs\`, daily rolling, ≤ 50 MB per file, 30 days retained
 - **Per-tool page state**: serialized by `IViewStateService` on exit and restored on launch
-- **App preferences** (theme / animations / shadows / notification placement): managed by `AppPreferences`
+- **App preferences** : managed by `AppPreferences`
 
 ---
 

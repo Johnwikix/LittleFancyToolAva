@@ -182,7 +182,7 @@ dotnet publish -c Release -p:PublishProfile=FolderProfile
 
 - 日志目录：`{AppBaseDirectory}\logs\`，按天滚动，单文件 ≤ 50 MB，保留 30 天
 - 工具页面状态：通过 `IViewStateService` 在应用退出时序列化，启动时还原
-- 应用偏好（主题 / 动画 / 阴影 / 通知位置）：由 `AppPreferences` 管理
+- 应用偏好：由 `AppPreferences` 管理
 
 ---
 
