@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=LittleFancyTool
+Comment=A desktop utility toolbox built on Avalonia
+Exec=/usr/local/bin/LittleFancyToolAva
+Icon=little-fancy-tool
+Terminal=false
+Categories=Utility;System;
