@@ -206,6 +206,7 @@
     "Group_Clients": "Connected Clients",
     "Button_DisconnectClient": "Disconnect Selected Client",
     "Group_Log": "Communication Log",
+    "Button_SaveData": "Save Data",
     "Label_BufferUsage": "Buffer: ",
     "Label_BufferLines": " lines",
     "Group_Send": "Send",
@@ -222,7 +223,10 @@
     "Msg_ClientNotConnected": "Please connect to the server first.",
     "Msg_SendFail": "Send failed: {0}",
     "Msg_NotActive": "Please start the server or connect as a client first.",
-    "Msg_TimedSendError": "Timed send error: {0}"
+    "Msg_TimedSendError": "Timed send error: {0}",
+    "Msg_NoDataToSave": "No received data to save.",
+    "Msg_SaveDialogTitle": "Save Received Data",
+    "Msg_SaveSuccess": "Data saved to {0}"
   },
   "Udp": {
     "Title": "UDP Debug",
@@ -246,6 +250,7 @@
     "Label_SendCount": "Send Count",
     "Button_TimedSend": "Timed Send",
     "Group_Log": "Communication Log",
+    "Button_SaveData": "Save Data",
     "Label_BufferUsage": "Buffer: ",
     "Label_BufferLines": " lines",
     "Group_Send": "Send",
@@ -256,7 +261,10 @@
     "Msg_StartFail": "Start failed: {0}",
     "Msg_NotStarted": "Please start UDP first.",
     "Msg_SendFail": "Send failed: {0}",
-    "Msg_TimedSendError": "Timed send error: {0}"
+    "Msg_TimedSendError": "Timed send error: {0}",
+    "Msg_NoDataToSave": "No received data to save.",
+    "Msg_SaveDialogTitle": "Save Received Data",
+    "Msg_SaveSuccess": "Data saved to {0}"
   },
   "Encrypt": {
     "Group_Param": "Parameters",

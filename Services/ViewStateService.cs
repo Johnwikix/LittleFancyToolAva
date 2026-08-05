@@ -14,7 +14,7 @@ public class ViewStateService : IViewStateService
     public ViewStateService(ILogger<ViewStateService> logger)
     {
         _logger = logger;
-            _filePath = Path.Combine(AppContext.BaseDirectory, "view-states.json");
+            _filePath = Path.Combine(AppPaths.DataDirectory, "view-states.json");
     }
 
     public void Register(IViewState view)

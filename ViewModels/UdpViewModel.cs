@@ -17,6 +17,7 @@ namespace LittleFancyToolAva.ViewModels
         private readonly IUdpService _udpService;
         private readonly INotificationService _notificationService;
         private readonly IViewStateService _viewStateService;
+        private readonly IFileDialogService _fileDialogService;
         private readonly AppObserveModel _app;
         private CancellationTokenSource? _cts;
         private CancellationTokenSource? _pollCts;
@@ -177,11 +178,12 @@ namespace LittleFancyToolAva.ViewModels
 
         string IViewState.ViewName => "udpView";
 
-        public UdpViewModel(IUdpService udpService, INotificationService notificationService, IViewStateService viewStateService, AppObserveModel app)
+        public UdpViewModel(IUdpService udpService, INotificationService notificationService, IViewStateService viewStateService, IFileDialogService fileDialogService, AppObserveModel app)
         {
             _udpService = udpService;
             _notificationService = notificationService;
             _viewStateService = viewStateService;
+            _fileDialogService = fileDialogService;
             _app = app;
             _udpService.BytesReceived += OnBytesReceived;
             _udpService.DataSent += OnDataSent;
@@ -464,6 +466,12 @@ namespace LittleFancyToolAva.ViewModels
             Interlocked.Exchange(ref _pendingTxCount, 0);
             RxCount = 0;
             TxCount = 0;
+        }
+
+        [RelayCommand]
+        private async Task SaveData()
+        {
+            await LogFileHelper.SaveAsync(Log, _fileDialogService, _notificationService, "Udp");
         }
 
         [RelayCommand]

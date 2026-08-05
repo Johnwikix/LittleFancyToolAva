@@ -16,8 +16,24 @@ namespace LittleFancyToolAva
         {
             Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 
-            string logDir = System.IO.Path.Combine(AppContext.BaseDirectory, "logs");
-            System.IO.Directory.CreateDirectory(logDir);
+            try
+            {
+                System.IO.Directory.CreateDirectory(LittleFancyToolAva.Services.AppPaths.DataDirectory);
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Failed to create data directory: {ex.Message}");
+            }
+
+            string logDir = System.IO.Path.Combine(LittleFancyToolAva.Services.AppPaths.DataDirectory, "logs");
+            try
+            {
+                System.IO.Directory.CreateDirectory(logDir);
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Failed to create log directory: {ex.Message}");
+            }
 
             Log.Logger = new LoggerConfiguration()
                 .MinimumLevel.Debug()

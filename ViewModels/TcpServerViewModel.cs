@@ -18,6 +18,7 @@ namespace LittleFancyToolAva.ViewModels
         private readonly ITcpServerService _tcpService;
         private readonly INotificationService _notificationService;
         private readonly IViewStateService _viewStateService;
+        private readonly IFileDialogService _fileDialogService;
         private readonly AppObserveModel _app;
         private CancellationTokenSource? _cts;
         private CancellationTokenSource? _pollCts;
@@ -193,11 +194,12 @@ namespace LittleFancyToolAva.ViewModels
 
         string IViewState.ViewName => "tcpServerView";
 
-        public TcpServerViewModel(ITcpServerService tcpService, INotificationService notificationService, IViewStateService viewStateService, AppObserveModel app)
+        public TcpServerViewModel(ITcpServerService tcpService, INotificationService notificationService, IViewStateService viewStateService, IFileDialogService fileDialogService, AppObserveModel app)
         {
             _tcpService = tcpService;
             _notificationService = notificationService;
             _viewStateService = viewStateService;
+            _fileDialogService = fileDialogService;
             _app = app;
             _tcpService.BytesReceived += OnBytesReceived;
             _tcpService.DataSent += OnDataSent;
@@ -536,6 +538,12 @@ namespace LittleFancyToolAva.ViewModels
             Interlocked.Exchange(ref _pendingTxCount, 0);
             RxCount = 0;
             TxCount = 0;
+        }
+
+        [RelayCommand]
+        private async Task SaveData()
+        {
+            await LogFileHelper.SaveAsync(Log, _fileDialogService, _notificationService, "Tcp");
         }
 
         [RelayCommand]

@@ -206,6 +206,7 @@
     "Group_Clients": "已连接客户端",
     "Button_DisconnectClient": "断开选中客户端",
     "Group_Log": "通信日志",
+    "Button_SaveData": "保存数据",
     "Label_BufferUsage": "缓冲区: ",
     "Label_BufferLines": " 行",
     "Group_Send": "发送",
@@ -222,7 +223,10 @@
     "Msg_ClientNotConnected": "请先连接服务器。",
     "Msg_SendFail": "发送失败: {0}",
     "Msg_NotActive": "请先启动服务器或连接客户端。",
-    "Msg_TimedSendError": "定时发送错误: {0}"
+    "Msg_TimedSendError": "定时发送错误: {0}",
+    "Msg_NoDataToSave": "没有可保存的接收数据。",
+    "Msg_SaveDialogTitle": "保存接收数据",
+    "Msg_SaveSuccess": "数据已保存到 {0}"
   },
   "Udp": {
     "Title": "UDP 调试",
@@ -246,6 +250,7 @@
     "Label_SendCount": "发送总数",
     "Button_TimedSend": "定时发送",
     "Group_Log": "通信日志",
+    "Button_SaveData": "保存数据",
     "Label_BufferUsage": "缓冲区: ",
     "Label_BufferLines": " 行",
     "Group_Send": "发送",
@@ -256,7 +261,10 @@
     "Msg_StartFail": "启动失败: {0}",
     "Msg_NotStarted": "请先启动 UDP。",
     "Msg_SendFail": "发送失败: {0}",
-    "Msg_TimedSendError": "定时发送错误: {0}"
+    "Msg_TimedSendError": "定时发送错误: {0}",
+    "Msg_NoDataToSave": "没有可保存的接收数据。",
+    "Msg_SaveDialogTitle": "保存接收数据",
+    "Msg_SaveSuccess": "数据已保存到 {0}"
   },
   "Encrypt": {
     "Group_Param": "参数",

@@ -19,6 +19,7 @@ namespace LittleFancyToolAva.ViewModels
         private readonly ISerialPortService _serialPortService;
         private readonly INotificationService _notificationService;
         private readonly IViewStateService _viewStateService;
+        private readonly IFileDialogService _fileDialogService;
         private readonly AppObserveModel _app;
         private CancellationTokenSource? _pollCts;
         private Task? _pollTask;
@@ -203,11 +204,12 @@ namespace LittleFancyToolAva.ViewModels
 
         string IViewState.ViewName => "serialPortView";
 
-        public SerialPortViewModel(ISerialPortService serialPortService, INotificationService notificationService, IViewStateService viewStateService, AppObserveModel app)
+        public SerialPortViewModel(ISerialPortService serialPortService, INotificationService notificationService, IViewStateService viewStateService, IFileDialogService fileDialogService, AppObserveModel app)
         {
             _serialPortService = serialPortService;
             _notificationService = notificationService;
             _viewStateService = viewStateService;
+            _fileDialogService = fileDialogService;
             _app = app;
             _serialPortService.BytesReceived += OnBytesReceived;
             _serialPortService.DataSent += OnDataSent;
@@ -548,24 +550,7 @@ namespace LittleFancyToolAva.ViewModels
         [RelayCommand]
         private async Task SaveData()
         {
-            if (Log.Count == 0)
-            {
-                _notificationService.ShowWarn(LocalizationRegistry.Get("Serial.Msg_NoDataToSave"));
-                return;
-            }
-
-            var app = App.Current as App;
-            var dialog = app?.TryGetService<Services.IFileDialogService>();
-            if (dialog == null) return;
-
-            string? path = await dialog.PickSaveFileAsync(
-                LocalizationRegistry.Get("Serial.Msg_SaveDialogTitle"), "received.txt");
-            if (path != null)
-            {
-                var lines = Log.Entries.Select(e => $"{e.TimestampText} {e.Tag}: {e.Text}");
-                await File.WriteAllLinesAsync(path, lines);
-                _notificationService.ShowSuccess(LocalizationRegistry.Get("Serial.Msg_SaveSuccess", path));
-            }
+            await LogFileHelper.SaveAsync(Log, _fileDialogService, _notificationService, "Serial");
         }
 
         [RelayCommand]

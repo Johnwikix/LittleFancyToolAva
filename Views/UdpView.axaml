@@ -117,8 +117,10 @@
                     <Grid RowDefinitions="Auto,*,Auto">
                         <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="16,12,16,8">
                             <TextBlock Classes="SectionHeader" Grid.Column="0" Text="{lan:I18n Udp.Group_Log}" />
-                            <Button Grid.Column="1" Classes="Quiet"
-                                    Command="{Binding ClearCommand}" Content="{lan:I18n Common.Button_Clear}" />
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                                <Button Classes="Quiet" Command="{Binding ClearCommand}" Content="{lan:I18n Common.Button_Clear}" />
+                                <Button Classes="Quiet" Command="{Binding SaveDataCommand}" Content="{lan:I18n Udp.Button_SaveData}" />
+                            </StackPanel>
                         </Grid>
                         <controls:LogBufferView Grid.Row="1" Margin="12,0,12,0" Entries="{Binding Log.Entries}" />
                         <Border Grid.Row="2" Background="{DynamicResource SubtleFillColorTertiaryBrush}"

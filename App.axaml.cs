@@ -103,7 +103,7 @@ namespace LittleFancyToolAva
         {
             try
             {
-                var path = Path.Combine(AppContext.BaseDirectory, "preferences.json");
+                var path = Path.Combine(AppPaths.DataDirectory, "preferences.json");
                 if (!File.Exists(path)) return null;
                 var json = File.ReadAllText(path);
                 using var doc = System.Text.Json.JsonDocument.Parse(json);

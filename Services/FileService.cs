@@ -25,7 +25,7 @@ namespace LittleFancyToolAva.Services
         public FileService(ILogger<FileService> logger)
         {
             _logger = logger;
-            _filePath = Path.Combine(AppContext.BaseDirectory, "preferences.json");
+            _filePath = Path.Combine(AppPaths.DataDirectory, "preferences.json");
         }
 
         public void SaveState(AppObserveModel model)
