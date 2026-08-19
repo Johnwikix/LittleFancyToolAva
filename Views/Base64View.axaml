@@ -15,8 +15,7 @@
                 <Grid RowDefinitions="Auto,*">
                     <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto" Margin="16,12,16,8">
                         <TextBlock Classes="SectionHeader" Grid.Column="0" Text="{lan:I18n Base64.Group_Input}" />
-                        <Button Grid.Column="1" Classes="Primary" Command="{Binding EncodeCommand}" Content="{lan:I18n Base64.Button_Encode}" />
-                        <Button Grid.Column="2" Classes="Danger" Command="{Binding DecodeCommand}" Content="{lan:I18n Base64.Button_Decode}" Margin="6,0,0,0" />
+                        <Button Grid.Column="1" Classes="Primary" Command="{Binding EncodeCommand}" Content="{lan:I18n Base64.Button_Encode}" />                        
                     </Grid>
                     <TextBox Grid.Row="1" Margin="16,0,16,12" AcceptsReturn="True" TextWrapping="Wrap"
                              Text="{Binding InputText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
@@ -24,7 +23,10 @@
             </Border>
             <Border Grid.Column="2" Classes="ToolCard" Padding="0">
                 <Grid RowDefinitions="Auto,*">
-                    <TextBlock Grid.Row="0" Classes="SectionHeader" Text="{lan:I18n Base64.Group_Output}" Margin="16,12,16,8" />
+                    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="16,12,16,8">
+                        <TextBlock Classes="SectionHeader" Grid.Column="0" Text="{lan:I18n Base64.Group_Output}" />
+                        <Button Grid.Column="1" Classes="Danger" Command="{Binding DecodeCommand}" Content="{lan:I18n Base64.Button_Decode}" />
+                    </Grid>
                     <TextBox Grid.Row="1" Margin="16,0,16,12" AcceptsReturn="True" TextWrapping="Wrap"
                              FontFamily="{StaticResource MonoFontFamily}"
                              Text="{Binding OutputText, Mode=TwoWay}" />
