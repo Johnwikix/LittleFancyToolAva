@@ -140,7 +140,6 @@ namespace LittleFancyToolAva
             services.AddKeyedSingleton<IEncryptionSymmetric, DESEncryption>("DES");
             services.AddKeyedSingleton<IEncryptionSymmetric, SM4Encryption>("SM4");
             services.AddSingleton<IEncryptionCode, Base64Encryption>();
-            services.AddSingleton<IEncryptionAbstract, SHAEncrpytion>();
             services.AddSingleton<INotificationService, ContentDialogNotificationService>();
             services.AddSingleton<IDialogService, ContentDialogService>();
             services.AddSingleton<IFileDialogService, FileDialogService>();
@@ -151,14 +150,9 @@ namespace LittleFancyToolAva
             services.AddTransient<MainWindowViewModel>();
             services.AddTransient<HomeViewModel>();
             services.AddSingleton<SettingsViewModel>();
-            services.AddTransient<AesViewModel>();
-            services.AddTransient<DesViewModel>();
-            services.AddTransient<Sm4ViewModel>();
-            services.AddTransient<RsaViewModel>();
-            services.AddTransient<Sm2ViewModel>();
-            services.AddTransient<Md5ViewModel>();
-            services.AddTransient<ShaViewModel>();
-            services.AddTransient<Sm3ViewModel>();
+            services.AddTransient<SymmetricEncryptionViewModel>();
+            services.AddTransient<AsymmetricEncryptionViewModel>();
+            services.AddTransient<HashEncryptionViewModel>();
             services.AddTransient<Base64ViewModel>();
             services.AddSingleton<SerialPortViewModel>();
             services.AddSingleton<TcpServerViewModel>();

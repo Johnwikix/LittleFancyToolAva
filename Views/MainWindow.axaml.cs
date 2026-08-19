@@ -15,14 +15,9 @@ namespace LittleFancyToolAva.Views
             if (App.Current is App app && app.TryGetService<NavigationFactory>() is { } navFactory)
             {
                 navFactory.Register<HomeViewModel, HomeView>();
-                navFactory.Register<AesViewModel, AesView>();
-                navFactory.Register<DesViewModel, DesView>();
-                navFactory.Register<Sm4ViewModel, Sm4View>();
-                navFactory.Register<RsaViewModel, RsaView>();
-                navFactory.Register<Sm2ViewModel, Sm2View>();
-                navFactory.Register<Md5ViewModel, Md5View>();
-                navFactory.Register<ShaViewModel, ShaView>();
-                navFactory.Register<Sm3ViewModel, Sm3View>();
+                navFactory.Register<SymmetricEncryptionViewModel, SymmetricEncryptionView>();
+                navFactory.Register<AsymmetricEncryptionViewModel, AsymmetricEncryptionView>();
+                navFactory.Register<HashEncryptionViewModel, HashEncryptionView>();
                 navFactory.Register<Base64ViewModel, Base64View>();
                 navFactory.Register<SerialPortViewModel, SerialPortView>();
                 navFactory.Register<TcpServerViewModel, TcpServerView>();

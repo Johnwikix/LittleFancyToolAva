@@ -5,7 +5,7 @@ namespace LittleFancyToolAva.ViewModels
 {
     public abstract partial class AsymmetricCipherViewModelBase : ViewModelBase
     {
-        protected readonly IEncryptionAsymmetric _encryption;
+        protected IEncryptionAsymmetric _encryption;
 
         public string InputText
         {

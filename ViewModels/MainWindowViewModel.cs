@@ -78,15 +78,10 @@ namespace LittleFancyToolAva.ViewModels
             categories[1].Children[0].Label = L.Localize("Nav.Item_TCP");
             categories[1].Children[1].Label = L.Localize("Nav.Item_UDP");
             categories[2].Label = L.Localize("Nav.Category_Encrypt");
-            categories[2].Children[0].Label = L.Localize("Nav.Item_DES");
-            categories[2].Children[1].Label = L.Localize("Nav.Item_AES");
-            categories[2].Children[2].Label = L.Localize("Nav.Item_SM4");
-            categories[2].Children[3].Label = L.Localize("Nav.Item_RSA");
-            categories[2].Children[4].Label = L.Localize("Nav.Item_SM2");
-            categories[2].Children[5].Label = L.Localize("Nav.Item_MD5");
-            categories[2].Children[6].Label = L.Localize("Nav.Item_SHA");
-            categories[2].Children[7].Label = L.Localize("Nav.Item_SM3");
-            categories[2].Children[8].Label = L.Localize("Nav.Item_Base64");
+            categories[2].Children[0].Label = L.Localize("Nav.Item_Symmetric");
+            categories[2].Children[1].Label = L.Localize("Nav.Item_Asymmetric");
+            categories[2].Children[2].Label = L.Localize("Nav.Item_Hash");
+            categories[2].Children[3].Label = L.Localize("Nav.Item_Base64");
             categories[3].Label = L.Localize("Nav.Category_File");
             categories[3].Children[0].Label = L.Localize("Nav.Item_FolderCompare");
             categories[3].Children[1].Label = L.Localize("Nav.Item_FileEncrypt");
@@ -113,14 +108,9 @@ namespace LittleFancyToolAva.ViewModels
         private static PageNavigationItem BuildEncryptionCategory(IServiceProvider sp)
         {
             var category = new PageNavigationItem(L.Localize("Nav.Category_Encrypt"), FASymbol.Permissions);
-            category.Children.Add(new PageNavigationItem(L.Localize("Nav.Item_DES"), FASymbol.Permissions, sp.GetRequiredService<DesViewModel>()));
-            category.Children.Add(new PageNavigationItem(L.Localize("Nav.Item_AES"), FASymbol.Permissions, sp.GetRequiredService<AesViewModel>()));
-            category.Children.Add(new PageNavigationItem(L.Localize("Nav.Item_SM4"), FASymbol.Permissions, sp.GetRequiredService<Sm4ViewModel>()));
-            category.Children.Add(new PageNavigationItem(L.Localize("Nav.Item_RSA"), FASymbol.Permissions, sp.GetRequiredService<RsaViewModel>()));
-            category.Children.Add(new PageNavigationItem(L.Localize("Nav.Item_SM2"), FASymbol.Permissions, sp.GetRequiredService<Sm2ViewModel>()));
-            category.Children.Add(new PageNavigationItem(L.Localize("Nav.Item_MD5"), FASymbol.Permissions, sp.GetRequiredService<Md5ViewModel>()));
-            category.Children.Add(new PageNavigationItem(L.Localize("Nav.Item_SHA"), FASymbol.Permissions, sp.GetRequiredService<ShaViewModel>()));
-            category.Children.Add(new PageNavigationItem(L.Localize("Nav.Item_SM3"), FASymbol.Permissions, sp.GetRequiredService<Sm3ViewModel>()));
+            category.Children.Add(new PageNavigationItem(L.Localize("Nav.Item_Symmetric"), FASymbol.Permissions, sp.GetRequiredService<SymmetricEncryptionViewModel>()));
+            category.Children.Add(new PageNavigationItem(L.Localize("Nav.Item_Asymmetric"), FASymbol.Permissions, sp.GetRequiredService<AsymmetricEncryptionViewModel>()));
+            category.Children.Add(new PageNavigationItem(L.Localize("Nav.Item_Hash"), FASymbol.Permissions, sp.GetRequiredService<HashEncryptionViewModel>()));
             category.Children.Add(new PageNavigationItem(L.Localize("Nav.Item_Base64"), FASymbol.Permissions, sp.GetRequiredService<Base64ViewModel>()));
             return category;
         }

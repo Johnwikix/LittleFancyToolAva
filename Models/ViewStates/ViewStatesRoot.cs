@@ -4,14 +4,9 @@ namespace LittleFancyToolAva.Models.ViewStates;
 
 public class ViewStatesRoot
 {
-    public SymmetricCipherViewState? DesView { get; set; }
-    public SymmetricCipherViewState? Sm4View { get; set; }
-    public AesViewState? AesView { get; set; }
-    public AsymmetricCipherViewState? RsaView { get; set; }
-    public Sm2ViewState? Sm2View { get; set; }
-    public HashViewState? Sm3View { get; set; }
-    public Md5ViewState? Md5View { get; set; }
-    public ShaViewState? ShaView { get; set; }
+    public SymmetricEncryptionViewState? SymmetricView { get; set; }
+    public AsymmetricEncryptionViewState? AsymmetricView { get; set; }
+    public HashEncryptionViewState? HashView { get; set; }
     public Base64ViewState? Base64View { get; set; }
     public SerialPortViewState? SerialPortView { get; set; }
     public TcpServerViewState? TcpServerView { get; set; }
@@ -24,13 +19,11 @@ public class ViewStatesRoot
 [JsonSourceGenerationOptions(WriteIndented = true, MaxDepth = 64)]
 [JsonSerializable(typeof(ViewStatesRoot))]
 [JsonSerializable(typeof(SymmetricCipherViewState))]
-[JsonSerializable(typeof(AesViewState))]
+[JsonSerializable(typeof(SymmetricEncryptionViewState))]
 [JsonSerializable(typeof(AsymmetricCipherViewState))]
-[JsonSerializable(typeof(RsaViewState))]
-[JsonSerializable(typeof(Sm2ViewState))]
+[JsonSerializable(typeof(AsymmetricEncryptionViewState))]
 [JsonSerializable(typeof(HashViewState))]
-[JsonSerializable(typeof(Md5ViewState))]
-[JsonSerializable(typeof(ShaViewState))]
+[JsonSerializable(typeof(HashEncryptionViewState))]
 [JsonSerializable(typeof(Base64ViewState))]
 [JsonSerializable(typeof(SerialPortViewState))]
 [JsonSerializable(typeof(TcpServerViewState))]

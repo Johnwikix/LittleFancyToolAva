@@ -9,7 +9,7 @@ namespace LittleFancyToolAva.ViewModels
 {
     public abstract partial class SymmetricCipherViewModelBase : ViewModelBase
     {
-        protected readonly IEncryptionSymmetric _encryption;
+        protected IEncryptionSymmetric _encryption;
         protected readonly INotificationService _notificationService;
 
         public string InputText
@@ -39,25 +39,53 @@ namespace LittleFancyToolAva.ViewModels
         public int PaddingIndex
         {
             get;
-            set => SetProperty(ref field, value);
+            set
+            {
+                var v = Math.Max(value, 0);
+                if (!SetProperty(ref field, v) && v != value)
+                {
+                    OnPropertyChanged();
+                }
+            }
         }
 
         public int EncryptModeIndex
         {
             get;
-            set => SetProperty(ref field, value);
+            set
+            {
+                var v = Math.Max(value, 0);
+                if (!SetProperty(ref field, v) && v != value)
+                {
+                    OnPropertyChanged();
+                }
+            }
         }
 
         public int OutputTypeIndex
         {
             get;
-            set => SetProperty(ref field, value);
+            set
+            {
+                var v = Math.Max(value, 0);
+                if (!SetProperty(ref field, v) && v != value)
+                {
+                    OnPropertyChanged();
+                }
+            }
         }
 
         public int KeyIvTypeIndex
         {
             get;
-            set => SetProperty(ref field, value);
+            set
+            {
+                var v = Math.Max(value, 0);
+                if (!SetProperty(ref field, v) && v != value)
+                {
+                    OnPropertyChanged();
+                }
+            }
         }
 
         public string DisplayTitle
@@ -75,14 +103,43 @@ namespace LittleFancyToolAva.ViewModels
         public virtual int KeyLengthIndex
         {
             get;
-            set => SetProperty(ref field, value);
+            set
+            {
+                var v = Math.Max(value, 0);
+                if (!SetProperty(ref field, v) && v != value)
+                {
+                    OnPropertyChanged();
+                }
+            }
         }
 
         public virtual int[] KeyLengthOptions => [];
 
-        public string[] Paddings { get; protected set; } = [];
+        public string[] Algorithms
+        {
+            get;
+            protected set => SetProperty(ref field, value);
+        } = [];
 
-        public virtual int KeyBitLength => KeyLengthOptions.Length > 0 ? KeyLengthOptions[KeyLengthIndex] : 0;
+        public virtual int AlgorithmIndex
+        {
+            get;
+            set
+            {
+                if (SetProperty(ref field, value))
+                {
+                    OnAlgorithmChanged(value);
+                }
+            }
+        }
+
+        public string[] Paddings
+        {
+            get;
+            protected set => SetProperty(ref field, value);
+        } = [];
+
+        public virtual int KeyBitLength => KeyLengthOptions.Length > 0 ? KeyLengthOptions[Math.Clamp(KeyLengthIndex, 0, KeyLengthOptions.Length - 1)] : 0;
 
         public virtual bool IsKeyLengthSelectable => false;
 
@@ -95,6 +152,10 @@ namespace LittleFancyToolAva.ViewModels
         }
 
         protected abstract (string TitleKey, string SubtitleKey) GetTitleKeys();
+
+        protected virtual void OnAlgorithmChanged(int index)
+        {
+        }
 
         private void OnCultureChanged(object? sender, EventArgs e)
         {

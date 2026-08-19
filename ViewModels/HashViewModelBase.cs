@@ -5,7 +5,7 @@ namespace LittleFancyToolAva.ViewModels
 {
     public abstract partial class HashViewModelBase : ViewModelBase
     {
-        protected readonly IEncryptionAbstract _encryption;
+        protected IEncryptionAbstract _encryption;
 
         public string InputText
         {
@@ -22,7 +22,14 @@ namespace LittleFancyToolAva.ViewModels
         public int CaseIndex
         {
             get;
-            set => SetProperty(ref field, value);
+            set
+            {
+                var v = Math.Max(value, 0);
+                if (!SetProperty(ref field, v) && v != value)
+                {
+                    OnPropertyChanged();
+                }
+            }
         }
 
         public string DisplayTitle

@@ -23,12 +23,19 @@
                 <Border Grid.Row="0" Classes="ToolCard">
                     <StackPanel Classes="ToolCardContent">
                         <TextBlock Classes="SectionHeader" Text="{lan:I18n Encrypt.Group_Param}" />
+                        <StackPanel Classes="FormRow">
+                            <TextBlock Classes="FieldLabel" Text="{lan:I18n Encrypt.Label_Algorithm}" />
+                            <ComboBox HorizontalAlignment="Stretch"
+                                      ItemsSource="{Binding Algorithms}"
+                                      SelectedIndex="{Binding AlgorithmIndex, Mode=TwoWay}" />
+                        </StackPanel>
                         <Grid Classes="FormRow2" ColumnDefinitions="*,12,*">
                             <StackPanel Grid.Column="0">
                                 <TextBlock Classes="FieldLabel" Text="{lan:I18n Encrypt.Label_Padding}" />
                                 <ComboBox HorizontalAlignment="Stretch"
                                           ItemsSource="{Binding Paddings}"
-                                          SelectedIndex="{Binding PaddingIndex, Mode=TwoWay}" />
+                                          SelectedIndex="{Binding PaddingIndex, Mode=TwoWay}"
+                                          SelectionChanged="Padding_SelectionChanged" />
                             </StackPanel>
                             <StackPanel Grid.Column="2">
                                 <TextBlock Classes="FieldLabel" Text="{lan:I18n Encrypt.Label_EncryptMode}" />
@@ -63,7 +70,8 @@
                             <TextBlock Classes="FieldLabel" Text="{lan:I18n Encrypt.Label_KeyLength}" />
                             <ComboBox Classes="Compact" HorizontalAlignment="Stretch"
                                       ItemsSource="{Binding KeyLengthOptions}"
-                                      SelectedIndex="{Binding KeyLengthIndex, Mode=TwoWay}" />
+                                      SelectedIndex="{Binding KeyLengthIndex, Mode=TwoWay}"
+                                      SelectionChanged="KeyLength_SelectionChanged" />
                         </StackPanel>
                         <StackPanel Classes="FormRow">
                             <TextBlock Classes="FieldLabel" Text="{lan:I18n Encrypt.Label_Key}" />

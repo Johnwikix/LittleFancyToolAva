@@ -121,14 +121,9 @@ public class ViewStateService : IViewStateService
 
     private static object? Extract(ViewStatesRoot root, string viewName) => viewName switch
     {
-        "desView" => root.DesView,
-        "sm4View" => root.Sm4View,
-        "aesView" => root.AesView,
-        "rsaView" => root.RsaView,
-        "sm2View" => root.Sm2View,
-        "sm3View" => root.Sm3View,
-        "md5View" => root.Md5View,
-        "shaView" => root.ShaView,
+        "symmetricView" => root.SymmetricView,
+        "asymmetricView" => root.AsymmetricView,
+        "hashView" => root.HashView,
         "base64View" => root.Base64View,
         "serialPortView" => root.SerialPortView,
         "tcpServerView" => root.TcpServerView,
@@ -143,14 +138,9 @@ public class ViewStateService : IViewStateService
     {
         switch (viewName)
         {
-            case "desView": root.DesView = (SymmetricCipherViewState?)state; break;
-            case "sm4View": root.Sm4View = (SymmetricCipherViewState?)state; break;
-            case "aesView": root.AesView = (AesViewState?)state; break;
-            case "rsaView": root.RsaView = (AsymmetricCipherViewState?)state; break;
-            case "sm2View": root.Sm2View = (Sm2ViewState?)state; break;
-            case "sm3View": root.Sm3View = (HashViewState?)state; break;
-            case "md5View": root.Md5View = (Md5ViewState?)state; break;
-            case "shaView": root.ShaView = (ShaViewState?)state; break;
+            case "symmetricView": root.SymmetricView = (SymmetricEncryptionViewState?)state; break;
+            case "asymmetricView": root.AsymmetricView = (AsymmetricEncryptionViewState?)state; break;
+            case "hashView": root.HashView = (HashEncryptionViewState?)state; break;
             case "base64View": root.Base64View = (Base64ViewState?)state; break;
             case "serialPortView": root.SerialPortView = (SerialPortViewState?)state; break;
             case "tcpServerView": root.TcpServerView = (TcpServerViewState?)state; break;

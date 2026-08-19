@@ -2,9 +2,9 @@ using Avalonia.Controls;
 
 namespace LittleFancyToolAva.Views
 {
-    public partial class RsaView : UserControl
+    public partial class HashEncryptionView : UserControl
     {
-        public RsaView()
+        public HashEncryptionView()
         {
             InitializeComponent();
         }
