@@ -75,57 +75,61 @@ namespace LittleFancyToolAva.ViewModels
             private set => SetProperty(ref field, value);
         } = [];
 
-        public int PaddingIndex
+        public string? SelectedPadding
         {
             get;
             set
             {
-                var v = Math.Max(value, 0);
-                if (!SetProperty(ref field, v) && v != value)
+                if (SetProperty(ref field, value))
                 {
-                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(PaddingIndex));
                 }
             }
         }
 
-        public int KeyLengthIndex
+        public int PaddingIndex => SelectedPadding is null ? 0 : Math.Max(Array.IndexOf(Paddings, SelectedPadding), 0);
+
+        public int? SelectedKeyLength
         {
             get;
             set
             {
-                var v = Math.Max(value, 0);
-                if (!SetProperty(ref field, v) && v != value)
+                if (SetProperty(ref field, value))
                 {
-                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(KeyLengthIndex));
                 }
             }
         }
 
-        public int KeyFormatIndex
+        public int KeyLengthIndex => SelectedKeyLength is null ? 0 : Math.Max(Array.IndexOf(KeyLengths, SelectedKeyLength.Value), 0);
+
+        public string? SelectedKeyFormat
         {
             get;
             set
             {
-                var v = Math.Max(value, 0);
-                if (!SetProperty(ref field, v) && v != value)
+                if (SetProperty(ref field, value))
                 {
-                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(KeyFormatIndex));
                 }
             }
         }
 
-        public int ModeIndex
+        public int KeyFormatIndex => SelectedKeyFormat is null ? 0 : Math.Max(Array.IndexOf(KeyFormats, SelectedKeyFormat), 0);
+
+        public string? SelectedMode
         {
             get;
             set
             {
-                var v = Math.Max(value, 0);
-                if (!SetProperty(ref field, v) && v != value)
+                if (SetProperty(ref field, value))
                 {
-                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(ModeIndex));
                 }
             }
         }
+
+        public int ModeIndex => SelectedMode is null ? 0 : Math.Max(Array.IndexOf(Modes, SelectedMode), 0);
 
         public bool IsPaddingVisible
         {
@@ -178,6 +182,7 @@ namespace LittleFancyToolAva.ViewModels
             Algorithms = _options.Select(o => o.Name).ToArray();
             _current = _options[0];
             ApplyCurrentOptions();
+            RestoreIndexes(null, null, null, null);
             GenerateKeyPair();
             viewStateService.Register(this);
 
@@ -234,10 +239,10 @@ namespace LittleFancyToolAva.ViewModels
                 OutputText = OutputText,
                 PublicKey = PublicKey,
                 PrivateKey = PrivateKey,
-                PaddingIndex = PaddingIndex,
-                KeyLengthIndex = KeyLengthIndex,
-                KeyFormatIndex = KeyFormatIndex,
-                ModeIndex = ModeIndex
+                SelectedPadding = SelectedPadding,
+                SelectedKeyLength = SelectedKeyLength,
+                SelectedKeyFormat = SelectedKeyFormat,
+                SelectedMode = SelectedMode
             };
         }
 
@@ -245,10 +250,7 @@ namespace LittleFancyToolAva.ViewModels
         {
             if (_algoStates.TryGetValue(_current.Name, out var s))
             {
-                PaddingIndex = Math.Clamp(s.PaddingIndex, 0, Math.Max(Paddings.Length - 1, 0));
-                KeyLengthIndex = Math.Clamp(s.KeyLengthIndex, 0, Math.Max(KeyLengths.Length - 1, 0));
-                KeyFormatIndex = Math.Clamp(s.KeyFormatIndex, 0, Math.Max(KeyFormats.Length - 1, 0));
-                ModeIndex = Math.Clamp(s.ModeIndex, 0, Math.Max(Modes.Length - 1, 0));
+                RestoreIndexes(s.SelectedPadding, s.SelectedKeyLength, s.SelectedKeyFormat, s.SelectedMode);
                 PublicKey = s.PublicKey;
                 PrivateKey = s.PrivateKey;
                 InputText = s.InputText;
@@ -256,12 +258,21 @@ namespace LittleFancyToolAva.ViewModels
             }
             else
             {
-                PaddingIndex = 0;
-                KeyLengthIndex = 0;
-                KeyFormatIndex = 0;
-                ModeIndex = 0;
+                RestoreIndexes(null, null, null, null);
                 GenerateKeyPair();
             }
+        }
+
+        private void RestoreIndexes(string? padding, int? keyLength, string? keyFormat, string? mode)
+        {
+            SelectedPadding = padding is not null && Paddings.Contains(padding) ? padding : Paddings.Length > 0 ? Paddings[0] : null;
+            SelectedKeyLength = keyLength is not null && KeyLengths.Contains(keyLength.Value) ? keyLength : KeyLengths.Length > 0 ? KeyLengths[0] : null;
+            SelectedKeyFormat = keyFormat is not null && KeyFormats.Contains(keyFormat) ? keyFormat : KeyFormats.Length > 0 ? KeyFormats[0] : null;
+            SelectedMode = mode is not null && Modes.Contains(mode) ? mode : Modes.Length > 0 ? Modes[0] : null;
+            OnPropertyChanged(nameof(SelectedPadding));
+            OnPropertyChanged(nameof(SelectedKeyLength));
+            OnPropertyChanged(nameof(SelectedKeyFormat));
+            OnPropertyChanged(nameof(SelectedMode));
         }
 
         [RelayCommand]

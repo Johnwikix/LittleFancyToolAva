@@ -26,19 +26,15 @@ namespace LittleFancyToolAva.ViewModels
 
         public override bool IsKeyLengthSelectable => _current.KeyLengths.Length > 1;
 
-        public override int KeyLengthIndex
+        public override int? SelectedKeyLength
         {
             get;
             set
             {
-                var v = Math.Max(value, 0);
-                if (SetProperty(ref field, v))
+                if (SetProperty(ref field, value))
                 {
+                    OnPropertyChanged(nameof(KeyLengthIndex));
                     GenerateSymmetricKey();
-                }
-                else if (v != value)
-                {
-                    OnPropertyChanged();
                 }
             }
         }
@@ -62,6 +58,7 @@ namespace LittleFancyToolAva.ViewModels
             Algorithms = _options.Select(o => o.Name).ToArray();
             _current = _options[0];
             Paddings = _current.Paddings;
+            RestoreIndexes(null, null);
             GenerateSymmetricKey();
             viewStateService.Register(this);
         }
@@ -105,11 +102,11 @@ namespace LittleFancyToolAva.ViewModels
                 OutputText = OutputText,
                 Key = Key,
                 Iv = Iv,
-                PaddingIndex = PaddingIndex,
+                SelectedPadding = SelectedPadding,
                 EncryptModeIndex = EncryptModeIndex,
                 OutputTypeIndex = OutputTypeIndex,
                 KeyIvTypeIndex = KeyIvTypeIndex,
-                KeyLengthIndex = KeyLengthIndex
+                SelectedKeyLength = SelectedKeyLength
             };
         }
 
@@ -117,8 +114,7 @@ namespace LittleFancyToolAva.ViewModels
         {
             if (_algoStates.TryGetValue(_current.Name, out var s))
             {
-                KeyLengthIndex = Math.Clamp(s.KeyLengthIndex, 0, Math.Max(_current.KeyLengths.Length - 1, 0));
-                PaddingIndex = Math.Clamp(s.PaddingIndex, 0, Math.Max(_current.Paddings.Length - 1, 0));
+                RestoreIndexes(s.SelectedKeyLength, s.SelectedPadding);
                 EncryptModeIndex = s.EncryptModeIndex;
                 OutputTypeIndex = s.OutputTypeIndex;
                 KeyIvTypeIndex = s.KeyIvTypeIndex;
@@ -129,10 +125,17 @@ namespace LittleFancyToolAva.ViewModels
             }
             else
             {
-                KeyLengthIndex = 0;
-                PaddingIndex = 0;
+                RestoreIndexes(null, null);
                 GenerateSymmetricKey();
             }
+        }
+
+        private void RestoreIndexes(int? keyLength, string? padding)
+        {
+            SelectedKeyLength = keyLength is not null && _current.KeyLengths.Contains(keyLength.Value) ? keyLength : _current.KeyLengths.Length > 0 ? _current.KeyLengths[0] : null;
+            SelectedPadding = padding is not null && _current.Paddings.Contains(padding) ? padding : _current.Paddings.Length > 0 ? _current.Paddings[0] : null;
+            OnPropertyChanged(nameof(SelectedKeyLength));
+            OnPropertyChanged(nameof(SelectedPadding));
         }
 
         object IViewState.CaptureState()

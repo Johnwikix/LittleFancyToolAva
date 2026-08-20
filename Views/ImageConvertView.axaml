@@ -43,7 +43,7 @@
                                     <CheckBox Grid.Column="0" IsChecked="{Binding IsDownscaleEnabled}" Content="{lan:I18n ImageConvert.Option_Enable}" />
                                     <ComboBox Grid.Column="2" IsVisible="{Binding IsDownscaleEnabled}"
                                               ItemsSource="{Binding AvailableFilters}"
-                                              SelectedIndex="{Binding SelectedFilterIndex}" Width="120" />
+                                              SelectedIndex="{Binding SelectedFilterIndex, Mode=TwoWay}" Width="120" />
                                 </Grid>
                                 <StackPanel IsVisible="{Binding IsDownscaleEnabled}" Spacing="6">
                                     <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">

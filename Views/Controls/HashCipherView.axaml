@@ -33,16 +33,14 @@
                                 <TextBlock Classes="FieldLabel" Text="{lan:I18n Hash.Label_OutputLength}" />
                                 <ComboBox HorizontalAlignment="Stretch"
                                           ItemsSource="{Binding OutputLengths}"
-                                          SelectedIndex="{Binding OutputLengthIndex, Mode=TwoWay}"
-                                          SelectionChanged="OutputLength_SelectionChanged" />
+                                          SelectedItem="{Binding SelectedOutputLength, Mode=TwoWay}" />
                             </StackPanel>
                         </Grid>
                         <StackPanel Classes="FormRow" IsVisible="{Binding IsModeVisible}">
                             <TextBlock Classes="FieldLabel" Text="{lan:I18n Hash.Label_Algorithm}" />
                             <ComboBox HorizontalAlignment="Stretch"
                                       ItemsSource="{Binding Modes}"
-                                      SelectedIndex="{Binding ModeIndex, Mode=TwoWay}"
-                                      SelectionChanged="Mode_SelectionChanged" />
+                                      SelectedItem="{Binding SelectedMode, Mode=TwoWay}" />
                         </StackPanel>
                     </StackPanel>
                 </Border>

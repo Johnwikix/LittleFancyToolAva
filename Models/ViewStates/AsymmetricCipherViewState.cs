@@ -6,10 +6,10 @@ public class AsymmetricCipherViewState
     public string OutputText { get; set; } = string.Empty;
     public string PublicKey { get; set; } = string.Empty;
     public string PrivateKey { get; set; } = string.Empty;
-    public int PaddingIndex { get; set; }
-    public int KeyLengthIndex { get; set; }
-    public int KeyFormatIndex { get; set; }
-    public int ModeIndex { get; set; }
+    public string? SelectedPadding { get; set; }
+    public int? SelectedKeyLength { get; set; }
+    public string? SelectedKeyFormat { get; set; }
+    public string? SelectedMode { get; set; }
 }
 
 public class AsymmetricEncryptionViewState

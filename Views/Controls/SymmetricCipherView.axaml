@@ -34,8 +34,7 @@
                                 <TextBlock Classes="FieldLabel" Text="{lan:I18n Encrypt.Label_Padding}" />
                                 <ComboBox HorizontalAlignment="Stretch"
                                           ItemsSource="{Binding Paddings}"
-                                          SelectedIndex="{Binding PaddingIndex, Mode=TwoWay}"
-                                          SelectionChanged="Padding_SelectionChanged" />
+                                          SelectedItem="{Binding SelectedPadding, Mode=TwoWay}" />
                             </StackPanel>
                             <StackPanel Grid.Column="2">
                                 <TextBlock Classes="FieldLabel" Text="{lan:I18n Encrypt.Label_EncryptMode}" />
@@ -70,8 +69,7 @@
                             <TextBlock Classes="FieldLabel" Text="{lan:I18n Encrypt.Label_KeyLength}" />
                             <ComboBox Classes="Compact" HorizontalAlignment="Stretch"
                                       ItemsSource="{Binding KeyLengthOptions}"
-                                      SelectedIndex="{Binding KeyLengthIndex, Mode=TwoWay}"
-                                      SelectionChanged="KeyLength_SelectionChanged" />
+                                      SelectedItem="{Binding SelectedKeyLength, Mode=TwoWay}" />
                         </StackPanel>
                         <StackPanel Classes="FormRow">
                             <TextBlock Classes="FieldLabel" Text="{lan:I18n Encrypt.Label_Key}" />

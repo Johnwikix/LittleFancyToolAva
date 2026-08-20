@@ -36,18 +36,19 @@ namespace LittleFancyToolAva.ViewModels
             set => SetProperty(ref field, value);
         } = string.Empty;
 
-        public int PaddingIndex
+        public string? SelectedPadding
         {
             get;
             set
             {
-                var v = Math.Max(value, 0);
-                if (!SetProperty(ref field, v) && v != value)
+                if (SetProperty(ref field, value))
                 {
-                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(PaddingIndex));
                 }
             }
         }
+
+        public int PaddingIndex => SelectedPadding is null ? 0 : Math.Max(Array.IndexOf(Paddings, SelectedPadding), 0);
 
         public int EncryptModeIndex
         {
@@ -100,18 +101,19 @@ namespace LittleFancyToolAva.ViewModels
             set => SetProperty(ref field, value);
         } = string.Empty;
 
-        public virtual int KeyLengthIndex
+        public virtual int? SelectedKeyLength
         {
             get;
             set
             {
-                var v = Math.Max(value, 0);
-                if (!SetProperty(ref field, v) && v != value)
+                if (SetProperty(ref field, value))
                 {
-                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(KeyLengthIndex));
                 }
             }
         }
+
+        public int KeyLengthIndex => SelectedKeyLength is null ? 0 : Math.Max(Array.IndexOf(KeyLengthOptions, SelectedKeyLength.Value), 0);
 
         public virtual int[] KeyLengthOptions => [];
 

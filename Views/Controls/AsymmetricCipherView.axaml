@@ -55,15 +55,13 @@
                                 <TextBlock Classes="FieldLabel" Text="{lan:I18n Encrypt.Label_Padding}" />
                                 <ComboBox HorizontalAlignment="Stretch"
                                           ItemsSource="{Binding Paddings}"
-                                          SelectedIndex="{Binding PaddingIndex, Mode=TwoWay}"
-                                          SelectionChanged="Padding_SelectionChanged" />
+                                          SelectedItem="{Binding SelectedPadding, Mode=TwoWay}" />
                             </StackPanel>
                             <StackPanel Grid.Column="2" IsVisible="{Binding IsKeyLengthVisible}">
                                 <TextBlock Classes="FieldLabel" Text="{lan:I18n Encrypt.Label_KeyLength}" />
                                 <ComboBox HorizontalAlignment="Stretch"
                                           ItemsSource="{Binding KeyLengths}"
-                                          SelectedIndex="{Binding KeyLengthIndex, Mode=TwoWay}"
-                                          SelectionChanged="KeyLength_SelectionChanged" />
+                                          SelectedItem="{Binding SelectedKeyLength, Mode=TwoWay}" />
                             </StackPanel>
                         </Grid>
                         <StackPanel Classes="FormRow" IsVisible="{Binding IsKeyFormatVisible}">
@@ -71,8 +69,7 @@
                             <Grid ColumnDefinitions="*,8,Auto">
                                 <ComboBox Grid.Column="0" HorizontalAlignment="Stretch"
                                           ItemsSource="{Binding KeyFormats}"
-                                          SelectedIndex="{Binding KeyFormatIndex, Mode=TwoWay}"
-                                          SelectionChanged="KeyFormat_SelectionChanged" />
+                                          SelectedItem="{Binding SelectedKeyFormat, Mode=TwoWay}" />
                                 <Button Grid.Column="2" Command="{Binding GenerateKeyPairCommand}" Content="{lan:I18n Encrypt.Button_GenerateKeyPair}" />
                             </Grid>
                         </StackPanel>
@@ -81,8 +78,7 @@
                             <Grid ColumnDefinitions="*,8,Auto">
                                 <ComboBox Grid.Column="0" HorizontalAlignment="Stretch"
                                           ItemsSource="{Binding Modes}"
-                                          SelectedIndex="{Binding ModeIndex, Mode=TwoWay}"
-                                          SelectionChanged="Mode_SelectionChanged" />
+                                          SelectedItem="{Binding SelectedMode, Mode=TwoWay}" />
                                 <Button Grid.Column="2" Command="{Binding GenerateKeyPairCommand}" Content="{lan:I18n Encrypt.Button_GenerateKeyPair}" />
                             </Grid>
                         </StackPanel>

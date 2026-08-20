@@ -62,31 +62,33 @@ namespace LittleFancyToolAva.ViewModels
             private set => SetProperty(ref field, value);
         } = [];
 
-        public int ModeIndex
+        public string? SelectedMode
         {
             get;
             set
             {
-                var v = Math.Max(value, 0);
-                if (!SetProperty(ref field, v) && v != value)
+                if (SetProperty(ref field, value))
                 {
-                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(ModeIndex));
                 }
             }
         }
 
-        public int OutputLengthIndex
+        public int ModeIndex => SelectedMode is null ? 0 : Math.Max(Array.IndexOf(Modes, SelectedMode), 0);
+
+        public int? SelectedOutputLength
         {
             get;
             set
             {
-                var v = Math.Max(value, 0);
-                if (!SetProperty(ref field, v) && v != value)
+                if (SetProperty(ref field, value))
                 {
-                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(OutputLengthIndex));
                 }
             }
         }
+
+        public int OutputLengthIndex => SelectedOutputLength is null ? 0 : Math.Max(Array.IndexOf(OutputLengths, SelectedOutputLength.Value), 0);
 
         public bool IsModeVisible
         {
@@ -114,6 +116,7 @@ namespace LittleFancyToolAva.ViewModels
             Algorithms = _options.Select(o => o.Name).ToArray();
             _current = _options[0];
             ApplyCurrentOptions();
+            RestoreIndexes(null, null);
             viewStateService.Register(this);
 
             I18nManager.Instance.CultureChanged += (_, _) =>
@@ -164,8 +167,8 @@ namespace LittleFancyToolAva.ViewModels
                 InputText = InputText,
                 OutputText = OutputText,
                 CaseIndex = CaseIndex,
-                ModeIndex = ModeIndex,
-                OutputLengthIndex = OutputLengthIndex
+                SelectedMode = SelectedMode,
+                SelectedOutputLength = SelectedOutputLength
             };
         }
 
@@ -174,17 +177,23 @@ namespace LittleFancyToolAva.ViewModels
             if (_algoStates.TryGetValue(_current.Name, out var s))
             {
                 CaseIndex = s.CaseIndex;
-                ModeIndex = Math.Clamp(s.ModeIndex, 0, Math.Max(Modes.Length - 1, 0));
-                OutputLengthIndex = Math.Clamp(s.OutputLengthIndex, 0, Math.Max(OutputLengths.Length - 1, 0));
+                RestoreIndexes(s.SelectedMode, s.SelectedOutputLength);
                 InputText = s.InputText;
                 OutputText = s.OutputText;
             }
             else
             {
                 CaseIndex = 0;
-                ModeIndex = 0;
-                OutputLengthIndex = 0;
+                RestoreIndexes(null, null);
             }
+        }
+
+        private void RestoreIndexes(string? mode, int? outputLength)
+        {
+            SelectedMode = mode is not null && Modes.Contains(mode) ? mode : Modes.Length > 0 ? Modes[0] : null;
+            SelectedOutputLength = outputLength is not null && OutputLengths.Contains(outputLength.Value) ? outputLength : OutputLengths.Length > 0 ? OutputLengths[0] : null;
+            OnPropertyChanged(nameof(SelectedMode));
+            OnPropertyChanged(nameof(SelectedOutputLength));
         }
 
         [RelayCommand]

@@ -5,8 +5,8 @@ public class HashViewState
     public string InputText { get; set; } = string.Empty;
     public string OutputText { get; set; } = string.Empty;
     public int CaseIndex { get; set; }
-    public int ModeIndex { get; set; }
-    public int OutputLengthIndex { get; set; }
+    public string? SelectedMode { get; set; }
+    public int? SelectedOutputLength { get; set; }
 }
 
 public class HashEncryptionViewState
