@@ -48,6 +48,7 @@ namespace LittleFancyToolAva.Services
                     if (!string.IsNullOrEmpty(multicastAddress) && IPAddress.TryParse(multicastAddress, out var multicastIp))
                     {
                         _udpClient.Client.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastTimeToLive, 32);
+                        _udpClient.Client.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastLoopback, false);
                         _udpClient.JoinMulticastGroup(multicastIp);
                     }
                 }, ct).ConfigureAwait(false);

@@ -38,15 +38,14 @@ namespace LittleFancyToolAva.ViewModels
                 new PageNavigationItem(L.Localize("Nav.Settings"), FASymbol.Setting, serviceProvider.GetRequiredService<SettingsViewModel>())
             };
 
-            var serialCategory = BuildSerialCategory(serviceProvider);
-            var networkCategory = BuildNetworkCategory(serviceProvider);
+            var commCategory = BuildCommCategory(serviceProvider);
             var encryptionCategory = BuildEncryptionCategory(serviceProvider);
             var fileCategory = BuildFileCategory(serviceProvider);
             var imageCategory = BuildImageCategory(serviceProvider);
 
             var categories = new PageNavigationItem[]
             {
-                serialCategory, networkCategory, encryptionCategory, fileCategory, imageCategory,
+                commCategory, encryptionCategory, fileCategory, imageCategory,
             };
 
             var homeVm = new HomeViewModel(categories);
@@ -72,36 +71,25 @@ namespace LittleFancyToolAva.ViewModels
         {
             FooterPages[0].Label = L.Localize("Nav.Settings");
             homeItem.Label = L.Localize("Nav.Home");
-            categories[0].Label = L.Localize("Nav.Category_Serial");
-            categories[0].Children[0].Label = L.Localize("Nav.Item_Serial");
-            categories[1].Label = L.Localize("Nav.Category_Network");
-            categories[1].Children[0].Label = L.Localize("Nav.Item_TCP");
-            categories[1].Children[1].Label = L.Localize("Nav.Item_UDP");
-            categories[2].Label = L.Localize("Nav.Category_Encrypt");
-            categories[2].Children[0].Label = L.Localize("Nav.Item_Symmetric");
-            categories[2].Children[1].Label = L.Localize("Nav.Item_Asymmetric");
-            categories[2].Children[2].Label = L.Localize("Nav.Item_Hash");
-            categories[2].Children[3].Label = L.Localize("Nav.Item_Base64");
-            categories[3].Label = L.Localize("Nav.Category_File");
-            categories[3].Children[0].Label = L.Localize("Nav.Item_FolderCompare");
-            categories[3].Children[1].Label = L.Localize("Nav.Item_FileEncrypt");
-            categories[4].Label = L.Localize("Nav.Category_Image");
-            categories[4].Children[0].Label = L.Localize("Nav.Item_Img2Base64");
-            categories[4].Children[1].Label = L.Localize("Nav.Item_ImageConvert");
+            categories[0].Label = L.Localize("Nav.Category_Comm");
+            categories[0].Children[0].Label = L.Localize("Nav.Item_Comm");
+            categories[1].Label = L.Localize("Nav.Category_Encrypt");
+            categories[1].Children[0].Label = L.Localize("Nav.Item_Symmetric");
+            categories[1].Children[1].Label = L.Localize("Nav.Item_Asymmetric");
+            categories[1].Children[2].Label = L.Localize("Nav.Item_Hash");
+            categories[1].Children[3].Label = L.Localize("Nav.Item_Base64");
+            categories[2].Label = L.Localize("Nav.Category_File");
+            categories[2].Children[0].Label = L.Localize("Nav.Item_FolderCompare");
+            categories[2].Children[1].Label = L.Localize("Nav.Item_FileEncrypt");
+            categories[3].Label = L.Localize("Nav.Category_Image");
+            categories[3].Children[0].Label = L.Localize("Nav.Item_Img2Base64");
+            categories[3].Children[1].Label = L.Localize("Nav.Item_ImageConvert");
         }
 
-        private static PageNavigationItem BuildSerialCategory(IServiceProvider sp)
+        private static PageNavigationItem BuildCommCategory(IServiceProvider sp)
         {
-            var category = new PageNavigationItem(L.Localize("Nav.Category_Serial"), FASymbol.Remote);
-            category.Children.Add(new PageNavigationItem(L.Localize("Nav.Item_Serial"), FASymbol.Remote, sp.GetRequiredService<SerialPortViewModel>()));
-            return category;
-        }
-
-        private static PageNavigationItem BuildNetworkCategory(IServiceProvider sp)
-        {
-            var category = new PageNavigationItem(L.Localize("Nav.Category_Network"), FASymbol.Globe);
-            category.Children.Add(new PageNavigationItem(L.Localize("Nav.Item_TCP"), FASymbol.Message, sp.GetRequiredService<TcpServerViewModel>()));
-            category.Children.Add(new PageNavigationItem(L.Localize("Nav.Item_UDP"), FASymbol.Message, sp.GetRequiredService<UdpViewModel>()));
+            var category = new PageNavigationItem(L.Localize("Nav.Category_Comm"), FASymbol.Globe);
+            category.Children.Add(new PageNavigationItem(L.Localize("Nav.Item_Comm"), FASymbol.Message, sp.GetRequiredService<CommToolViewModel>()));
             return category;
         }
 

@@ -66,7 +66,7 @@ namespace LittleFancyToolAva.Services
 
                 StatusChanged?.Invoke(LocalizationRegistry.Get("ServiceStatus.Serial_Connected", portName, baudRate, parity, dataBits, stopBits));
                 ConnectionStateChanged?.Invoke(this, new ConnectionEventArgs(
-                    ConnectionEventType.Connected, LocalizationRegistry.Get("ServiceStatus.Serial_ConnectedShort", portName)));
+                    ConnectionEventType.Connected, LocalizationRegistry.Get("Serial.Status_ConnectedShort", portName)));
             }
             catch (OperationCanceledException)
             {

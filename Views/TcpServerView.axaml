@@ -36,22 +36,26 @@
                     <Border Classes="ToolCard">
                         <StackPanel Classes="ToolCardContent" Spacing="4">
                             <TextBlock Classes="SectionHeader" Text="{lan:I18n Tcp.Group_ConnectMode}" />
-                            <StackPanel Spacing="4">
-                                <RadioButton Content="{lan:I18n Tcp.Mode_Server}"
+                            <Grid Classes="FormRow2" ColumnDefinitions="*,12,*">
+                                <RadioButton Grid.Column="0"
+                                             Content="{lan:I18n Tcp.Mode_Server}"
                                              GroupName="TcpMode"
                                              IsChecked="{Binding ModeIndex, Mode=TwoWay, Converter={StaticResource IntEq}, ConverterParameter=0}" />
-                                <RadioButton Content="{lan:I18n Tcp.Mode_Client}"
+                                <RadioButton Grid.Column="2"
+                                             Content="{lan:I18n Tcp.Mode_Client}"
                                              GroupName="TcpMode"
                                              IsChecked="{Binding ModeIndex, Mode=TwoWay, Converter={StaticResource IntEq}, ConverterParameter=1}" />
-                            </StackPanel>
-                            <StackPanel Classes="FormRow">
-                                <TextBlock Classes="FieldLabel" Text="{lan:I18n Tcp.Label_Address}" />
-                                <TextBox Text="{Binding Address, Mode=TwoWay}" />
-                            </StackPanel>
-                            <StackPanel Classes="FormRow">
-                                <TextBlock Classes="FieldLabel" Text="{lan:I18n Tcp.Label_Port}" />
-                                <TextBox Text="{Binding Port, Mode=TwoWay}" />
-                            </StackPanel>
+                            </Grid>
+                            <Grid Classes="FormRow2" ColumnDefinitions="*,12,*">
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Classes="FieldLabel" Text="{lan:I18n Tcp.Label_Address}" />
+                                    <TextBox Text="{Binding Address, Mode=TwoWay}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Classes="FieldLabel" Text="{lan:I18n Tcp.Label_Port}" />
+                                    <TextBox Text="{Binding Port, Mode=TwoWay}" />
+                                </StackPanel>
+                            </Grid>
                             <StackPanel Classes="ActionBar">
                                 <Button Command="{Binding StartCommand}" Classes="Primary" Content="{lan:I18n Common.Button_Start}"
                                         IsEnabled="{Binding IsAnyActive, Converter={StaticResource Inv}}" />

@@ -30,6 +30,7 @@ namespace LittleFancyToolAva.ViewModels
         private long _pendingTxCount;
 
         public ObservableCollection<string> Modes { get; } = ["", ""];
+
         public ObservableCollection<string> ConnectedClients => _tcpService.ConnectedClients;
 
         public LogBuffer Log { get; } = new();

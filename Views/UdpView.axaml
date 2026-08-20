@@ -36,42 +36,48 @@
                     <Border Classes="ToolCard">
                         <StackPanel Classes="ToolCardContent" Spacing="4">
                             <TextBlock Classes="SectionHeader" Text="{lan:I18n Udp.Group_ConnectSettings}" />
-                            <StackPanel Spacing="4">
-                                <RadioButton Content="{lan:I18n Udp.Mode_Normal}"
+                            <Grid Classes="FormRow2" ColumnDefinitions="*,12,*">
+                                <RadioButton Grid.Column="0"
+                                             Content="{lan:I18n Udp.Mode_Normal}"
                                              GroupName="UdpMode"
                                              IsChecked="{Binding ModeIndex, Mode=TwoWay, Converter={StaticResource IntEq}, ConverterParameter=0}" />
-                                <RadioButton Content="{lan:I18n Udp.Mode_Multicast}"
+                                <RadioButton Grid.Column="2"
+                                             Content="{lan:I18n Udp.Mode_Multicast}"
                                              GroupName="UdpMode"
                                              IsChecked="{Binding ModeIndex, Mode=TwoWay, Converter={StaticResource IntEq}, ConverterParameter=1}" />
-                            </StackPanel>
-                            <StackPanel Classes="FormRow">
-                                <TextBlock Classes="FieldLabel" Text="{lan:I18n Udp.Label_LocalAddress}" />
-                                <TextBox Text="{Binding LocalAddress, Mode=TwoWay}" />
-                            </StackPanel>
-                            <StackPanel Classes="FormRow">
-                                <TextBlock Classes="FieldLabel" Text="{lan:I18n Udp.Label_LocalPort}" />
-                                <TextBox Text="{Binding LocalPort, Mode=TwoWay}" />
-                            </StackPanel>
-                            <StackPanel Classes="FormRow"
-                                        IsVisible="{Binding ModeIndex, Converter={StaticResource IntEq}, ConverterParameter=1}">
-                                <TextBlock Classes="FieldLabel" Text="{lan:I18n Udp.Label_MulticastAddress}" />
-                                <TextBox Text="{Binding MulticastAddress, Mode=TwoWay}" />
-                            </StackPanel>
-                            <StackPanel Classes="FormRow"
-                                        IsVisible="{Binding ModeIndex, Converter={StaticResource IntEq}, ConverterParameter=1}">
-                                <TextBlock Classes="FieldLabel" Text="{lan:I18n Udp.Label_MulticastPort}" />
-                                <TextBox Text="{Binding MulticastPort, Mode=TwoWay}" />
-                            </StackPanel>
-                            <StackPanel Classes="FormRow"
-                                        IsVisible="{Binding ModeIndex, Converter={StaticResource IntEq}, ConverterParameter=0}">
-                                <TextBlock Classes="FieldLabel" Text="{lan:I18n Udp.Label_RemoteAddress}" />
-                                <TextBox Text="{Binding RemoteAddress, Mode=TwoWay}" />
-                            </StackPanel>
-                            <StackPanel Classes="FormRow"
-                                        IsVisible="{Binding ModeIndex, Converter={StaticResource IntEq}, ConverterParameter=0}">
-                                <TextBlock Classes="FieldLabel" Text="{lan:I18n Udp.Label_RemotePort}" />
-                                <TextBox Text="{Binding RemotePort, Mode=TwoWay}" />
-                            </StackPanel>
+                            </Grid>
+                            <Grid Classes="FormRow2" ColumnDefinitions="*,12,*">
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Classes="FieldLabel" Text="{lan:I18n Udp.Label_LocalAddress}" />
+                                    <TextBox Text="{Binding LocalAddress, Mode=TwoWay}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Classes="FieldLabel" Text="{lan:I18n Udp.Label_LocalPort}" />
+                                    <TextBox Text="{Binding LocalPort, Mode=TwoWay}" />
+                                </StackPanel>
+                            </Grid>
+                            <Grid Classes="FormRow2" ColumnDefinitions="*,12,*"
+                                  IsVisible="{Binding ModeIndex, Converter={StaticResource IntEq}, ConverterParameter=0}">
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Classes="FieldLabel" Text="{lan:I18n Udp.Label_RemoteAddress}" />
+                                    <TextBox Text="{Binding RemoteAddress, Mode=TwoWay}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Classes="FieldLabel" Text="{lan:I18n Udp.Label_RemotePort}" />
+                                    <TextBox Text="{Binding RemotePort, Mode=TwoWay}" />
+                                </StackPanel>
+                            </Grid>
+                            <Grid Classes="FormRow2" ColumnDefinitions="*,12,*"
+                                  IsVisible="{Binding ModeIndex, Converter={StaticResource IntEq}, ConverterParameter=1}">
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Classes="FieldLabel" Text="{lan:I18n Udp.Label_MulticastAddress}" />
+                                    <TextBox Text="{Binding MulticastAddress, Mode=TwoWay}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Classes="FieldLabel" Text="{lan:I18n Udp.Label_MulticastPort}" />
+                                    <TextBox Text="{Binding MulticastPort, Mode=TwoWay}" />
+                                </StackPanel>
+                            </Grid>
                             <StackPanel Classes="ActionBar">
                                 <Button Command="{Binding StartCommand}" Classes="Primary" Content="{lan:I18n Common.Button_Start}"
                                         IsEnabled="{Binding IsAnyActive, Converter={StaticResource Inv}}" />

@@ -154,6 +154,7 @@ namespace LittleFancyToolAva
             services.AddTransient<AsymmetricEncryptionViewModel>();
             services.AddTransient<HashEncryptionViewModel>();
             services.AddTransient<Base64ViewModel>();
+            services.AddSingleton<CommToolViewModel>();
             services.AddSingleton<SerialPortViewModel>();
             services.AddSingleton<TcpServerViewModel>();
             services.AddSingleton<UdpViewModel>();

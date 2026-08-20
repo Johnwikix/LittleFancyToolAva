@@ -33,7 +33,13 @@ namespace LittleFancyToolAva.ViewModels
         public int ModeIndex
         {
             get;
-            set => SetProperty(ref field, value);
+            set
+            {
+                if (SetProperty(ref field, value))
+                {
+                    OnModeIndexChanged(value);
+                }
+            }
         }
 
         public string LocalAddress
@@ -426,6 +432,15 @@ namespace LittleFancyToolAva.ViewModels
         {
             _pollCts?.Cancel();
             _cts?.Cancel();
+            IsPolling = false;
+            _udpService.Stop();
+            IsRunning = false;
+        }
+
+        private void OnModeIndexChanged(int value)
+        {
+            if (!IsRunning) return;
+            _pollCts?.Cancel();
             IsPolling = false;
             _udpService.Stop();
             IsRunning = false;
