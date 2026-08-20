@@ -18,7 +18,7 @@
             </LinearGradientBrush>
 
             <ImageBrush x:Key="PageHeaderBackgroundBrush"
-                        Source="avares://LittleFancyToolAva/Assets/Images/FAHeaderBackground26.jpg"
+                        Source="avares://LittleFancyToolAva/Assets/Images/HeaderBackgroundLight.png"
                         AlignmentY="Center"
                         Stretch="UniformToFill" />
         </ResourceDictionary>
@@ -37,7 +37,7 @@
             </LinearGradientBrush>
 
             <ImageBrush x:Key="PageHeaderBackgroundBrush"
-                        Source="avares://LittleFancyToolAva/Assets/Images/FAHeaderBackground26.jpg"
+                        Source="avares://LittleFancyToolAva/Assets/Images/HeaderBackgroundLight.png"
                         AlignmentY="Center"
                         Stretch="UniformToFill" />
         </ResourceDictionary>
@@ -51,7 +51,7 @@
             </LinearGradientBrush>
 
             <ImageBrush x:Key="PageHeaderBackgroundBrush"
-                        Source="avares://LittleFancyToolAva/Assets/Images/FAHeaderBackground26.jpg"
+                        Source="avares://LittleFancyToolAva/Assets/Images/HeaderBackgroundLight.png"
                         AlignmentY="Center"
                         Stretch="UniformToFill" />
         </ResourceDictionary>
