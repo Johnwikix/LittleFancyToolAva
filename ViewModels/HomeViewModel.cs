@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using FluentAvalonia.UI.Controls;
 using Lang.Avalonia;
 using LittleFancyToolAva.Models;
 using LittleFancyToolAva.Services;
@@ -31,11 +32,21 @@ namespace LittleFancyToolAva.ViewModels
             ToolGroups = new ObservableCollection<PageNavigationItem>();
             foreach (var category in categories)
             {
-                foreach (var child in category.Children)
+                if (category.HasChildren)
                 {
-                    ApplyDescription(child);
+                    foreach (var child in category.Children)
+                    {
+                        ApplyDescription(child);
+                    }
+                    ToolGroups.Add(category);
                 }
-                ToolGroups.Add(category);
+                else if (category.Content != null)
+                {
+                    ApplyDescription(category);
+                    var group = new PageNavigationItem(category.Label, IconOf(category));
+                    group.Children.Add(category);
+                    ToolGroups.Add(group);
+                }
             }
 
             I18nManager.Instance.CultureChanged += (_, _) => RefreshAll();
@@ -59,6 +70,11 @@ namespace LittleFancyToolAva.ViewModels
             {
                 child.Description = LocalizationRegistry.Get(keys.DescKey);
             }
+        }
+
+        private static FASymbol IconOf(PageNavigationItem item)
+        {
+            return (item.IconSource as FASymbolIconSource)?.Symbol ?? FASymbol.Globe;
         }
 
         [RelayCommand]

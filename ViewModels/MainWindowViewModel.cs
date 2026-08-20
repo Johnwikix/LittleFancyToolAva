@@ -72,7 +72,6 @@ namespace LittleFancyToolAva.ViewModels
             FooterPages[0].Label = L.Localize("Nav.Settings");
             homeItem.Label = L.Localize("Nav.Home");
             categories[0].Label = L.Localize("Nav.Category_Comm");
-            categories[0].Children[0].Label = L.Localize("Nav.Item_Comm");
             categories[1].Label = L.Localize("Nav.Category_Encrypt");
             categories[1].Children[0].Label = L.Localize("Nav.Item_Symmetric");
             categories[1].Children[1].Label = L.Localize("Nav.Item_Asymmetric");
@@ -88,9 +87,7 @@ namespace LittleFancyToolAva.ViewModels
 
         private static PageNavigationItem BuildCommCategory(IServiceProvider sp)
         {
-            var category = new PageNavigationItem(L.Localize("Nav.Category_Comm"), FASymbol.Globe);
-            category.Children.Add(new PageNavigationItem(L.Localize("Nav.Item_Comm"), FASymbol.Message, sp.GetRequiredService<CommToolViewModel>()));
-            return category;
+            return new PageNavigationItem(L.Localize("Nav.Category_Comm"), FASymbol.Globe, sp.GetRequiredService<CommToolViewModel>());
         }
 
         private static PageNavigationItem BuildEncryptionCategory(IServiceProvider sp)
