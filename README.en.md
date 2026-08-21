@@ -37,29 +37,6 @@
 
 <br>
 
-## 📥 Download & Install
-
-> No prebuilt installer is published yet — please build from source.
-
-- **Prerequisites**: .NET 10 SDK
-- **OS**: Windows 10 19041 or later (ships as `win-x64` runtime)
-
-```bash
-git clone <TODO: repo URL>
-cd fancy-tool-ava
-dotnet restore
-dotnet build -c Release
-dotnet run -c Release
-```
-
-Produce a distributable folder via `Properties/PublishProfiles/FolderProfile.pubxml`:
-
-```bash
-dotnet publish -c Release -p:PublishProfile=FolderProfile
-```
-
-Output is placed at `bin/Release/net10.0/win-x64/publish/win-x64/`.
-
 ## 🌟 Features
 
 ### 🛰️ Communication Debug
@@ -80,8 +57,7 @@ Output is placed at `bin/Release/net10.0/win-x64/publish/win-x64/`.
 - 📁 **Folder Compare**: compare two folders and list differences by relative path, SHA-256 hash, and music title
 - 🔐 **File Encryption**: batch file-level encryption / decryption with progress tracking
 - 🖼️ **Image → Base64**: convert an image into a Base64 string
-- 🖼️ **Image → ICO**: convert a bitmap into an ICO icon
-- 🖼️ **Image Format Conversion**: batch image format conversion powered by SkiaSharp
+- 🖼️ **Image Convert**: batch image format conversion (jpg / png / bmp / webp / tiff / dds / jxl / heic / ico, powered by SkiaSharp)
 
 ## 📊 Feature Matrix
 
@@ -102,8 +78,17 @@ Output is placed at `bin/Release/net10.0/win-x64/publish/win-x64/`.
 | File | Folder Compare | Diff two directories | SHA-256 hash / music title | .NET BCL / ATL |
 | File | File Encryption | Batch file encrypt / decrypt | AES / SM4 (extensible) | BouncyCastle.Cryptography |
 | Image | Image → Base64 | Image → Base64 | Stream encoding | .NET BCL |
-| Image | Image → ICO | Bitmap → ICO | ICO encoding | SkiaSharp |
-| Image | Image Format Conversion | Batch format conversion | Image re-encoding | SkiaSharp |
+| Image | Image Convert | Batch image format conversion (jpg / png / bmp / webp / tiff / dds / jxl / heic / ico) | SKBitmap decode + multi-format encode + multi-size ICO packing | SkiaSharp |
+
+## 🖼️ Screenshots
+
+<img src="docs/img/en/1.png" width="50%"><img src="docs/img/en/2.png" width="50%">
+<img src="docs/img/en/3.png" width="50%"><img src="docs/img/en/4.png" width="50%">
+<img src="docs/img/en/5.png" width="50%"><img src="docs/img/en/6.png" width="50%">
+<img src="docs/img/en/7.png" width="50%"><img src="docs/img/en/8.png" width="50%">
+<img src="docs/img/en/9.png" width="50%"><img src="docs/img/en/10.png" width="50%">
+<img src="docs/img/en/11.png" width="50%"><img src="docs/img/en/12.png" width="50%">
+
 
 ## 🧱 Architecture
 
@@ -114,36 +99,46 @@ Output is placed at `bin/Release/net10.0/win-x64/publish/win-x64/`.
 - **State Persistence**: `IViewStateService` serializes per-tool page state; `AppPreferences` persists theme, animations, shadows, notification placement, etc.; `ApplicationHostService` calls `LoadState` / `LoadViewStates` on launch and `SaveState` on exit
 - **Logging**: `Serilog` 4 + `Serilog.Extensions.Logging` bridging `Microsoft.Extensions.Logging`; daily-rolling output to `{AppBaseDirectory}\logs\tool-.log`, capped at 50 MB per file, 30 days retained
 - **Stability**: `Program.cs` registers `AppDomain.UnhandledException` and `TaskScheduler.UnobservedTaskException`; startup failures surface through `MessageBoxW`
-- **Publishing**: Native AOT for non-Debug builds (`PublishAot`); `FolderProfile.pubxml` provides `SelfContained` + `PublishSingleFile` folder publishing
+- **Publishing**: Native AOT for non-Debug builds (`PublishAot`); `FolderProfile.pubxml` provides `SelfContained` + `PublishSingleFile` folder publishing; two PowerShell scripts at the repo root act as entry points — `publish-win.ps1` (Windows x64 self-contained publish) and `publish-linux-deb.ps1` (`.deb` packaging backed by the `Packaging.Targets` `CreateDeb` MSBuild target); both wrap `dotnet` subprocess calls
 
-## ✍️ Contributing & Building
-
-Issues and Pull Requests are welcome.
+## 🛠️ Build
 
 ### Prerequisites
 
-- [.NET 10 SDK](https://dotnet.microsoft.com/)
+- [.NET 10 SDK](https://dotnet.microsoft.com/) (SDK version and `rollForward` policy are pinned in `global.json`)
 - Windows 10 19041 or later
-- Visual Studio 2022 17.x / Rider / VS Code recommended
+- Visual Studio 2026 recommended
 
 ### Build from Source
 
-1. Clone the repository:
+A PowerShell build script ships at the repo root. It defaults to `Release` / `win-x64` and enables NativeAOT:
 
-   ```bash
-   git clone <TODO: repo URL>
-   ```
-2. Restore and build:
+```powershell
+# Windows PowerShell 5.1+ or PowerShell 7+
+pwsh -File .\publish-win.ps1
+```
 
-   ```bash
-   dotnet restore
-   dotnet build -c Release
-   ```
-3. Launch the app:
+Optional parameters:
 
-   ```bash
-   dotnet run -c Debug
-   ```
+```powershell
+# Custom configuration and output directory
+pwsh -File .\publish-win.ps1 -Configuration Debug -Output .\out\debug
+```
+
+Output is placed at `bin\Release\net10.0\win-x64\publish\win-x64\`. Launch `FancyToolAva.exe` to start the app.
+
+### Debug Run
+
+For quick iteration outside the script, use the dotnet CLI directly:
+
+```bash
+dotnet run -c Debug
+```
+
+### Cross-Platform Distribution
+
+- Linux x64 `.deb` package: run `pwsh -File .\publish-linux-deb.ps1` at the repo root; output lands in `dist\`
+- Any-RID self-contained publish: `dotnet publish -c Release -r <RID> -p:PublishSelfContained=true` (or via `Properties\PublishProfiles\FolderProfile.pubxml`: `dotnet publish -c Release -p:PublishProfile=FolderProfile`)
 
 ## 💖 Dependencies & Credits
 
@@ -162,10 +157,14 @@ Issues and Pull Requests are welcome.
 | [Serilog.Extensions.Logging](https://github.com/serilog/serilog-extensions-logging) | Serilog ↔ MEL bridge | Apache-2.0 |
 | [Serilog.Sinks.File](https://github.com/serilog/serilog-sinks-file) | File log sink | Apache-2.0 |
 | [BouncyCastle.Cryptography](https://www.bouncycastle.org/csharp/) | Ciphers (AES / DES / RSA / SM2 / SM3 / SM4 / SHA / MD5) | MIT |
-| [SkiaSharp](https://github.com/mono/SkiaSharp) | Image processing & format conversion (Avalonia built-in renderer) | MIT |
 | [z440.atl.core](https://github.com/Zeugma440/atldotnet) | Audio metadata (music title extraction) | MIT |
 | [System.IO.Ports](https://learn.microsoft.com/dotnet/api/system.io.ports) | Serial port communication | MIT |
-| [System.Windows.Extensions](https://learn.microsoft.com/dotnet/api/) | Windows extensions | MIT |
+| [Lang.Avalonia](https://github.com/avaloniaui/avalonia) | i18n runtime (`I18nManager` / `lan:I18n`) | MIT |
+| [Lang.Avalonia.Json](https://github.com/avaloniaui/avalonia) | JSON i18n plugin (`i18n\*.json`) | MIT |
+| [Avalonia.Skia](https://github.com/AvaloniaUI/Avalonia) | Skia renderer (transitive via Avalonia Desktop) | MIT |
+| [SkiaSharp](https://github.com/mono/SkiaSharp) | Image processing & format conversion (directly drives ICO / PNG / JPEG / WebP / HEIF / GIF / BMP encoding) | MIT |
+| [HarfBuzzSharp](https://github.com/harfbuzz/harfbuzz-sharp) | Text shaping (transitive via Avalonia Desktop) | MIT |
+| [Packaging.Targets](https://github.com/qmfrederik/dotnet-packaging) | Linux `.deb` packaging (`CreateDeb` MSBuild target) | MIT |
 
 ## 📄 License
 

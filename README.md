@@ -37,32 +37,9 @@
 
 <br>
 
-## 📥 下载与安装
-
-> 当前未发布预编译安装包，请通过源码构建。
-
-- **前置**：.NET 10 SDK
-- **系统**：Windows 10 19041 或更高版本（已配置 `win-x64` 运行时）
-
-```bash
-git clone <TODO: 仓库 URL>
-cd fancy-tool-ava
-dotnet restore
-dotnet build -c Release
-dotnet run -c Release
-```
-
-发布为可分发目录（应用 `Properties/PublishProfiles/FolderProfile.pubxml`）：
-
-```bash
-dotnet publish -c Release -p:PublishProfile=FolderProfile
-```
-
-输出位于 `bin/Release/net10.0/win-x64/publish/win-x64/`。
-
 ## 🌟 核心功能
 
-### 🛰️ 通讯调试
+### 🛰️ 通信调试
 
 - 🛰️ **串口调试**：基于 `System.IO.Ports` 的串口收发与调试
 - 🌐 **TCP 服务器**：TCP 服务端调试工具，支持连接管理
@@ -80,16 +57,15 @@ dotnet publish -c Release -p:PublishProfile=FolderProfile
 - 📁 **文件夹比较**：对比两个目录的内容与文件差异（按相对路径、SHA-256 哈希、音乐标题匹配）
 - 🔐 **文件加解密**：批量的文件级加密 / 解密操作，支持进度跟踪
 - 🖼️ **图片转 Base64**：将图片转换为 Base64 编码字符串
-- 🖼️ **图片转 ICO**：将位图转换为 ICO 图标格式
-- 🖼️ **图片格式转换**：基于 SkiaSharp 的图片格式批量转换
+- 🖼️ **图片转换**：图片格式批量转换（jpg / png / bmp / webp / tiff / dds / jxl / heic / ico，基于 SkiaSharp）
 
 ## 📊 功能矩阵
 
 | 类别 | 工具 | 说明 | 算法 / 实现 | 主要依赖 |
 | :--- | :--- | :--- | :--- | :--- |
-| 通讯 | 串口调试 | 串口收发与调试 | `System.IO.Ports` | System.IO.Ports |
-| 通讯 | TCP 服务器 | TCP 服务端调试 | `TcpListener` / `Socket` | .NET BCL |
-| 通讯 | UDP 通信 | UDP 收发调试 | `UdpClient` | .NET BCL |
+| 通信 | 串口调试 | 串口收发与调试 | `System.IO.Ports` | System.IO.Ports |
+| 通信 | TCP 服务器 | TCP 服务端调试 | `TcpListener` / `Socket` | .NET BCL |
+| 通信 | UDP 通信 | UDP 收发调试 | `UdpClient` | .NET BCL |
 | 对称加密 | DES | DES 加解密 | DES | BouncyCastle.Cryptography |
 | 对称加密 | AES | AES 加解密 | AES | BouncyCastle.Cryptography |
 | 对称加密 | SM4 | SM4 国密加解密 | SM4 | BouncyCastle.Cryptography |
@@ -102,8 +78,16 @@ dotnet publish -c Release -p:PublishProfile=FolderProfile
 | 文件 | 文件夹比较 | 两个目录差异对比 | SHA-256 哈希 / 音乐标题 | .NET BCL / ATL |
 | 文件 | 文件加解密 | 文件级加密 / 解密 | AES / SM4 等（可扩展） | BouncyCastle.Cryptography |
 | 图片 | 图片转 Base64 | 图片 → Base64 | 字节流编码 | .NET BCL |
-| 图片 | 图片转 ICO | 位图 → ICO | ICO 编码 | SkiaSharp |
-| 图片 | 图片格式转换 | 图片批量格式转换 | 图像重编码 | SkiaSharp |
+| 图片 | 图片转换 | 图片格式批量转换（jpg / png / bmp / webp / tiff / dds / jxl / heic / ico） | SKBitmap 解码 + 多格式编码 + ICO 多尺寸封装 | SkiaSharp |
+
+## 🖼️ 软件截图
+
+<img src="docs/img/zh/1.png" width="50%"><img src="docs/img/zh/2.png" width="50%">
+<img src="docs/img/zh/3.png" width="50%"><img src="docs/img/zh/4.png" width="50%">
+<img src="docs/img/zh/5.png" width="50%"><img src="docs/img/zh/6.png" width="50%">
+<img src="docs/img/zh/7.png" width="50%"><img src="docs/img/zh/8.png" width="50%">
+<img src="docs/img/zh/9.png" width="50%"><img src="docs/img/zh/10.png" width="50%">
+<img src="docs/img/zh/11.png" width="50%"><img src="docs/img/zh/12.png" width="50%">
 
 ## 🧱 技术架构
 
@@ -114,36 +98,46 @@ dotnet publish -c Release -p:PublishProfile=FolderProfile
 - **状态持久化**：`IViewStateService` 序列化各工具页面状态；`AppPreferences` 持久化主题、动画、阴影、通知位置等设置；`ApplicationHostService` 在启动时 `LoadState` / `LoadViewStates`，退出时 `SaveState`
 - **日志**：`Serilog` 4 + `Serilog.Extensions.Logging` 桥接 `Microsoft.Extensions.Logging`；按天滚动写入 `{AppBaseDirectory}\logs\tool-.log`，单文件上限 50 MB，保留 30 天
 - **稳定性**：`Program.cs` 注册 `AppDomain.UnhandledException` 与 `TaskScheduler.UnobservedTaskException`；启动失败时通过 `MessageBoxW` 兜底提示
-- **发布**：非 Debug 启用 Native AOT（`PublishAot`）；`FolderProfile.pubxml` 提供 `SelfContained` + `PublishSingleFile` 文件夹发布
+- **发布**：非 Debug 启用 Native AOT（`PublishAot`）；`FolderProfile.pubxml` 提供 `SelfContained` + `PublishSingleFile` 文件夹发布；仓库根目录提供两个 PowerShell 脚本作为入口——`publish-win.ps1`（Windows x64 自包含发布）与 `publish-linux-deb.ps1`（基于 `Packaging.Targets` 的 `.deb` 打包），均封装了 `dotnet` 子进程调用
 
-## ✍️ 贡献与构建
-
-欢迎提交 Issue 与 Pull Request。
+## 🛠️ 构建
 
 ### 前置条件
 
-- [.NET 10 SDK](https://dotnet.microsoft.com/)
+- [.NET 10 SDK](https://dotnet.microsoft.com/)（`global.json` 已固定 SDK 版本与 `rollForward` 策略）
 - Windows 10 19041 或更高版本
-- 推荐使用 Visual Studio 2022 17.x / Rider / VS Code
+- 推荐使用 Visual Studio 2026
 
 ### 从源码构建
 
-1. 克隆仓库：
+仓库根目录提供 PowerShell 构建脚本（默认 `Release` / `win-x64`，启用 NativeAOT）：
 
-   ```bash
-   git clone <TODO: 仓库 URL>
-   ```
-2. 还原 NuGet 包并构建：
+```powershell
+# Windows PowerShell 5.1+ 或 PowerShell 7+
+pwsh -File .\publish-win.ps1
+```
 
-   ```bash
-   dotnet restore
-   dotnet build -c Release
-   ```
-3. 启动调试：
+可选参数：
 
-   ```bash
-   dotnet run -c Debug
-   ```
+```powershell
+# 自定义配置与输出目录
+pwsh -File .\publish-win.ps1 -Configuration Debug -Output .\out\debug
+```
+
+产物默认位于 `bin\Release\net10.0\win-x64\publish\win-x64\`，直接运行 `FancyToolAva.exe` 即可。
+
+### 调试运行
+
+脚本外如需快速迭代，可使用 dotnet CLI 直接启动：
+
+```bash
+dotnet run -c Debug
+```
+
+### 跨平台分发
+
+- Linux x64 `.deb` 包：在仓库根目录执行 `pwsh -File .\publish-linux-deb.ps1`，产物落在 `dist\`
+- 任意 RID 自包含发布：`dotnet publish -c Release -r <RID> -p:PublishSelfContained=true`（亦可经由 `Properties\PublishProfiles\FolderProfile.pubxml`：`dotnet publish -c Release -p:PublishProfile=FolderProfile`）
 
 ## 💖 依赖与致谢
 
@@ -162,10 +156,14 @@ dotnet publish -c Release -p:PublishProfile=FolderProfile
 | [Serilog.Extensions.Logging](https://github.com/serilog/serilog-extensions-logging) | Serilog ↔ MEL 桥接 | Apache-2.0 |
 | [Serilog.Sinks.File](https://github.com/serilog/serilog-sinks-file) | 文件日志输出 | Apache-2.0 |
 | [BouncyCastle.Cryptography](https://www.bouncycastle.org/csharp/) | 加密算法（AES / DES / RSA / SM2 / SM3 / SM4 / SHA / MD5） | MIT |
-| [SkiaSharp](https://github.com/mono/SkiaSharp) | 图片处理与格式转换（Avalonia 内置渲染引擎） | MIT |
 | [z440.atl.core](https://github.com/Zeugma440/atldotnet) | 音频元数据（音乐标题提取） | MIT |
 | [System.IO.Ports](https://learn.microsoft.com/dotnet/api/system.io.ports) | 串口通信 | MIT |
-| [System.Windows.Extensions](https://learn.microsoft.com/dotnet/api/) | Windows 扩展 | MIT |
+| [Lang.Avalonia](https://github.com/avaloniaui/avalonia) | 多语言运行时（`I18nManager` / `lan:I18n`） | MIT |
+| [Lang.Avalonia.Json](https://github.com/avaloniaui/avalonia) | JSON 多语言插件（`i18n\*.json`） | MIT |
+| [Avalonia.Skia](https://github.com/AvaloniaUI/Avalonia) | Skia 渲染层（Avalonia Desktop 传递依赖） | MIT |
+| [SkiaSharp](https://github.com/mono/SkiaSharp) | 图片处理与格式转换（直接用于 ICO / PNG / JPEG / WebP / HEIF / GIF / BMP 编码） | MIT |
+| [HarfBuzzSharp](https://github.com/harfbuzz/harfbuzz-sharp) | 文字整形（Avalonia Desktop 传递依赖） | MIT |
+| [Packaging.Targets](https://github.com/qmfrederik/dotnet-packaging) | Linux `.deb` 包打包（`CreateDeb` MSBuild 目标） | MIT |
 
 ## 📄 许可证
 

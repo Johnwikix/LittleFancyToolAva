@@ -82,4 +82,10 @@
       <LinuxPath>/usr/share/icons/hicolor/128x128/apps/fancy-tool.png</LinuxPath>
     </Content>
   </ItemGroup>
+
+  <ItemGroup>
+    <None Update="i18n\en-US.json">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
 </Project>
