@@ -10,14 +10,14 @@
 
   <h4>
     基于 Avalonia 12 + FluentAvalonia 构建的轻量级桌面工具集<br>
-    面向 Windows 平台，集成常用加密、通讯与图片处理工具
+    面向 Windows 与 Linux 平台，集成常用加密、通讯与图片处理工具
   </h4>
   <div>
     <img src="https://img.shields.io/badge/语言-C%23-purple" alt="C#">
     <img src="https://img.shields.io/badge/UI-Avalonia%2012-blue" alt="Avalonia">
     <img src="https://img.shields.io/badge/主题-FluentAvalonia-blue" alt="FluentAvalonia">
     <img src="https://img.shields.io/badge/.NET-10.0-purple" alt=".NET 10">
-    <img src="https://img.shields.io/badge/平台-Windows-blue" alt="Windows">
+    <img src="https://img.shields.io/badge/平台-Windows%20%7C%20Linux-blue" alt="Platform">
     <img src="https://img.shields.io/badge/许可证-MIT-blue" alt="License">
   </div>
 
@@ -102,6 +102,7 @@
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/)（`global.json` 已固定 SDK 版本与 `rollForward` 策略）
 - Windows 10 19041 或更高版本
+- Linux x64（如 Ubuntu 22.04+，需安装 `.deb` 运行时依赖）
 - 推荐使用 Visual Studio 2026
 
 ### 从源码构建
@@ -134,6 +135,8 @@ dotnet run -c Debug
 
 - Linux x64 `.deb` 包：在仓库根目录执行 `pwsh -File .\publish-linux-deb.ps1`，产物落在 `dist\`
 - 任意 RID 自包含发布：`dotnet publish -c Release -r <RID> -p:PublishSelfContained=true`（亦可经由 `Properties\PublishProfiles\FolderProfile.pubxml`：`dotnet publish -c Release -p:PublishProfile=FolderProfile`）
+
+> ⚠️ **注意**：Linux 版本未充分验证，可能存在兼容性问题。
 
 ## 💖 依赖与致谢
 

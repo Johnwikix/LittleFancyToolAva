@@ -10,7 +10,7 @@
 
   <h4>
     A lightweight desktop toolkit built with Avalonia 12 + FluentAvalonia<br>
-    Targeting Windows, bundling common encryption, communication, and image utilities
+    Targeting Windows and Linux, bundling common encryption, communication, and image utilities
   </h4>
 
   <div>
@@ -18,7 +18,7 @@
     <img src="https://img.shields.io/badge/UI-Avalonia%2012-blue" alt="Avalonia">
     <img src="https://img.shields.io/badge/Theme-FluentAvalonia-blue" alt="FluentAvalonia">
     <img src="https://img.shields.io/badge/.NET-10.0-purple" alt=".NET 10">
-    <img src="https://img.shields.io/badge/Platform-Windows-blue" alt="Windows">
+    <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-blue" alt="Platform">
     <img src="https://img.shields.io/badge/License-MIT-blue" alt="License">
   </div>
 
@@ -103,6 +103,7 @@
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/) (SDK version and `rollForward` policy are pinned in `global.json`)
 - Windows 10 19041 or later
+- Linux x64 (e.g. Ubuntu 22.04+; `.deb` runtime dependencies required)
 - Visual Studio 2026 recommended
 
 ### Build from Source
@@ -135,6 +136,8 @@ dotnet run -c Debug
 
 - Linux x64 `.deb` package: run `pwsh -File .\publish-linux-deb.ps1` at the repo root; output lands in `dist\`
 - Any-RID self-contained publish: `dotnet publish -c Release -r <RID> -p:PublishSelfContained=true` (or via `Properties\PublishProfiles\FolderProfile.pubxml`: `dotnet publish -c Release -p:PublishProfile=FolderProfile`)
+
+> ⚠️ **Note**: The Linux version has not been fully verified and may have compatibility issues.
 
 ## 💖 Dependencies & Credits
 
