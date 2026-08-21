@@ -1,7 +1,8 @@
 **English** | [**中文**](README.md)
 
 <div align="center">
-  <img src="Assets/storeIcon.ico" alt="Logo" width="96">
+  <img src="FancyTool/Assets/storeIcon.ico" alt="Logo" width="96">
+
 
   <h1>FancyTool</h1>
 
@@ -77,12 +78,12 @@
 
 ## 🖼️ Screenshots
 
-<img src="docs/img/en/1.png" width="50%"><img src="docs/img/en/2.png" width="50%">
-<img src="docs/img/en/3.png" width="50%"><img src="docs/img/en/4.png" width="50%">
-<img src="docs/img/en/5.png" width="50%"><img src="docs/img/en/6.png" width="50%">
-<img src="docs/img/en/7.png" width="50%"><img src="docs/img/en/8.png" width="50%">
-<img src="docs/img/en/9.png" width="50%"><img src="docs/img/en/10.png" width="50%">
-<img src="docs/img/en/11.png" width="50%"><img src="docs/img/en/12.png" width="50%">
+<img src="FancyTool/docs/img/en/1.png" width="50%"><img src="FancyTool/docs/img/en/2.png" width="50%">
+<img src="FancyTool/docs/img/en/3.png" width="50%"><img src="FancyTool/docs/img/en/4.png" width="50%">
+<img src="FancyTool/docs/img/en/5.png" width="50%"><img src="FancyTool/docs/img/en/6.png" width="50%">
+<img src="FancyTool/docs/img/en/7.png" width="50%"><img src="FancyTool/docs/img/en/8.png" width="50%">
+<img src="FancyTool/docs/img/en/9.png" width="50%"><img src="FancyTool/docs/img/en/10.png" width="50%">
+<img src="FancyTool/docs/img/en/11.png" width="50%"><img src="FancyTool/docs/img/en/12.png" width="50%">
 
 
 ## 🧱 Architecture

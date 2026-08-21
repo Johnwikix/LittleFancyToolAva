@@ -1,7 +1,8 @@
 [**English**](README.en.md) | **中文**
 
 <div align="center">
-  <img src="Assets/storeIcon.ico" alt="Logo" width="96">
+  <img src="FancyTool/Assets/storeIcon.ico" alt="Logo" width="96">
+
 
   <h1>妙妙工具</h1>
 
@@ -77,12 +78,12 @@
 
 ## 🖼️ 软件截图
 
-<img src="docs/img/zh/1.png" width="50%"><img src="docs/img/zh/2.png" width="50%">
-<img src="docs/img/zh/3.png" width="50%"><img src="docs/img/zh/4.png" width="50%">
-<img src="docs/img/zh/5.png" width="50%"><img src="docs/img/zh/6.png" width="50%">
-<img src="docs/img/zh/7.png" width="50%"><img src="docs/img/zh/8.png" width="50%">
-<img src="docs/img/zh/9.png" width="50%"><img src="docs/img/zh/10.png" width="50%">
-<img src="docs/img/zh/11.png" width="50%"><img src="docs/img/zh/12.png" width="50%">
+<img src="FancyTool/docs/img/zh/1.png" width="50%"><img src="FancyTool/docs/img/zh/2.png" width="50%">
+<img src="FancyTool/docs/img/zh/3.png" width="50%"><img src="FancyTool/docs/img/zh/4.png" width="50%">
+<img src="FancyTool/docs/img/zh/5.png" width="50%"><img src="FancyTool/docs/img/zh/6.png" width="50%">
+<img src="FancyTool/docs/img/zh/7.png" width="50%"><img src="FancyTool/docs/img/zh/8.png" width="50%">
+<img src="FancyTool/docs/img/zh/9.png" width="50%"><img src="FancyTool/docs/img/zh/10.png" width="50%">
+<img src="FancyTool/docs/img/zh/11.png" width="50%"><img src="FancyTool/docs/img/zh/12.png" width="50%">
 
 ## 🧱 技术架构
 
