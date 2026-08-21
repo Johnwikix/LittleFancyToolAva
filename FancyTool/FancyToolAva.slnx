@@ -1,8 +1,14 @@
 <Solution>
   <Configurations>
     <Platform Name="Any CPU" />
+    <Platform Name="ARM" />
+    <Platform Name="ARM64" />
     <Platform Name="x64" />
+    <Platform Name="x86" />
   </Configurations>
+  <Project Path="../WapProjTemplate1/WapProjTemplate1.wapproj" Type="c7167f0d-bc9f-4e6e-afe1-012c56b48db5" Id="17ad8e4f-c23a-4ff1-9655-c239fb2b9f68">
+    <Deploy />
+  </Project>
   <Project Path="FancyToolAva.csproj">
     <Platform Solution="*|x64" Project="x64" />
   </Project>
