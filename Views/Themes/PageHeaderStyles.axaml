@@ -1,21 +1,22 @@
 <ResourceDictionary xmlns="https://github.com/avaloniaui"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                    xmlns:controls="using:FancyToolAva.Views.Controls"
-                    xmlns:sty="using:FluentAvalonia.Styling">
+                    xmlns:controls="using:FancyToolAva.Views.Controls">
+
+    <LinearGradientBrush StartPoint="0,0"
+                         EndPoint="0%,100%"
+                         x:Key="HeaderOpacityMaskBrush">
+        <GradientStop Color="#FF000000" Offset="0" />
+        <GradientStop Color="#FF000000" Offset="0.8" />
+        <GradientStop Color="#EE000000" Offset="0.83" />
+        <GradientStop Color="#DD000000" Offset="0.86" />
+        <GradientStop Color="#BB000000" Offset="0.89" />
+        <GradientStop Color="#85000000" Offset="0.92" />
+        <GradientStop Color="#00000000" Offset="1" />
+    </LinearGradientBrush>
 
     <ResourceDictionary.ThemeDictionaries>
         <ResourceDictionary x:Key="Default">
-            <LinearGradientBrush StartPoint="0,0"
-                                 EndPoint="0%,100%"
-                                 x:Key="HeaderOpacityMaskBrush">
-                <GradientStop Color="#FF000000" Offset="0" />
-                <GradientStop Color="#FF000000" Offset="0.8" />
-                <GradientStop Color="#EE000000" Offset="0.83" />
-                <GradientStop Color="#DD000000" Offset="0.86" />
-                <GradientStop Color="#BB000000" Offset="0.89" />
-                <GradientStop Color="#85000000" Offset="0.92" />
-                <GradientStop Color="#00000000" Offset="1" />
-            </LinearGradientBrush>
+            <SolidColorBrush Color="Black" x:Key="PageHeaderForegroundBrush" />
 
             <ImageBrush x:Key="PageHeaderBackgroundBrush"
                         Source="avares://FancyToolAva/Assets/Images/HeaderBackgroundLight.png"
@@ -24,34 +25,10 @@
         </ResourceDictionary>
 
         <ResourceDictionary x:Key="Dark">
-            <LinearGradientBrush StartPoint="0,0"
-                                 EndPoint="0%,100%"
-                                 x:Key="HeaderOpacityMaskBrush">
-                <GradientStop Color="#FF000000" Offset="0" />
-                <GradientStop Color="#FF000000" Offset="0.8" />
-                <GradientStop Color="#EE000000" Offset="0.83" />
-                <GradientStop Color="#DD000000" Offset="0.86" />
-                <GradientStop Color="#BB000000" Offset="0.89" />
-                <GradientStop Color="#85000000" Offset="0.92" />
-                <GradientStop Color="#00000000" Offset="1" />
-            </LinearGradientBrush>
+            <SolidColorBrush Color="White" x:Key="PageHeaderForegroundBrush" />
 
             <ImageBrush x:Key="PageHeaderBackgroundBrush"
-                        Source="avares://FancyToolAva/Assets/Images/HeaderBackgroundLight.png"
-                        AlignmentY="Center"
-                        Stretch="UniformToFill" />
-        </ResourceDictionary>
-
-        <ResourceDictionary x:Key="{x:Static sty:FluentAvaloniaTheme.HighContrastTheme}">
-            <LinearGradientBrush StartPoint="0,0"
-                                 EndPoint="0%,100%"
-                                 x:Key="HeaderOpacityMaskBrush">
-                <GradientStop Color="#00000000" />
-                <GradientStop Color="#33000000" Offset="1" />
-            </LinearGradientBrush>
-
-            <ImageBrush x:Key="PageHeaderBackgroundBrush"
-                        Source="avares://FancyToolAva/Assets/Images/HeaderBackgroundLight.png"
+                        Source="avares://FancyToolAva/Assets/Images/HeaderBackgroundDark.png"
                         AlignmentY="Center"
                         Stretch="UniformToFill" />
         </ResourceDictionary>
@@ -77,10 +54,10 @@
                                  HorizontalAlignment="Left">
                             <StackPanel>
                                 <TextBlock Text="{TemplateBinding Header}"
-                                           Foreground="Black"
+                                           Foreground="{DynamicResource PageHeaderForegroundBrush}"
                                            Theme="{StaticResource TitleLargeTextBlockStyle}" />
                                 <TextBlock Text="{TemplateBinding SubTitle}"
-                                           Foreground="Black"
+                                           Foreground="{DynamicResource PageHeaderForegroundBrush}"
                                            FontSize="18"
                                            Name="SubTitleText"
                                            IsVisible="False" />
