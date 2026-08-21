@@ -11,7 +11,6 @@
     基于 Avalonia 12 + FluentAvalonia 构建的轻量级桌面工具集<br>
     面向 Windows 平台，集成常用加密、通讯与图片处理工具
   </h4>
-
   <div>
     <img src="https://img.shields.io/badge/语言-C%23-purple" alt="C#">
     <img src="https://img.shields.io/badge/UI-Avalonia%2012-blue" alt="Avalonia">
@@ -19,9 +18,8 @@
     <img src="https://img.shields.io/badge/.NET-10.0-purple" alt=".NET 10">
     <img src="https://img.shields.io/badge/平台-Windows-blue" alt="Windows">
     <img src="https://img.shields.io/badge/许可证-MIT-blue" alt="License">
-    <a href="#"><img src="https://img.shields.io/badge/⭐-Star%20%E6%95%B0-TODO-lightgrey" alt="Stars"></a>
-    <a href="#"><img src="https://img.shields.io/badge/⬇-Downloads-TODO-lightgrey" alt="Downloads"></a>
   </div>
+
 
   <br>
 

@@ -19,8 +19,6 @@
     <img src="https://img.shields.io/badge/.NET-10.0-purple" alt=".NET 10">
     <img src="https://img.shields.io/badge/Platform-Windows-blue" alt="Windows">
     <img src="https://img.shields.io/badge/License-MIT-blue" alt="License">
-    <a href="#"><img src="https://img.shields.io/badge/⭐-Stars-TODO-lightgrey" alt="Stars"></a>
-    <a href="#"><img src="https://img.shields.io/badge/⬇-Downloads-TODO-lightgrey" alt="Downloads"></a>
   </div>
 
   <br>
