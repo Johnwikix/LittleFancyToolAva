@@ -30,9 +30,6 @@
 <br>
 
 <div align="center">
-
-[TODO: Product Page / User Guide](#)
-
 </div>
 
 <br>

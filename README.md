@@ -30,9 +30,6 @@
 <br>
 
 <div align="center">
-
-[TODO: 产品主页 / 使用说明](#)
-
 </div>
 
 <br>
