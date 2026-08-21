@@ -1,10 +1,10 @@
 {
   "version": 2,
-  "dgSpecHash": "4Od6U80DH2Y=",
+  "dgSpecHash": "0chOobzn8EA=",
   "success": true,
-  "projectFilePath": "D:\\code\\avalonia\\LittleFancyToolAva\\WapProjTemplate1\\WapProjTemplate1.wapproj",
+  "projectFilePath": "G:\\SoftwareProject\\Avalonia\\little-fancy-tool-ava\\WapProjTemplate1\\WapProjTemplate1.wapproj",
   "expectedPackageFiles": [
-    "C:\\Users\\90684\\.nuget\\packages\\microsoft.windows.sdk.buildtools\\10.0.26100.7705\\microsoft.windows.sdk.buildtools.10.0.26100.7705.nupkg.sha512"
+    "G:\\.nuget\\packages\\microsoft.windows.sdk.buildtools\\10.0.26100.7705\\microsoft.windows.sdk.buildtools.10.0.26100.7705.nupkg.sha512"
   ],
   "logs": []
 }
