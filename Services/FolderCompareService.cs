@@ -1,9 +1,9 @@
-using LittleFancyToolAva.Models;
-using LittleFancyToolAva.Utils;
+using FancyToolAva.Models;
+using FancyToolAva.Utils;
 using Microsoft.Extensions.Logging;
 using System.Collections.ObjectModel;
 
-namespace LittleFancyToolAva.Services;
+namespace FancyToolAva.Services;
 
 public class FolderCompareService : IFolderCompareService
 {

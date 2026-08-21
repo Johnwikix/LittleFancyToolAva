@@ -1,6 +1,6 @@
 using Lang.Avalonia;
-using LittleFancyToolAva.Models;
-using LittleFancyToolAva.Utils;
+using FancyToolAva.Models;
+using FancyToolAva.Utils;
 using Microsoft.Extensions.Logging;
 using System.Buffers;
 using System.Collections.Concurrent;
@@ -10,7 +10,7 @@ using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Text;
 
-namespace LittleFancyToolAva.Services
+namespace FancyToolAva.Services
 {
     public class TcpServerService : ITcpServerService, IDisposable
     {

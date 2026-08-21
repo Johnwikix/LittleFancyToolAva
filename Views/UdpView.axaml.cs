@@ -1,6 +1,6 @@
 using Avalonia.Controls;
 
-namespace LittleFancyToolAva.Views
+namespace FancyToolAva.Views
 {
     public partial class UdpView : UserControl
     {

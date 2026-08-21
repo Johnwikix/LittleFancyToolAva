@@ -1,6 +1,6 @@
 using Avalonia.Threading;
 
-namespace LittleFancyToolAva.Utils
+namespace FancyToolAva.Utils
 {
     public sealed class ThrottledProgress<T> : IProgress<T>
     {

@@ -1,9 +1,9 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using FluentAvalonia.UI.Controls;
-using LittleFancyToolAva.ViewModels;
+using FancyToolAva.ViewModels;
 using System.Collections.ObjectModel;
 
-namespace LittleFancyToolAva.Models
+namespace FancyToolAva.Models
 {
     public partial class PageNavigationItem : ObservableObject
     {

@@ -1,8 +1,8 @@
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
-using LittleFancyToolAva.Models.ViewStates;
+using FancyToolAva.Models.ViewStates;
 
-namespace LittleFancyToolAva.Services;
+namespace FancyToolAva.Services;
 
 public class ViewStateService : IViewStateService
 {

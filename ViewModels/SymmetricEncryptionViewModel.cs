@@ -1,11 +1,11 @@
 using Avalonia.Threading;
 using Lang.Avalonia;
-using LittleFancyToolAva.Algorithms;
-using LittleFancyToolAva.Models.ViewStates;
-using LittleFancyToolAva.Services;
+using FancyToolAva.Algorithms;
+using FancyToolAva.Models.ViewStates;
+using FancyToolAva.Services;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace LittleFancyToolAva.ViewModels
+namespace FancyToolAva.ViewModels
 {
     public partial class SymmetricEncryptionViewModel : SymmetricCipherViewModelBase, IViewState
     {

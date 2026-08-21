@@ -1,4 +1,4 @@
-# LittleFancyToolAva
+# FancyToolAva
 
 A desktop utility toolbox built on Avalonia. Contains grouped single-purpose tools for communication, encryption, hashing, encoding, and file/image processing.
 

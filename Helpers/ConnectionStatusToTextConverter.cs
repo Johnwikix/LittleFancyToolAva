@@ -1,9 +1,9 @@
 using System.Globalization;
 using Avalonia.Data.Converters;
-using LittleFancyToolAva.Models;
-using LittleFancyToolAva.Services;
+using FancyToolAva.Models;
+using FancyToolAva.Services;
 
-namespace LittleFancyToolAva.Helpers
+namespace FancyToolAva.Helpers
 {
     public sealed class ConnectionStatusToTextConverter : IValueConverter
     {

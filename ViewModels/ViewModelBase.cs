@@ -1,6 +1,6 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.ComponentModel;
 
-namespace LittleFancyToolAva.ViewModels
+namespace FancyToolAva.ViewModels
 {
     public abstract class ViewModelBase : ObservableObject
     {

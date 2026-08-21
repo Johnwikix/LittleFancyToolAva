@@ -5,10 +5,10 @@ using Avalonia.Media.Imaging;
 using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using LittleFancyToolAva.Services;
-using LittleFancyToolAva.Utils;
+using FancyToolAva.Services;
+using FancyToolAva.Utils;
 
-namespace LittleFancyToolAva.ViewModels;
+namespace FancyToolAva.ViewModels;
 
 public partial class Img2Base64ViewModel : ViewModelBase
 {

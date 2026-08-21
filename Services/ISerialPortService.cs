@@ -1,7 +1,7 @@
-using LittleFancyToolAva.Models;
+using FancyToolAva.Models;
 using System.IO.Ports;
 
-namespace LittleFancyToolAva.Services
+namespace FancyToolAva.Services
 {
     public interface ISerialPortService
     {

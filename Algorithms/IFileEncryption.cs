@@ -1,6 +1,6 @@
-﻿using System.Threading.Tasks;
+using System.Threading.Tasks;
 using System.Threading;
-namespace LittleFancyToolAva.Algorithms
+namespace FancyToolAva.Algorithms
 {
     public interface IFileEncryption
     {

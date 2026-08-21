@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using Lang.Avalonia;
 
-namespace LittleFancyToolAva.Services
+namespace FancyToolAva.Services
 {
     public static class LocalizationStrings
     {

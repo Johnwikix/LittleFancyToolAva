@@ -1,6 +1,6 @@
 using Avalonia.Controls;
 
-namespace LittleFancyToolAva.Views.Controls
+namespace FancyToolAva.Views.Controls
 {
     public partial class AsymmetricCipherView : UserControl
     {

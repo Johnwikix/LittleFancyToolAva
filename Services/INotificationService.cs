@@ -1,4 +1,4 @@
-namespace LittleFancyToolAva.Services
+namespace FancyToolAva.Services
 {
     public interface INotificationService
     {

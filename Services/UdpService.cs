@@ -1,12 +1,12 @@
 using Lang.Avalonia;
-using LittleFancyToolAva.Models;
-using LittleFancyToolAva.Utils;
+using FancyToolAva.Models;
+using FancyToolAva.Utils;
 using Microsoft.Extensions.Logging;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
 
-namespace LittleFancyToolAva.Services
+namespace FancyToolAva.Services
 {
     public class UdpService : IUdpService, IDisposable
     {

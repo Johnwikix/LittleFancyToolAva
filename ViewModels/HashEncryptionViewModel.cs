@@ -2,12 +2,12 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Lang.Avalonia;
-using LittleFancyToolAva.Algorithms;
-using LittleFancyToolAva.Algorithms.Encryption;
-using LittleFancyToolAva.Models.ViewStates;
-using LittleFancyToolAva.Services;
+using FancyToolAva.Algorithms;
+using FancyToolAva.Algorithms.Encryption;
+using FancyToolAva.Models.ViewStates;
+using FancyToolAva.Services;
 
-namespace LittleFancyToolAva.ViewModels
+namespace FancyToolAva.ViewModels
 {
     public partial class HashEncryptionViewModel : HashViewModelBase, IViewState
     {

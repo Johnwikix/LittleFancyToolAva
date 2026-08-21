@@ -1,7 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
-using LittleFancyToolAva.Algorithms;
+using FancyToolAva.Algorithms;
 
-namespace LittleFancyToolAva.ViewModels
+namespace FancyToolAva.ViewModels
 {
     public abstract partial class AsymmetricCipherViewModelBase : ViewModelBase
     {

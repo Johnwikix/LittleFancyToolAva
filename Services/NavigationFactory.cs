@@ -1,12 +1,12 @@
 using Avalonia.Controls;
 using FluentAvalonia.UI.Controls;
-using LittleFancyToolAva.Models.ViewStates;
-using LittleFancyToolAva.ViewModels;
-using LittleFancyToolAva.Views;
+using FancyToolAva.Models.ViewStates;
+using FancyToolAva.ViewModels;
+using FancyToolAva.Views;
 using Microsoft.Extensions.Logging;
 using Serilog;
 
-namespace LittleFancyToolAva.Services
+namespace FancyToolAva.Services
 {
     public class NavigationFactory : IFANavigationPageFactory
     {

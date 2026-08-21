@@ -2,7 +2,7 @@ using Avalonia.Platform.Storage;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
-namespace LittleFancyToolAva.Services
+namespace FancyToolAva.Services
 {
     public interface IFileDialogService
     {

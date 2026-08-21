@@ -8,7 +8,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 
-namespace LittleFancyToolAva.Services
+namespace FancyToolAva.Services
 {
     public class FileDialogService : IFileDialogService
     {

@@ -2,7 +2,7 @@ using Avalonia.Media.Imaging;
 using Microsoft.Extensions.Logging;
 using SkiaSharp;
 
-namespace LittleFancyToolAva.Services;
+namespace FancyToolAva.Services;
 
 public class ImageConversionService : IImageConversionService
 {

@@ -1,11 +1,11 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Lang.Avalonia;
-using LittleFancyToolAva.Algorithms;
-using LittleFancyToolAva.Services;
-using LittleFancyToolAva.Utils;
+using FancyToolAva.Algorithms;
+using FancyToolAva.Services;
+using FancyToolAva.Utils;
 
-namespace LittleFancyToolAva.ViewModels
+namespace FancyToolAva.ViewModels
 {
     public abstract partial class SymmetricCipherViewModelBase : ViewModelBase
     {

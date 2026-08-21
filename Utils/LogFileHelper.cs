@@ -1,7 +1,7 @@
 using Lang.Avalonia;
-using LittleFancyToolAva.Services;
+using FancyToolAva.Services;
 
-namespace LittleFancyToolAva.Utils
+namespace FancyToolAva.Utils
 {
     public static class LogFileHelper
     {

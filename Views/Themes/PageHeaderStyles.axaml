@@ -1,6 +1,6 @@
-﻿<ResourceDictionary xmlns="https://github.com/avaloniaui"
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                    xmlns:controls="using:LittleFancyToolAva.Views.Controls"
+                    xmlns:controls="using:FancyToolAva.Views.Controls"
                     xmlns:sty="using:FluentAvalonia.Styling">
 
     <ResourceDictionary.ThemeDictionaries>
@@ -18,7 +18,7 @@
             </LinearGradientBrush>
 
             <ImageBrush x:Key="PageHeaderBackgroundBrush"
-                        Source="avares://LittleFancyToolAva/Assets/Images/HeaderBackgroundLight.png"
+                        Source="avares://FancyToolAva/Assets/Images/HeaderBackgroundLight.png"
                         AlignmentY="Center"
                         Stretch="UniformToFill" />
         </ResourceDictionary>
@@ -37,7 +37,7 @@
             </LinearGradientBrush>
 
             <ImageBrush x:Key="PageHeaderBackgroundBrush"
-                        Source="avares://LittleFancyToolAva/Assets/Images/HeaderBackgroundLight.png"
+                        Source="avares://FancyToolAva/Assets/Images/HeaderBackgroundLight.png"
                         AlignmentY="Center"
                         Stretch="UniformToFill" />
         </ResourceDictionary>
@@ -51,7 +51,7 @@
             </LinearGradientBrush>
 
             <ImageBrush x:Key="PageHeaderBackgroundBrush"
-                        Source="avares://LittleFancyToolAva/Assets/Images/HeaderBackgroundLight.png"
+                        Source="avares://FancyToolAva/Assets/Images/HeaderBackgroundLight.png"
                         AlignmentY="Center"
                         Stretch="UniformToFill" />
         </ResourceDictionary>

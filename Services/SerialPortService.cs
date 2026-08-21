@@ -4,11 +4,11 @@ using System.IO.Ports;
 using System.Runtime.InteropServices;
 using System.Text;
 using Lang.Avalonia;
-using LittleFancyToolAva.Models;
-using LittleFancyToolAva.Utils;
+using FancyToolAva.Models;
+using FancyToolAva.Utils;
 using Microsoft.Extensions.Logging;
 
-namespace LittleFancyToolAva.Services
+namespace FancyToolAva.Services
 {
     public class SerialPortService : ISerialPortService, IDisposable
     {

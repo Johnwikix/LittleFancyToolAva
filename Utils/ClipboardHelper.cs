@@ -2,7 +2,7 @@ using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Input;
 
-namespace LittleFancyToolAva.Utils
+namespace FancyToolAva.Utils
 {
     public static class ClipboardHelper
     {

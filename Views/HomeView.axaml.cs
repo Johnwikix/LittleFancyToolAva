@@ -1,7 +1,7 @@
 using Avalonia.Controls;
-using LittleFancyToolAva.Models;
+using FancyToolAva.Models;
 
-namespace LittleFancyToolAva.Views
+namespace FancyToolAva.Views
 {
     public partial class HomeView : UserControl
     {

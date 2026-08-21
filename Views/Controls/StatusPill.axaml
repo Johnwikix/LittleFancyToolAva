@@ -1,11 +1,11 @@
-﻿<UserControl xmlns="https://github.com/avaloniaui"
+<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:helpers="using:LittleFancyToolAva.Helpers"
+             xmlns:helpers="using:FancyToolAva.Helpers"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              d:DesignWidth="240" d:DesignHeight="32"
              mc:Ignorable="d"
-             x:Class="LittleFancyToolAva.Views.Controls.StatusPill"
+             x:Class="FancyToolAva.Views.Controls.StatusPill"
              x:Name="Root">
     <UserControl.Resources>
         <helpers:ConnectionStatusToBrushConverter x:Key="StatusToBrushConverter" />

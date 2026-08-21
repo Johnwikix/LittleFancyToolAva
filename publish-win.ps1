@@ -8,7 +8,7 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 
 $publishArgs = @(
-    "publish", "$root\LittleFancyToolAva.csproj",
+    "publish", "$root\FancyToolAva.csproj",
     "-c", $Configuration,
     "-f", "net10.0",
     "-r", "win-x64",

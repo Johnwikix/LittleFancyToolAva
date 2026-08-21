@@ -2,7 +2,7 @@ using Avalonia;
 using Avalonia.Styling;
 using CommunityToolkit.Mvvm.ComponentModel;
 
-namespace LittleFancyToolAva.Models
+namespace FancyToolAva.Models
 {
     public enum ThemeMode
     {

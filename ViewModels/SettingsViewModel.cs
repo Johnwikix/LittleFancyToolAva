@@ -2,10 +2,10 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Lang.Avalonia;
-using LittleFancyToolAva.Models;
-using LittleFancyToolAva.Services;
+using FancyToolAva.Models;
+using FancyToolAva.Services;
 
-namespace LittleFancyToolAva.ViewModels
+namespace FancyToolAva.ViewModels
 {
     public partial class SettingsViewModel : ViewModelBase
     {

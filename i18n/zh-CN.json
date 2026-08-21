@@ -3,8 +3,8 @@
   "description": "简体中文资源",
   "cultureName": "zh-CN",
   "App": {
-    "Title": "妙妙小工具",
-    "Subtitle": "妙妙小工具"
+    "Title": "妙妙工具",
+    "Subtitle": "妙妙工具"
   },
   "Common": {
     "Button_OK": "确定",
@@ -48,7 +48,7 @@
     "Button_OK": "确定"
   },
   "Home": {
-    "Header": "妙妙小工具",
+    "Header": "妙妙工具",
     "Tile_TCP_Name": "TCP 调试",
     "Tile_TCP_Desc": "TCP 服务器与客户端通信调试",
     "Tile_UDP_Name": "UDP 调试",
@@ -109,7 +109,7 @@
     "Caption_Language": "选择显示语言",
     "Label_ConnectionTimeout": "连接超时（秒）",
     "Caption_ConnectionTimeout": "串口/TCP/UDP 打开连接的最大等待时间",
-    "About_Title": "妙妙小工具 LittleFancyTool",
+    "About_Title": "妙妙工具 FancyTool",
     "About_Desc": "基于 Avalonia 12 + FluentAvalonia 3 的多功能桌面工具"
   },
   "Serial": {

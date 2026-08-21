@@ -1,12 +1,12 @@
-﻿<UserControl xmlns="https://github.com/avaloniaui"
+<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vm="using:LittleFancyToolAva.ViewModels"
-             xmlns:controls="using:LittleFancyToolAva.Views.Controls"
+             xmlns:vm="using:FancyToolAva.ViewModels"
+             xmlns:controls="using:FancyToolAva.Views.Controls"
              xmlns:lan="clr-namespace:Lang.Avalonia.MarkupExtensions;assembly=Lang.Avalonia"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d"
-             x:Class="LittleFancyToolAva.Views.Img2Base64View"
+             x:Class="FancyToolAva.Views.Img2Base64View"
              x:DataType="vm:Img2Base64ViewModel">
     <Grid RowDefinitions="Auto,*" Margin="{StaticResource PageMargin}">
         <controls:ToolPageHeader Grid.Row="0" Title="{lan:I18n Img2Base64.Title}"

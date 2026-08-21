@@ -1,7 +1,7 @@
 using System.Globalization;
 using Lang.Avalonia;
 
-namespace LittleFancyToolAva.Services
+namespace FancyToolAva.Services
 {
     public sealed record LanguageOption(string Culture, string NativeName, string EnglishName);
 

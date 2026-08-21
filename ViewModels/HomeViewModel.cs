@@ -3,10 +3,10 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using FluentAvalonia.UI.Controls;
 using Lang.Avalonia;
-using LittleFancyToolAva.Models;
-using LittleFancyToolAva.Services;
+using FancyToolAva.Models;
+using FancyToolAva.Services;
 
-namespace LittleFancyToolAva.ViewModels
+namespace FancyToolAva.ViewModels
 {
     public partial class HomeViewModel : ViewModelBase
     {

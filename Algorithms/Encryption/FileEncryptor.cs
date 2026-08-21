@@ -1,9 +1,9 @@
-﻿using System.Threading.Tasks;
+using System.Threading.Tasks;
 using System.Threading;
 using System.Security.Cryptography;
 using System.Text;
 
-namespace LittleFancyToolAva.Algorithms.Encryption
+namespace FancyToolAva.Algorithms.Encryption
 {
     public class FileEncryptor : IFileEncryption
     {

@@ -1,9 +1,9 @@
-﻿using LittleFancyToolAva.Utils;
+using FancyToolAva.Utils;
 using Org.BouncyCastle.Utilities.Encoders;
 using System.Security.Cryptography;
 using System.Text;
 
-namespace LittleFancyToolAva.Algorithms
+namespace FancyToolAva.Algorithms
 {
     public class DESEncryption : IEncryptionSymmetric
     {

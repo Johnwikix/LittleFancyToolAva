@@ -1,7 +1,7 @@
-﻿using LittleFancyToolAva.Algorithms;
+using FancyToolAva.Algorithms;
 using System.Text;
 
-namespace LittleFancyToolAva.Algorithms
+namespace FancyToolAva.Algorithms
 {
     public class Base64Encryption : IEncryptionCode
     {

@@ -1,7 +1,7 @@
-using LittleFancyToolAva.Models;
+using FancyToolAva.Models;
 using System.Collections.ObjectModel;
 
-namespace LittleFancyToolAva.Services
+namespace FancyToolAva.Services
 {
     public interface ITcpServerService
     {

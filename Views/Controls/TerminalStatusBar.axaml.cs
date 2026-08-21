@@ -1,7 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 
-namespace LittleFancyToolAva.Views.Controls
+namespace FancyToolAva.Views.Controls
 {
     public partial class TerminalStatusBar : UserControl
     {

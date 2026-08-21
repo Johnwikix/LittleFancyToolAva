@@ -1,11 +1,11 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using LittleFancyToolAva.Models;
-using LittleFancyToolAva.Models.ViewStates;
-using LittleFancyToolAva.Services;
+using FancyToolAva.Models;
+using FancyToolAva.Models.ViewStates;
+using FancyToolAva.Services;
 
-namespace LittleFancyToolAva.ViewModels;
+namespace FancyToolAva.ViewModels;
 
 public partial class FolderCompareViewModel : ViewModelBase, IViewState
 {

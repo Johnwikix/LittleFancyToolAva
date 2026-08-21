@@ -1,4 +1,4 @@
-namespace LittleFancyToolAva.Models;
+namespace FancyToolAva.Models;
 
 public sealed class PublishToQueueArgs
 {

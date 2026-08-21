@@ -3,9 +3,9 @@
 <div align="center">
   <img src="Assets/storeIcon.ico" alt="Logo" width="96">
 
-  <h1>妙妙小工具</h1>
+  <h1>妙妙工具</h1>
 
-  <h3>LittleFancyTool</h3>
+  <h3>FancyTool</h3>
 
   <h4>
     基于 Avalonia 12 + FluentAvalonia 构建的轻量级桌面工具集<br>
@@ -46,7 +46,7 @@
 
 ```bash
 git clone <TODO: 仓库 URL>
-cd little-fancy-tool-ava
+cd fancy-tool-ava
 dotnet restore
 dotnet build -c Release
 dotnet run -c Release

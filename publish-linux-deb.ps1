@@ -6,7 +6,7 @@
 # MSBuildLocator that resolves the wrong SDK and fails on net10.0. Invoking
 # the target through the pinned SDK (global.json -> 10.0.302) avoids that.
 #
-# Packaging metadata lives in LittleFancyToolAva.csproj: PackagePrefix,
+# Packaging metadata lives in FancyToolAva.csproj: PackagePrefix,
 # PackageVersion, DebSection, DebPriority, DebDependency, AppHost and the
 # Content/LinuxPath items for the .desktop file and icon.
 
@@ -17,7 +17,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $root = $PSScriptRoot
-$csproj = Join-Path $root "LittleFancyToolAva.csproj"
+$csproj = Join-Path $root "FancyToolAva.csproj"
 
 dotnet restore $csproj -r linux-x64 | Out-Null
 if ($LASTEXITCODE -ne 0) { throw "dotnet restore failed" }

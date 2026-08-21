@@ -1,6 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 
-namespace LittleFancyToolAva.Models;
+namespace FancyToolAva.Models;
 
 public enum CompareState
 {

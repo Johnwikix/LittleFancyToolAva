@@ -2,7 +2,7 @@ using System.Buffers;
 using System.Security.Cryptography;
 using System.Text;
 
-namespace LittleFancyToolAva.Utils
+namespace FancyToolAva.Utils
 {
     public static class ToolMethod
     {

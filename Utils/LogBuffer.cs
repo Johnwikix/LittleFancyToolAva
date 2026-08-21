@@ -3,9 +3,9 @@ using Avalonia.Threading;
 using System.Buffers;
 using System.Collections.Concurrent;
 using System.ComponentModel;
-using LittleFancyToolAva.Models;
+using FancyToolAva.Models;
 
-namespace LittleFancyToolAva.Utils
+namespace FancyToolAva.Utils
 {
     public sealed class LogBuffer : INotifyPropertyChanged
     {

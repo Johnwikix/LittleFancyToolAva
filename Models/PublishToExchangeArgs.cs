@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace LittleFancyToolAva.Models;
+namespace FancyToolAva.Models;
 
 public sealed class PublishToExchangeArgs
 {

@@ -2,11 +2,11 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using FluentAvalonia.UI.Controls;
-using LittleFancyToolAva.Services;
+using FancyToolAva.Services;
 using Microsoft.Extensions.Logging;
 using Serilog;
 
-namespace LittleFancyToolAva.Services
+namespace FancyToolAva.Services
 {
     public class ContentDialogNotificationService : INotificationService
     {

@@ -1,10 +1,10 @@
-﻿using Avalonia;
+using Avalonia;
 using Serilog;
 using System;
 using System.Runtime.InteropServices;
 using System.Text;
 
-namespace LittleFancyToolAva
+namespace FancyToolAva
 {
     internal sealed class Program
     {
@@ -18,14 +18,14 @@ namespace LittleFancyToolAva
 
             try
             {
-                System.IO.Directory.CreateDirectory(LittleFancyToolAva.Services.AppPaths.DataDirectory);
+                System.IO.Directory.CreateDirectory(FancyToolAva.Services.AppPaths.DataDirectory);
             }
             catch (Exception ex)
             {
                 Console.Error.WriteLine($"Failed to create data directory: {ex.Message}");
             }
 
-            string logDir = System.IO.Path.Combine(LittleFancyToolAva.Services.AppPaths.DataDirectory, "logs");
+            string logDir = System.IO.Path.Combine(FancyToolAva.Services.AppPaths.DataDirectory, "logs");
             try
             {
                 System.IO.Directory.CreateDirectory(logDir);

@@ -1,8 +1,8 @@
-using LittleFancyToolAva.Models;
+using FancyToolAva.Models;
 using Microsoft.Extensions.Logging;
 using Serilog;
 
-namespace LittleFancyToolAva.Services
+namespace FancyToolAva.Services
 {
     public class ApplicationHostService
     {

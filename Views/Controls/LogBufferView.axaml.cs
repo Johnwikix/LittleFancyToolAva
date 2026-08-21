@@ -5,9 +5,9 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
-using LittleFancyToolAva.Models;
+using FancyToolAva.Models;
 
-namespace LittleFancyToolAva.Views.Controls
+namespace FancyToolAva.Views.Controls
 {
     public partial class LogBufferView : UserControl
     {

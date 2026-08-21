@@ -1,10 +1,10 @@
 using Avalonia.Input;
 using FluentAvalonia.UI.Windowing;
-using LittleFancyToolAva.Models;
-using LittleFancyToolAva.Services;
-using LittleFancyToolAva.ViewModels;
+using FancyToolAva.Models;
+using FancyToolAva.Services;
+using FancyToolAva.ViewModels;
 
-namespace LittleFancyToolAva.Views
+namespace FancyToolAva.Views
 {
     public partial class MainWindow : FAAppWindow
     {

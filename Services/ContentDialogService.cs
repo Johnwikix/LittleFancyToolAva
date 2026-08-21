@@ -3,7 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using System.Threading.Tasks;
 
-namespace LittleFancyToolAva.Services
+namespace FancyToolAva.Services
 {
     public class ContentDialogService : IDialogService
     {

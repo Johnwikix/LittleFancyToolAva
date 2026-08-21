@@ -1,9 +1,9 @@
-using LittleFancyToolAva.Models;
+using FancyToolAva.Models;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace LittleFancyToolAva.Services
+namespace FancyToolAva.Services
 {
     public class FileService
     {

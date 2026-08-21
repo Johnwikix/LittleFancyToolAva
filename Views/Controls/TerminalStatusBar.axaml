@@ -1,11 +1,11 @@
-﻿<UserControl xmlns="https://github.com/avaloniaui"
+<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:lan="clr-namespace:Lang.Avalonia.MarkupExtensions;assembly=Lang.Avalonia"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              d:DesignWidth="600" d:DesignHeight="32"
              mc:Ignorable="d"
-             x:Class="LittleFancyToolAva.Views.Controls.TerminalStatusBar"
+             x:Class="FancyToolAva.Views.Controls.TerminalStatusBar"
              x:Name="Root">
     <Grid RowDefinitions="1,*">
         <Border Grid.Row="0" Background="{DynamicResource SubtleFillColorSecondaryBrush}" />

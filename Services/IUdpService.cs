@@ -1,6 +1,6 @@
-using LittleFancyToolAva.Models;
+using FancyToolAva.Models;
 
-namespace LittleFancyToolAva.Services
+namespace FancyToolAva.Services
 {
     public interface IUdpService
     {

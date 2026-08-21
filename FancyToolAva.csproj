@@ -16,9 +16,9 @@
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(RuntimeIdentifier)' != ''">
-    <PackagePrefix>little-fancy-tool</PackagePrefix>
+    <PackagePrefix>fancy-tool</PackagePrefix>
     <PackageVersion>1.0.0</PackageVersion>
-    <PackageMaintainer>LittleFancyTool &lt;noreply@example.com&gt;</PackageMaintainer>
+    <PackageMaintainer>FancyTool &lt;noreply@example.com&gt;</PackageMaintainer>
     <PackageDescription>A desktop utility toolbox built on Avalonia</PackageDescription>
     <DebSection>utils</DebSection>
     <DebPriority>optional</DebPriority>
@@ -75,11 +75,11 @@
     <DebDependency Include="libxtst6" />
     <DebDependency Include="libgl1" />
     <DebDependency Include="libfontconfig1" />
-    <Content Include="packaging/little-fancy-tool.desktop" CopyToPublishDirectory="PreserveNewest" LinuxFileMode="644">
-      <LinuxPath>/usr/share/applications/little-fancy-tool.desktop</LinuxPath>
+    <Content Include="packaging/fancy-tool.desktop" CopyToPublishDirectory="PreserveNewest" LinuxFileMode="644">
+      <LinuxPath>/usr/share/applications/fancy-tool.desktop</LinuxPath>
     </Content>
     <Content Include="Assets/storeIcon.png" CopyToPublishDirectory="PreserveNewest" LinuxFileMode="644">
-      <LinuxPath>/usr/share/icons/hicolor/128x128/apps/little-fancy-tool.png</LinuxPath>
+      <LinuxPath>/usr/share/icons/hicolor/128x128/apps/fancy-tool.png</LinuxPath>
     </Content>
   </ItemGroup>
 </Project>

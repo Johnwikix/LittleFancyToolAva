@@ -1,8 +1,8 @@
 using Avalonia;
 using Avalonia.Controls;
-using LittleFancyToolAva.Models;
+using FancyToolAva.Models;
 
-namespace LittleFancyToolAva.Views.Controls
+namespace FancyToolAva.Views.Controls
 {
     public partial class StatusPill : UserControl
     {

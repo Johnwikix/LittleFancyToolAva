@@ -1,9 +1,9 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Platform.Storage;
-using LittleFancyToolAva.ViewModels;
+using FancyToolAva.ViewModels;
 
-namespace LittleFancyToolAva.Views;
+namespace FancyToolAva.Views;
 
 public partial class FileEncryptionView : UserControl
 {

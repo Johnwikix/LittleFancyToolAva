@@ -1,20 +1,20 @@
-﻿<Application xmlns="https://github.com/avaloniaui"
+<Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:sty="using:FluentAvalonia.Styling"
              xmlns:lan="clr-namespace:Lang.Avalonia.MarkupExtensions;assembly=Lang.Avalonia"
-             x:Class="LittleFancyToolAva.App"
+             x:Class="FancyToolAva.App"
              RequestedThemeVariant="Default">
 
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <ResourceInclude Source="avares://LittleFancyToolAva/Views/Themes/PageHeaderStyles.axaml" />
+                <ResourceInclude Source="avares://FancyToolAva/Views/Themes/PageHeaderStyles.axaml" />
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Application.Resources>
 
     <Application.Styles>
         <sty:FluentAvaloniaTheme />
-        <StyleInclude Source="avares://LittleFancyToolAva/Views/Themes/CommonStyles.axaml" />
+        <StyleInclude Source="avares://FancyToolAva/Views/Themes/CommonStyles.axaml" />
     </Application.Styles>
 </Application>

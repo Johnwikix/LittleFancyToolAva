@@ -1,5 +1,5 @@
-﻿using System.Threading.Tasks;
-namespace LittleFancyToolAva.Algorithms
+using System.Threading.Tasks;
+namespace FancyToolAva.Algorithms
 {
     public interface IEncryptionAsymmetric
     {

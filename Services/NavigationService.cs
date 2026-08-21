@@ -2,7 +2,7 @@ using FluentAvalonia.UI.Controls;
 using FluentAvalonia.UI.Media.Animation;
 using FluentAvalonia.UI.Navigation;
 
-namespace LittleFancyToolAva.Services
+namespace FancyToolAva.Services
 {
     public class NavigationService
     {

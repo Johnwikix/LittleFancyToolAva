@@ -1,8 +1,8 @@
-﻿using System.Threading.Tasks;
+using System.Threading.Tasks;
 using System.Security.Cryptography;
 using System.Text;
 
-namespace LittleFancyToolAva.Algorithms.Encryption
+namespace FancyToolAva.Algorithms.Encryption
 {
     public class RSAEncryption : IEncryptionAsymmetric
     {

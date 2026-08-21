@@ -1,4 +1,4 @@
-﻿namespace LittleFancyToolAva.Algorithms
+namespace FancyToolAva.Algorithms
 {
     public interface IEncryptionAbstract
     {

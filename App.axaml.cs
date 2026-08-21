@@ -4,17 +4,17 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Lang.Avalonia;
 using Lang.Avalonia.Json;
-using LittleFancyToolAva.Algorithms;
-using LittleFancyToolAva.Algorithms.Encryption;
-using LittleFancyToolAva.Models;
-using LittleFancyToolAva.Services;
-using LittleFancyToolAva.ViewModels;
-using LittleFancyToolAva.Views;
+using FancyToolAva.Algorithms;
+using FancyToolAva.Algorithms.Encryption;
+using FancyToolAva.Models;
+using FancyToolAva.Services;
+using FancyToolAva.ViewModels;
+using FancyToolAva.Views;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Serilog;
 
-namespace LittleFancyToolAva
+namespace FancyToolAva
 {
     public partial class App : Application
     {

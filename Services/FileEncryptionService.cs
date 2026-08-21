@@ -1,10 +1,10 @@
-using LittleFancyToolAva.Algorithms.Encryption;
+using FancyToolAva.Algorithms.Encryption;
 using Microsoft.Extensions.Logging;
 using Org.BouncyCastle.Utilities.Encoders;
 using System.Security.Cryptography;
 using System.Text;
 
-namespace LittleFancyToolAva.Services;
+namespace FancyToolAva.Services;
 
 public class FileEncryptionService : IFileEncryptionService
 {

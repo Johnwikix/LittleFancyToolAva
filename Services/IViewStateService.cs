@@ -1,6 +1,6 @@
-using LittleFancyToolAva.Models.ViewStates;
+using FancyToolAva.Models.ViewStates;
 
-namespace LittleFancyToolAva.Services;
+namespace FancyToolAva.Services;
 
 public interface IViewStateService
 {

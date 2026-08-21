@@ -1,7 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
-namespace LittleFancyToolAva.Models;
+namespace FancyToolAva.Models;
 
 public enum FileStatus
 {
@@ -76,12 +76,12 @@ public partial class ImageFileItem : ObservableObject
     {
         _statusDisplay = _status switch
         {
-            FileStatus.Pending => LittleFancyToolAva.Services.LocalizationRegistry.Get("FileItem.Status_Pending"),
-            FileStatus.Converting => LittleFancyToolAva.Services.LocalizationRegistry.Get("FileItem.Status_Converting"),
-            FileStatus.Completed => LittleFancyToolAva.Services.LocalizationRegistry.Get("FileItem.Status_Done"),
+            FileStatus.Pending => FancyToolAva.Services.LocalizationRegistry.Get("FileItem.Status_Pending"),
+            FileStatus.Converting => FancyToolAva.Services.LocalizationRegistry.Get("FileItem.Status_Converting"),
+            FileStatus.Completed => FancyToolAva.Services.LocalizationRegistry.Get("FileItem.Status_Done"),
             FileStatus.Failed => string.IsNullOrEmpty(_errorMessage)
-                ? LittleFancyToolAva.Services.LocalizationRegistry.Get("FileItem.Status_Failed")
-                : LittleFancyToolAva.Services.LocalizationRegistry.Get("FileItem.Status_FailedWithError", _errorMessage),
+                ? FancyToolAva.Services.LocalizationRegistry.Get("FileItem.Status_Failed")
+                : FancyToolAva.Services.LocalizationRegistry.Get("FileItem.Status_FailedWithError", _errorMessage),
             _ => ""
         };
         OnPropertyChanged(nameof(StatusDisplay));

@@ -1,7 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
-namespace LittleFancyToolAva.Models;
+namespace FancyToolAva.Models;
 
 public enum EncryptionFileStatus
 {
@@ -84,13 +84,13 @@ public partial class EncryptionFileItem : ObservableObject
     {
         _statusDisplay = _status switch
         {
-            EncryptionFileStatus.Pending => LittleFancyToolAva.Services.LocalizationRegistry.Get("FileItem.Status_Pending"),
-            EncryptionFileStatus.Encrypting => LittleFancyToolAva.Services.LocalizationRegistry.Get("FileItem.Status_Encrypting"),
-            EncryptionFileStatus.Decrypting => LittleFancyToolAva.Services.LocalizationRegistry.Get("FileItem.Status_Decrypting"),
-            EncryptionFileStatus.Completed => LittleFancyToolAva.Services.LocalizationRegistry.Get("FileItem.Status_Done"),
+            EncryptionFileStatus.Pending => FancyToolAva.Services.LocalizationRegistry.Get("FileItem.Status_Pending"),
+            EncryptionFileStatus.Encrypting => FancyToolAva.Services.LocalizationRegistry.Get("FileItem.Status_Encrypting"),
+            EncryptionFileStatus.Decrypting => FancyToolAva.Services.LocalizationRegistry.Get("FileItem.Status_Decrypting"),
+            EncryptionFileStatus.Completed => FancyToolAva.Services.LocalizationRegistry.Get("FileItem.Status_Done"),
             EncryptionFileStatus.Failed => string.IsNullOrEmpty(_errorMessage)
-                ? LittleFancyToolAva.Services.LocalizationRegistry.Get("FileItem.Status_Failed")
-                : LittleFancyToolAva.Services.LocalizationRegistry.Get("FileItem.Status_FailedWithError", _errorMessage),
+                ? FancyToolAva.Services.LocalizationRegistry.Get("FileItem.Status_Failed")
+                : FancyToolAva.Services.LocalizationRegistry.Get("FileItem.Status_FailedWithError", _errorMessage),
             _ => ""
         };
         OnPropertyChanged(nameof(StatusDisplay));

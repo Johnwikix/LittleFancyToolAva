@@ -1,4 +1,4 @@
-namespace LittleFancyToolAva.Services
+namespace FancyToolAva.Services
 {
     public static class AppPaths
     {
@@ -6,6 +6,6 @@ namespace LittleFancyToolAva.Services
             OperatingSystem.IsWindows()
                 ? AppContext.BaseDirectory
                 : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                    "little-fancy-tool");
+                    "fancy-tool");
     }
 }

@@ -4,13 +4,13 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Lang.Avalonia;
-using LittleFancyToolAva.Models;
-using LittleFancyToolAva.Models.ViewStates;
-using LittleFancyToolAva.Services;
-using LittleFancyToolAva.Utils;
+using FancyToolAva.Models;
+using FancyToolAva.Models.ViewStates;
+using FancyToolAva.Services;
+using FancyToolAva.Utils;
 using Microsoft.Extensions.Logging;
 
-namespace LittleFancyToolAva.ViewModels
+namespace FancyToolAva.ViewModels
 {
     public partial class UdpViewModel : ViewModelBase, IViewState, IViewLifecycle
     {

@@ -1,8 +1,8 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using LittleFancyToolAva.Utils;
+using FancyToolAva.Utils;
 
-namespace LittleFancyToolAva.Models
+namespace FancyToolAva.Models
 {
     public partial class LogEntry : ObservableObject
     {

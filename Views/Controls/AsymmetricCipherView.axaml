@@ -1,12 +1,12 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vm="using:LittleFancyToolAva.ViewModels"
-             xmlns:controls="using:LittleFancyToolAva.Views.Controls"
+             xmlns:vm="using:FancyToolAva.ViewModels"
+             xmlns:controls="using:FancyToolAva.Views.Controls"
              xmlns:lan="clr-namespace:Lang.Avalonia.MarkupExtensions;assembly=Lang.Avalonia"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d"
-             x:Class="LittleFancyToolAva.Views.Controls.AsymmetricCipherView"
+             x:Class="FancyToolAva.Views.Controls.AsymmetricCipherView"
              x:DataType="vm:AsymmetricEncryptionViewModel">
     <Grid RowDefinitions="Auto,*" Margin="{StaticResource PageMargin}">
         <controls:ToolPageHeader Grid.Row="0" Title="{Binding DisplayTitle}" Subtitle="{Binding DisplaySubtitle}" />

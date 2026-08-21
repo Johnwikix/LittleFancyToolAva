@@ -3,8 +3,8 @@
   "description": "English (US) resources",
   "cultureName": "en-US",
   "App": {
-    "Title": "LittleFancyTool",
-    "Subtitle": "LittleFancyTool"
+    "Title": "FancyTool",
+    "Subtitle": "FancyTool"
   },
   "Common": {
     "Button_OK": "OK",
@@ -48,7 +48,7 @@
     "Button_OK": "OK"
   },
   "Home": {
-    "Header": "LittleFancyTool",
+    "Header": "FancyTool",
     "Tile_TCP_Name": "TCP Debug",
     "Tile_TCP_Desc": "TCP server and client communication debugging",
     "Tile_UDP_Name": "UDP Debug",
@@ -109,7 +109,7 @@
     "Caption_Language": "Choose display language",
     "Label_ConnectionTimeout": "Connection Timeout (seconds)",
     "Caption_ConnectionTimeout": "Maximum wait time for opening Serial / TCP / UDP connection",
-    "About_Title": "LittleFancyTool",
+    "About_Title": "FancyTool",
     "About_Desc": "Multi-purpose desktop tool based on Avalonia 12 + FluentAvalonia 3"
   },
   "Serial": {

@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace LittleFancyToolAva.Models.ViewStates;
+namespace FancyToolAva.Models.ViewStates;
 
 public class ViewStatesRoot
 {

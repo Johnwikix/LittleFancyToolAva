@@ -2,7 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 
-namespace LittleFancyToolAva.Views.Controls;
+namespace FancyToolAva.Views.Controls;
 
 public class PageHeaderControl : TemplatedControl
 {

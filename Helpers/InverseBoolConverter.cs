@@ -2,7 +2,7 @@ using System;
 using System.Globalization;
 using Avalonia.Data.Converters;
 
-namespace LittleFancyToolAva.Helpers
+namespace FancyToolAva.Helpers
 {
     public sealed class InverseBoolConverter : IValueConverter
     {

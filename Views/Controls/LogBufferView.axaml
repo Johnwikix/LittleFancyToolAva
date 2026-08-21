@@ -1,12 +1,12 @@
-﻿<UserControl xmlns="https://github.com/avaloniaui"
+<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             xmlns:models="using:LittleFancyToolAva.Models"
-             xmlns:helpers="using:LittleFancyToolAva.Helpers"
+             xmlns:models="using:FancyToolAva.Models"
+             xmlns:helpers="using:FancyToolAva.Helpers"
              d:DesignWidth="600" d:DesignHeight="320"
              mc:Ignorable="d"
-             x:Class="LittleFancyToolAva.Views.Controls.LogBufferView"
+             x:Class="FancyToolAva.Views.Controls.LogBufferView"
              x:Name="Root">
 
     <UserControl.Resources>

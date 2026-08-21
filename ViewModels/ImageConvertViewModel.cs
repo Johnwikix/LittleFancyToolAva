@@ -3,12 +3,12 @@ using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using LittleFancyToolAva.Models;
-using LittleFancyToolAva.Models.ViewStates;
-using LittleFancyToolAva.Services;
-using LittleFancyToolAva.Utils;
+using FancyToolAva.Models;
+using FancyToolAva.Models.ViewStates;
+using FancyToolAva.Services;
+using FancyToolAva.Utils;
 
-namespace LittleFancyToolAva.ViewModels;
+namespace FancyToolAva.ViewModels;
 
 public partial class ImageConvertViewModel : ViewModelBase, IViewState, IFileItemOwner
 {

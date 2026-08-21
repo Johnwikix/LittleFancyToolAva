@@ -1,4 +1,4 @@
-namespace LittleFancyToolAva.Models.ViewStates;
+namespace FancyToolAva.Models.ViewStates;
 
 public class TcpServerViewState
 {
