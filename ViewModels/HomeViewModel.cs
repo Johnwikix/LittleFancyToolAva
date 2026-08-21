@@ -12,7 +12,9 @@ namespace LittleFancyToolAva.ViewModels
     {
         private static readonly Dictionary<Type, (string NameKey, string DescKey)> TileKeyMap = new()
         {
-            [typeof(CommToolViewModel)] = ("Home.Tile_Comm_Name", "Home.Tile_Comm_Desc"),
+            [typeof(TcpServerViewModel)] = ("Home.Tile_TCP_Name", "Home.Tile_TCP_Desc"),
+            [typeof(UdpViewModel)] = ("Home.Tile_UDP_Name", "Home.Tile_UDP_Desc"),
+            [typeof(SerialPortViewModel)] = ("Home.Tile_Serial_Name", "Home.Tile_Serial_Desc"),
             [typeof(SymmetricEncryptionViewModel)] = ("Home.Tile_Symmetric_Name", "Home.Tile_Symmetric_Desc"),
             [typeof(AsymmetricEncryptionViewModel)] = ("Home.Tile_Asymmetric_Name", "Home.Tile_Asymmetric_Desc"),
             [typeof(HashEncryptionViewModel)] = ("Home.Tile_Hash_Name", "Home.Tile_Hash_Desc"),

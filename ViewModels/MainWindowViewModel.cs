@@ -1,4 +1,5 @@
 ﻿using System.Collections.ObjectModel;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using FluentAvalonia.UI.Controls;
 using Lang.Avalonia;
@@ -54,7 +55,11 @@ namespace LittleFancyToolAva.ViewModels
                 var parent = Pages.FirstOrDefault(p => p.Children.Contains(item));
                 if (parent != null)
                     parent.IsExpanded = true;
-                SelectedPage = item;
+
+                // FANavigationView 需要父分类展开、子项容器物化完成后才能正确选中，
+                // 否则选中会被回滚（IsSelectionSuppressed）或指示条丢失（AnimateSelectionChanged）。
+                // Post 晚于布局循环，届时子容器已就绪。
+                Dispatcher.UIThread.Post(() => SelectedPage = item);
             };
 
             var homeItem = new PageNavigationItem(L.Localize("Nav.Home"), FASymbol.Home, homeVm);
@@ -72,6 +77,9 @@ namespace LittleFancyToolAva.ViewModels
             FooterPages[0].Label = L.Localize("Nav.Settings");
             homeItem.Label = L.Localize("Nav.Home");
             categories[0].Label = L.Localize("Nav.Category_Comm");
+            categories[0].Children[0].Label = L.Localize("Nav.Item_TCP");
+            categories[0].Children[1].Label = L.Localize("Nav.Item_UDP");
+            categories[0].Children[2].Label = L.Localize("Nav.Item_Serial");
             categories[1].Label = L.Localize("Nav.Category_Encrypt");
             categories[1].Children[0].Label = L.Localize("Nav.Item_Symmetric");
             categories[1].Children[1].Label = L.Localize("Nav.Item_Asymmetric");
@@ -87,7 +95,11 @@ namespace LittleFancyToolAva.ViewModels
 
         private static PageNavigationItem BuildCommCategory(IServiceProvider sp)
         {
-            return new PageNavigationItem(L.Localize("Nav.Category_Comm"), FASymbol.Globe, sp.GetRequiredService<CommToolViewModel>());
+            var category = new PageNavigationItem(L.Localize("Nav.Category_Comm"), FASymbol.Globe);
+            category.Children.Add(new PageNavigationItem(L.Localize("Nav.Item_TCP"), FASymbol.Link, sp.GetRequiredService<TcpServerViewModel>()));
+            category.Children.Add(new PageNavigationItem(L.Localize("Nav.Item_UDP"), FASymbol.Wifi4, sp.GetRequiredService<UdpViewModel>()));
+            category.Children.Add(new PageNavigationItem(L.Localize("Nav.Item_Serial"), FASymbol.Sync, sp.GetRequiredService<SerialPortViewModel>()));
+            return category;
         }
 
         private static PageNavigationItem BuildEncryptionCategory(IServiceProvider sp)

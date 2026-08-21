@@ -19,7 +19,9 @@ namespace LittleFancyToolAva.Views
                 navFactory.Register<AsymmetricEncryptionViewModel, AsymmetricEncryptionView>();
                 navFactory.Register<HashEncryptionViewModel, HashEncryptionView>();
                 navFactory.Register<Base64ViewModel, Base64View>();
-                navFactory.Register<CommToolViewModel, CommToolView>();
+                navFactory.Register<TcpServerViewModel, TcpServerView>();
+                navFactory.Register<UdpViewModel, UdpView>();
+                navFactory.Register<SerialPortViewModel, SerialPortView>();
                 navFactory.Register<SettingsViewModel, SettingsView>();
                 navFactory.Register<FileEncryptionViewModel, FileEncryptionView>();
                 navFactory.Register<FolderCompareViewModel, FolderCompareView>();
