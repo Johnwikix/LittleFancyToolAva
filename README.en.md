@@ -36,7 +36,14 @@
 
 <br>
 
+## 📥 Download & Install
+
 <div align="center">
+
+| Microsoft Store (Recommended) |
+| :---: |
+| <a href="https://apps.microsoft.com/detail/9P543GHQQKVK?referrer=appbadge&mode=direct"><img src="https://get.microsoft.com/images/en-us%20dark.svg" width="200"/></a><br>Get the best installation and update experience via Microsoft Store |
+
 </div>
 
 <br>

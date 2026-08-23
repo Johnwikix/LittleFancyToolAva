@@ -36,7 +36,14 @@
 
 <br>
 
+## 📥 下载与安装
+
 <div align="center">
+
+| Microsoft Store（推荐） |
+| :---: |
+| <a href="https://apps.microsoft.com/detail/9P543GHQQKVK?referrer=appbadge&mode=direct"><img src="https://get.microsoft.com/images/en-us%20dark.svg" width="200"/></a><br>通过 Microsoft Store 获取最佳安装与更新体验 |
+
 </div>
 
 <br>

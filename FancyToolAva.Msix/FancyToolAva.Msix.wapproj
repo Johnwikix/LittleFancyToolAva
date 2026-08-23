@@ -106,10 +106,6 @@
     <Content Include="Images\*.png" />
     <None Include="Package.StoreAssociation.xml" />
   </ItemGroup>
-  <ItemGroup>
-    <None Include="FancyToolAva.Msix_TemporaryKey.pfx" />
-  </ItemGroup>
-
   <Import Project="$(WapProjPath)\Microsoft.DesktopBridge.targets" />
   <ItemGroup>
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.7705" PrivateAssets="all" />
