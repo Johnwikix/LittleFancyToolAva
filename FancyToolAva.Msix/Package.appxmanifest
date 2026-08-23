@@ -1,5 +1,4 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-
 <Package
   xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
   xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
@@ -7,19 +6,19 @@
   IgnorableNamespaces="uap rescap">
 
   <Identity
-    Name="bb2dafff-4c60-4fc3-9da9-f81606ee6fab"
-    Publisher="CN=90684"
-    Version="1.0.0.0" />
+    Name="57faa05b-31fa-40e1-83c1-ca33ed2e6036"
+    Publisher="CN=CF259542-70C0-4852-9523-066A80212473"
+    Version="1.0.3.0" />
 
   <Properties>
-    <DisplayName>WapProjTemplate1</DisplayName>
-    <PublisherDisplayName>90684</PublisherDisplayName>
+    <DisplayName>妙妙工具</DisplayName>
+    <PublisherDisplayName>Sennpei Studio</PublisherDisplayName>
     <Logo>Images\StoreLogo.png</Logo>
   </Properties>
 
   <Dependencies>
-    <TargetDeviceFamily Name="Windows.Universal" MinVersion="10.0.0.0" MaxVersionTested="10.0.0.0" />
-    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.14393.0" MaxVersionTested="10.0.14393.0" />
+    <TargetDeviceFamily Name="Windows.Universal" MinVersion="10.0.17763.0" MaxVersionTested="10.0.17763.0" />
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.17763.0" />
   </Dependencies>
 
   <Resources>
@@ -31,8 +30,8 @@
       Executable="$targetnametoken$.exe"
       EntryPoint="$targetentrypoint$">
       <uap:VisualElements
-        DisplayName="WapProjTemplate1"
-        Description="WapProjTemplate1"
+        DisplayName="妙妙工具"
+        Description="基于 Avalonia 的桌面工具集"
         BackgroundColor="transparent"
         Square150x150Logo="Images\Square150x150Logo.png"
         Square44x44Logo="Images\Square44x44Logo.png">
@@ -43,7 +42,6 @@
   </Applications>
 
   <Capabilities>
-    <Capability Name="internetClient" />
     <rescap:Capability Name="runFullTrust" />
   </Capabilities>
 </Package>

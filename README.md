@@ -134,6 +134,7 @@ dotnet run -c Debug
 ### 跨平台分发
 
 - Linux x64 `.deb` 包：在仓库根目录执行 `pwsh -File .\publish-linux-deb.ps1`，产物落在 `dist\`
+- Windows MSIX 包：在仓库根目录执行 `pwsh -File .\publish-msix.ps1`，脚本会先用 `FancyTool/Assets/icon.png` 重采样生成 7 张必需图标，再调用 MSBuild 生成带自签名证书的 `.msix`；产物位于 `FancyToolAva.Msix\bin\x64\Release\FancyToolAva.Msix_1.0.0.0_x64.msix`，首次安装需将 `FancyToolAva.Msix\FancyToolAva.Msix_TemporaryKey.pfx` 导入本机 `TrustedPeople` 存储
 - 任意 RID 自包含发布：`dotnet publish -c Release -r <RID> -p:PublishSelfContained=true`（亦可经由 `Properties\PublishProfiles\FolderProfile.pubxml`：`dotnet publish -c Release -p:PublishProfile=FolderProfile`）
 
 > ⚠️ **注意**：Linux 版本未充分验证，可能存在兼容性问题。

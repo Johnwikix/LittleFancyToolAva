@@ -1,0 +1,17 @@
+## Build outputs
+bin/
+obj/
+*.user
+
+## MSIX packaging artifacts (but keep the signing cert tracked)
+*.msix
+*.msixbundle
+AppPackages/
+BundleArtifacts/
+
+## Temp signing cert is committed (matches WinForms reference)
+!FancyToolAva.Msix_TemporaryKey.pfx
+
+## MSBuild diagnostics
+*.binlog
+*.log
