@@ -13,12 +13,20 @@
     面向 Windows 与 Linux 平台，集成常用加密、通讯与图片处理工具
   </h4>
   <div>
+    <a href="https://github.com/Johnwikix/LittleFancyToolAva/releases/latest"><img src="https://img.shields.io/github/v/release/Johnwikix/LittleFancyToolAva?style=flat&logo=github&logoColor=white&label=最新发布&color=blue" alt="最新发布"></a>
     <img src="https://img.shields.io/badge/语言-C%23-purple" alt="C#">
     <img src="https://img.shields.io/badge/UI-Avalonia%2012-blue" alt="Avalonia">
     <img src="https://img.shields.io/badge/主题-FluentAvalonia-blue" alt="FluentAvalonia">
     <img src="https://img.shields.io/badge/.NET-10.0-purple" alt=".NET 10">
     <img src="https://img.shields.io/badge/平台-Windows%20%7C%20Linux-blue" alt="Platform">
     <img src="https://img.shields.io/badge/许可证-MIT-blue" alt="License">
+  </div>
+
+  <div>
+    <a href="https://github.com/Johnwikix/LittleFancyToolAva"><img src="https://img.shields.io/badge/GitHub-Johnwikix%2FLittleFancyToolAva-181717?logo=github&logoColor=white" alt="GitHub Repo"></a>
+    <img src="https://img.shields.io/github/stars/Johnwikix/LittleFancyToolAva?style=social" alt="Stars">
+    <img src="https://img.shields.io/github/forks/Johnwikix/LittleFancyToolAva?style=social" alt="Forks">
+    <img src="https://img.shields.io/github/watchers/Johnwikix/LittleFancyToolAva?style=social" alt="Watchers">
   </div>
 
 
@@ -173,6 +181,7 @@ dotnet run -c Debug
 
 - 作者：Sennpei Studio
 - 邮箱：dannypan9709@foxmail.com
+- 开源仓库：[https://github.com/Johnwikix/LittleFancyToolAva](https://github.com/Johnwikix/LittleFancyToolAva)
 
 ## 🗂️ 数据存储
 

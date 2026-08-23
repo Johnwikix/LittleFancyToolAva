@@ -3,8 +3,9 @@ bin/
 obj/
 *.user
 
-## MSIX packaging artifacts (but keep the signing cert tracked)
+## MSIX packaging artifacts
 *.msix
+*.msixupload
 *.msixbundle
 AppPackages/
 BundleArtifacts/

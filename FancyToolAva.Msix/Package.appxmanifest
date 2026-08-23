@@ -6,13 +6,13 @@
   IgnorableNamespaces="uap rescap">
 
   <Identity
-    Name="57faa05b-31fa-40e1-83c1-ca33ed2e6036"
+    Name="SennpaiStudio.---modbus"
     Publisher="CN=CF259542-70C0-4852-9523-066A80212473"
-    Version="1.0.3.0" />
+    Version="1.1.0.0" />
 
   <Properties>
-    <DisplayName>妙妙工具</DisplayName>
-    <PublisherDisplayName>Sennpei Studio</PublisherDisplayName>
+    <DisplayName>妙妙小工具---串口、modbus、网络调试、图像转换、文本文件加密解密工具</DisplayName>
+    <PublisherDisplayName>Sennpai Studio</PublisherDisplayName>
     <Logo>Images\StoreLogo.png</Logo>
   </Properties>
 
@@ -30,8 +30,8 @@
       Executable="$targetnametoken$.exe"
       EntryPoint="$targetentrypoint$">
       <uap:VisualElements
-        DisplayName="妙妙工具"
-        Description="基于 Avalonia 的桌面工具集"
+        DisplayName="Fancy Tool"
+        Description="Fancy Tool"
         BackgroundColor="transparent"
         Square150x150Logo="Images\Square150x150Logo.png"
         Square44x44Logo="Images\Square44x44Logo.png">

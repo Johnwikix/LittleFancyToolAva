@@ -14,12 +14,20 @@
   </h4>
 
   <div>
+    <a href="https://github.com/Johnwikix/LittleFancyToolAva/releases/latest"><img src="https://img.shields.io/github/v/release/Johnwikix/LittleFancyToolAva?style=flat&logo=github&logoColor=white&label=Latest%20Release&color=blue" alt="Latest Release"></a>
     <img src="https://img.shields.io/badge/Language-C%23-purple" alt="C#">
     <img src="https://img.shields.io/badge/UI-Avalonia%2012-blue" alt="Avalonia">
     <img src="https://img.shields.io/badge/Theme-FluentAvalonia-blue" alt="FluentAvalonia">
     <img src="https://img.shields.io/badge/.NET-10.0-purple" alt=".NET 10">
     <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-blue" alt="Platform">
     <img src="https://img.shields.io/badge/License-MIT-blue" alt="License">
+  </div>
+
+  <div>
+    <a href="https://github.com/Johnwikix/LittleFancyToolAva"><img src="https://img.shields.io/badge/GitHub-Johnwikix%2FLittleFancyToolAva-181717?logo=github&logoColor=white" alt="GitHub Repo"></a>
+    <img src="https://img.shields.io/github/stars/Johnwikix/LittleFancyToolAva?style=social" alt="Stars">
+    <img src="https://img.shields.io/github/forks/Johnwikix/LittleFancyToolAva?style=social" alt="Forks">
+    <img src="https://img.shields.io/github/watchers/Johnwikix/LittleFancyToolAva?style=social" alt="Watchers">
   </div>
 
   <br>
@@ -173,6 +181,7 @@ This project is licensed under the [MIT License](LICENSE).
 
 - Author: Sennpei Studio
 - Email: dannypan9709@foxmail.com
+- Open-source repository: [https://github.com/Johnwikix/LittleFancyToolAva](https://github.com/Johnwikix/LittleFancyToolAva)
 
 ## 🗂️ Data Storage
 

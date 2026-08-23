@@ -13,6 +13,7 @@
     <NoWarn>$(NoWarn);NU1701;CS8767;CS8625;CS8602;CS8600;CS8604;CS0618</NoWarn>
 	<PublishAot Condition="'$(Configuration)' == 'Debug' OR '$(RuntimeIdentifier)' != 'win-x64'">false</PublishAot>
 	<PublishAot Condition="'$(Configuration)' != 'Debug' AND '$(RuntimeIdentifier)' == 'win-x64'">true</PublishAot>
+	<VersionPrefix>1.1.0.0</VersionPrefix> 
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(RuntimeIdentifier)' != ''">
