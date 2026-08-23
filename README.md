@@ -13,7 +13,7 @@
     面向 Windows 与 Linux 平台，集成常用加密、通讯与图片处理工具
   </h4>
   <div>
-    <a href="https://github.com/Johnwikix/LittleFancyToolAva/releases/latest"><img src="https://img.shields.io/github/v/release/Johnwikix/LittleFancyToolAva?style=flat&logo=github&logoColor=white&label=最新发布&color=blue" alt="最新发布"></a>
+    <a href="https://github.com/Johnwikix/LittleFancyToolAva/releases/latest"><img src="https://img.shields.io/github/downloads/Johnwikix/LittleFancyToolAva/total?label=%E4%B8%8B%E8%BD%BD%E9%87%8F" alt="下载量"></a>
     <img src="https://img.shields.io/badge/语言-C%23-purple" alt="C#">
     <img src="https://img.shields.io/badge/UI-Avalonia%2012-blue" alt="Avalonia">
     <img src="https://img.shields.io/badge/主题-FluentAvalonia-blue" alt="FluentAvalonia">

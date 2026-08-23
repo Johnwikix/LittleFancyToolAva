@@ -14,7 +14,7 @@
   </h4>
 
   <div>
-    <a href="https://github.com/Johnwikix/LittleFancyToolAva/releases/latest"><img src="https://img.shields.io/github/v/release/Johnwikix/LittleFancyToolAva?style=flat&logo=github&logoColor=white&label=Latest%20Release&color=blue" alt="Latest Release"></a>
+    <a href="https://github.com/Johnwikix/LittleFancyToolAva/releases/latest"><img src="https://img.shields.io/github/downloads/Johnwikix/LittleFancyToolAva/total?label=Downloads" alt="Downloads"></a>
     <img src="https://img.shields.io/badge/Language-C%23-purple" alt="C#">
     <img src="https://img.shields.io/badge/UI-Avalonia%2012-blue" alt="Avalonia">
     <img src="https://img.shields.io/badge/Theme-FluentAvalonia-blue" alt="FluentAvalonia">
