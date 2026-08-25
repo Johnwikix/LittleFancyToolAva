@@ -7,7 +7,6 @@ using FancyToolAva.Models;
 using FancyToolAva.Models.ViewStates;
 using FancyToolAva.Services;
 using FancyToolAva.Utils;
-using SkiaSharp;
 
 namespace FancyToolAva.ViewModels;
 
@@ -387,28 +386,9 @@ public partial class ImageConvertViewModel : ViewModelBase, IViewState, IFileIte
         SuperResolutionModel? srModel = srEnabled ? AvailableSuperResolutionModels[SelectedSrModelIndex] : null;
         int srScale = AvailableSrScales[SelectedSrScaleIndex];
 
-        int parallelDegree = Environment.ProcessorCount;
-        if (srEnabled)
-        {
-            const long memoryBudget = 2L * 1024 * 1024 * 1024;
-            long maxEstimate = 0;
-            foreach (var item in FileItems)
-            {
-                try
-                {
-                    using var codec = SKCodec.Create(item.FilePath);
-                    if (codec == null) continue;
-                    long srcPx = (long)codec.Info.Width * codec.Info.Height;
-                    long est = srcPx * srScale * srScale * 8 + srcPx * 4 + 64L * 1024 * 1024;
-                    if (est > maxEstimate) maxEstimate = est;
-                }
-                catch
-                {
-                }
-            }
-            if (maxEstimate > 0)
-                parallelDegree = (int)Math.Clamp(memoryBudget / maxEstimate, 1, Math.Min(4, Environment.ProcessorCount));
-        }
+        // Super-resolution runs one image at a time: the DML session (and its
+        // multi-GB shared-memory reservation) must never be shared across items.
+        int parallelDegree = srEnabled ? 1 : Environment.ProcessorCount;
 
         foreach (var item in FileItems)
             item.Status = FileStatus.Pending;
@@ -489,6 +469,11 @@ public partial class ImageConvertViewModel : ViewModelBase, IViewState, IFileIte
             });
 
         IsBusy = false;
+
+        // Return GPU/GL resources: destroy ONNX/DML sessions so their shared-memory
+        // reservations are released back to the OS when the batch is done.
+        if (srEnabled)
+            _superResolutionService.ReleaseSessions();
 
         // Return large (multi-GB) LOH allocations to the OS after the batch work is done.
         await Task.Run(() =>

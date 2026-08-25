@@ -578,17 +578,32 @@ public sealed class SuperResolutionService : ISuperResolutionService
         if (_disposed) throw new ObjectDisposedException(nameof(SuperResolutionService));
     }
 
-    public void Dispose()
+    public void ReleaseSessions()
     {
         lock (_lock)
         {
             if (_disposed) return;
-            _disposed = true;
             foreach (var s in _sessions.Values)
             {
                 try { s.Dispose(); } catch { }
             }
             _sessions.Clear();
+            _inputNames.Clear();
+            _outputNames.Clear();
+            _inputElementTypes.Clear();
+            _outputElementTypes.Clear();
+            _extraInputs.Clear();
+            _sessionUsesDml.Clear();
+            _logger.LogInformation("Super-resolution sessions released.");
+        }
+    }
+
+    public void Dispose()
+    {
+        ReleaseSessions();
+        lock (_lock)
+        {
+            _disposed = true;
         }
     }
 }

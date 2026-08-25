@@ -21,4 +21,6 @@ public interface ISuperResolutionService : IDisposable
         int targetScale,
         IProgress<double>? progress = null,
         CancellationToken ct = default);
+
+    void ReleaseSessions();
 }
