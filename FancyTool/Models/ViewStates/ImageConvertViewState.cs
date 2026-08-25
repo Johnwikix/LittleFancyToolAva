@@ -8,4 +8,7 @@ public class ImageConvertViewState
     public int DownscalePercent { get; set; } = 100;
     public int SelectedFilterIndex { get; set; }
     public int SelectedSizeIndex { get; set; } = 2;
+    public bool IsSuperResolutionEnabled { get; set; }
+    public int SelectedSrModelIndex { get; set; }
+    public int SelectedSrScaleIndex { get; set; }
 }

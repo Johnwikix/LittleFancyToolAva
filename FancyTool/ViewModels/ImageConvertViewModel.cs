@@ -7,6 +7,7 @@ using FancyToolAva.Models;
 using FancyToolAva.Models.ViewStates;
 using FancyToolAva.Services;
 using FancyToolAva.Utils;
+using SkiaSharp;
 
 namespace FancyToolAva.ViewModels;
 
@@ -18,6 +19,7 @@ public partial class ImageConvertViewModel : ViewModelBase, IViewState, IFileIte
     };
 
     private readonly IImageConversionService _imageConversionService;
+    private readonly ISuperResolutionService _superResolutionService;
     private readonly IFileDialogService _fileDialogService;
     private readonly INotificationService _notificationService;
     private readonly IViewStateService _viewStateService;
@@ -58,7 +60,20 @@ public partial class ImageConvertViewModel : ViewModelBase, IViewState, IFileIte
     public bool IsDownscaleEnabled
     {
         get => field;
-        set => SetProperty(ref field, value);
+        set
+        {
+            if (SetProperty(ref field, value) && value && IsSuperResolutionEnabled)
+            {
+                _suppressSuperResolutionToggle = true;
+                IsSuperResolutionEnabled = false;
+                _suppressSuperResolutionToggle = false;
+                OnPropertyChanged(nameof(IsDownscaleEnabled));
+            }
+            else
+            {
+                OnPropertyChanged(nameof(IsSuperResolutionEnabled));
+            }
+        }
     }
 
     public int DownscalePercent
@@ -78,6 +93,56 @@ public partial class ImageConvertViewModel : ViewModelBase, IViewState, IFileIte
         get => field;
         set => SetProperty(ref field, value);
     } = 2;
+
+    public bool IsSuperResolutionEnabled
+    {
+        get => field;
+        set
+        {
+            if (SetProperty(ref field, value))
+            {
+                if (value && IsDownscaleEnabled && !_suppressSuperResolutionToggle)
+                {
+                    _suppressSuperResolutionToggle = true;
+                    IsDownscaleEnabled = false;
+                    _suppressSuperResolutionToggle = false;
+                }
+                OnPropertyChanged(nameof(IsDownscaleEnabled));
+                OnPropertyChanged(nameof(IsSuperResolutionReady));
+            }
+        }
+    }
+
+    private bool _suppressSuperResolutionToggle;
+
+    public int SelectedSrModelIndex
+    {
+        get => field;
+        set
+        {
+            if (SetProperty(ref field, value))
+                OnPropertyChanged(nameof(IsSuperResolutionReady));
+        }
+    } = 0;
+
+    public int SelectedSrScaleIndex
+    {
+        get => field;
+        set => SetProperty(ref field, value);
+    } = 0;
+
+    public List<int> AvailableSrScales { get; } = [2, 4];
+    public List<string> AvailableSrScaleLabels { get; } = ["2x", "4x"];
+
+    public List<string> AvailableSrModelLabels { get; } = [];
+
+    public bool IsSuperResolutionReady =>
+        IsSuperResolutionEnabled
+        && SelectedSrModelIndex >= 0
+        && SelectedSrModelIndex < AvailableSuperResolutionModels.Count
+        && _superResolutionService.IsModelAvailable(AvailableSuperResolutionModels[SelectedSrModelIndex]);
+
+    public bool ShowModelMissingHint => IsSuperResolutionEnabled && !IsSuperResolutionReady;
 
     public bool IsIcoMode => FormatIndex >= 0 && FormatIndex < AvailableFormats.Count && AvailableFormats[FormatIndex] == "ico";
 
@@ -131,19 +196,25 @@ public partial class ImageConvertViewModel : ViewModelBase, IViewState, IFileIte
     public List<string> AvailableFormats { get; } = ["jpg", "png", "bmp", "webp", "tiff", "dds", "jxl", "heic", "ico"];
     public List<string> AvailableFilters { get; } = ["Lanczos", "Mitchell", "Catrom", "Cubic", "Triangle", "Box"];
     public List<int> AvailableSizes { get; } = [16, 32, 48, 64, 128, 256];
+    public List<SuperResolutionModel> AvailableSuperResolutionModels { get; } = Enum.GetValues<SuperResolutionModel>().ToList();
 
     public ImageConvertViewModel(
         IImageConversionService imageConversionService,
+        ISuperResolutionService superResolutionService,
         IFileDialogService fileDialogService,
         INotificationService notificationService,
         IViewStateService viewStateService)
     {
         _imageConversionService = imageConversionService;
+        _superResolutionService = superResolutionService;
         _fileDialogService = fileDialogService;
         _notificationService = notificationService;
         _viewStateService = viewStateService;
         _viewStateService.Register(this);
         FileItems.CollectionChanged += (_, _) => StartConvertCommand.NotifyCanExecuteChanged();
+        AvailableSrModelLabels.Add(LocalizationRegistry.Get("ImageConvert.SrModel_RealEsrganX4"));
+        AvailableSrModelLabels.Add(LocalizationRegistry.Get("ImageConvert.SrModel_RealEsrganX4Anime"));
+        AvailableSrModelLabels.Add(LocalizationRegistry.Get("ImageConvert.SrModel_RealEsrganGeneralX4v3"));
         UpdateStatusText();
     }
 
@@ -154,7 +225,10 @@ public partial class ImageConvertViewModel : ViewModelBase, IViewState, IFileIte
         IsDownscaleEnabled = IsDownscaleEnabled,
         DownscalePercent = DownscalePercent,
         SelectedFilterIndex = SelectedFilterIndex,
-        SelectedSizeIndex = SelectedSizeIndex
+        SelectedSizeIndex = SelectedSizeIndex,
+        IsSuperResolutionEnabled = IsSuperResolutionEnabled,
+        SelectedSrModelIndex = SelectedSrModelIndex,
+        SelectedSrScaleIndex = SelectedSrScaleIndex
     };
 
     void IViewState.RestoreState(object state)
@@ -167,6 +241,11 @@ public partial class ImageConvertViewModel : ViewModelBase, IViewState, IFileIte
             DownscalePercent = s.DownscalePercent is > 10 and <= 100 ? s.DownscalePercent : 100;
             SelectedFilterIndex = s.SelectedFilterIndex;
             SelectedSizeIndex = s.SelectedSizeIndex;
+            SelectedSrModelIndex = s.SelectedSrModelIndex >= 0 && s.SelectedSrModelIndex < AvailableSuperResolutionModels.Count
+                ? s.SelectedSrModelIndex
+                : 0;
+            SelectedSrScaleIndex = s.SelectedSrScaleIndex is 0 or 1 ? s.SelectedSrScaleIndex : 0;
+            IsSuperResolutionEnabled = s.IsSuperResolutionEnabled && IsSuperResolutionReady;
         }
     }
 
@@ -304,13 +383,40 @@ public partial class ImageConvertViewModel : ViewModelBase, IViewState, IFileIte
 
         string format = AvailableFormats[FormatIndex];
 
+        bool srEnabled = IsSuperResolutionEnabled && IsSuperResolutionReady && !IsIcoMode;
+        SuperResolutionModel? srModel = srEnabled ? AvailableSuperResolutionModels[SelectedSrModelIndex] : null;
+        int srScale = AvailableSrScales[SelectedSrScaleIndex];
+
+        int parallelDegree = Environment.ProcessorCount;
+        if (srEnabled)
+        {
+            const long memoryBudget = 2L * 1024 * 1024 * 1024;
+            long maxEstimate = 0;
+            foreach (var item in FileItems)
+            {
+                try
+                {
+                    using var codec = SKCodec.Create(item.FilePath);
+                    if (codec == null) continue;
+                    long srcPx = (long)codec.Info.Width * codec.Info.Height;
+                    long est = srcPx * srScale * srScale * 4 + srcPx * 8 + 96L * 1024 * 1024;
+                    if (est > maxEstimate) maxEstimate = est;
+                }
+                catch
+                {
+                }
+            }
+            if (maxEstimate > 0)
+                parallelDegree = (int)Math.Clamp(memoryBudget / maxEstimate, 1, Math.Min(4, Environment.ProcessorCount));
+        }
+
         foreach (var item in FileItems)
             item.Status = FileStatus.Pending;
 
         await Parallel.ForEachAsync(FileItems,
             new ParallelOptions
             {
-                MaxDegreeOfParallelism = Environment.ProcessorCount,
+                MaxDegreeOfParallelism = parallelDegree,
                 CancellationToken = _cts.Token
             },
             async (item, ct) =>
@@ -334,10 +440,27 @@ public partial class ImageConvertViewModel : ViewModelBase, IViewState, IFileIte
                         string? filter = IsDownscaleEnabled ? AvailableFilters[SelectedFilterIndex] : null;
                         int? scalePct = IsDownscaleEnabled && DownscalePercent < 100 ? DownscalePercent : null;
                         string outputPath = GetUniqueOutputPath(OutputFolder!, item.FileName, format);
-                        await _imageConversionService.ConvertImageFormatAsync(item.FilePath, outputPath, format, ct, null, filter, progress, scalePercent: scalePct);
+                        await _imageConversionService.ConvertImageFormatAsync(
+                            item.FilePath,
+                            outputPath,
+                            format,
+                            ct,
+                            null,
+                            filter,
+                            progress,
+                            scalePercent: scalePct,
+                            superResolutionModel: srModel,
+                            superResolutionScale: srScale,
+                            superResolutionService: srEnabled ? _superResolutionService : null);
                     }
                     item.Progress = 1.0;
                     item.Status = FileStatus.Completed;
+                }
+                catch (SuperResolutionOutputTooLargeException ex)
+                {
+                    item.Status = FileStatus.Failed;
+                    item.ErrorMessage = LocalizationRegistry.Get(
+                        "ImageConvert.Msg_SrTooLarge", ex.OutputWidth, ex.OutputHeight, ex.MaxDimension);
                 }
                 catch (OperationCanceledException)
                 {

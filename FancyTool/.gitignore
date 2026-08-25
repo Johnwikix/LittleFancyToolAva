@@ -10,6 +10,10 @@
 *.userosscache
 *.sln.docstates
 
+# Super-resolution ONNX models (downloaded via tools/download-models.ps1)
+Assets/Models/*.onnx
+Assets/Models/*.onnx.download
+
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
 

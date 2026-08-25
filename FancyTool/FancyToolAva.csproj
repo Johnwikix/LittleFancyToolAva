@@ -58,7 +58,26 @@
     <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
     <PackageReference Include="System.IO.Ports" Version="10.0.11" />
     <PackageReference Include="z440.atl.core" Version="7.16.0" />
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.22.1" />
+    <PackageReference Include="Microsoft.ML.OnnxRuntime.DirectML" Version="1.22.1" />
   </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Assets\Models\*.onnx" CopyToOutputDirectory="PreserveNewest" Condition="Exists('$(MSBuildThisFileDirectory)Assets\Models\')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <Target Name="VerifySuperResolutionModels" BeforeTargets="Build">
+    <PropertyGroup>
+      <_ModelX4>$(MSBuildThisFileDirectory)Assets\Models\RealESRGAN_x4plus.onnx</_ModelX4>
+      <_ModelAnime>$(MSBuildThisFileDirectory)Assets\Models\RealESRGAN_x4plus_anime.onnx</_ModelAnime>
+      <_ModelGeneral>$(MSBuildThisFileDirectory)Assets\Models\realesr-general-x4v3_fp16.onnx</_ModelGeneral>
+    </PropertyGroup>
+    <Warning Text="Super-resolution model not found at $(_ModelX4). Run tools\download-models.ps1 to enable Real-ESRGAN." Condition="!Exists($(_ModelX4))" />
+    <Warning Text="Super-resolution model not found at $(_ModelAnime). Run tools\download-models.ps1 to enable Real-ESRGAN anime." Condition="!Exists($(_ModelAnime))" />
+    <Warning Text="Super-resolution model not found at $(_ModelGeneral). Run tools\download-models.ps1 to enable Real-ESRGAN general." Condition="!Exists($(_ModelGeneral))" />
+  </Target>
 
   <ItemGroup>
     <PackageReference Include="Packaging.Targets" Version="0.1.232" PrivateAssets="all" />

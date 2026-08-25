@@ -51,7 +51,18 @@ public class ImageConversionService : IImageConversionService
         }, ct);
     }
 
-    public async Task<string?> ConvertImageFormatAsync(string inputPath, string outputPath, string format, CancellationToken ct = default, int? maxDimension = null, string? filterType = null, IProgress<double>? progress = null, int? scalePercent = null)
+    public async Task<string?> ConvertImageFormatAsync(
+        string inputPath,
+        string outputPath,
+        string format,
+        CancellationToken ct = default,
+        int? maxDimension = null,
+        string? filterType = null,
+        IProgress<double>? progress = null,
+        int? scalePercent = null,
+        SuperResolutionModel? superResolutionModel = null,
+        int superResolutionScale = 4,
+        ISuperResolutionService? superResolutionService = null)
     {
         string tmpPath = outputPath + ".tmp";
         var (outputFormat, quality) = MapFormat(format);
@@ -71,62 +82,92 @@ public class ImageConversionService : IImageConversionService
             }
         }
 
-        return await Task.Run(async () =>
+        if (superResolutionModel.HasValue && superResolutionService != null)
         {
+            using var codec = SKCodec.Create(inputPath);
+            if (codec == null)
+                throw new InvalidOperationException($"Failed to read image: {inputPath}");
+            int srTarget = superResolutionScale == 2 ? 2 : 4;
+            long outW = (long)codec.Info.Width * srTarget;
+            long outH = (long)codec.Info.Height * srTarget;
+            if (outW > SuperResolutionService.MaxOutputDimension || outH > SuperResolutionService.MaxOutputDimension)
+            {
+                throw new SuperResolutionOutputTooLargeException(
+                    (int)Math.Min(outW, int.MaxValue),
+                    (int)Math.Min(outH, int.MaxValue),
+                    SuperResolutionService.MaxOutputDimension);
+            }
+        }
+
+return await Task.Run(async () =>
+        {
+            SKBitmap? original = null;
+            SKBitmap? resized = null;
+            SKBitmap? srBitmap = null;
             try
             {
-                using var bitmap = SKBitmap.Decode(inputPath);
-                if (bitmap == null)
+                original = SKBitmap.Decode(inputPath);
+                if (original == null)
                     throw new InvalidOperationException($"Failed to decode image: {inputPath}");
-                progress?.Report(0.1);
+                progress?.Report(0.05);
 
-                SKBitmap? resized = null;
-                try
+                SKBitmap workingBitmap = original;
+
+                if (superResolutionModel.HasValue && superResolutionService != null)
                 {
-                    if (effectiveMaxDim.HasValue)
-                    {
-                        if (bitmap.Width > effectiveMaxDim.Value || bitmap.Height > effectiveMaxDim.Value)
-                        {
-                            resized = ResizeToFit(bitmap, effectiveMaxDim.Value, filterType);
-                            progress?.Report(0.4);
-                        }
-                    }
-                    else if (scalePercent.HasValue && scalePercent.Value > 0 && scalePercent.Value < 100)
-                    {
-                        int newW = Math.Max(1, bitmap.Width * scalePercent.Value / 100);
-                        int newH = Math.Max(1, bitmap.Height * scalePercent.Value / 100);
-                        resized = ResizeExact(bitmap, newW, newH, filterType);
-                        progress?.Report(0.4);
-                    }
-
-                    var src = resized ?? bitmap;
-
-                    using var image = SKImage.FromBitmap(src);
-                    using var data = image.Encode(outputFormat, quality);
-                    progress?.Report(0.5);
-
-                    byte[] encoded = data.ToArray();
-                    await File.WriteAllBytesAsync(tmpPath, encoded, ct);
-                    progress?.Report(0.9);
-
-                    if (File.Exists(outputPath))
-                        File.Delete(outputPath);
-                    File.Move(tmpPath, outputPath);
-
-                    _logger.LogInformation("Image converted: {Input} -> {Output} ({Format})", inputPath, outputPath, format);
-                    progress?.Report(1.0);
-                    return outputPath;
+                    int srTarget = superResolutionScale == 2 ? 2 : 4;
+                    srBitmap = await superResolutionService.UpscaleAsync(workingBitmap, superResolutionModel.Value, srTarget,
+                        new Progress<double>(p => progress?.Report(0.05 + p * 0.55)), ct);
+                    workingBitmap = srBitmap;
+                    _logger.LogInformation("Super-resolution applied: {Input} -> {W}x{H} ({Scale}x, model={Model})",
+                        inputPath, workingBitmap.Width, workingBitmap.Height, srTarget, superResolutionModel.Value);
                 }
-                finally
+
+                if (effectiveMaxDim.HasValue)
                 {
-                    resized?.Dispose();
+                    if (workingBitmap.Width > effectiveMaxDim.Value || workingBitmap.Height > effectiveMaxDim.Value)
+                    {
+                        resized = ResizeToFit(workingBitmap, effectiveMaxDim.Value, filterType);
+                        progress?.Report(0.7);
+                    }
                 }
+                else if (scalePercent.HasValue && scalePercent.Value > 0 && scalePercent.Value < 100)
+                {
+                    int newW = Math.Max(1, workingBitmap.Width * scalePercent.Value / 100);
+                    int newH = Math.Max(1, workingBitmap.Height * scalePercent.Value / 100);
+                    resized = ResizeExact(workingBitmap, newW, newH, filterType);
+                    progress?.Report(0.7);
+                }
+
+                var src = resized ?? workingBitmap;
+
+                using var image = SKImage.FromBitmap(src);
+                using var data = image.Encode(outputFormat, quality);
+                progress?.Report(0.85);
+
+                byte[] encoded = data.ToArray();
+                await File.WriteAllBytesAsync(tmpPath, encoded, ct);
+                progress?.Report(0.95);
+
+                if (File.Exists(outputPath))
+                    File.Delete(outputPath);
+                File.Move(tmpPath, outputPath);
+
+                _logger.LogInformation("Image converted: {Input} -> {Output} ({Format})", inputPath, outputPath, format);
+                progress?.Report(1.0);
+                return outputPath;
             }
             catch
             {
                 try { if (File.Exists(tmpPath)) File.Delete(tmpPath); } catch { }
                 _logger.LogWarning("Image conversion failed: {Input}", inputPath);
                 throw;
+            }
+            finally
+            {
+                resized?.Dispose();
+                srBitmap?.Dispose();
+                original?.Dispose();
             }
         }, ct);
     }

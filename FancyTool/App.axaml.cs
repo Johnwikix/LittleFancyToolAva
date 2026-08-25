@@ -160,6 +160,7 @@ namespace FancyToolAva
 
             services.AddSingleton<IFileEncryptionService, FileEncryptionService>();
             services.AddSingleton<IFolderCompareService, FolderCompareService>();
+            services.AddSingleton<ISuperResolutionService, SuperResolutionService>();
             services.AddSingleton<IImageConversionService, ImageConversionService>();
 
             services.AddTransient<FileEncryptionViewModel>();

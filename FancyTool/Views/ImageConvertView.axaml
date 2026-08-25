@@ -55,6 +55,33 @@
                                 </StackPanel>
                             </StackPanel>
                         </StackPanel>
+                        <StackPanel Classes="FormRow" IsVisible="{Binding !IsIcoMode}">
+                            <TextBlock Classes="FieldLabel" Text="{lan:I18n ImageConvert.Label_SuperResolution}" />
+                            <StackPanel Spacing="8">
+                                <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">
+                                    <CheckBox Grid.Column="0" IsChecked="{Binding IsSuperResolutionEnabled}" Content="{lan:I18n ImageConvert.Option_Enable}" />
+                                    <TextBlock Grid.Column="2"
+                                               IsVisible="{Binding ShowModelMissingHint}"
+                                               FontSize="11"
+                                               Opacity="0.75"
+                                               Text="{lan:I18n ImageConvert.Hint_ModelMissing}" />
+                                </Grid>
+                                <StackPanel IsVisible="{Binding IsSuperResolutionEnabled}" Spacing="6">
+                                    <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">
+                                        <TextBlock Grid.Column="0" Text="{lan:I18n ImageConvert.Label_SrModel}" VerticalAlignment="Center" />
+                                        <ComboBox Grid.Column="2" Width="220"
+                                                  ItemsSource="{Binding AvailableSrModelLabels}"
+                                                  SelectedIndex="{Binding SelectedSrModelIndex, Mode=TwoWay}" />
+                                    </Grid>
+                                    <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">
+                                        <TextBlock Grid.Column="0" Text="{lan:I18n ImageConvert.Label_SrScale}" VerticalAlignment="Center" />
+                                        <ComboBox Grid.Column="2" Width="120"
+                                                  ItemsSource="{Binding AvailableSrScaleLabels}"
+                                                  SelectedIndex="{Binding SelectedSrScaleIndex, Mode=TwoWay}" />
+                                    </Grid>
+                                </StackPanel>
+                            </StackPanel>
+                        </StackPanel>
                         <StackPanel IsVisible="{Binding IsBusy}" Spacing="4">
                             <ProgressBar Value="{Binding ConversionProgress}" Minimum="0" Maximum="1" Height="8" />
                             <TextBlock Text="{Binding StatusText}" />
