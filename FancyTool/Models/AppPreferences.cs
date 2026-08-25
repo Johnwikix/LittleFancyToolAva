@@ -66,5 +66,13 @@ namespace FancyToolAva.Models
             get => _language;
             set => SetProperty(ref _language, string.IsNullOrWhiteSpace(value) ? "en-US" : value);
         }
+
+        private bool _useSuperResolutionDml = true;
+
+        public bool UseSuperResolutionDml
+        {
+            get => _useSuperResolutionDml;
+            set => SetProperty(ref _useSuperResolutionDml, value);
+        }
     }
 }

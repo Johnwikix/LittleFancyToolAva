@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:FancyToolAva.ViewModels"
              xmlns:helpers="using:FancyToolAva.Helpers"
+             xmlns:lan="clr-namespace:Lang.Avalonia.MarkupExtensions;assembly=Lang.Avalonia"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d"
@@ -14,8 +15,8 @@
 
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <StackPanel Classes="PageRoot">
-            <TextBlock Classes="PageTitle" Text="{Binding PageTitle}" />
-            <TextBlock Classes="PageSubtitle" Text="{Binding PageSubtitle}" />
+            <TextBlock Classes="PageTitle" Text="{lan:I18n Settings.Page_Title}" />
+            <TextBlock Classes="PageSubtitle" Text="{lan:I18n Settings.Page_Subtitle}" />
 
             <TextBlock Classes="GroupHeader" Text="{Binding GroupAppearance}" />
 
@@ -78,6 +79,21 @@
                                        Value="{Binding App.Preferences.ConnectionTimeoutSec, Mode=TwoWay}"
                                        Width="120"
                                        VerticalAlignment="Center" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <TextBlock Classes="GroupHeader" Text="{Binding GroupImage}" />
+
+            <Border Classes="ToolCard">
+                <StackPanel Classes="ToolCardContent">
+                    <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,4">
+                        <StackPanel Grid.Column="0">
+                            <TextBlock FontWeight="SemiBold" Text="{Binding LabelSrGpu}" />
+                            <TextBlock Classes="Caption" Text="{Binding CaptionSrGpu}" />
+                        </StackPanel>
+                        <CheckBox Grid.Column="2" VerticalAlignment="Center"
+                                  IsChecked="{Binding App.Preferences.UseSuperResolutionDml, Mode=TwoWay}" />
                     </Grid>
                 </StackPanel>
             </Border>

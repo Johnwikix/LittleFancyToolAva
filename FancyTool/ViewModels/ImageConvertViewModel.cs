@@ -399,7 +399,7 @@ public partial class ImageConvertViewModel : ViewModelBase, IViewState, IFileIte
                     using var codec = SKCodec.Create(item.FilePath);
                     if (codec == null) continue;
                     long srcPx = (long)codec.Info.Width * codec.Info.Height;
-                    long est = srcPx * srScale * srScale * 4 + srcPx * 8 + 96L * 1024 * 1024;
+                    long est = srcPx * srScale * srScale * 8 + srcPx * 4 + 64L * 1024 * 1024;
                     if (est > maxEstimate) maxEstimate = est;
                 }
                 catch
@@ -489,6 +489,14 @@ public partial class ImageConvertViewModel : ViewModelBase, IViewState, IFileIte
             });
 
         IsBusy = false;
+
+        // Return large (multi-GB) LOH allocations to the OS after the batch work is done.
+        await Task.Run(() =>
+        {
+            GC.Collect(2, GCCollectionMode.Forced, blocking: true, compacting: true);
+            GC.WaitForPendingFinalizers();
+            GC.Collect(2, GCCollectionMode.Forced, blocking: true, compacting: true);
+        });
 
         if (FailedCount == 0)
             _notificationService.ShowSuccess(LocalizationRegistry.Get("ImageConvert.Msg_AllDone", TotalCount));

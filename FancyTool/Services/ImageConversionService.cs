@@ -119,6 +119,7 @@ return await Task.Run(async () =>
                     srBitmap = await superResolutionService.UpscaleAsync(workingBitmap, superResolutionModel.Value, srTarget,
                         new Progress<double>(p => progress?.Report(0.05 + p * 0.55)), ct);
                     workingBitmap = srBitmap;
+                    original.Dispose();
                     _logger.LogInformation("Super-resolution applied: {Input} -> {W}x{H} ({Scale}x, model={Model})",
                         inputPath, workingBitmap.Width, workingBitmap.Height, srTarget, superResolutionModel.Value);
                 }
@@ -145,8 +146,10 @@ return await Task.Run(async () =>
                 using var data = image.Encode(outputFormat, quality);
                 progress?.Report(0.85);
 
-                byte[] encoded = data.ToArray();
-                await File.WriteAllBytesAsync(tmpPath, encoded, ct);
+                using (var tmpFs = File.Create(tmpPath))
+                {
+                    data.SaveTo(tmpFs);
+                }
                 progress?.Report(0.95);
 
                 if (File.Exists(outputPath))

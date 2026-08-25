@@ -1,4 +1,6 @@
-﻿using Microsoft.ML.OnnxRuntime;
+﻿using System.Runtime.InteropServices;
+using FancyToolAva.Models;
+using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
 using Microsoft.Extensions.Logging;
 using SkiaSharp;
@@ -17,18 +19,23 @@ public sealed class SuperResolutionService : ISuperResolutionService
     private readonly Dictionary<SuperResolutionModel, TensorElementType> _inputElementTypes = new();
     private readonly Dictionary<SuperResolutionModel, TensorElementType> _outputElementTypes = new();
     private readonly Dictionary<SuperResolutionModel, (string Name, TensorElementType Type)[]> _extraInputs = new();
+    private readonly Dictionary<SuperResolutionModel, bool> _sessionUsesDml = new();
     private readonly object _lock = new();
     private bool _disposed;
-    private bool _dmlAttempted;
+    private bool _dmlDisabled;
     private bool _dmlAvailable;
 
     private const int TileSize = 512;
     private const int TilePad = 32;
+    private const int WindowSize = TileSize + TilePad * 2;
     private const int ModelScale = 4;
 
-    public SuperResolutionService(ILogger<SuperResolutionService> logger)
+    private readonly AppPreferences _preferences;
+
+    public SuperResolutionService(ILogger<SuperResolutionService> logger, AppPreferences preferences)
     {
         _logger = logger;
+        _preferences = preferences;
         _modelsDirectory = Path.Combine(AppContext.BaseDirectory, "Assets", "Models");
     }
 
@@ -93,22 +100,27 @@ public sealed class SuperResolutionService : ISuperResolutionService
                 {
                     int tileW = Math.Min(TileSize, srcW - x);
 
-                    int padL = Math.Min(TilePad, x);
-                    int padT = Math.Min(TilePad, y);
-                    int padR = Math.Min(TilePad, srcW - (x + tileW));
-                    int padB = Math.Min(TilePad, srcH - (y + tileH));
-                    int cropX = x - padL;
-                    int cropY = y - padT;
-                    int cropW = tileW + padL + padR;
-                    int cropH = tileH + padT + padB;
+                    // Fixed 576x576 padded window: constant model input shape for every
+                    // tile. pads are constant TilePad; areas outside the source stay zero.
+                    // Constant shape avoids per-shape recompilation inside ORT/DML EP.
+                    int windowX = x - TilePad;
+                    int windowY = y - TilePad;
+                    int interX = Math.Clamp(windowX, 0, srcW);
+                    int interY = Math.Clamp(windowY, 0, srcH);
+                    int interW = Math.Clamp(windowX + WindowSize, 0, srcW) - interX;
+                    int interH = Math.Clamp(windowY + WindowSize, 0, srcH) - interY;
 
-                    using var tileBitmap = new SKBitmap(cropW, cropH, srcBitmap.ColorType, srcBitmap.AlphaType);
+                    using var tileBitmap = new SKBitmap(WindowSize, WindowSize, srcBitmap.ColorType, srcBitmap.AlphaType);
                     using (var canvas = new SKCanvas(tileBitmap))
                     {
-                        canvas.DrawBitmap(
-                            srcBitmap,
-                            new SKRect(cropX, cropY, cropX + cropW, cropY + cropH),
-                            new SKRect(0, 0, cropW, cropH));
+                        if (interW > 0 && interH > 0)
+                        {
+                            canvas.DrawBitmap(
+                                srcBitmap,
+                                new SKRect(interX, interY, interX + interW, interY + interH),
+                                new SKRect(interX - windowX, interY - windowY,
+                                    interX - windowX + interW, interY - windowY + interH));
+                        }
                     }
 
                     using var tileImage = SKImage.FromBitmap(tileBitmap);
@@ -116,9 +128,9 @@ public sealed class SuperResolutionService : ISuperResolutionService
 
                     if (hasAlpha)
                     {
-                        var alphaInfo = new SKImageInfo(cropW * ModelScale, cropH * ModelScale, SKColorType.Bgra8888, SKAlphaType.Premul);
+                        var alphaInfo = new SKImageInfo(WindowSize * ModelScale, WindowSize * ModelScale, SKColorType.Bgra8888, SKAlphaType.Premul);
                         using var alphaTile = new SKBitmap(alphaInfo);
-                        UpsampleAlphaChannel(srcBitmap, alphaTile, cropX, cropY, cropW, cropH);
+                        UpsampleAlphaChannel(srcBitmap, alphaTile, windowX, windowY, WindowSize, WindowSize);
                         MergeAlphaIntoRgb(srTile, alphaTile);
                     }
 
@@ -133,8 +145,8 @@ public sealed class SuperResolutionService : ISuperResolutionService
                         };
                         canvas.DrawBitmap(
                             srTile,
-                            new SKRect(padL * ModelScale, padT * ModelScale,
-                                (padL + tileW) * ModelScale, (padT + tileH) * ModelScale),
+                            new SKRect(TilePad * ModelScale, TilePad * ModelScale,
+                                (TilePad + tileW) * ModelScale, (TilePad + tileH) * ModelScale),
                             new SKRect(x * 2, y * 2, (x + tileW) * 2, (y + tileH) * 2),
                             paint);
                     }
@@ -145,8 +157,8 @@ public sealed class SuperResolutionService : ISuperResolutionService
                             srTile,
                             x * ModelScale,
                             y * ModelScale,
-                            padL * ModelScale,
-                            padT * ModelScale,
+                            TilePad * ModelScale,
+                            TilePad * ModelScale,
                             tileW * ModelScale,
                             tileH * ModelScale);
                     }
@@ -185,7 +197,7 @@ public sealed class SuperResolutionService : ISuperResolutionService
                     try { kv.Value.Dispose(); } catch { }
                 }
                 _dmlAvailable = false;
-                _dmlAttempted = true;
+                _dmlDisabled = true;
             }
             session = GetOrCreateSession(model);
             return RunModelTileCore(session, model, tile, ct);
@@ -471,8 +483,17 @@ public sealed class SuperResolutionService : ISuperResolutionService
         lock (_lock)
         {
             ThrowIfDisposed();
+
+            bool wantDml = WantDml();
             if (_sessions.TryGetValue(model, out var existing))
-                return existing;
+            {
+                // Rebuild the session when the desired EP changed (user toggled the setting).
+                if (_sessionUsesDml.TryGetValue(model, out var cur) && cur == wantDml)
+                    return existing;
+                _sessions.Remove(model);
+                _sessionUsesDml.Remove(model);
+                try { existing.Dispose(); } catch { }
+            }
 
             string fileName = GetFileName(model);
             string path = Path.Combine(_modelsDirectory, fileName);
@@ -490,23 +511,30 @@ public sealed class SuperResolutionService : ISuperResolutionService
                 .Select(kv => (kv.Key, kv.Value.ElementDataType))
                 .ToArray();
             _sessions[model] = session;
+            _sessionUsesDml[model] = wantDml && _dmlAvailable;
             _logger.LogInformation("Super-resolution session ready: {Model} ({Input} {InType} -> {Output} {OutType})",
                 fileName, _inputNames[model], _inputElementTypes[model], _outputNames[model], _outputElementTypes[model]);
             return session;
         }
     }
 
+    private bool WantDml()
+    {
+        if (_dmlDisabled) return false;
+        if (Environment.GetEnvironmentVariable("SR_FORCE_CPU") == "1") return false;
+        return _preferences.UseSuperResolutionDml;
+    }
+
     private SessionOptions BuildSessionOptions()
     {
+        // Attempt DML per session creation (not only for the first model). DML is
+        // skipped when disabled at runtime (failure fallback) or via user settings.
         var options = new SessionOptions();
 
-        if (!_dmlAttempted)
+        if (WantDml())
         {
-            _dmlAttempted = true;
             try
             {
-                if (Environment.GetEnvironmentVariable("SR_FORCE_CPU") == "1")
-                    throw new InvalidOperationException("SR_FORCE_CPU set; CPU EP forced.");
                 options.AppendExecutionProvider_DML(0);
                 _dmlAvailable = true;
                 _logger.LogInformation("Super-resolution: DirectML execution provider enabled.");
@@ -517,11 +545,21 @@ public sealed class SuperResolutionService : ISuperResolutionService
                 _logger.LogWarning(ex, "DirectML unavailable, falling back to CPU EP.");
             }
         }
+        else
+        {
+            _dmlAvailable = false;
+            _logger.LogWarning("Super-resolution: GPU acceleration disabled (setting or SR_FORCE_CPU); using CPU EP.");
+        }
 
         if (!_dmlAvailable)
         {
             options.AppendExecutionProvider_CPU(0);
         }
+
+        // ORT's CPU memory arena retains its high-water mark for the session lifetime;
+        // on this workload that is multiple GB kept after the first run. Disable it so
+        // each run returns its buffers (per-tile memory stays flat).
+        options.EnableCpuMemArena = false;
 
         options.GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL;
         return options;

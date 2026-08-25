@@ -28,6 +28,9 @@ namespace FancyToolAva.ViewModels
         public string LabelLanguage => LocalizationStrings.Current["Settings.Label_Language"];
         public string CaptionLanguage => LocalizationStrings.Current["Settings.Caption_Language"];
         public string GroupNetwork => LocalizationStrings.Current["Settings.Group_Network"];
+        public string GroupImage => LocalizationStrings.Current["Settings.Group_Image"];
+        public string LabelSrGpu => LocalizationStrings.Current["Settings.Label_SrGpu"];
+        public string CaptionSrGpu => LocalizationStrings.Current["Settings.Caption_SrGpu"];
         public string LabelConnectionTimeout => LocalizationStrings.Current["Settings.Label_ConnectionTimeout"];
         public string CaptionConnectionTimeout => LocalizationStrings.Current["Settings.Caption_ConnectionTimeout"];
         public string GroupAbout => LocalizationStrings.Current["Settings.Group_About"];
@@ -85,6 +88,9 @@ namespace FancyToolAva.ViewModels
             OnPropertyChanged(nameof(GroupNetwork));
             OnPropertyChanged(nameof(LabelConnectionTimeout));
             OnPropertyChanged(nameof(CaptionConnectionTimeout));
+            OnPropertyChanged(nameof(GroupImage));
+            OnPropertyChanged(nameof(LabelSrGpu));
+            OnPropertyChanged(nameof(CaptionSrGpu));
             OnPropertyChanged(nameof(GroupAbout));
             OnPropertyChanged(nameof(AboutTitle));
             OnPropertyChanged(nameof(AboutDesc));
