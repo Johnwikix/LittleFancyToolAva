@@ -31,6 +31,16 @@ namespace FancyToolAva.ViewModels
         public string GroupImage => LocalizationStrings.Current["Settings.Group_Image"];
         public string LabelSrGpu => LocalizationStrings.Current["Settings.Label_SrGpu"];
         public string CaptionSrGpu => LocalizationStrings.Current["Settings.Caption_SrGpu"];
+        public string LabelSrTileSize => LocalizationStrings.Current["Settings.Label_SrTileSize"];
+        public string CaptionSrTileSize => LocalizationStrings.Current["Settings.Caption_SrTileSize"];
+        public string SrTileMinMemory => LocalizationStrings.Current["Settings.SrTile_MinMemory"];
+        public string SrTileMemory => LocalizationStrings.Current["Settings.SrTile_Memory"];
+        public string SrTileBalanced => LocalizationStrings.Current["Settings.SrTile_Balanced"];
+        public string SrTileQuality => LocalizationStrings.Current["Settings.SrTile_Quality"];
+
+        private IReadOnlyList<string> _srTileOptions = [];
+
+        public IReadOnlyList<string> SrTileOptions => _srTileOptions;
         public string LabelConnectionTimeout => LocalizationStrings.Current["Settings.Label_ConnectionTimeout"];
         public string CaptionConnectionTimeout => LocalizationStrings.Current["Settings.Caption_ConnectionTimeout"];
         public string GroupAbout => LocalizationStrings.Current["Settings.Group_About"];
@@ -53,6 +63,17 @@ namespace FancyToolAva.ViewModels
             var currentCulture = I18nManager.Instance.Culture?.Name ?? "en-US";
             SelectedLanguage = AvailableLanguages.FirstOrDefault(l => l.Culture == currentCulture)
                             ?? AvailableLanguages[0];
+            RefreshSrTileOptions();
+        }
+
+        public void RefreshSrTileOptions()
+        {
+            _srTileOptions = [SrTileMinMemory, SrTileMemory, SrTileBalanced, SrTileQuality];
+            OnPropertyChanged(nameof(SrTileOptions));
+            OnPropertyChanged(nameof(SrTileMinMemory));
+            OnPropertyChanged(nameof(SrTileMemory));
+            OnPropertyChanged(nameof(SrTileBalanced));
+            OnPropertyChanged(nameof(SrTileQuality));
         }
 
         private void OnSelectedLanguageChanged(LanguageOption? value)
@@ -91,6 +112,9 @@ namespace FancyToolAva.ViewModels
             OnPropertyChanged(nameof(GroupImage));
             OnPropertyChanged(nameof(LabelSrGpu));
             OnPropertyChanged(nameof(CaptionSrGpu));
+            OnPropertyChanged(nameof(LabelSrTileSize));
+            OnPropertyChanged(nameof(CaptionSrTileSize));
+            RefreshSrTileOptions();
             OnPropertyChanged(nameof(GroupAbout));
             OnPropertyChanged(nameof(AboutTitle));
             OnPropertyChanged(nameof(AboutDesc));

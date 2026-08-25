@@ -74,5 +74,13 @@ namespace FancyToolAva.Models
             get => _useSuperResolutionDml;
             set => SetProperty(ref _useSuperResolutionDml, value);
         }
+
+        private int _superResolutionTileSizeIndex = 2;
+
+        public int SuperResolutionTileSizeIndex
+        {
+            get => _superResolutionTileSizeIndex;
+            set => SetProperty(ref _superResolutionTileSizeIndex, Math.Clamp(value, 0, 3));
+        }
     }
 }

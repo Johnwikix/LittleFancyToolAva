@@ -25,9 +25,9 @@ public sealed class SuperResolutionService : ISuperResolutionService
     private bool _dmlDisabled;
     private bool _dmlAvailable;
 
-    private const int TileSize = 512;
+    // Memory/speed tiers: padded window sizes (MinMemory, Memory, Balanced, Quality).
+    private static readonly int[] WindowSizes = [192, 288, 384, 576];
     private const int TilePad = 32;
-    private const int WindowSize = TileSize + TilePad * 2;
     private const int ModelScale = 4;
 
     private readonly AppPreferences _preferences;
@@ -80,6 +80,11 @@ public sealed class SuperResolutionService : ISuperResolutionService
         int outW = srcW * targetScale;
         int outH = srcH * targetScale;
 
+        // Padded window size comes from the user's memory/speed tier. Constant within
+        // a run: every tile uses the same shape, so ORT/DML reuse their compiled graph.
+        int windowSize = WindowSizes[Math.Clamp(_preferences.SuperResolutionTileSizeIndex, 0, WindowSizes.Length - 1)];
+        int tileSize = windowSize - TilePad * 2;
+
         progress?.Report(0.05);
 
         var outInfo = new SKImageInfo(outW, outH, SKColorType.Bgra8888, SKAlphaType.Premul);
@@ -87,30 +92,29 @@ public sealed class SuperResolutionService : ISuperResolutionService
 
         bool hasAlpha = srcBitmap.AlphaType != SKAlphaType.Opaque;
 
-        int totalTiles = CeilDiv(srcW, TileSize) * CeilDiv(srcH, TileSize);
+        int totalTiles = CeilDiv(srcW, tileSize) * CeilDiv(srcH, tileSize);
         int tileIndex = 0;
 
         try
         {
-            for (int y = 0; y < srcH; y += TileSize)
+            for (int y = 0; y < srcH; y += tileSize)
             {
                 ct.ThrowIfCancellationRequested();
-                int tileH = Math.Min(TileSize, srcH - y);
-                for (int x = 0; x < srcW; x += TileSize)
+                int tileH = Math.Min(tileSize, srcH - y);
+                for (int x = 0; x < srcW; x += tileSize)
                 {
-                    int tileW = Math.Min(TileSize, srcW - x);
+                    int tileW = Math.Min(tileSize, srcW - x);
 
-                    // Fixed 576x576 padded window: constant model input shape for every
-                    // tile. pads are constant TilePad; areas outside the source stay zero.
-                    // Constant shape avoids per-shape recompilation inside ORT/DML EP.
+                    // Constant padded window: identical model input shape for every
+                    // tile; pads are constant TilePad; areas outside the source stay zero.
                     int windowX = x - TilePad;
                     int windowY = y - TilePad;
                     int interX = Math.Clamp(windowX, 0, srcW);
                     int interY = Math.Clamp(windowY, 0, srcH);
-                    int interW = Math.Clamp(windowX + WindowSize, 0, srcW) - interX;
-                    int interH = Math.Clamp(windowY + WindowSize, 0, srcH) - interY;
+                    int interW = Math.Clamp(windowX + windowSize, 0, srcW) - interX;
+                    int interH = Math.Clamp(windowY + windowSize, 0, srcH) - interY;
 
-                    using var tileBitmap = new SKBitmap(WindowSize, WindowSize, srcBitmap.ColorType, srcBitmap.AlphaType);
+                    using var tileBitmap = new SKBitmap(windowSize, windowSize, srcBitmap.ColorType, srcBitmap.AlphaType);
                     using (var canvas = new SKCanvas(tileBitmap))
                     {
                         if (interW > 0 && interH > 0)
@@ -128,9 +132,9 @@ public sealed class SuperResolutionService : ISuperResolutionService
 
                     if (hasAlpha)
                     {
-                        var alphaInfo = new SKImageInfo(WindowSize * ModelScale, WindowSize * ModelScale, SKColorType.Bgra8888, SKAlphaType.Premul);
+                        var alphaInfo = new SKImageInfo(windowSize * ModelScale, windowSize * ModelScale, SKColorType.Bgra8888, SKAlphaType.Premul);
                         using var alphaTile = new SKBitmap(alphaInfo);
-                        UpsampleAlphaChannel(srcBitmap, alphaTile, windowX, windowY, WindowSize, WindowSize);
+                        UpsampleAlphaChannel(srcBitmap, alphaTile, windowX, windowY, windowSize, windowSize);
                         MergeAlphaIntoRgb(srTile, alphaTile);
                     }
 

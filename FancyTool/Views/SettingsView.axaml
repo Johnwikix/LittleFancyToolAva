@@ -95,6 +95,17 @@
                         <CheckBox Grid.Column="2" VerticalAlignment="Center"
                                   IsChecked="{Binding App.Preferences.UseSuperResolutionDml, Mode=TwoWay}" />
                     </Grid>
+                    <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,8,0,4">
+                        <StackPanel Grid.Column="0">
+                            <TextBlock FontWeight="SemiBold" Text="{Binding LabelSrTileSize}" />
+                            <TextBlock Classes="Caption" Text="{Binding CaptionSrTileSize}" />
+                        </StackPanel>
+                        <ComboBox Grid.Column="2"
+                                  Width="200" VerticalAlignment="Center"
+                                  IsEnabled="{Binding App.Preferences.UseSuperResolutionDml}"
+                                  ItemsSource="{Binding SrTileOptions}"
+                                  SelectedIndex="{Binding App.Preferences.SuperResolutionTileSizeIndex, Mode=TwoWay}" />
+                    </Grid>
                 </StackPanel>
             </Border>
 
