@@ -79,6 +79,10 @@
                                                   ItemsSource="{Binding AvailableSrScaleLabels}"
                                                   SelectedIndex="{Binding SelectedSrScaleIndex, Mode=TwoWay}" />
                                     </Grid>
+                                    <StackPanel IsVisible="{Binding IsSuperResolutionDownloading}" Spacing="4">
+                                        <ProgressBar Value="{Binding ModelDownloadProgress}" Minimum="0" Maximum="1" Height="6" />
+                                        <TextBlock Text="{Binding ModelDownloadStatusText}" FontSize="11" Opacity="0.8" TextWrapping="Wrap" />
+                                    </StackPanel>
                                 </StackPanel>
                             </StackPanel>
                         </StackPanel>

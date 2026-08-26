@@ -75,6 +75,11 @@ namespace FancyToolAva
                     DataContext = _serviceProvider.GetRequiredService<MainWindowViewModel>(),
                 };
 
+                // Touch the super-resolution service so its constructor runs and
+                // the background model warmup kicks off even before the user
+                // navigates to the image-convert page.
+                _ = _serviceProvider.GetRequiredService<ISuperResolutionService>();
+
                 desktop.Exit += async (_, _) =>
                 {
                     try
@@ -160,9 +165,11 @@ namespace FancyToolAva
 
             services.AddSingleton<IFileEncryptionService, FileEncryptionService>();
             services.AddSingleton<IFolderCompareService, FolderCompareService>();
+            services.AddHttpClient<ModelDownloadService>();
             services.AddSingleton<ISuperResolutionService>(sp => new SuperResolutionService(
                 sp.GetRequiredService<ILogger<SuperResolutionService>>(),
-                sp.GetRequiredService<AppPreferences>()));
+                sp.GetRequiredService<AppPreferences>(),
+                sp.GetRequiredService<ModelDownloadService>()));
             services.AddSingleton<IImageConversionService, ImageConversionService>();
 
             services.AddTransient<FileEncryptionViewModel>();

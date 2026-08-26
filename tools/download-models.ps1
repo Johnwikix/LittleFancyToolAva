@@ -1,19 +1,27 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-    Downloads Real-ESRGAN ONNX models used by FancyTool's Super Resolution feature.
+    (Deprecated) FancyTool now downloads its ONNX super-resolution models
+    automatically on first launch.
 
 .DESCRIPTION
-    Fetches the three Super Resolution models (all FLOAT16 precision) into the
-    FancyTool/Assets/Models directory. Models are not committed to the repository;
-    this script is the supported way to obtain them. Files already present are
-    verified against their pinned SHA256 and re-downloaded on mismatch.
+    Since the application ships without embedded model weights, the program
+    downloads the three Super-Resolution ONNX files at startup into
+    %LocalAppData%\FancyTool\Models (or ~/.local/share/fancy-tool/Models on
+    Linux). For China-based users the download goes via hf-mirror.com first,
+    falling back to huggingface.co. Files are SHA256-pinned.
+
+    This script is kept only as an offline pre-warm helper for development
+    machines: it downloads the same files into the source-tree
+    FancyTool/Assets/Models directory so a developer does not have to launch
+    the GUI to obtain them. The single source of truth for the URL/SHA256
+    table is FancyTool/Services/ModelManifest.cs.
 
 .NOTES
     The official xinntao/Real-ESRGAN releases ship only PyTorch (.pth) weights,
-    not ONNX. This script uses pre-converted fp16 ONNX exports hosted at
-    huggingface.co/universonic/RealESRGAN (BSD-3-Clause), which preserve the
-    original architectures and the expected preprocessing contract:
+    not ONNX. The pre-converted fp16 ONNX exports are hosted at
+    huggingface.co/universonic/RealESRGAN (BSD-3-Clause) and preserve the
+    expected preprocessing contract:
         Input:  NCHW FLOAT16 RGB, range [0, 1], dynamic H/W
         Output: NCHW FLOAT16 RGB, range [0, 1], 4x the spatial dimensions
 #>

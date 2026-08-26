@@ -12,6 +12,8 @@ public sealed class SuperResolutionService : ISuperResolutionService
     public const int MaxOutputDimension = 16384;
 
     private readonly ILogger<SuperResolutionService> _logger;
+    private readonly ModelDownloadService _downloader;
+    private readonly SynchronizationContext _uiContext;
     private readonly string _modelsDirectory;
     private readonly Dictionary<SuperResolutionModel, InferenceSession> _sessions = new();
     private readonly Dictionary<SuperResolutionModel, string> _inputNames = new();
@@ -31,12 +33,81 @@ public sealed class SuperResolutionService : ISuperResolutionService
     private const int ModelScale = 4;
 
     private readonly AppPreferences _preferences;
+    private Task? _warmupTask;
+    private CancellationTokenSource? _warmupCts;
+    private string? _lastDownloadError;
+    private readonly Dictionary<SuperResolutionModel, double> _perModelProgress = new();
+    private string? _activeFileName;
 
-    public SuperResolutionService(ILogger<SuperResolutionService> logger, AppPreferences preferences)
+    public event Action<ModelDownloadProgress>? DownloadProgressChanged;
+    public event EventHandler<bool>? IsDownloadingChanged;
+
+    public Task WarmupTask => _warmupTask ?? Task.CompletedTask;
+
+    private bool _isDownloading;
+    public bool IsDownloading
+    {
+        get => _isDownloading;
+        private set
+        {
+            if (_isDownloading == value) return;
+            _isDownloading = value;
+            IsDownloadingChanged?.Invoke(this, value);
+        }
+    }
+
+    public string? LastDownloadError => _lastDownloadError;
+
+    public SuperResolutionService(
+        ILogger<SuperResolutionService> logger,
+        AppPreferences preferences,
+        ModelDownloadService downloader)
     {
         _logger = logger;
         _preferences = preferences;
-        _modelsDirectory = Path.Combine(AppContext.BaseDirectory, "Assets", "Models");
+        _downloader = downloader;
+        _uiContext = SynchronizationContext.Current ?? new SynchronizationContext();
+        _modelsDirectory = AppPaths.ModelsDirectory;
+        _warmupTask = StartWarmupAsync();
+    }
+
+    private async Task StartWarmupAsync()
+    {
+        // Defer to a background thread so the UI thread isn't blocked on the
+        // first read of each file (33 MB ONNX IO + SHA256 is non-trivial).
+        await Task.Yield();
+        IsDownloading = true;
+        OnDownloadProgress(new ModelDownloadProgress(
+            string.Empty, ModelDownloadStage.Connecting, 0, null, "正在准备…"));
+        try
+        {
+            _warmupCts = new CancellationTokenSource();
+            var progress = new Progress<ModelDownloadProgress>(OnDownloadProgress);
+            await _downloader
+                .EnsureModelsAsync(ModelManifest.RealEsrgan, _modelsDirectory, progress, _warmupCts.Token)
+                .ConfigureAwait(false);
+            _lastDownloadError = null;
+            _logger.LogInformation("All super-resolution models are ready in {Dir}", _modelsDirectory);
+        }
+        catch (OperationCanceledException)
+        {
+            // App shutting down. Nothing to do.
+        }
+        catch (Exception ex)
+        {
+            _lastDownloadError = ex.Message;
+            _logger.LogError(ex, "Model warmup failed");
+        }
+        finally
+        {
+            IsDownloading = false;
+        }
+    }
+
+    private void OnDownloadProgress(ModelDownloadProgress p)
+    {
+        _activeFileName ??= p.FileName;
+        _uiContext.Post(_ => DownloadProgressChanged?.Invoke(p), null);
     }
 
     public IReadOnlyList<string> AvailableModels { get; } = new[]
@@ -68,9 +139,12 @@ public sealed class SuperResolutionService : ISuperResolutionService
         if (!IsModelAvailable(model))
         {
             string name = GetFileName(model);
-            throw new FileNotFoundException(
-                $"Super-resolution model '{name}' not found in '{_modelsDirectory}'. Run tools\\download-models.ps1 to fetch it.",
-                name);
+            string detail = _isDownloading
+                ? $"正在下载模型 '{name}'，请稍候。"
+                : !string.IsNullOrEmpty(_lastDownloadError)
+                    ? $"模型 '{name}' 下载失败：{_lastDownloadError}。可重启程序重试。"
+                    : $"模型 '{name}' 不存在，请重启程序自动下载。";
+            throw new FileNotFoundException(detail, name);
         }
 
         var srcBitmap = source;
@@ -604,6 +678,8 @@ public sealed class SuperResolutionService : ISuperResolutionService
 
     public void Dispose()
     {
+        try { _warmupCts?.Cancel(); } catch { }
+        _warmupCts?.Dispose();
         ReleaseSessions();
         lock (_lock)
         {

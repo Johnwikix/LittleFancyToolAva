@@ -139,9 +139,38 @@ public partial class ImageConvertViewModel : ViewModelBase, IViewState, IFileIte
         IsSuperResolutionEnabled
         && SelectedSrModelIndex >= 0
         && SelectedSrModelIndex < AvailableSuperResolutionModels.Count
-        && _superResolutionService.IsModelAvailable(AvailableSuperResolutionModels[SelectedSrModelIndex]);
+        && (_superResolutionService.IsModelAvailable(AvailableSuperResolutionModels[SelectedSrModelIndex])
+            || IsSuperResolutionDownloading);
 
-    public bool ShowModelMissingHint => IsSuperResolutionEnabled && !IsSuperResolutionReady;
+    public bool ShowModelMissingHint =>
+        IsSuperResolutionEnabled
+        && !IsSuperResolutionReady
+        && !IsSuperResolutionDownloading
+        && string.IsNullOrEmpty(_superResolutionService.LastDownloadError);
+
+    public bool IsSuperResolutionDownloading => _superResolutionService.IsDownloading;
+
+    public double ModelDownloadProgress
+    {
+        get => field;
+        private set => SetProperty(ref field, value);
+    } = 0.0;
+
+    public string ModelDownloadStatusText
+    {
+        get => field ?? string.Empty;
+        private set => SetProperty(ref field, value);
+    } = string.Empty;
+
+    public bool ModelDownloadHasError
+    {
+        get => field;
+        private set
+        {
+            if (SetProperty(ref field, value))
+                OnPropertyChanged(nameof(ShowModelMissingHint));
+        }
+    }
 
     public bool IsIcoMode => FormatIndex >= 0 && FormatIndex < AvailableFormats.Count && AvailableFormats[FormatIndex] == "ico";
 
@@ -214,7 +243,38 @@ public partial class ImageConvertViewModel : ViewModelBase, IViewState, IFileIte
         AvailableSrModelLabels.Add(LocalizationRegistry.Get("ImageConvert.SrModel_RealEsrganX4"));
         AvailableSrModelLabels.Add(LocalizationRegistry.Get("ImageConvert.SrModel_RealEsrganX4Anime"));
         AvailableSrModelLabels.Add(LocalizationRegistry.Get("ImageConvert.SrModel_RealEsrganGeneralX4v3"));
+        _superResolutionService.DownloadProgressChanged += OnDownloadProgressChanged;
+        _superResolutionService.IsDownloadingChanged += OnIsDownloadingChanged;
         UpdateStatusText();
+    }
+
+    private void OnIsDownloadingChanged(object? sender, bool downloading)
+    {
+        OnPropertyChanged(nameof(IsSuperResolutionDownloading));
+        OnPropertyChanged(nameof(IsSuperResolutionReady));
+        OnPropertyChanged(nameof(ShowModelMissingHint));
+    }
+
+    private void OnDownloadProgressChanged(ModelDownloadProgress p)
+    {
+        ModelDownloadHasError = p.Stage == ModelDownloadStage.Failed;
+        if (p.Stage == ModelDownloadStage.Failed)
+        {
+            ModelDownloadStatusText = p.Message ?? p.FileName;
+        }
+        else if (p.TotalBytes is long total && total > 0)
+        {
+            ModelDownloadProgress = Math.Clamp((double)p.BytesDownloaded / total, 0, 1);
+            ModelDownloadStatusText =
+                $"{p.FileName}  {(p.BytesDownloaded / 1024.0 / 1024.0):0.0} / {(total / 1024.0 / 1024.0):0.0} MB";
+        }
+        else
+        {
+            ModelDownloadStatusText = p.Message ?? p.Stage.ToString();
+        }
+        OnPropertyChanged(nameof(IsSuperResolutionReady));
+        OnPropertyChanged(nameof(IsSuperResolutionDownloading));
+        OnPropertyChanged(nameof(ShowModelMissingHint));
     }
 
     object IViewState.CaptureState() => new ImageConvertViewState
@@ -244,7 +304,10 @@ public partial class ImageConvertViewModel : ViewModelBase, IViewState, IFileIte
                 ? s.SelectedSrModelIndex
                 : 0;
             SelectedSrScaleIndex = s.SelectedSrScaleIndex is 0 or 1 ? s.SelectedSrScaleIndex : 0;
-            IsSuperResolutionEnabled = s.IsSuperResolutionEnabled && IsSuperResolutionReady;
+            // Always restore the SR checkbox. If the model isn't ready yet (still
+            // downloading or download failed), IsSuperResolutionReady / the
+            // download-progress UI / ShowModelMissingHint already convey that.
+            IsSuperResolutionEnabled = s.IsSuperResolutionEnabled;
         }
     }
 
@@ -383,6 +446,11 @@ public partial class ImageConvertViewModel : ViewModelBase, IViewState, IFileIte
         string format = AvailableFormats[FormatIndex];
 
         bool srEnabled = IsSuperResolutionEnabled && IsSuperResolutionReady && !IsIcoMode;
+        if (IsSuperResolutionEnabled && !IsSuperResolutionReady && IsSuperResolutionDownloading)
+        {
+            _notificationService.ShowWarn(LocalizationRegistry.Get("ImageConvert.Msg_SrModelDownloading"));
+            return;
+        }
         SuperResolutionModel? srModel = srEnabled ? AvailableSuperResolutionModels[SelectedSrModelIndex] : null;
         int srScale = AvailableSrScales[SelectedSrScaleIndex];
 

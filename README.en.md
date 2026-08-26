@@ -194,9 +194,13 @@ This project is licensed under the [MIT License](LICENSE).
 
 Application data is stored at:
 
-- **Log directory**: `{AppBaseDirectory}\logs\`, daily rolling, ≤ 50 MB per file, 30 days retained
+- **Preferences & logs**: `%LocalAppData%\FancyTool\` (under MSIX the system transparently redirects this to the package's LocalCache; on Linux the equivalent is `~/.local/share/fancy-tool/`)
+- **Log subdirectory**: `logs\`, daily rolling, ≤ 50 MB per file, 30 days retained
 - **Per-tool page state**: serialized by `IViewStateService` on exit and restored on launch
 - **App preferences** : managed by `AppPreferences`
+- **Super-resolution models**: stored under `Models\` and **downloaded automatically from HuggingFace on first launch** (via `hf-mirror.com` first, falling back to the official source). Once downloaded, they remain on disk for offline use. Models are no longer shipped inside the installer.
+  - Power users can override the mirror by setting the `HF_ENDPOINT` environment variable.
+  - If you used an older build that stored `preferences.json` next to the executable, it is migrated to `%LocalAppData%\FancyTool\` on first launch.
 
 ---
 

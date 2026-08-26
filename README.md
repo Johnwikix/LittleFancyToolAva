@@ -194,9 +194,13 @@ dotnet run -c Debug
 
 应用程序数据存储位置：
 
-- 日志目录：`{AppBaseDirectory}\logs\`，按天滚动，单文件 ≤ 50 MB，保留 30 天
+- 偏好与日志目录：`%LocalAppData%\FancyTool\`（MSIX 下由系统重定向到包内的 LocalCache，Linux 等价于 `~/.local/share/fancy-tool/`）
+- 日志子目录：`logs\`，按天滚动，单文件 ≤ 50 MB，保留 30 天
 - 工具页面状态：通过 `IViewStateService` 在应用退出时序列化，启动时还原
 - 应用偏好：由 `AppPreferences` 管理
+- **超分模型**：`Models\` 子目录，首次启动时**自动从 HuggingFace 下载**（国内走 `hf-mirror.com`，失败回退官方源），下载一次后保留供离线运行；不再随安装包分发
+  - 海外/高级用户可通过设置系统环境变量 `HF_ENDPOINT` 自定义镜像站
+  - 旧版本若把 `preferences.json` 放在 EXE 旁，首次启动会自动迁移到 `%LocalAppData%\FancyTool\`
 
 ---
 

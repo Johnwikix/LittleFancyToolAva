@@ -23,4 +23,17 @@ public interface ISuperResolutionService : IDisposable
         CancellationToken ct = default);
 
     void ReleaseSessions();
+
+    // ── Model download state (consumed by the UI) ─────────────────────────
+    Task WarmupTask { get; }
+
+    bool IsDownloading { get; }
+
+    string? LastDownloadError { get; }
+
+    /// <summary>Raised on the captured SynchronizationContext for UI consumption.</summary>
+    event Action<ModelDownloadProgress>? DownloadProgressChanged;
+
+    /// <summary>Raised when <see cref="IsDownloading"/> flips, so the UI can refresh.</summary>
+    event EventHandler<bool>? IsDownloadingChanged;
 }
