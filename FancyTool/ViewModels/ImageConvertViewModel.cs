@@ -243,6 +243,8 @@ public partial class ImageConvertViewModel : ViewModelBase, IViewState, IFileIte
         AvailableSrModelLabels.Add(LocalizationRegistry.Get("ImageConvert.SrModel_RealEsrganX4"));
         AvailableSrModelLabels.Add(LocalizationRegistry.Get("ImageConvert.SrModel_RealEsrganX4Anime"));
         AvailableSrModelLabels.Add(LocalizationRegistry.Get("ImageConvert.SrModel_RealEsrganGeneralX4v3"));
+        AvailableSrModelLabels.Add(LocalizationRegistry.Get("ImageConvert.SrModel_UltraSharpX4"));
+        AvailableSrModelLabels.Add(LocalizationRegistry.Get("ImageConvert.SrModel_SpanClearRealityV1"));
         _superResolutionService.DownloadProgressChanged += OnDownloadProgressChanged;
         _superResolutionService.IsDownloadingChanged += OnIsDownloadingChanged;
         UpdateStatusText();

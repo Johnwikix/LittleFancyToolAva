@@ -114,7 +114,9 @@ public sealed class SuperResolutionService : ISuperResolutionService
     {
         "RealESRGAN_x4plus",
         "RealESRGAN_x4plus_anime",
-        "realesr-general-x4v3_fp16"
+        "realesr-general-x4v3_fp16",
+        "4x-UltraSharp_fp16",
+        "4x-ClearRealityV1_fp16"
     };
 
     public bool IsModelAvailable(SuperResolutionModel model)
@@ -651,6 +653,8 @@ public sealed class SuperResolutionService : ISuperResolutionService
         SuperResolutionModel.RealEsrganX4Plus => "RealESRGAN_x4plus.onnx",
         SuperResolutionModel.RealEsrganX4PlusAnime => "RealESRGAN_x4plus_anime.onnx",
         SuperResolutionModel.RealEsrganGeneralX4V3 => "realesr-general-x4v3_fp16.onnx",
+        SuperResolutionModel.UltraSharpX4 => "4x-UltraSharp_fp16.onnx",
+        SuperResolutionModel.SpanClearRealityV1 => "4x-ClearRealityV1_fp16.onnx",
         _ => throw new ArgumentOutOfRangeException(nameof(model))
     };
 

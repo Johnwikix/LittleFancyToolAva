@@ -6,7 +6,9 @@ public enum SuperResolutionModel
 {
     RealEsrganX4Plus = 0,
     RealEsrganX4PlusAnime = 1,
-    RealEsrganGeneralX4V3 = 2
+    RealEsrganGeneralX4V3 = 2,
+    UltraSharpX4 = 3,
+    SpanClearRealityV1 = 4
 }
 
 public interface ISuperResolutionService : IDisposable

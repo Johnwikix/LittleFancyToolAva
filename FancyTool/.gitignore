@@ -10,7 +10,7 @@
 *.userosscache
 *.sln.docstates
 
-# Super-resolution ONNX models (downloaded via tools/download-models.ps1)
+# Super-resolution ONNX models (auto-downloaded at runtime to %LocalAppData%/FancyTool/Models)
 Assets/Models/*.onnx
 Assets/Models/*.onnx.download
 
