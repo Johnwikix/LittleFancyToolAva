@@ -607,9 +607,12 @@ public sealed class SuperResolutionService : ISuperResolutionService
     {
         // Attempt DML per session creation (not only for the first model). DML is
         // skipped when disabled at runtime (failure fallback) or via user settings.
+        // DirectML is Windows-only; on Linux we go straight to the CPU EP rather
+        // than probing the provider every session.
         var options = new SessionOptions();
 
-        if (WantDml())
+        bool dmlRequested = WantDml() && OperatingSystem.IsWindows();
+        if (dmlRequested)
         {
             try
             {
@@ -626,7 +629,7 @@ public sealed class SuperResolutionService : ISuperResolutionService
         else
         {
             _dmlAvailable = false;
-            _logger.LogWarning("Super-resolution: GPU acceleration disabled (setting or SR_FORCE_CPU); using CPU EP.");
+            _logger.LogWarning("Super-resolution: GPU acceleration disabled (setting, SR_FORCE_CPU, or non-Windows); using CPU EP.");
         }
 
         if (!_dmlAvailable)
