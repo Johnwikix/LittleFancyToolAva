@@ -219,6 +219,13 @@ public partial class VideoFileItem : ObservableObject
 
     public VideoFileItem(string filePath) { FilePath = filePath; RefreshStatusDisplay(); }
 
+    public void RefreshLocalization()
+    {
+        RefreshStatusDisplay();
+        RefreshProgressDisplay();
+        OnPropertyChanged(nameof(ProbeDisplay));
+    }
+
     [RelayCommand]
     private void Remove()
     {

@@ -1,9 +1,11 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Globalization;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Lang.Avalonia;
 using FancyToolAva.Models;
 using FancyToolAva.Models.ViewStates;
 using FancyToolAva.Services;
@@ -518,6 +520,7 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
         FileItems.CollectionChanged += (_, _) => InvalidateStartTranscode();
         FfmpegDirectory = _preferences.CustomFfmpegDirectory ?? AppPaths.FfmpegBringYourOwnDirectory;
         _ffmpegService.AvailabilityChanged += OnFfmpegAvailabilityChanged;
+        I18nManager.Instance.CultureChanged += OnCultureChanged;
         UpdateStatusText();
     }
 
@@ -529,6 +532,18 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
             OnPropertyChanged(nameof(FfmpegStatusText));
             OnPropertyChanged(nameof(ShowFfmpegMissing));
             InvalidateStartTranscode();
+        });
+    }
+
+    private void OnCultureChanged(object? sender, EventArgs e)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            UpdateStatusText();
+            OnPropertyChanged(nameof(FfmpegStatusText));
+            foreach (var item in FileItems) item.RefreshLocalization();
+            // Re-validate to regenerate LastError in new language
+            _ = _ffmpegService.ValidateAsync();
         });
     }
 
@@ -1110,6 +1125,7 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
         if (_isDisposed) return;
         _isDisposed = true;
         _ffmpegService.AvailabilityChanged -= OnFfmpegAvailabilityChanged;
+        try { I18nManager.Instance.CultureChanged -= OnCultureChanged; } catch { }
         _cts?.Cancel();
         _cts?.Dispose();
         _viewStateService.Unregister(this);
