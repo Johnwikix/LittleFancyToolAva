@@ -78,6 +78,16 @@
                             </Grid>
                         </Border>
 
+                        <!-- Hardware : 显式三选一 -->
+                        <Border Background="{DynamicResource CardBackgroundFillColorSecondaryBrush}" CornerRadius="6" Padding="12" IsVisible="{Binding !IsGifMode}">
+                            <StackPanel Spacing="6">
+                                <TextBlock Text="{lan:I18n VideoTranscode.Label_Hardware}" FontWeight="Bold" FontSize="13" />
+                                <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding HardwareBackendLabels}" SelectedIndex="{Binding HardwareBackendIndex, Mode=TwoWay}" />
+                                <TextBlock Text="{lan:I18n VideoTranscode.Hint_Hardware}" FontSize="11" Opacity="0.6" TextWrapping="Wrap" />
+                                <TextBlock Text="{lan:I18n VideoTranscode.Hint_HardwareVaapi}" FontSize="11" Opacity="0.6" TextWrapping="Wrap" IsVisible="{Binding IsVaapiBackend}" />
+                            </StackPanel>
+                        </Border>
+
                         <!-- Quality : 核心区高亮 -->
                         <Border Background="{DynamicResource CardBackgroundFillColorSecondaryBrush}" CornerRadius="6" Padding="12" IsVisible="{Binding !IsGifMode}">
                             <StackPanel Spacing="10">

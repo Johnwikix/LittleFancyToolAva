@@ -25,6 +25,14 @@ public enum VideoCodec
     Gif = 7
 }
 
+public enum HardwareBackend
+{
+    Software = 0,
+    Nvidia = 1, // NVENC
+    Intel = 2,  // QSV on Windows, VAAPI on Linux
+    Amd = 3     // AMF on Windows, VAAPI on Linux
+}
+
 public enum AudioCodec
 {
     Aac = 0,
@@ -148,6 +156,7 @@ public sealed class VideoTranscodeOptions
     public bool TwoPassEnabled { get; set; }
     public int AudioBitrateKbps { get; set; } = 128;
     public PresetLevel Preset { get; set; } = PresetLevel.Medium;
+    public HardwareBackend HardwareBackend { get; set; } = HardwareBackend.Software;
     public string Profile { get; set; } = ""; // e.g. high, main
     public string Level { get; set; } = "";
 

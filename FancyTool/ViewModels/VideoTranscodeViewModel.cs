@@ -182,6 +182,23 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
         }
     } = 0;
 
+    public List<string> HardwareBackendLabels { get; } = ["Software (CPU)", "NVIDIA NVENC", "Intel QSV/VAAPI", "AMD AMF/VAAPI"];
+    public int HardwareBackendIndex
+    {
+        get => field;
+        set
+        {
+            if (SetProperty(ref field, value))
+            {
+                OnPropertyChanged(nameof(IsVaapiBackend));
+                OnPropertyChanged(nameof(ShowTwoPass));
+                // Hardware change does not reset preset, but two-pass visibility changes
+            }
+        }
+    } = 0;
+
+    public bool IsVaapiBackend => ((HardwareBackend)HardwareBackendIndex == HardwareBackend.Intel || (HardwareBackend)HardwareBackendIndex == HardwareBackend.Amd) && !OperatingSystem.IsWindows();
+
     public List<string> RateControlLabels { get; } = ["CRF / Quality", "Bitrate"];
     public int RateControlIndex
     {
@@ -200,7 +217,7 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
 
     public bool IsCrfMode => RateControlIndex == 0;
     public bool IsBitrateMode => RateControlIndex == 1;
-    public bool ShowTwoPass => IsBitrateMode && !IsGifMode;
+    public bool ShowTwoPass => IsBitrateMode && !IsGifMode && HardwareBackendIndex == 0;
     public bool IsTwoPassEnabled
     {
         get => field;
@@ -552,10 +569,13 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
         _isApplyingPreset = true;
         try
         {
+            bool isHw = HardwareBackendIndex != 0;
             void ApplyFast(int w, int h, string codecLabel)
             {
+                // HW presets default to HEVC (265) as requested
+                string effectiveCodec = isHw && codecLabel == "H.264 (x264)" ? "H.265 (x265)" : codecLabel;
                 ContainerIndex = 0; // MP4
-                SetCodecByLabel(codecLabel);
+                SetCodecByLabel(effectiveCodec);
                 RateControlIndex = 0; CrfValue = 22; PresetIndex = 4; // Fast
                 ScaleModeIndex = 1; ScaleWidth = w; ScaleHeight = h; KeepAspect = true;
                 FpsModeIndex = 0; DeinterlaceIndex = 0; DenoiseIndex = 0;
@@ -563,8 +583,9 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
             }
             void ApplyHQ(int w, int h, string codecLabel)
             {
+                string effectiveCodec = isHw && codecLabel == "H.264 (x264)" ? "H.265 (x265)" : codecLabel;
                 ContainerIndex = 0;
-                SetCodecByLabel(codecLabel);
+                SetCodecByLabel(effectiveCodec);
                 RateControlIndex = 0; CrfValue = 20; PresetIndex = 6; // Slow
                 ScaleModeIndex = 1; ScaleWidth = w; ScaleHeight = h; KeepAspect = true;
                 FpsModeIndex = 0; DeinterlaceIndex = 1; DenoiseIndex = 0;
@@ -628,6 +649,7 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
         Crf = CrfValue,
         VideoBitrateKbps = VideoBitrateKbps,
         TwoPassEnabled = IsTwoPassEnabled,
+        HardwareBackend = HardwareBackendIndex,
         AudioBitrateKbps = AudioBitrateKbps,
         PresetIndex = PresetIndex,
         ScaleModeIndex = ScaleModeIndex,
@@ -667,6 +689,7 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
                 CrfValue = Math.Clamp(s.Crf, 0, 51);
                 VideoBitrateKbps = s.VideoBitrateKbps;
                 IsTwoPassEnabled = s.TwoPassEnabled;
+                HardwareBackendIndex = Math.Clamp(s.HardwareBackend, 0, HardwareBackendLabels.Count - 1);
                 AudioBitrateKbps = s.AudioBitrateKbps;
                 PresetIndex = Math.Clamp(s.PresetIndex, 0, PresetLabels.Count - 1);
                 ScaleModeIndex = Math.Clamp(s.ScaleModeIndex, 0, ScaleModeLabels.Count - 1);
@@ -910,7 +933,7 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
         var options = BuildOptions();
 
         // Validate encoder availability
-        string vCodecName = MapVideoCodecName(options.VideoCodec);
+        string vCodecName = MapVideoCodecName(options.VideoCodec, options.HardwareBackend);
         if (!_ffmpegService.ValidateEncoder(vCodecName) && vCodecName != "gif")
         {
             // Still allow try, but warn
@@ -1009,7 +1032,8 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
             RateControl = RateControlIndex == 0 ? RateControlMode.Crf : RateControlMode.Bitrate,
             Crf = CrfValue,
             VideoBitrateKbps = VideoBitrateKbps,
-            TwoPassEnabled = IsTwoPassEnabled && IsBitrateMode && !IsGifMode,
+            TwoPassEnabled = IsTwoPassEnabled && IsBitrateMode && !IsGifMode && HardwareBackendIndex == 0,
+            HardwareBackend = (HardwareBackend)HardwareBackendIndex,
             AudioBitrateKbps = AudioBitrateKbps,
             Preset = (PresetLevel)PresetIndex,
             ScaleMode = (ScaleMode)ScaleModeIndex,
@@ -1071,18 +1095,43 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
         };
     }
 
-    private static string MapVideoCodecName(VideoCodec c) => c switch
+    private static string MapVideoCodecName(VideoCodec c, HardwareBackend hw = HardwareBackend.Software)
     {
-        VideoCodec.H264 => "libx264",
-        VideoCodec.H265 => "libx265",
-        VideoCodec.Av1Aom => "libaom-av1",
-        VideoCodec.Av1Svt => "libsvtav1",
-        VideoCodec.Vp8 => "libvpx",
-        VideoCodec.Vp9 => "libvpx-vp9",
-        VideoCodec.Mpeg4 => "mpeg4",
-        VideoCodec.Gif => "gif",
-        _ => "libx264"
-    };
+        bool isVaapi = (hw == HardwareBackend.Intel || hw == HardwareBackend.Amd) && !OperatingSystem.IsWindows();
+        return (c, hw, isVaapi) switch
+        {
+            (VideoCodec.H264, HardwareBackend.Nvidia, _) => "h264_nvenc",
+            (VideoCodec.H265, HardwareBackend.Nvidia, _) => "hevc_nvenc",
+            (VideoCodec.Av1Aom, HardwareBackend.Nvidia, _) => "av1_nvenc",
+            (VideoCodec.Av1Svt, HardwareBackend.Nvidia, _) => "av1_nvenc",
+            (VideoCodec.H264, HardwareBackend.Intel, false) => "h264_qsv",
+            (VideoCodec.H265, HardwareBackend.Intel, false) => "hevc_qsv",
+            (VideoCodec.Av1Aom, HardwareBackend.Intel, false) => "av1_qsv",
+            (VideoCodec.Av1Svt, HardwareBackend.Intel, false) => "av1_qsv",
+            (VideoCodec.H264, HardwareBackend.Amd, false) => "h264_amf",
+            (VideoCodec.H265, HardwareBackend.Amd, false) => "hevc_amf",
+            (VideoCodec.Av1Aom, HardwareBackend.Amd, false) => "av1_amf",
+            (VideoCodec.Av1Svt, HardwareBackend.Amd, false) => "av1_amf",
+            (VideoCodec.H264, _, true) => "h264_vaapi",
+            (VideoCodec.H265, _, true) => "hevc_vaapi",
+            (VideoCodec.Av1Aom, _, true) => "av1_vaapi",
+            (VideoCodec.Av1Svt, _, true) => "av1_vaapi",
+            (VideoCodec.Vp8, _, true) => "vp8_vaapi",
+            (VideoCodec.Vp9, _, true) => "vp9_vaapi",
+            _ => c switch
+            {
+                VideoCodec.H264 => "libx264",
+                VideoCodec.H265 => "libx265",
+                VideoCodec.Av1Aom => "libaom-av1",
+                VideoCodec.Av1Svt => "libsvtav1",
+                VideoCodec.Vp8 => "libvpx",
+                VideoCodec.Vp9 => "libvpx-vp9",
+                VideoCodec.Mpeg4 => "mpeg4",
+                VideoCodec.Gif => "gif",
+                _ => "libx264"
+            }
+        };
+    }
 
     private static string GetUniqueOutputPath(string folder, string fileName, VideoContainer container) => GetOutputPath(folder, fileName, container, false);
 

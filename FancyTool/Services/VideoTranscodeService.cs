@@ -224,7 +224,7 @@ public sealed class VideoTranscodeService : IVideoTranscodeService
         string tmpPath = BuildTmpPath(outputPath);
         Directory.CreateDirectory(Path.GetDirectoryName(outputPath) ?? ".");
 
-        bool useTwoPass = options.TwoPassEnabled && options.RateControl == RateControlMode.Bitrate && options.Container != VideoContainer.Gif;
+        bool useTwoPass = options.TwoPassEnabled && options.RateControl == RateControlMode.Bitrate && options.Container != VideoContainer.Gif && options.HardwareBackend == HardwareBackend.Software;
         if (useTwoPass)
         {
             string passLog = Path.Combine(Path.GetTempPath(), $"ffmpeg2pass_{Guid.NewGuid():N}");
@@ -427,6 +427,8 @@ public sealed class VideoTranscodeService : IVideoTranscodeService
     {
         var sb = new StringBuilder();
         sb.Append("-y -hide_banner ");
+        if (IsVaapiBackend(o.HardwareBackend))
+            sb.Append("-vaapi_device /dev/dri/renderD128 ");
         sb.Append($"-i \"{input}\" ");
 
         // Filters (same as normal, but without audio)
@@ -440,13 +442,14 @@ public sealed class VideoTranscodeService : IVideoTranscodeService
             if (o.FpsMode == FpsMode.Fixed) filters.Add($"fps={o.FpsValue.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
             else if (o.FpsMode == FpsMode.Peak) filters.Add($"fps={o.FpsValue.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
         }
+        if (IsVaapiBackend(o.HardwareBackend)) filters.Add("format=nv12,hwupload");
         if (filters.Count > 0) sb.Append($"-vf \"{string.Join(",", filters)}\" ");
 
         var (vCodecName, vCodecArgs) = MapVideoCodec(o);
         sb.Append($"-c:v {vCodecName} ");
         if (!string.IsNullOrEmpty(vCodecArgs)) sb.Append($"{vCodecArgs} ");
         sb.Append($"-b:v {o.VideoBitrateKbps}k ");
-        sb.Append($"-preset {MapPreset(o.Preset)} ");
+        sb.Append($"-preset {MapPreset(o.Preset, o.HardwareBackend)} ");
         if (o.VideoCodec == VideoCodec.H264 || o.VideoCodec == VideoCodec.H265)
             sb.Append($"-maxrate {o.VideoBitrateKbps}k -bufsize {o.VideoBitrateKbps * 2}k ");
         if (!string.IsNullOrEmpty(o.Profile)) sb.Append($"-profile:v {o.Profile} ");
@@ -463,6 +466,8 @@ public sealed class VideoTranscodeService : IVideoTranscodeService
     {
         var sb = new StringBuilder();
         sb.Append("-y -hide_banner ");
+        if (IsVaapiBackend(o.HardwareBackend))
+            sb.Append("-vaapi_device /dev/dri/renderD128 ");
         sb.Append($"-i \"{input}\" ");
 
         // GIF special handling
@@ -523,6 +528,7 @@ public sealed class VideoTranscodeService : IVideoTranscodeService
             if (o.FpsMode == FpsMode.Fixed) filters.Add($"fps={o.FpsValue.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
             else if (o.FpsMode == FpsMode.Peak) filters.Add($"fps={o.FpsValue.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
         }
+        if (IsVaapiBackend(o.HardwareBackend)) filters.Add("format=nv12,hwupload");
 
         if (filters.Count > 0)
         {
@@ -537,10 +543,10 @@ public sealed class VideoTranscodeService : IVideoTranscodeService
         // Rate control
         if (o.RateControl == RateControlMode.Crf)
         {
-            string crfArg = MapCrfArg(o.VideoCodec, o.Crf);
+            string crfArg = MapCrfArg(o.VideoCodec, o.Crf, o.HardwareBackend);
             if (!string.IsNullOrEmpty(crfArg)) sb.Append($"{crfArg} ");
             // For x264/x265 CRF, also set preset
-            sb.Append($"-preset {MapPreset(o.Preset)} ");
+            sb.Append($"-preset {MapPreset(o.Preset, o.HardwareBackend)} ");
             // Bitrate 0 for CRF
             if (o.VideoCodec == VideoCodec.Vp9 || o.VideoCodec == VideoCodec.Vp8 || o.VideoCodec == VideoCodec.Av1Aom)
                 sb.Append("-b:v 0 ");
@@ -548,7 +554,7 @@ public sealed class VideoTranscodeService : IVideoTranscodeService
         else
         {
             sb.Append($"-b:v {o.VideoBitrateKbps}k ");
-            sb.Append($"-preset {MapPreset(o.Preset)} ");
+            sb.Append($"-preset {MapPreset(o.Preset, o.HardwareBackend)} ");
             if (o.VideoCodec == VideoCodec.H264 || o.VideoCodec == VideoCodec.H265)
                 sb.Append($"-maxrate {o.VideoBitrateKbps}k -bufsize {o.VideoBitrateKbps * 2}k ");
         }
@@ -612,18 +618,62 @@ public sealed class VideoTranscodeService : IVideoTranscodeService
         _ => "hqdn3d"
     };
 
-    private static (string Name, string Args) MapVideoCodec(VideoTranscodeOptions o) => o.VideoCodec switch
+    private static bool IsVaapiBackend(HardwareBackend hw) => (hw == HardwareBackend.Intel || hw == HardwareBackend.Amd) && !OperatingSystem.IsWindows();
+
+    private static string MapHardwareEncoder(VideoCodec codec, HardwareBackend hw)
     {
-        VideoCodec.H264 => ("libx264", "-pix_fmt yuv420p"),
-        VideoCodec.H265 => ("libx265", "-pix_fmt yuv420p"),
-        VideoCodec.Av1Aom => ("libaom-av1", "-pix_fmt yuv420p -strict experimental"),
-        VideoCodec.Av1Svt => ("libsvtav1", "-pix_fmt yuv420p"),
-        VideoCodec.Vp8 => ("libvpx", "-pix_fmt yuv420p -auto-alt-ref 1 -lag-in-frames 25"),
-        VideoCodec.Vp9 => ("libvpx-vp9", "-pix_fmt yuv420p -auto-alt-ref 1 -lag-in-frames 25"),
-        VideoCodec.Mpeg4 => ("mpeg4", "-pix_fmt yuv420p"),
-        VideoCodec.Gif => ("gif", ""),
-        _ => ("libx264", "")
-    };
+        bool isVaapi = IsVaapiBackend(hw);
+        return (codec, hw, isVaapi) switch
+        {
+            (VideoCodec.H264, HardwareBackend.Nvidia, _) => "h264_nvenc",
+            (VideoCodec.H265, HardwareBackend.Nvidia, _) => "hevc_nvenc",
+            (VideoCodec.Av1Aom, HardwareBackend.Nvidia, _) => "av1_nvenc",
+            (VideoCodec.Av1Svt, HardwareBackend.Nvidia, _) => "av1_nvenc",
+            (VideoCodec.H264, HardwareBackend.Intel, false) => "h264_qsv",
+            (VideoCodec.H265, HardwareBackend.Intel, false) => "hevc_qsv",
+            (VideoCodec.Av1Aom, HardwareBackend.Intel, false) => "av1_qsv",
+            (VideoCodec.Av1Svt, HardwareBackend.Intel, false) => "av1_qsv",
+            (VideoCodec.H264, HardwareBackend.Amd, false) => "h264_amf",
+            (VideoCodec.H265, HardwareBackend.Amd, false) => "hevc_amf",
+            (VideoCodec.Av1Aom, HardwareBackend.Amd, false) => "av1_amf",
+            (VideoCodec.Av1Svt, HardwareBackend.Amd, false) => "av1_amf",
+            (VideoCodec.H264, _, true) => "h264_vaapi",
+            (VideoCodec.H265, _, true) => "hevc_vaapi",
+            (VideoCodec.Av1Aom, _, true) => "av1_vaapi",
+            (VideoCodec.Av1Svt, _, true) => "av1_vaapi",
+            (VideoCodec.Vp8, _, true) => "vp8_vaapi",
+            (VideoCodec.Vp9, _, true) => "vp9_vaapi",
+            _ => ""
+        };
+    }
+
+    private static (string Name, string Args) MapVideoCodec(VideoTranscodeOptions o)
+    {
+        if (o.HardwareBackend != HardwareBackend.Software && o.Container != VideoContainer.Gif)
+        {
+            string hwEnc = MapHardwareEncoder(o.VideoCodec, o.HardwareBackend);
+            if (!string.IsNullOrEmpty(hwEnc))
+            {
+                // VAAPI needs format conversion; others use yuv420p
+                string pixFmt = IsVaapiBackend(o.HardwareBackend) ? "-pix_fmt vaapi" : "-pix_fmt yuv420p";
+                // For VAAPI, pix_fmt will be handled via filter, keep generic
+                if (IsVaapiBackend(o.HardwareBackend)) pixFmt = "";
+                return (hwEnc, pixFmt);
+            }
+        }
+        return o.VideoCodec switch
+        {
+            VideoCodec.H264 => ("libx264", "-pix_fmt yuv420p"),
+            VideoCodec.H265 => ("libx265", "-pix_fmt yuv420p"),
+            VideoCodec.Av1Aom => ("libaom-av1", "-pix_fmt yuv420p -strict experimental"),
+            VideoCodec.Av1Svt => ("libsvtav1", "-pix_fmt yuv420p"),
+            VideoCodec.Vp8 => ("libvpx", "-pix_fmt yuv420p -auto-alt-ref 1 -lag-in-frames 25"),
+            VideoCodec.Vp9 => ("libvpx-vp9", "-pix_fmt yuv420p -auto-alt-ref 1 -lag-in-frames 25"),
+            VideoCodec.Mpeg4 => ("mpeg4", "-pix_fmt yuv420p"),
+            VideoCodec.Gif => ("gif", ""),
+            _ => ("libx264", "")
+        };
+    }
 
     private static (string Name, string Args) MapAudioCodec(AudioCodec c) => c switch
     {
@@ -636,30 +686,83 @@ public sealed class VideoTranscodeService : IVideoTranscodeService
         _ => ("aac", "")
     };
 
-    private static string MapCrfArg(VideoCodec codec, int crf) => codec switch
+    private static string MapCrfArg(VideoCodec codec, int crf, HardwareBackend hw = HardwareBackend.Software)
     {
-        VideoCodec.H264 => $"-crf {crf}",
-        VideoCodec.H265 => $"-crf {crf}",
-        VideoCodec.Av1Aom => $"-crf {crf}",
-        VideoCodec.Av1Svt => $"-crf {crf}",
-        VideoCodec.Vp9 => $"-crf {crf}",
-        VideoCodec.Vp8 => $"-crf {crf}",
-        VideoCodec.Mpeg4 => $"-qscale:v {Math.Clamp(crf / 5, 1, 31)}",
-        _ => ""
-    };
+        if (hw != HardwareBackend.Software)
+        {
+            // Hardware encoders use QP / quality params
+            return hw switch
+            {
+                HardwareBackend.Nvidia => $"-qp {crf} -rc constqp",
+                HardwareBackend.Intel when !IsVaapiBackend(hw) => $"-global_quality {crf}",
+                HardwareBackend.Amd when !IsVaapiBackend(hw) => $"-qp_i {crf} -qp_p {crf}",
+                _ when IsVaapiBackend(hw) => $"-qp {crf}",
+                _ => $"-qp {crf}"
+            };
+        }
+        return codec switch
+        {
+            VideoCodec.H264 => $"-crf {crf}",
+            VideoCodec.H265 => $"-crf {crf}",
+            VideoCodec.Av1Aom => $"-crf {crf}",
+            VideoCodec.Av1Svt => $"-crf {crf}",
+            VideoCodec.Vp9 => $"-crf {crf}",
+            VideoCodec.Vp8 => $"-crf {crf}",
+            VideoCodec.Mpeg4 => $"-qscale:v {Math.Clamp(crf / 5, 1, 31)}",
+            _ => ""
+        };
+    }
 
-    private static string MapPreset(PresetLevel p) => p switch
+    private static string MapPreset(PresetLevel p, HardwareBackend hw = HardwareBackend.Software)
     {
-        PresetLevel.Ultrafast => "ultrafast",
-        PresetLevel.Superfast => "superfast",
-        PresetLevel.Veryfast => "veryfast",
-        PresetLevel.Faster => "faster",
-        PresetLevel.Fast => "fast",
-        PresetLevel.Medium => "medium",
-        PresetLevel.Slow => "slow",
-        PresetLevel.Slower => "slower",
-        PresetLevel.Veryslow => "veryslow",
-        PresetLevel.Placebo => "placebo",
-        _ => "medium"
-    };
+        if (hw == HardwareBackend.Nvidia)
+        {
+            return p switch
+            {
+                PresetLevel.Ultrafast => "p1",
+                PresetLevel.Superfast => "p2",
+                PresetLevel.Veryfast => "p3",
+                PresetLevel.Faster => "p4",
+                PresetLevel.Fast => "p4",
+                PresetLevel.Medium => "p5",
+                PresetLevel.Slow => "p6",
+                PresetLevel.Slower => "p6",
+                PresetLevel.Veryslow => "p7",
+                PresetLevel.Placebo => "p7",
+                _ => "p5"
+            };
+        }
+        if (hw == HardwareBackend.Amd && !IsVaapiBackend(hw))
+        {
+            return p switch
+            {
+                PresetLevel.Ultrafast => "speed",
+                PresetLevel.Superfast => "speed",
+                PresetLevel.Veryfast => "speed",
+                PresetLevel.Faster => "balanced",
+                PresetLevel.Fast => "balanced",
+                PresetLevel.Medium => "balanced",
+                PresetLevel.Slow => "quality",
+                PresetLevel.Slower => "quality",
+                PresetLevel.Veryslow => "quality",
+                PresetLevel.Placebo => "quality",
+                _ => "balanced"
+            };
+        }
+        // QSV and VAAPI and Software share same naming
+        return p switch
+        {
+            PresetLevel.Ultrafast => "ultrafast",
+            PresetLevel.Superfast => "superfast",
+            PresetLevel.Veryfast => "veryfast",
+            PresetLevel.Faster => "faster",
+            PresetLevel.Fast => "fast",
+            PresetLevel.Medium => "medium",
+            PresetLevel.Slow => "slow",
+            PresetLevel.Slower => "slower",
+            PresetLevel.Veryslow => "veryslow",
+            PresetLevel.Placebo => "placebo",
+            _ => "medium"
+        };
+    }
 }

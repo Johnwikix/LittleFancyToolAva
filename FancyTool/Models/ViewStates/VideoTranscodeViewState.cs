@@ -10,6 +10,7 @@ public class VideoTranscodeViewState
     public int Crf { get; set; } = 23;
     public int VideoBitrateKbps { get; set; } = 2500;
     public bool TwoPassEnabled { get; set; }
+    public int HardwareBackend { get; set; }
     public int AudioBitrateKbps { get; set; } = 128;
     public int PresetIndex { get; set; }
     public int PresetPresetIndex { get; set; }
