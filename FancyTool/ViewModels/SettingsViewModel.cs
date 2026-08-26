@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Lang.Avalonia;
@@ -41,6 +42,14 @@ namespace FancyToolAva.ViewModels
         private IReadOnlyList<string> _srTileOptions = [];
 
         public IReadOnlyList<string> SrTileOptions => _srTileOptions;
+
+        // DirectML is Windows-only; on other platforms the GPU controls are
+        // disabled rather than clearing the user's toggle value.
+        public bool CanUseSuperResolutionGpu => OperatingSystem.IsWindows();
+
+        public bool CanSelectSrTileSize =>
+            CanUseSuperResolutionGpu && App.Preferences.UseSuperResolutionDml;
+
         public string LabelConnectionTimeout => LocalizationStrings.Current["Settings.Label_ConnectionTimeout"];
         public string CaptionConnectionTimeout => LocalizationStrings.Current["Settings.Caption_ConnectionTimeout"];
         public string GroupAbout => LocalizationStrings.Current["Settings.Group_About"];
@@ -60,10 +69,17 @@ namespace FancyToolAva.ViewModels
         public SettingsViewModel(AppObserveModel app)
         {
             _app = app;
+            _app.Preferences.PropertyChanged += OnPreferencesPropertyChanged;
             var currentCulture = I18nManager.Instance.Culture?.Name ?? "en-US";
             SelectedLanguage = AvailableLanguages.FirstOrDefault(l => l.Culture == currentCulture)
                             ?? AvailableLanguages[0];
             RefreshSrTileOptions();
+        }
+
+        private void OnPreferencesPropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(AppPreferences.UseSuperResolutionDml))
+                OnPropertyChanged(nameof(CanSelectSrTileSize));
         }
 
         public void RefreshSrTileOptions()

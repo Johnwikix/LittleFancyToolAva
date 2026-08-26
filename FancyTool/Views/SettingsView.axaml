@@ -93,6 +93,7 @@
                             <TextBlock Classes="Caption" Text="{Binding CaptionSrGpu}" />
                         </StackPanel>
                         <CheckBox Grid.Column="2" VerticalAlignment="Center"
+                                  IsEnabled="{Binding CanUseSuperResolutionGpu}"
                                   IsChecked="{Binding App.Preferences.UseSuperResolutionDml, Mode=TwoWay}" />
                     </Grid>
                     <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,8,0,4">
@@ -102,7 +103,7 @@
                         </StackPanel>
                         <ComboBox Grid.Column="2"
                                   Width="200" VerticalAlignment="Center"
-                                  IsEnabled="{Binding App.Preferences.UseSuperResolutionDml}"
+                                  IsEnabled="{Binding CanSelectSrTileSize}"
                                   ItemsSource="{Binding SrTileOptions}"
                                   SelectedIndex="{Binding App.Preferences.SuperResolutionTileSizeIndex, Mode=TwoWay}" />
                     </Grid>
