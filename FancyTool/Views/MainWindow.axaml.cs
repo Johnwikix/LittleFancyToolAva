@@ -27,6 +27,7 @@ namespace FancyToolAva.Views
                 navFactory.Register<FolderCompareViewModel, FolderCompareView>();
                 navFactory.Register<Img2Base64ViewModel, Img2Base64View>();
                 navFactory.Register<ImageConvertViewModel, ImageConvertView>();
+                navFactory.Register<VideoTranscodeViewModel, VideoTranscodeView>();
                 FrameView.NavigationPageFactory = navFactory;
             }
 

@@ -18,6 +18,12 @@ namespace FancyToolAva.Services
         private static async void Show(string message, string title, Action<string, object[]> logAction)
         {
             logAction("UI notification: {Title} - {Message}", [title, message]);
+            // Ensure dialog is shown on UI thread
+            if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess() == false)
+            {
+                Avalonia.Threading.Dispatcher.UIThread.Post(() => Show(message, title, logAction));
+                return;
+            }
             try
             {
                 if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop

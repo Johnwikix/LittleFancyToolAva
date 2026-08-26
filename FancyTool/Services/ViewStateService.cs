@@ -131,6 +131,7 @@ public class ViewStateService : IViewStateService
         "fileEncryptionView" => root.FileEncryptionView,
         "folderCompareView" => root.FolderCompareView,
         "imageConvertView" => root.ImageConvertView,
+        "videoTranscodeView" => root.VideoTranscodeView,
         _ => null
     };
 
@@ -148,6 +149,7 @@ public class ViewStateService : IViewStateService
             case "fileEncryptionView": root.FileEncryptionView = (FileEncryptionViewState?)state; break;
             case "folderCompareView": root.FolderCompareView = (FolderCompareViewState?)state; break;
             case "imageConvertView": root.ImageConvertView = (ImageConvertViewState?)state; break;
+            case "videoTranscodeView": root.VideoTranscodeView = (VideoTranscodeViewState?)state; break;
         }
     }
 

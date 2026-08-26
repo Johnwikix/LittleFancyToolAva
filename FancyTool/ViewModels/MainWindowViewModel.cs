@@ -43,10 +43,11 @@ namespace FancyToolAva.ViewModels
             var encryptionCategory = BuildEncryptionCategory(serviceProvider);
             var fileCategory = BuildFileCategory(serviceProvider);
             var imageCategory = BuildImageCategory(serviceProvider);
+            var videoCategory = BuildVideoCategory(serviceProvider);
 
             var categories = new PageNavigationItem[]
             {
-                commCategory, encryptionCategory, fileCategory, imageCategory,
+                commCategory, encryptionCategory, fileCategory, imageCategory, videoCategory,
             };
 
             var homeVm = new HomeViewModel(categories);
@@ -91,6 +92,8 @@ namespace FancyToolAva.ViewModels
             categories[3].Label = L.Localize("Nav.Category_Image");
             categories[3].Children[0].Label = L.Localize("Nav.Item_Img2Base64");
             categories[3].Children[1].Label = L.Localize("Nav.Item_ImageConvert");
+            categories[4].Label = L.Localize("Nav.Category_Video");
+            categories[4].Children[0].Label = L.Localize("Nav.Item_VideoTranscode");
         }
 
         private static PageNavigationItem BuildCommCategory(IServiceProvider sp)
@@ -125,6 +128,13 @@ namespace FancyToolAva.ViewModels
             var category = new PageNavigationItem(L.Localize("Nav.Category_Image"), FASymbol.Image);
             category.Children.Add(new PageNavigationItem(L.Localize("Nav.Item_Img2Base64"), FASymbol.ImageAltText, sp.GetRequiredService<Img2Base64ViewModel>()));
             category.Children.Add(new PageNavigationItem(L.Localize("Nav.Item_ImageConvert"), FASymbol.ImageCopyFilled, sp.GetRequiredService<ImageConvertViewModel>()));
+            return category;
+        }
+
+        private static PageNavigationItem BuildVideoCategory(IServiceProvider sp)
+        {
+            var category = new PageNavigationItem(L.Localize("Nav.Category_Video"), FASymbol.Video);
+            category.Children.Add(new PageNavigationItem(L.Localize("Nav.Item_VideoTranscode"), FASymbol.Video, sp.GetRequiredService<VideoTranscodeViewModel>()));
             return category;
         }
 

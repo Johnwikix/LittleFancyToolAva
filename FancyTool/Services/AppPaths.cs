@@ -14,6 +14,10 @@ namespace FancyToolAva.Services
 
         public static string ModelsDirectory => Path.Combine(DataDirectory, "Models");
 
+        public static string FfmpegDirectory => Path.Combine(DataDirectory, "ffmpeg");
+
+        public static string FfmpegBringYourOwnDirectory => Path.Combine(FfmpegDirectory, "bring-your-own");
+
         // Where the previous version of the app stored its config (next to the
         // binary). We check this once on first launch under the new layout and
         // migrate preferences.json so existing users keep their settings.
