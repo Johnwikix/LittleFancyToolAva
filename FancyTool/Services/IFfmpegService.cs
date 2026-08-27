@@ -12,6 +12,8 @@ public interface IFfmpegService : IDisposable
 
     IReadOnlyList<string> AvailableAudioEncoders { get; }
 
+    string? VersionInfo { get; }
+
     Task<bool> ValidateAsync(CancellationToken ct = default);
 
     bool ValidateEncoder(string encoderName);

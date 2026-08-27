@@ -21,8 +21,7 @@ public enum VideoCodec
     Av1Svt = 3,     // libsvtav1
     Vp8 = 4,        // libvpx
     Vp9 = 5,        // libvpx-vp9
-    Mpeg4 = 6,      // mpeg4
-    Gif = 7
+    Gif = 6
 }
 
 public enum HardwareBackend

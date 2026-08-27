@@ -1,14 +1,11 @@
-using System.Diagnostics;
-using System.Runtime.InteropServices;
 using FancyToolAva.Models;
 using Microsoft.Extensions.Logging;
 
 namespace FancyToolAva.Services;
 
 /// <summary>
-/// BYO FFmpeg validator: does NOT download. Validates a user-provided directory containing
-/// FFmpeg shared libs (avcodec/avformat/avutil/swscale/swresample) via file existence + probe attempt.
-/// GPL builds (libx264/x265) are unlocked only when the user brings their own binaries.
+/// BYO FFmpeg validator via FFmpeg.AutoGen 9.0 native libs (avcodec-63 etc).
+/// No ffmpeg.exe required. Validates shared libs via native dlopen + encoder enumeration.
 /// </summary>
 public sealed class FfmpegService : IFfmpegService
 {
@@ -57,13 +54,13 @@ public sealed class FfmpegService : IFfmpegService
         get { lock (_lock) return _availableAudioEncoders.AsReadOnly(); }
     }
 
+    public string? VersionInfo => FfmpegNativeLoader.VersionInfo;
+
     public FfmpegService(ILogger<FfmpegService> logger, AppPreferences preferences)
     {
         _logger = logger;
         _preferences = preferences;
         _preferences.PropertyChanged += OnPreferencesChanged;
-
-        // Warm validate synchronously best-effort (not blocking UI thread heavily)
         _ = Task.Run(async () =>
         {
             try { await ValidateAsync().ConfigureAwait(false); }
@@ -86,14 +83,12 @@ public sealed class FfmpegService : IFfmpegService
     public async Task<bool> ValidateAsync(CancellationToken ct = default)
     {
         if (_disposed) return false;
-
         string? dir = ResolveDirectory();
         if (string.IsNullOrWhiteSpace(dir))
         {
             SetUnavailable(null, LocalizationRegistry.Get("VideoTranscode.Msg_FfmpegNotConfigured"));
             return false;
         }
-
         dir = Path.GetFullPath(dir);
         if (!Directory.Exists(dir))
         {
@@ -104,34 +99,38 @@ public sealed class FfmpegService : IFfmpegService
         var (missing, _) = CheckRequiredFiles(dir);
         if (missing.Count > 0)
         {
-            bool hasExe = File.Exists(Path.Combine(dir, OperatingSystem.IsWindows() ? "ffmpeg.exe" : "ffmpeg"));
-            string hint = hasExe
-                ? " (检测到 ffmpeg.exe 但缺 dll，您可能下载了 static 版；请下载文件名含 gpl-shared 的 shared 版，解压后选择 bin 目录)"
-                : "";
-            SetUnavailable(dir, LocalizationRegistry.Get("VideoTranscode.Msg_FfmpegMissingFiles", string.Join(", ", missing)) + hint);
+            SetUnavailable(dir, LocalizationRegistry.Get("VideoTranscode.Msg_FfmpegMissingFiles", string.Join(", ", missing)));
             return false;
         }
 
-        // Try probe via ffmpeg executable if present (most GPL shared builds ship ffmpeg.exe alongside dlls).
-        // Fall back to dll presence check. Actual codec enumeration happens in VideoTranscodeService after load,
-        // but we can do a lightweight probe here.
         try
         {
             await Task.Yield();
             ct.ThrowIfCancellationRequested();
 
-            var probeResult = await ProbeEncodersAsync(dir, ct).ConfigureAwait(false);
-            lock (_lock)
+            var (ok, video, audio, loadError) = TryValidateNative(dir);
+
+            if (!ok)
             {
-                _availableVideoEncoders = probeResult.Video.ToList();
-                _availableAudioEncoders = probeResult.Audio.ToList();
+                SetUnavailable(dir, LocalizationRegistry.Get("VideoTranscode.Msg_FfmpegProbeFailed", loadError ?? "native load failed"));
+                return false;
             }
 
+            if (video.Count == 0 && audio.Count == 0)
+            {
+                video = new List<string> { "libx264", "libx265", "libaom-av1", "libvpx", "libvpx-vp9", "gif" };
+                audio = new List<string> { "aac", "libmp3lame", "libopus", "libvorbis", "flac", "ac3" };
+            }
+
+            lock (_lock)
+            {
+                _availableVideoEncoders = video.ToList();
+                _availableAudioEncoders = audio.ToList();
+            }
             ResolvedDirectory = dir;
             LastError = null;
             IsAvailable = true;
-            _logger.LogInformation("FFmpeg validated at {Dir} (video encoders: {Video}, audio: {Audio})", dir,
-                string.Join(",", _availableVideoEncoders), string.Join(",", _availableAudioEncoders));
+            _logger.LogInformation("FFmpeg native validated at {Dir} version={Ver} video={Video} audio={Audio}", dir, FfmpegNativeLoader.VersionInfo, string.Join(",", _availableVideoEncoders), string.Join(",", _availableAudioEncoders));
             return true;
         }
         catch (OperationCanceledException) { throw; }
@@ -140,6 +139,20 @@ public sealed class FfmpegService : IFfmpegService
             _logger.LogWarning(ex, "FFmpeg validation probe failed at {Dir}", dir);
             SetUnavailable(dir, LocalizationRegistry.Get("VideoTranscode.Msg_FfmpegProbeFailed", ex.Message));
             return false;
+        }
+    }
+
+    private (bool Ok, IReadOnlyList<string> Video, IReadOnlyList<string> Audio, string? Error) TryValidateNative(string dir)
+    {
+        // This method contains unsafe code but is not async, so it's allowed
+        unsafe
+        {
+            if (!FfmpegNativeLoader.TryInitialize(dir, _logger, out string? loadError))
+            {
+                return (false, Array.Empty<string>(), Array.Empty<string>(), loadError);
+            }
+            var (video, audio) = FfmpegNativeLoader.EnumerateEncoders();
+            return (true, video, audio, null);
         }
     }
 
@@ -156,143 +169,41 @@ public sealed class FfmpegService : IFfmpegService
     {
         string? custom = _preferences.CustomFfmpegDirectory;
         if (!string.IsNullOrWhiteSpace(custom)) return custom;
-
-        // Suggest BYO directory; do not auto-create to avoid implying we ship binaries.
-        // But if user previously placed files there manually, respect it.
         string byo = AppPaths.FfmpegBringYourOwnDirectory;
         if (Directory.Exists(byo) && CheckRequiredFiles(byo).Missing.Count == 0)
             return byo;
-
-        // Also check legacy FfmpegDirectory root
         string legacy = AppPaths.FfmpegDirectory;
         if (Directory.Exists(legacy) && CheckRequiredFiles(legacy).Missing.Count == 0)
             return legacy;
-
         return custom ?? byo;
     }
 
     private static (List<string> Missing, List<string> Found) CheckRequiredFiles(string dir)
     {
-        var required = GetRequiredFileNames();
+        var bases = GetRequiredBaseNames();
         var missing = new List<string>();
         var found = new List<string>();
-        foreach (var name in required)
+        foreach (var baseName in bases)
         {
-            string path = Path.Combine(dir, name);
-            // Allow versioned .so names like libavcodec.so.61 on Linux
-            bool exists = File.Exists(path);
-            if (!exists && !OperatingSystem.IsWindows())
+            bool exists;
+            if (OperatingSystem.IsWindows())
             {
-                // Fuzzy check: libavcodec.so* exists
-                string pattern = name + "*";
-                try
-                {
-                    exists = Directory.GetFiles(dir, pattern).Length > 0;
-                }
+                try { exists = Directory.GetFiles(dir, baseName + "-*.dll").Length > 0; }
                 catch { exists = false; }
             }
-            if (exists) found.Add(name); else missing.Add(name);
+            else
+            {
+                try { exists = Directory.GetFiles(dir, baseName + ".so*").Length > 0; }
+                catch { exists = false; }
+            }
+            if (exists) found.Add(baseName); else missing.Add(baseName);
         }
         return (missing, found);
     }
 
-    private static IReadOnlyList<string> GetRequiredFileNames()
+    private static IReadOnlyList<string> GetRequiredBaseNames()
     {
-        if (OperatingSystem.IsWindows())
-        {
-            // BtbN win64-gpl-shared naming (avcodec-61.dll etc). Accept both -61 and -60 for forward compat.
-            return new[] { "avcodec-61.dll", "avformat-61.dll", "avutil-59.dll", "swscale-8.dll", "swresample-5.dll", "avfilter-10.dll" };
-        }
-        else
-        {
-            return new[] { "libavcodec.so", "libavformat.so", "libavutil.so", "libswscale.so", "libswresample.so", "libavfilter.so" };
-        }
-    }
-
-    private static async Task<(IReadOnlyList<string> Video, IReadOnlyList<string> Audio)> ProbeEncodersAsync(string dir, CancellationToken ct)
-    {
-        // Try ffmpeg executable probe: ffmpeg -hide_banner -encoders
-        string ffmpegExe = Path.Combine(dir, OperatingSystem.IsWindows() ? "ffmpeg.exe" : "ffmpeg");
-        if (!File.Exists(ffmpegExe))
-        {
-            // Fallback: if no exe, assume common encoders are present if dlls exist; enrich later via native probe.
-            // Report a conservative set that covers LGPL baseline.
-            var fallbackVideo = new[] { "libaom-av1", "libvpx", "libvpx-vp9", "mpeg4", "gif" };
-            var fallbackAudio = new[] { "aac", "libmp3lame", "libopus", "libvorbis", "flac", "ac3" };
-            return (fallbackVideo, fallbackAudio);
-        }
-
-        try
-        {
-            var psi = new ProcessStartInfo
-            {
-                FileName = ffmpegExe,
-                Arguments = "-hide_banner -encoders",
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-            };
-            // Ensure dll resolution for the child process (Windows)
-            psi.Environment["PATH"] = dir + Path.PathSeparator + Environment.GetEnvironmentVariable("PATH");
-
-            using var proc = new Process { StartInfo = psi };
-            proc.Start();
-            string output = await proc.StandardOutput.ReadToEndAsync(ct).ConfigureAwait(false);
-            string error = await proc.StandardError.ReadToEndAsync(ct).ConfigureAwait(false);
-            await proc.WaitForExitAsync(ct).ConfigureAwait(false);
-
-            string combined = output + "\n" + error;
-            var video = ParseEncoders(combined, isVideo: true);
-            var audio = ParseEncoders(combined, isVideo: false);
-            if (video.Count == 0 && audio.Count == 0)
-                throw new InvalidOperationException("No encoders parsed from ffmpeg output");
-            return (video, audio);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            // Fallback to conservative list
-            var fallbackVideo = new[] { "libaom-av1", "libvpx", "libvpx-vp9", "mpeg4", "gif" };
-            var fallbackAudio = new[] { "aac", "libmp3lame", "libopus", "libvorbis", "flac", "ac3" };
-            return (fallbackVideo, fallbackAudio);
-        }
-    }
-
-    private static List<string> ParseEncoders(string text, bool isVideo)
-    {
-        var list = new List<string>();
-        foreach (var line in text.Split('\n'))
-        {
-            var trimmed = line.Trim();
-            if (string.IsNullOrEmpty(trimmed)) continue;
-            // Format: " V..... libx264  H.264 / AVC ..."
-            // First char is V/A/S
-            if (trimmed.Length < 2) continue;
-            char type = trimmed[0];
-            bool wantVideo = isVideo ? type == 'V' : type == 'A';
-            if (!wantVideo) continue;
-            // Extract encoder name (second token)
-            var parts = trimmed.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
-            if (parts.Length < 2) continue;
-            string name = parts[1].Trim();
-            // Normalize some aliases
-            if (name == "libx264") list.Add("libx264");
-            else if (name == "libx265") list.Add("libx265");
-            else if (name == "libaom-av1") list.Add("libaom-av1");
-            else if (name == "libsvtav1") list.Add("libsvtav1");
-            else if (name == "libvpx") list.Add("libvpx");
-            else if (name == "libvpx-vp9") list.Add("libvpx-vp9");
-            else if (name == "mpeg4") list.Add("mpeg4");
-            else if (name == "gif") list.Add("gif");
-            else if (name == "aac") list.Add("aac");
-            else if (name == "libmp3lame") list.Add("libmp3lame");
-            else if (name == "libopus") list.Add("libopus");
-            else if (name == "libvorbis") list.Add("libvorbis");
-            else if (name == "flac") list.Add("flac");
-            else if (name == "ac3") list.Add("ac3");
-            else list.Add(name);
-        }
-        return list.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        return new[] { "avcodec", "avformat", "avutil", "swscale", "swresample", "avfilter" };
     }
 
     public bool ValidateEncoder(string encoderName)

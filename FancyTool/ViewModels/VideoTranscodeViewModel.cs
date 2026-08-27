@@ -75,7 +75,7 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
 
     public bool IsFfmpegAvailable => _ffmpegService.IsAvailable;
     public string FfmpegStatusText => _ffmpegService.IsAvailable
-        ? LocalizationRegistry.Get("VideoTranscode.Msg_FfmpegReady", _ffmpegService.ResolvedDirectory ?? "")
+        ? LocalizationRegistry.Get("VideoTranscode.Msg_FfmpegReady", _ffmpegService.ResolvedDirectory ?? "", _ffmpegService.VersionInfo ?? "9.0")
         : _ffmpegService.LastError ?? LocalizationRegistry.Get("VideoTranscode.Msg_FfmpegNotConfigured");
     public bool ShowFfmpegMissing => !_ffmpegService.IsAvailable;
 
@@ -103,7 +103,7 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
     public bool IsGifMode => ContainerIndex >= 0 && ContainerIndex < ContainerValues.Count && ContainerValues[ContainerIndex] == VideoContainer.Gif;
 
     // Video codecs filtered
-    public List<string> AllVideoCodecLabels { get; } = ["H.264 (x264)", "H.265 (x265)", "AV1 (aom)", "AV1 (SVT)", "VP8", "VP9", "MPEG-4", "GIF"];
+    public List<string> AllVideoCodecLabels { get; } = ["H.264 (x264)", "H.265 (x265)", "AV1 (aom)", "AV1 (SVT)", "VP8", "VP9", "GIF"];
     public List<VideoCodec> AllVideoCodecValues { get; } = Enum.GetValues<VideoCodec>().ToList();
 
     public List<string> FilteredVideoCodecs
@@ -146,10 +146,10 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
     {
         VideoContainer.Gif => ["GIF"],
         VideoContainer.WebM => ["VP8", "VP9", "AV1 (aom)", "AV1 (SVT)"],
-        VideoContainer.Mp4 => ["H.264 (x264)", "H.265 (x265)", "AV1 (aom)", "AV1 (SVT)", "MPEG-4"],
-        VideoContainer.Mkv => ["H.264 (x264)", "H.265 (x265)", "AV1 (aom)", "AV1 (SVT)", "VP8", "VP9", "MPEG-4"],
-        VideoContainer.Mov => ["H.264 (x264)", "H.265 (x265)", "AV1 (aom)", "MPEG-4"],
-        VideoContainer.Avi => ["H.264 (x264)", "MPEG-4"],
+        VideoContainer.Mp4 => ["H.264 (x264)", "H.265 (x265)", "AV1 (aom)", "AV1 (SVT)"],
+        VideoContainer.Mkv => ["H.264 (x264)", "H.265 (x265)", "AV1 (aom)", "AV1 (SVT)", "VP8", "VP9"],
+        VideoContainer.Mov => ["H.264 (x264)", "H.265 (x265)", "AV1 (aom)"],
+        VideoContainer.Avi => ["H.264 (x264)"],
         _ => ["H.264 (x264)", "H.265 (x265)", "AV1 (aom)", "VP9"]
     };
 
@@ -880,10 +880,8 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
     {
         try
         {
-            // Fixed shared build for FFmpeg 7.1 (Sdcb.FFmpeg ≤7.1, avcodec-61) —防呆：必须下 gpl-shared（含 dll），static 仅含 exe
-            string url = OperatingSystem.IsWindows()
-                ? "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2024-09-30-15-36/ffmpeg-N-117275-g04182b5549-win64-gpl-shared.zip"
-                : "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2024-09-30-15-36/ffmpeg-N-117275-g04182b5549-linux64-gpl-shared.tar.xz";
+            // FFmpeg 9.0 native via FFmpeg.AutoGen: recommend BtbN gpl-shared latest (avcodec-63). Point to releases page for latest 9.0 build.
+            string url = "https://github.com/BtbN/FFmpeg-Builds/releases";
             Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
         }
         catch { }
@@ -950,6 +948,7 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
             item.Progress = 0;
             var progress = new Progress<double>(p => Dispatcher.UIThread.Post(() => item.Progress = p));
 
+            bool itemFailed = false;
             try
             {
                 string outputDir = useSourceDir
@@ -967,13 +966,15 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
             }
             catch (Exception ex)
             {
+                itemFailed = true;
                 string msg = ex.Message.Split('\n').FirstOrDefault() ?? ex.Message;
                 Dispatcher.UIThread.Post(() => { item.Status = FileStatus.Failed; item.ErrorMessage = msg.Length > 200 ? msg[..200] : msg; });
             }
             finally
             {
-                bool isFailed = item.Status == FileStatus.Failed;
-                if (isFailed) Interlocked.Increment(ref _failedCountField);
+                // itemFailed is set synchronously in catch; item.Status is posted async to the UI thread
+                // and must NOT be read here (would race and report success despite failures).
+                if (itemFailed) Interlocked.Increment(ref _failedCountField);
                 int processed = Interlocked.Increment(ref _completedCountField);
                 int failed = Volatile.Read(ref _failedCountField);
                 Dispatcher.UIThread.Post(() =>
@@ -1071,7 +1072,6 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
             "AV1 (SVT)" => VideoCodec.Av1Svt,
             "VP8" => VideoCodec.Vp8,
             "VP9" => VideoCodec.Vp9,
-            "MPEG-4" => VideoCodec.Mpeg4,
             "GIF" => VideoCodec.Gif,
             _ => VideoCodec.H264
         };
@@ -1126,7 +1126,6 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
                 VideoCodec.Av1Svt => "libsvtav1",
                 VideoCodec.Vp8 => "libvpx",
                 VideoCodec.Vp9 => "libvpx-vp9",
-                VideoCodec.Mpeg4 => "mpeg4",
                 VideoCodec.Gif => "gif",
                 _ => "libx264"
             }
