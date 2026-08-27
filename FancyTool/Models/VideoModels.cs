@@ -7,10 +7,9 @@ public enum VideoContainer
 {
     Mp4 = 0,
     Mkv = 1,
-    WebM = 2,
-    Mov = 3,
-    Avi = 4,
-    Gif = 5
+    Mov = 2,
+    Avi = 3,
+    Gif = 4
 }
 
 public enum VideoCodec
@@ -19,9 +18,7 @@ public enum VideoCodec
     H265 = 1,       // libx265
     Av1Aom = 2,     // libaom-av1
     Av1Svt = 3,     // libsvtav1
-    Vp8 = 4,        // libvpx
-    Vp9 = 5,        // libvpx-vp9
-    Gif = 6
+    Gif = 4
 }
 
 public enum HardwareBackend
@@ -65,8 +62,7 @@ public enum VideoPreset
     Fast720p30 = 3,
     HQ720p30 = 4,
     Fast480p30 = 5,
-    Av1WebM720p = 6,
-    Gif480p = 7,
+    Gif480p = 6,
     Fast1440p30 = 8,
     HQ1440p30 = 9,
     Fast2160p30 = 10,

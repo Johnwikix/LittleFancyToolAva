@@ -386,10 +386,10 @@ public sealed class VideoTranscodeService : IVideoTranscodeService
                             if (presetKey != null) SetCodecOption(vEncCtx, &optsDict, presetKey, presetVal, presetIsInt);
                             if (opts.HardwareBackend == HardwareBackend.Software)
                             {
-                                if (opts.VideoCodec == VideoCodec.H264 || opts.VideoCodec == VideoCodec.H265 || opts.VideoCodec == VideoCodec.Av1Aom || opts.VideoCodec == VideoCodec.Av1Svt || opts.VideoCodec == VideoCodec.Vp8 || opts.VideoCodec == VideoCodec.Vp9)
+                                if (opts.VideoCodec == VideoCodec.H264 || opts.VideoCodec == VideoCodec.H265 || opts.VideoCodec == VideoCodec.Av1Aom || opts.VideoCodec == VideoCodec.Av1Svt)
                                 {
                                     SetCodecOption(vEncCtx, &optsDict, "crf", crfVal, false);
-                                    if (opts.VideoCodec == VideoCodec.Vp8 || opts.VideoCodec == VideoCodec.Vp9 || opts.VideoCodec == VideoCodec.Av1Aom || opts.VideoCodec == VideoCodec.Av1Svt)
+                                    if (opts.VideoCodec == VideoCodec.Av1Aom || opts.VideoCodec == VideoCodec.Av1Svt)
                                         vEncCtx->bit_rate = 0;
                                 }
                             }
@@ -428,11 +428,6 @@ public sealed class VideoTranscodeService : IVideoTranscodeService
                         }
                         if (!string.IsNullOrEmpty(opts.Profile)) SetCodecOption(vEncCtx, &optsDict, "profile", opts.Profile, false);
                         if (!string.IsNullOrEmpty(opts.Level)) SetCodecOption(vEncCtx, &optsDict, "level", opts.Level, false);
-                        if (opts.VideoCodec == VideoCodec.Vp8 || opts.VideoCodec == VideoCodec.Vp9)
-                        {
-                            SetCodecOption(vEncCtx, &optsDict, "auto-alt-ref", "1", false);
-                            SetCodecOption(vEncCtx, &optsDict, "lag-in-frames", "25", false);
-                        }
                         openRet = ffmpeg.avcodec_open2(vEncCtx, enc, &optsDict);
                         if (openRet < 0)
                             _logger.LogWarning("avcodec_open2 vEnc attempt {Fmt} failed, trying next format: {Err}", ffmpeg.av_get_pix_fmt_name(pf), FfmpegNativeLoader.GetErrorString(openRet));
@@ -1023,8 +1018,6 @@ public sealed class VideoTranscodeService : IVideoTranscodeService
             (VideoCodec.H265, _, true) => "hevc_vaapi",
             (VideoCodec.Av1Aom, _, true) => "av1_vaapi",
             (VideoCodec.Av1Svt, _, true) => "av1_vaapi",
-            (VideoCodec.Vp8, _, true) => "vp8_vaapi",
-            (VideoCodec.Vp9, _, true) => "vp9_vaapi",
             _ => ""
         };
     }
@@ -1046,8 +1039,6 @@ public sealed class VideoTranscodeService : IVideoTranscodeService
         VideoCodec.H265 => "libx265",
         VideoCodec.Av1Aom => "libaom-av1",
         VideoCodec.Av1Svt => "libsvtav1",
-        VideoCodec.Vp8 => "libvpx",
-        VideoCodec.Vp9 => "libvpx-vp9",
         VideoCodec.Gif => "gif",
         _ => "libx264"
     };
@@ -1058,8 +1049,6 @@ public sealed class VideoTranscodeService : IVideoTranscodeService
         VideoCodec.H265 => AVCodecID.AV_CODEC_ID_HEVC,
         VideoCodec.Av1Aom => AVCodecID.AV_CODEC_ID_AV1,
         VideoCodec.Av1Svt => AVCodecID.AV_CODEC_ID_AV1,
-        VideoCodec.Vp8 => AVCodecID.AV_CODEC_ID_VP8,
-        VideoCodec.Vp9 => AVCodecID.AV_CODEC_ID_VP9,
         VideoCodec.Gif => AVCodecID.AV_CODEC_ID_GIF,
         _ => AVCodecID.AV_CODEC_ID_H264
     };
@@ -1088,8 +1077,8 @@ public sealed class VideoTranscodeService : IVideoTranscodeService
                 VideoCodec.H264 or VideoCodec.H265 => ("preset", MapPresetString(p), false),
                 // SVT-AV1 preset is int 0-13 (lower = slower/better)
                 VideoCodec.Av1Svt => ("preset", (13 - (int)p).ToString(), true),
-                // libaom/libvpx use cpu-used int (higher = faster)
-                VideoCodec.Av1Aom or VideoCodec.Vp8 or VideoCodec.Vp9 => ("cpu-used", Math.Clamp(8 - (int)p, 0, 8).ToString(), true),
+                // libaom uses cpu-used int (higher = faster)
+                VideoCodec.Av1Aom => ("cpu-used", Math.Clamp(8 - (int)p, 0, 8).ToString(), true),
                 _ => (null, null, false)
             };
         }
@@ -1330,7 +1319,6 @@ public sealed class VideoTranscodeService : IVideoTranscodeService
     {
         VideoContainer.Mp4 => "mp4",
         VideoContainer.Mkv => "matroska",
-        VideoContainer.WebM => "webm",
         VideoContainer.Mov => "mov",
         VideoContainer.Avi => "avi",
         VideoContainer.Gif => "gif",

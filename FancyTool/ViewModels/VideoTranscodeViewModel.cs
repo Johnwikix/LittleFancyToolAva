@@ -18,7 +18,7 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
 {
     private static readonly HashSet<string> VideoExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
-        ".mp4", ".mkv", ".webm", ".mov", ".avi", ".flv", ".wmv", ".m4v", ".mpg", ".mpeg", ".3gp", ".gif", ".ts", ".mts", ".m2ts"
+        ".mp4", ".mkv", ".mov", ".avi", ".flv", ".wmv", ".m4v", ".mpg", ".mpeg", ".3gp", ".gif", ".ts", ".mts", ".m2ts"
     };
 
     private static bool IsVideoFile(string path)
@@ -87,7 +87,7 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
     public bool ShowFfmpegMissing => !_ffmpegService.IsAvailable;
 
     // Container / Codecs
-    public List<string> AvailableContainers { get; } = ["MP4", "MKV", "WebM", "MOV", "AVI", "GIF"];
+    public List<string> AvailableContainers { get; } = ["MP4", "MKV", "MOV", "AVI", "GIF"];
     public List<VideoContainer> ContainerValues { get; } = Enum.GetValues<VideoContainer>().ToList();
 
     public int ContainerIndex
@@ -110,7 +110,7 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
     public bool IsGifMode => ContainerIndex >= 0 && ContainerIndex < ContainerValues.Count && ContainerValues[ContainerIndex] == VideoContainer.Gif;
 
     // Video codecs filtered
-    public List<string> AllVideoCodecLabels { get; } = ["H.264 (x264)", "H.265 (x265)", "AV1 (aom)", "AV1 (SVT)", "VP8", "VP9", "GIF"];
+    public List<string> AllVideoCodecLabels { get; } = ["H.264 (x264)", "H.265 (x265)", "AV1 (aom)", "AV1 (SVT)", "GIF"];
     public List<VideoCodec> AllVideoCodecValues { get; } = Enum.GetValues<VideoCodec>().ToList();
 
     public List<string> FilteredVideoCodecs
@@ -152,18 +152,16 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
     private static List<string> FilterVideoCodecsForContainer(VideoContainer c) => c switch
     {
         VideoContainer.Gif => ["GIF"],
-        VideoContainer.WebM => ["VP8", "VP9", "AV1 (aom)", "AV1 (SVT)"],
-        VideoContainer.Mp4 => ["H.264 (x264)", "H.265 (x265)", "VP9", "AV1 (aom)", "AV1 (SVT)"],
-        VideoContainer.Mkv => ["H.264 (x264)", "H.265 (x265)", "AV1 (aom)", "AV1 (SVT)", "VP8", "VP9"],
-        VideoContainer.Mov => ["H.264 (x264)", "H.265 (x265)", "AV1 (aom)"],
+        VideoContainer.Mp4 => ["H.264 (x264)", "H.265 (x265)", "AV1 (aom)", "AV1 (SVT)"],
+        VideoContainer.Mkv => ["H.264 (x264)", "H.265 (x265)", "AV1 (aom)", "AV1 (SVT)"],
+        VideoContainer.Mov => ["H.264 (x264)", "H.265 (x265)"],
         VideoContainer.Avi => ["H.264 (x264)"],
-        _ => ["H.264 (x264)", "H.265 (x265)", "AV1 (aom)", "VP9"]
+        _ => ["H.264 (x264)", "H.265 (x265)", "AV1 (aom)"]
     };
 
     private static List<string> FilterAudioCodecsForContainer(VideoContainer c) => c switch
     {
         VideoContainer.Gif => ["None"],
-        VideoContainer.WebM => ["Opus", "Vorbis", "None"],
         VideoContainer.Mp4 => ["AAC", "MP3", "AC3", "Opus", "None"],
         VideoContainer.Mkv => ["AAC", "MP3", "Opus", "Vorbis", "FLAC", "AC3", "None"],
         VideoContainer.Mov => ["AAC", "MP3", "AC3", "None"],
@@ -285,7 +283,6 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
         "Fast 720p30",
         "HQ 720p30",
         "Fast 480p30",
-        "AV1 WebM 720p",
         "GIF 480p 15fps",
         "Fast 1440p30",
         "HQ 1440p30",
@@ -624,14 +621,8 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
                 case VideoPreset.HQ1440p30X265: ApplyHQ(2560, 1440, "H.265 (x265)"); break;
                 case VideoPreset.Fast2160p30X265: ApplyFast(3840, 2160, "H.265 (x265)"); break;
                 case VideoPreset.HQ2160p30X265: ApplyHQ(3840, 2160, "H.265 (x265)"); break;
-                case VideoPreset.Av1WebM720p:
-                    ContainerIndex = 2; // WebM
-                    SetCodecByLabel("VP9");
-                    RateControlIndex = 0; CrfValue = 32; PresetIndex = 5;
-                    ScaleModeIndex = 1; ScaleWidth = 1280; ScaleHeight = 720; KeepAspect = true;
-                    break;
                 case VideoPreset.Gif480p:
-                    ContainerIndex = 5; // GIF
+                    ContainerIndex = 4; // GIF
                     ScaleModeIndex = 0;
                     GifWidth = 480; GifFps = 15; GifMaxColors = 256; GifDitherIndex = 1; GifLoop = 0;
                     break;
@@ -743,7 +734,7 @@ private async Task AddFiles()
         {
             Patterns =
             [
-                "*.mp4", "*.mkv", "*.webm", "*.mov", "*.avi", "*.flv", "*.wmv", "*.m4v",
+                "*.mp4", "*.mkv", "*.mov", "*.avi", "*.flv", "*.wmv", "*.m4v",
                 "*.mpg", "*.mpeg", "*.3gp", "*.gif", "*.ts", "*.mts", ".m2ts"
             ]
         },
@@ -1110,8 +1101,6 @@ public void AddDroppedPaths(IEnumerable<string> paths)
             "H.265 (x265)" => VideoCodec.H265,
             "AV1 (aom)" => VideoCodec.Av1Aom,
             "AV1 (SVT)" => VideoCodec.Av1Svt,
-            "VP8" => VideoCodec.Vp8,
-            "VP9" => VideoCodec.Vp9,
             "GIF" => VideoCodec.Gif,
             _ => VideoCodec.H264
         };
@@ -1156,16 +1145,12 @@ public void AddDroppedPaths(IEnumerable<string> paths)
             (VideoCodec.H265, _, true) => "hevc_vaapi",
             (VideoCodec.Av1Aom, _, true) => "av1_vaapi",
             (VideoCodec.Av1Svt, _, true) => "av1_vaapi",
-            (VideoCodec.Vp8, _, true) => "vp8_vaapi",
-            (VideoCodec.Vp9, _, true) => "vp9_vaapi",
             _ => c switch
             {
                 VideoCodec.H264 => "libx264",
                 VideoCodec.H265 => "libx265",
                 VideoCodec.Av1Aom => "libaom-av1",
                 VideoCodec.Av1Svt => "libsvtav1",
-                VideoCodec.Vp8 => "libvpx",
-                VideoCodec.Vp9 => "libvpx-vp9",
                 VideoCodec.Gif => "gif",
                 _ => "libx264"
             }
@@ -1180,7 +1165,6 @@ public void AddDroppedPaths(IEnumerable<string> paths)
         {
             VideoContainer.Mp4 => ".mp4",
             VideoContainer.Mkv => ".mkv",
-            VideoContainer.WebM => ".webm",
             VideoContainer.Mov => ".mov",
             VideoContainer.Avi => ".avi",
             VideoContainer.Gif => ".gif",

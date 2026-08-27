@@ -118,7 +118,7 @@ public sealed class FfmpegService : IFfmpegService
 
             if (video.Count == 0 && audio.Count == 0)
             {
-                video = new List<string> { "libx264", "libx265", "libaom-av1", "libvpx", "libvpx-vp9", "gif" };
+                video = new List<string> { "libx264", "libx265", "libaom-av1", "libsvtav1", "gif" };
                 audio = new List<string> { "aac", "libmp3lame", "libopus", "libvorbis", "flac", "ac3" };
             }
 
