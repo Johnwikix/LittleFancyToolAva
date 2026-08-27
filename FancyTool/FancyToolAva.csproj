@@ -12,7 +12,7 @@
     <ApplicationIcon>Assets\storeIcon.ico</ApplicationIcon>
     <NoWarn>$(NoWarn);NU1701;CS8767;CS8625;CS8602;CS8600;CS8604;CS0618;CS8500;CS8981</NoWarn>
 	<PublishAot Condition="'$(Configuration)' == 'Debug' OR '$(RuntimeIdentifier)' != 'win-x64'">false</PublishAot>
-	<PublishAot Condition="'$(Configuration)' != 'Debug' AND '$(RuntimeIdentifier)' == 'win-x64'">false</PublishAot>
+	<PublishAot Condition="'$(Configuration)' != 'Debug' AND '$(RuntimeIdentifier)' == 'win-x64'">true</PublishAot>
 	<VersionPrefix>1.1.0.0</VersionPrefix>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
@@ -66,6 +66,23 @@
     <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.22.1" />
     <PackageReference Include="Microsoft.ML.OnnxRuntime.DirectML" Version="1.22.1" />
   </ItemGroup>
+
+  <!--
+    Microsoft.ML.OnnxRuntime and Microsoft.ML.OnnxRuntime.DirectML 1.22.1 both
+    ship runtimes/win-x64/native/onnxruntime.dll and onnxruntime_providers_shared.dll,
+    which trips NETSDK1152 during publish because both files map to the same
+    relative output path. The two binaries are bit-identical between the two
+    packages for this release, so it does not matter which copy wins — first
+    writer wins. Both packages must stay referenced: the base package supplies
+    the managed CPU EP bindings (InferenceSession, SessionOptions,
+    AppendExecutionProvider_CPU) and the DML package layers the DirectML
+    execution provider on top of the same native runtime. Disabling the SDK's
+    duplicate-publish-output check is the documented escape hatch for this
+    exact situation; see Microsoft.NET.ConflictResolution.targets.
+  -->
+  <PropertyGroup>
+    <ErrorOnDuplicatePublishOutputFiles>false</ErrorOnDuplicatePublishOutputFiles>
+  </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Packaging.Targets" Version="0.1.232" PrivateAssets="all" />
