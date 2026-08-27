@@ -99,9 +99,9 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
             {
                 OnPropertyChanged(nameof(IsGifMode));
                 OnPropertyChanged(nameof(ShowTwoPass));
+                UpdateCodecIndicesForContainer();
                 OnPropertyChanged(nameof(FilteredVideoCodecs));
                 OnPropertyChanged(nameof(FilteredAudioCodecs));
-                UpdateCodecIndicesForContainer();
                 ResetPresetToCustom();
             }
         }
