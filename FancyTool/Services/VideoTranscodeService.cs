@@ -231,6 +231,11 @@ public sealed class VideoTranscodeService : IVideoTranscodeService
                         if (hwDeviceCtx != null) ffmpeg.av_buffer_unref(&hwDeviceCtx);
                     }
                 }
+                // QSV / NVENC / AMF on Windows intentionally do NOT get an hw_device_ctx here:
+                // they run in system-memory mode (NV12/YUV420P frames straight into the encoder),
+                // which is the only path that is stable in the bundled FFmpeg 9.0 gpl-shared.
+                // Initializing a QSV/CUDA/D3D11VA device (or attaching it to the encoder) causes
+                // av1_qsv / hevc_qsv / nvenc to take the hw-frame path and crash natively.
                 ret = ffmpeg.avcodec_open2(vDecCtx, dec, null);
                 if (ret < 0) throw new InvalidOperationException($"avcodec_open2 vDec: {FfmpegNativeLoader.GetErrorString(ret)}");
             }
@@ -549,6 +554,8 @@ public sealed class VideoTranscodeService : IVideoTranscodeService
             }
             if (durationMs > 0) totalFrames = (long)(durationMs / 1000.0 * srcFps);
 
+            long _lastProgressMs = 0;
+
             while (true)
             {
                 ct.ThrowIfCancellationRequested();
@@ -596,13 +603,20 @@ public sealed class VideoTranscodeService : IVideoTranscodeService
                         if (vFilterGraph != null) ffmpeg.av_frame_unref(filtFrame);
                         ffmpeg.av_frame_unref(frame);
                         processedFrames++;
-                        if (progress != null && durationMs > 0)
+                        if (progress != null && ShouldReport(ref _lastProgressMs))
                         {
-                            long ptsMs = (long)(srcFrame->pts * ffmpeg.av_q2d(vEncCtx->time_base) * 1000);
-                            if (ptsMs > 0) progress.Report(Math.Clamp((double)ptsMs / durationMs, 0, 1));
-                            else if (totalFrames > 0) progress.Report(Math.Clamp((double)processedFrames / totalFrames, 0, 1));
+                            double ratio;
+                            if (durationMs > 0)
+                            {
+                                long ptsMs = (long)(srcFrame->pts * ffmpeg.av_q2d(vEncCtx->time_base) * 1000);
+                                if (ptsMs > 0) ratio = Math.Clamp((double)ptsMs / durationMs, 0, 1);
+                                else if (totalFrames > 0) ratio = Math.Clamp((double)processedFrames / totalFrames, 0, 1);
+                                else ratio = EstimateIndeterminateProgress(processedFrames);
+                            }
+                            else if (totalFrames > 0) ratio = Math.Clamp((double)processedFrames / totalFrames, 0, 1);
+                            else ratio = EstimateIndeterminateProgress(processedFrames);
+                            progress.Report(ratio);
                         }
-                        else if (progress != null && totalFrames > 0) progress.Report(Math.Clamp((double)processedFrames / totalFrames, 0, 1));
                     }
                 }
                 else if (pkt->stream_index == aStreamIdx && hasAudio && aDecCtx != null && aEncCtx != null)
@@ -630,8 +644,33 @@ public sealed class VideoTranscodeService : IVideoTranscodeService
                             encFrame->pts = ffmpeg.av_rescale_q(encFrame->pts, aInStream->time_base, aEncCtx->time_base);
                         if (encFrame->pts == ffmpeg.AV_NOPTS_VALUE || encFrame->pts < nextAudioPts)
                             encFrame->pts = nextAudioPts;
-                        ret = ffmpeg.avcodec_send_frame(aEncCtx, encFrame);
-                        if (ret < 0) throw new InvalidOperationException($"avcodec_send_frame aEnc: {FfmpegNativeLoader.GetErrorString(ret)}");
+                        // Encoder frames must be exactly frame_size samples (e.g. AAC: 1024). For PCM / float
+                        // sources or when swr produces partial frames, pad / skip to avoid EINVAL.
+                        if (encFrame->nb_samples <= 0)
+                        {
+                            if (swrCtx != null) ffmpeg.av_frame_unref(swrFrame);
+                            ffmpeg.av_frame_unref(frame);
+                            continue;
+                        }
+                        if (aEncCtx->frame_size > 0 && encFrame->nb_samples != aEncCtx->frame_size)
+                        {
+                            // try sending anyway; if codec rejects, drop the frame silently
+                            // to keep the pipeline alive. encFrame is either frame or swrFrame —
+                            // unref it exactly once here (the trailing unrefs are skipped by
+                            // continue), otherwise the same AVFrame is freed twice and crashes.
+                            ret = ffmpeg.avcodec_send_frame(aEncCtx, encFrame);
+                            if (ret == ffmpeg.AVERROR(ffmpeg.EINVAL))
+                            {
+                                ffmpeg.av_frame_unref(encFrame);
+                                continue;
+                            }
+                            if (ret < 0) throw new InvalidOperationException($"avcodec_send_frame aEnc: {FfmpegNativeLoader.GetErrorString(ret)}");
+                        }
+                        else
+                        {
+                            ret = ffmpeg.avcodec_send_frame(aEncCtx, encFrame);
+                            if (ret < 0) throw new InvalidOperationException($"avcodec_send_frame aEnc: {FfmpegNativeLoader.GetErrorString(ret)}");
+                        }
                         while (true)
                         {
                             AVPacket* encPkt = ffmpeg.av_packet_alloc();
@@ -941,6 +980,28 @@ public sealed class VideoTranscodeService : IVideoTranscodeService
     private static bool IsQsvBackend(HardwareBackend hw) => hw == HardwareBackend.Intel && OperatingSystem.IsWindows();
     private static bool IsAmfBackend(HardwareBackend hw) => hw == HardwareBackend.Amd && OperatingSystem.IsWindows();
 
+    // Throttle progress reporting to ~10fps; also accept the first report unconditionally.
+    private static bool ShouldReport(ref long lastReportMs)
+    {
+        long now = Environment.TickCount64;
+        if (lastReportMs == 0 || now - lastReportMs >= 100)
+        {
+            lastReportMs = now;
+            return true;
+        }
+        return false;
+    }
+
+    // When duration is unknown (raw H.265 streams, .bin, etc.), produce a smooth
+    // asymptotic curve that never quite reaches 1.0 so the UI shows a clear
+    // "indeterminate-but-moving" state instead of stalling.
+    private static double EstimateIndeterminateProgress(long processedFrames)
+    {
+        // Approach 1 - 1/x with light dampening so the bar keeps crawling past ~85%.
+        double v = 1.0 - 1.0 / (1.0 + processedFrames / 200.0);
+        return Math.Clamp(v, 0, 0.95);
+    }
+
     private static string MapHardwareEncoder(VideoCodec codec, HardwareBackend hw)
     {
         bool isVaapi = IsVaapiBackend(hw);
@@ -1126,20 +1187,35 @@ public sealed class VideoTranscodeService : IVideoTranscodeService
         var list = new List<AVPixelFormat>();
         void Add(AVPixelFormat f)
         {
-            if (f != AVPixelFormat.AV_PIX_FMT_NONE && !list.Contains(f) && SupportsPixelFormat(enc, f)) list.Add(f);
+            if (f == AVPixelFormat.AV_PIX_FMT_NONE || list.Contains(f)) return;
+            list.Add(f);
         }
 
         if (IsQsvBackend(opts.HardwareBackend))
         {
             // QSV system-memory path: hevc_qsv supports 4:2:2 via yuyv422 (8-bit) / y210le (10-bit);
             // h264_qsv is NV12-only. 4:2:0 → p010le (10-bit) / nv12.
-            if (srcChromaW == 1 && srcChromaH == 0 && opts.VideoCodec == VideoCodec.H265)
+            if (opts.VideoCodec == VideoCodec.H265)
             {
-                if (srcDepth >= 10) Add(AVPixelFormat.AV_PIX_FMT_Y210LE);
-                Add(AVPixelFormat.AV_PIX_FMT_YUYV422);
+                if (srcChromaW == 1 && srcChromaH == 0)
+                {
+                    if (srcDepth >= 10) Add(AVPixelFormat.AV_PIX_FMT_Y210LE);
+                    Add(AVPixelFormat.AV_PIX_FMT_YUYV422);
+                }
+                if (srcDepth >= 10) Add(AVPixelFormat.AV_PIX_FMT_P010LE);
+                Add(AVPixelFormat.AV_PIX_FMT_NV12);
             }
-            if (srcDepth >= 10) Add(AVPixelFormat.AV_PIX_FMT_P010LE);
-            Add(AVPixelFormat.AV_PIX_FMT_NV12);
+            else
+            {
+                // av1_qsv and h264_qsv accept system-memory NV12 frames only. Feeding them
+                // P010LE/YUYV422 (as a 10-bit / 4:2:2 source would suggest) makes the encoder
+                // take an unsupported hw path and crash natively.
+                Add(AVPixelFormat.AV_PIX_FMT_NV12);
+            }
+            // Deliberately NO avcodec_get_supported_config probing here: in system-memory
+            // mode (no hw_device_ctx) av1_qsv returns garbage/unsafe config data from that
+            // API and crashes natively. The hard-coded ladder above is exactly what the
+            // pre-0c24250 builds used successfully.
             return list;
         }
 
@@ -1159,6 +1235,8 @@ public sealed class VideoTranscodeService : IVideoTranscodeService
                 Add(PlanarChromaFormat(w, h, d));
             }
         }
+        list = FilterByEncoderSupported(list, enc);
+        if (list.Count == 0) list.Add(AVPixelFormat.AV_PIX_FMT_YUV420P);
         return list;
     }
 
@@ -1173,6 +1251,31 @@ public sealed class VideoTranscodeService : IVideoTranscodeService
             var arr = (AVPixelFormat*)outCfg;
             for (int i = 0; i < n; i++) if (arr[i] == fmt) return true;
             return false;
+        }
+        finally
+        {
+            ffmpeg.av_free(outCfg);
+        }
+    }
+
+    // Keep only pix_fmts the encoder actually supports. When the encoder advertises an empty
+    // pix_fmt list (e.g. av1_qsv on certain FFmpeg 9.0 gpl-shared builds) or none of our
+    // candidates intersect, return the input unchanged so the caller can fall back to a safe
+    // default rather than getting an empty list and crashing at formatCandidates[0].
+    private static unsafe List<AVPixelFormat> FilterByEncoderSupported(List<AVPixelFormat> candidates, AVCodec* codec)
+    {
+        void* outCfg = null;
+        int n = 0;
+        int ret = ffmpeg.avcodec_get_supported_config(null, codec, AVCodecConfig.AV_CODEC_CONFIG_PIX_FORMAT, 0, &outCfg, &n);
+        if (ret < 0 || outCfg == null || n <= 0) return candidates;
+        try
+        {
+            var arr = (AVPixelFormat*)outCfg;
+            var supported = new HashSet<AVPixelFormat>();
+            for (int i = 0; i < n; i++) supported.Add(arr[i]);
+            var filtered = new List<AVPixelFormat>();
+            foreach (var c in candidates) if (supported.Contains(c)) filtered.Add(c);
+            return filtered.Count > 0 ? filtered : candidates;
         }
         finally
         {
