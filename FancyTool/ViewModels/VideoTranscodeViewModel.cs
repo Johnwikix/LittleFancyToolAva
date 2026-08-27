@@ -146,7 +146,7 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
     {
         VideoContainer.Gif => ["GIF"],
         VideoContainer.WebM => ["VP8", "VP9", "AV1 (aom)", "AV1 (SVT)"],
-        VideoContainer.Mp4 => ["H.264 (x264)", "H.265 (x265)", "AV1 (aom)", "AV1 (SVT)"],
+        VideoContainer.Mp4 => ["H.264 (x264)", "H.265 (x265)", "VP9", "AV1 (aom)", "AV1 (SVT)"],
         VideoContainer.Mkv => ["H.264 (x264)", "H.265 (x265)", "AV1 (aom)", "AV1 (SVT)", "VP8", "VP9"],
         VideoContainer.Mov => ["H.264 (x264)", "H.265 (x265)", "AV1 (aom)"],
         VideoContainer.Avi => ["H.264 (x264)"],

@@ -209,6 +209,7 @@ public sealed class VideoTranscodeService : IVideoTranscodeService
             bool hasVideo = vStreamIdx >= 0 && vInStream != null;
             bool hasAudio = aStreamIdx >= 0 && aInStream != null && opts.AudioCodec != AudioCodec.None && opts.Container != VideoContainer.Gif;
             if (opts.Container == VideoContainer.Gif) hasAudio = false;
+            string? forcedVideoFormat = null;
 
             if (hasVideo)
             {
@@ -325,22 +326,33 @@ public sealed class VideoTranscodeService : IVideoTranscodeService
                 }
                 vEncCtx->time_base = outTimeBase;
 
+                // Detect source chroma sampling + bit depth, build encoder pix_fmt candidate ladder
+                // (same chroma/depth preferred, then 4:2:0; H264 capped at 8-bit; hardware → their supported formats)
+                var formatCandidates = new List<AVPixelFormat>();
                 if (opts.Container == VideoContainer.Gif)
-                    vEncCtx->pix_fmt = AVPixelFormat.AV_PIX_FMT_PAL8;
+                {
+                    formatCandidates.Add(AVPixelFormat.AV_PIX_FMT_PAL8);
+                }
                 else if (IsVaapiBackend(opts.HardwareBackend))
                 {
-                    vEncCtx->pix_fmt = AVPixelFormat.AV_PIX_FMT_VAAPI;
+                    formatCandidates.Add(AVPixelFormat.AV_PIX_FMT_VAAPI);
                     if (hwDeviceCtx != null) vEncCtx->hw_device_ctx = ffmpeg.av_buffer_ref(hwDeviceCtx);
                 }
-                else if (IsQsvBackend(opts.HardwareBackend))
-                {
-                    // QSV works with system-memory NV12 frames (no hw_device/hw_frames needed):
-                    // verified against ffmpeg CLI: -c:v h264_qsv/hevc_qsv -pix_fmt nv12 succeeds,
-                    // while explicit -init_hw_device qsv + hwupload fails with Invalid argument.
-                    vEncCtx->pix_fmt = AVPixelFormat.AV_PIX_FMT_NV12;
-                }
                 else
-                    vEncCtx->pix_fmt = AVPixelFormat.AV_PIX_FMT_YUV420P;
+                {
+                    var pixDesc = ffmpeg.av_pix_fmt_desc_get(vDecCtx->pix_fmt);
+                    int srcChromaW = pixDesc != null && pixDesc->nb_components >= 3 ? pixDesc->log2_chroma_w : 1;
+                    int srcChromaH = pixDesc != null && pixDesc->nb_components >= 3 ? pixDesc->log2_chroma_h : 1;
+                    int srcDepth = pixDesc != null ? pixDesc->comp[0].depth : 8;
+                    if (srcDepth < 8) srcDepth = 8;
+                    formatCandidates = BuildFormatCandidates(enc, opts, srcChromaW, srcChromaH, srcDepth);
+                    if (formatCandidates.Count == 0) formatCandidates.Add(AVPixelFormat.AV_PIX_FMT_YUV420P);
+                    if (IsQsvBackend(opts.HardwareBackend))
+                        forcedVideoFormat = ffmpeg.av_get_pix_fmt_name(formatCandidates[0]);
+                    else if (formatCandidates[0] != vDecCtx->pix_fmt)
+                        forcedVideoFormat = ffmpeg.av_get_pix_fmt_name(formatCandidates[0]);
+                }
+                vEncCtx->pix_fmt = formatCandidates[0];
 
                 if (opts.FpsMode == FpsMode.Fixed || opts.FpsMode == FpsMode.Peak)
                     vEncCtx->framerate = new AVRational { num = (int)Math.Round(opts.FpsValue * 1000), den = 1000 };
@@ -354,70 +366,79 @@ public sealed class VideoTranscodeService : IVideoTranscodeService
                 if (vEncCtx->framerate.num <= 0 || vEncCtx->framerate.den <= 0)
                     vEncCtx->framerate = new AVRational { num = 30, den = 1 };
 
-                AVDictionary* optsDict = null;
-                try
+                // Open encoder; walk the pixel-format candidate ladder, fall through on failure
+                var (presetKey, presetVal, presetIsInt) = MapPresetOption(opts);
+                int openRet = -1;
+                foreach (var pf in formatCandidates)
                 {
-                    var (presetKey, presetVal, presetIsInt) = MapPresetOption(opts);
-                    if (opts.RateControl == RateControlMode.Crf)
+                    vEncCtx->pix_fmt = pf;
+                    AVDictionary* optsDict = null;
+                    try
                     {
-                        string crfVal = opts.Crf.ToString();
-                        if (presetKey != null) SetCodecOption(vEncCtx, &optsDict, presetKey, presetVal, presetIsInt);
-                        if (opts.HardwareBackend == HardwareBackend.Software)
+                        if (opts.RateControl == RateControlMode.Crf)
                         {
-                            if (opts.VideoCodec == VideoCodec.H264 || opts.VideoCodec == VideoCodec.H265 || opts.VideoCodec == VideoCodec.Av1Aom || opts.VideoCodec == VideoCodec.Av1Svt || opts.VideoCodec == VideoCodec.Vp8 || opts.VideoCodec == VideoCodec.Vp9)
+                            string crfVal = opts.Crf.ToString();
+                            if (presetKey != null) SetCodecOption(vEncCtx, &optsDict, presetKey, presetVal, presetIsInt);
+                            if (opts.HardwareBackend == HardwareBackend.Software)
                             {
-                                SetCodecOption(vEncCtx, &optsDict, "crf", crfVal, false);
-                                if (opts.VideoCodec == VideoCodec.Vp8 || opts.VideoCodec == VideoCodec.Vp9 || opts.VideoCodec == VideoCodec.Av1Aom || opts.VideoCodec == VideoCodec.Av1Svt)
-                                    vEncCtx->bit_rate = 0;
+                                if (opts.VideoCodec == VideoCodec.H264 || opts.VideoCodec == VideoCodec.H265 || opts.VideoCodec == VideoCodec.Av1Aom || opts.VideoCodec == VideoCodec.Av1Svt || opts.VideoCodec == VideoCodec.Vp8 || opts.VideoCodec == VideoCodec.Vp9)
+                                {
+                                    SetCodecOption(vEncCtx, &optsDict, "crf", crfVal, false);
+                                    if (opts.VideoCodec == VideoCodec.Vp8 || opts.VideoCodec == VideoCodec.Vp9 || opts.VideoCodec == VideoCodec.Av1Aom || opts.VideoCodec == VideoCodec.Av1Svt)
+                                        vEncCtx->bit_rate = 0;
+                                }
+                            }
+                            else
+                            {
+                                if (opts.HardwareBackend == HardwareBackend.Nvidia)
+                                {
+                                    SetCodecOption(vEncCtx, &optsDict, "qp", crfVal, false);
+                                    SetCodecOption(vEncCtx, &optsDict, "rc", "constqp", false);
+                                }
+                                else if (opts.HardwareBackend == HardwareBackend.Intel && !IsVaapiBackend(opts.HardwareBackend))
+                                    SetCodecOption(vEncCtx, &optsDict, "global_quality", crfVal, false);
+                                else if (opts.HardwareBackend == HardwareBackend.Amd && !IsVaapiBackend(opts.HardwareBackend))
+                                {
+                                    SetCodecOption(vEncCtx, &optsDict, "qp_i", crfVal, false);
+                                    SetCodecOption(vEncCtx, &optsDict, "qp_p", crfVal, false);
+                                }
+                                else if (IsVaapiBackend(opts.HardwareBackend))
+                                    SetCodecOption(vEncCtx, &optsDict, "qp", crfVal, false);
                             }
                         }
                         else
                         {
-                            if (opts.HardwareBackend == HardwareBackend.Nvidia)
+                            vEncCtx->bit_rate = (long)opts.VideoBitrateKbps * 1000;
+                            if (opts.VideoCodec == VideoCodec.H264 || opts.VideoCodec == VideoCodec.H265)
                             {
-                                SetCodecOption(vEncCtx, &optsDict, "qp", crfVal, false);
-                                SetCodecOption(vEncCtx, &optsDict, "rc", "constqp", false);
+                                vEncCtx->rc_max_rate = vEncCtx->bit_rate;
+                                vEncCtx->rc_buffer_size = (int)(vEncCtx->bit_rate * 2);
                             }
-                            else if (opts.HardwareBackend == HardwareBackend.Intel && !IsVaapiBackend(opts.HardwareBackend))
-                                SetCodecOption(vEncCtx, &optsDict, "global_quality", crfVal, false);
-                            else if (opts.HardwareBackend == HardwareBackend.Amd && !IsVaapiBackend(opts.HardwareBackend))
+                            if (presetKey != null) SetCodecOption(vEncCtx, &optsDict, presetKey, presetVal, presetIsInt);
+                            if (pass != null && passLogFile != null)
                             {
-                                SetCodecOption(vEncCtx, &optsDict, "qp_i", crfVal, false);
-                                SetCodecOption(vEncCtx, &optsDict, "qp_p", crfVal, false);
+                                SetCodecOption(vEncCtx, &optsDict, "pass", pass.Value.ToString(), false);
+                                SetCodecOption(vEncCtx, &optsDict, "passlogfile", passLogFile, false);
                             }
-                            else if (IsVaapiBackend(opts.HardwareBackend))
-                                SetCodecOption(vEncCtx, &optsDict, "qp", crfVal, false);
                         }
-                    }
-                    else
-                    {
-                        vEncCtx->bit_rate = (long)opts.VideoBitrateKbps * 1000;
-                        if (opts.VideoCodec == VideoCodec.H264 || opts.VideoCodec == VideoCodec.H265)
+                        if (!string.IsNullOrEmpty(opts.Profile)) SetCodecOption(vEncCtx, &optsDict, "profile", opts.Profile, false);
+                        if (!string.IsNullOrEmpty(opts.Level)) SetCodecOption(vEncCtx, &optsDict, "level", opts.Level, false);
+                        if (opts.VideoCodec == VideoCodec.Vp8 || opts.VideoCodec == VideoCodec.Vp9)
                         {
-                            vEncCtx->rc_max_rate = vEncCtx->bit_rate;
-                            vEncCtx->rc_buffer_size = (int)(vEncCtx->bit_rate * 2);
+                            SetCodecOption(vEncCtx, &optsDict, "auto-alt-ref", "1", false);
+                            SetCodecOption(vEncCtx, &optsDict, "lag-in-frames", "25", false);
                         }
-                        if (presetKey != null) SetCodecOption(vEncCtx, &optsDict, presetKey, presetVal, presetIsInt);
-                        if (pass != null && passLogFile != null)
-                        {
-                            SetCodecOption(vEncCtx, &optsDict, "pass", pass.Value.ToString(), false);
-                            SetCodecOption(vEncCtx, &optsDict, "passlogfile", passLogFile, false);
-                        }
+                        openRet = ffmpeg.avcodec_open2(vEncCtx, enc, &optsDict);
+                        if (openRet < 0)
+                            _logger.LogWarning("avcodec_open2 vEnc attempt {Fmt} failed, trying next format: {Err}", ffmpeg.av_get_pix_fmt_name(pf), FfmpegNativeLoader.GetErrorString(openRet));
                     }
-                    if (!string.IsNullOrEmpty(opts.Profile)) SetCodecOption(vEncCtx, &optsDict, "profile", opts.Profile, false);
-                    if (!string.IsNullOrEmpty(opts.Level)) SetCodecOption(vEncCtx, &optsDict, "level", opts.Level, false);
-                    if (opts.VideoCodec == VideoCodec.Vp8 || opts.VideoCodec == VideoCodec.Vp9)
+                    finally
                     {
-                        SetCodecOption(vEncCtx, &optsDict, "auto-alt-ref", "1", false);
-                        SetCodecOption(vEncCtx, &optsDict, "lag-in-frames", "25", false);
+                        if (optsDict != null) ffmpeg.av_dict_free(&optsDict);
                     }
-                    ret = ffmpeg.avcodec_open2(vEncCtx, enc, &optsDict);
-                    if (ret < 0) throw new InvalidOperationException($"avcodec_open2 vEnc ({Marshal.PtrToStringAnsi((IntPtr)enc->name)}) failed: {FfmpegNativeLoader.GetErrorString(ret)}");
+                    if (openRet >= 0) break;
                 }
-                finally
-                {
-                    if (optsDict != null) ffmpeg.av_dict_free(&optsDict);
-                }
+                if (openRet < 0) throw new InvalidOperationException($"avcodec_open2 vEnc ({Marshal.PtrToStringAnsi((IntPtr)enc->name)}) failed: {FfmpegNativeLoader.GetErrorString(openRet)}");
 
                 vOutStream = ffmpeg.avformat_new_stream(ofmtCtx, null);
                 if (vOutStream == null) throw new InvalidOperationException("avformat_new_stream vOut failed");
@@ -468,7 +489,9 @@ public sealed class VideoTranscodeService : IVideoTranscodeService
             }
 
             bool needVideoFilter = hasVideo && vDecCtx != null && vEncCtx != null;
-            bool hasFilter = needVideoFilter && (opts.CropEnabled || opts.Deinterlace != DeinterlaceMode.None || opts.Denoise != DenoiseMode.None || opts.ScaleMode != ScaleMode.None || opts.FpsMode != FpsMode.SameAsSource || IsVaapiBackend(opts.HardwareBackend) || IsQsvBackend(opts.HardwareBackend));
+            // Software conversion (chroma/depth downshift) also needs the graph + format= filter
+            bool needFormatConvert = forcedVideoFormat != null && !IsVaapiBackend(opts.HardwareBackend) && !IsQsvBackend(opts.HardwareBackend);
+            bool hasFilter = needVideoFilter && (opts.CropEnabled || opts.Deinterlace != DeinterlaceMode.None || opts.Denoise != DenoiseMode.None || opts.ScaleMode != ScaleMode.None || opts.FpsMode != FpsMode.SameAsSource || IsVaapiBackend(opts.HardwareBackend) || IsQsvBackend(opts.HardwareBackend) || needFormatConvert);
             if (opts.Container == VideoContainer.Gif) hasFilter = true;
 
             if (needVideoFilter)
@@ -481,7 +504,7 @@ public sealed class VideoTranscodeService : IVideoTranscodeService
                 }
                 else if (hasFilter)
                 {
-                    string filtDesc = BuildVideoFilterString(opts);
+                    string filtDesc = BuildVideoFilterString(opts, forcedVideoFormat);
                     ret = CreateVideoFilterGraph(vDecCtx, vEncCtx, filtDesc, &vFilterGraph, &vFilterSrc, &vFilterSink);
                     if (ret < 0)
                     {
@@ -836,7 +859,7 @@ public sealed class VideoTranscodeService : IVideoTranscodeService
         return 0;
     }
 
-    private static string BuildVideoFilterString(VideoTranscodeOptions o)
+    private static string BuildVideoFilterString(VideoTranscodeOptions o, string? forcedFormat)
     {
         var filters = new List<string>();
         if (o.CropEnabled) filters.Add($"crop=iw-{o.CropLeft + o.CropRight}:ih-{o.CropTop + o.CropBottom}:{o.CropLeft}:{o.CropTop}");
@@ -849,7 +872,8 @@ public sealed class VideoTranscodeService : IVideoTranscodeService
             else if (o.FpsMode == FpsMode.Peak) filters.Add($"fps={o.FpsValue.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
         }
         if (IsVaapiBackend(o.HardwareBackend)) filters.Add("format=nv12,hwupload");
-        else if (IsQsvBackend(o.HardwareBackend)) filters.Add("format=nv12");
+        else if (IsQsvBackend(o.HardwareBackend)) filters.Add($"format={forcedFormat ?? "nv12"}");
+        else if (!string.IsNullOrEmpty(forcedFormat)) filters.Add($"format={forcedFormat}");
         return string.Join(",", filters);
     }
 
@@ -1073,6 +1097,88 @@ public sealed class VideoTranscodeService : IVideoTranscodeService
         PresetLevel.Placebo => "veryslow",
         _ => "medium"
     };
+
+    private static AVPixelFormat PlanarChromaFormat(int log2ChromaW, int log2ChromaH, int depth) => (log2ChromaW, log2ChromaH) switch
+    {
+        (1, 1) => depth switch
+        {
+            12 => AVPixelFormat.AV_PIX_FMT_YUV420P12LE,
+            10 => AVPixelFormat.AV_PIX_FMT_YUV420P10LE,
+            _ => AVPixelFormat.AV_PIX_FMT_YUV420P
+        },
+        (1, 0) => depth switch
+        {
+            12 => AVPixelFormat.AV_PIX_FMT_YUV422P12LE,
+            10 => AVPixelFormat.AV_PIX_FMT_YUV422P10LE,
+            _ => AVPixelFormat.AV_PIX_FMT_YUV422P
+        },
+        (0, 0) => depth switch
+        {
+            12 => AVPixelFormat.AV_PIX_FMT_YUV444P12LE,
+            10 => AVPixelFormat.AV_PIX_FMT_YUV444P10LE,
+            _ => AVPixelFormat.AV_PIX_FMT_YUV444P
+        },
+        _ => AVPixelFormat.AV_PIX_FMT_NONE
+    };
+
+    private static unsafe List<AVPixelFormat> BuildFormatCandidates(AVCodec* enc, VideoTranscodeOptions opts, int srcChromaW, int srcChromaH, int srcDepth)
+    {
+        var list = new List<AVPixelFormat>();
+        void Add(AVPixelFormat f)
+        {
+            if (f != AVPixelFormat.AV_PIX_FMT_NONE && !list.Contains(f) && SupportsPixelFormat(enc, f)) list.Add(f);
+        }
+
+        if (IsQsvBackend(opts.HardwareBackend))
+        {
+            // QSV system-memory path: hevc_qsv supports 4:2:2 via yuyv422 (8-bit) / y210le (10-bit);
+            // h264_qsv is NV12-only. 4:2:0 → p010le (10-bit) / nv12.
+            if (srcChromaW == 1 && srcChromaH == 0 && opts.VideoCodec == VideoCodec.H265)
+            {
+                if (srcDepth >= 10) Add(AVPixelFormat.AV_PIX_FMT_Y210LE);
+                Add(AVPixelFormat.AV_PIX_FMT_YUYV422);
+            }
+            if (srcDepth >= 10) Add(AVPixelFormat.AV_PIX_FMT_P010LE);
+            Add(AVPixelFormat.AV_PIX_FMT_NV12);
+            return list;
+        }
+
+        // Software: prefer same chroma at same depth, then lower depths, then 4:2:0;
+        // H264 is capped at 8-bit (BtbN libx264 is 8-bit only, per product decision).
+        bool allowHighDepth = opts.VideoCodec != VideoCodec.H264;
+        var depths = new List<int>();
+        foreach (var d in new[] { srcDepth, 10, 8 })
+            if (d <= srcDepth && !depths.Contains(d)) depths.Add(d);
+        var chromas = new List<(int W, int H)> { (srcChromaW, srcChromaH) };
+        if (srcChromaW != 1 || srcChromaH != 1) chromas.Add((1, 1));
+        foreach (var (w, h) in chromas)
+        {
+            foreach (var d in depths)
+            {
+                if (!allowHighDepth && d > 8) continue;
+                Add(PlanarChromaFormat(w, h, d));
+            }
+        }
+        return list;
+    }
+
+    private static unsafe bool SupportsPixelFormat(AVCodec* codec, AVPixelFormat fmt)
+    {
+        void* outCfg = null;
+        int n = 0;
+        int ret = ffmpeg.avcodec_get_supported_config(null, codec, AVCodecConfig.AV_CODEC_CONFIG_PIX_FORMAT, 0, &outCfg, &n);
+        if (ret < 0 || outCfg == null || n <= 0) return false;
+        try
+        {
+            var arr = (AVPixelFormat*)outCfg;
+            for (int i = 0; i < n; i++) if (arr[i] == fmt) return true;
+            return false;
+        }
+        finally
+        {
+            ffmpeg.av_free(outCfg);
+        }
+    }
 
     private unsafe void SetCodecOption(AVCodecContext* ctx, AVDictionary** dict, string key, string value, bool isInt)
     {
