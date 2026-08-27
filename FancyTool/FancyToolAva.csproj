@@ -10,11 +10,10 @@
     <RuntimeIdentifiers>win-x64;linux-x64</RuntimeIdentifiers>
     <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == '' AND $([MSBuild]::IsOSPlatform('windows'))">win-x64</RuntimeIdentifier>
     <ApplicationIcon>Assets\storeIcon.ico</ApplicationIcon>
-    <NoWarn>$(NoWarn);NU1701;CS8767;CS8625;CS8602;CS8600;CS8604;CS0618;CS8500;CS8981</NoWarn>
+    <NoWarn>$(NoWarn);NU1701;CS8767;CS8625;CS8602;CS8600;CS8604;CS0618</NoWarn>
 	<PublishAot Condition="'$(Configuration)' == 'Debug' OR '$(RuntimeIdentifier)' != 'win-x64'">false</PublishAot>
 	<PublishAot Condition="'$(Configuration)' != 'Debug' AND '$(RuntimeIdentifier)' == 'win-x64'">true</PublishAot>
 	<VersionPrefix>1.1.0.0</VersionPrefix>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(RuntimeIdentifier)' != ''">
@@ -47,9 +46,6 @@
     <PackageReference Include="Avalonia" Version="12.1.1" />
     <PackageReference Include="Avalonia.Desktop" Version="12.1.1" />
     <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.1" />
-    <PackageReference Include="FFmpeg.AutoGen" Version="9.0.1.1" />
-    <PackageReference Include="FFmpeg.AutoGen.Abstractions" Version="9.0.1.1" />
-    <PackageReference Include="FFmpeg.AutoGen.Bindings.DynamicallyLoaded" Version="9.0.1.1" />
     <PackageReference Include="FluentAvaloniaUI" Version="3.0.2" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <PackageReference Include="Lang.Avalonia" Version="12.1.1.2" />

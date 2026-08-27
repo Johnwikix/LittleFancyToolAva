@@ -18,7 +18,10 @@ public enum VideoCodec
     H265 = 1,       // libx265
     Av1Aom = 2,     // libaom-av1
     Av1Svt = 3,     // libsvtav1
-    Gif = 4
+    Gif = 4,
+    Vp8 = 5,        // libvpx
+    Vp9 = 6,        // libvpx-vp9
+    Mpeg4 = 7       // mpeg4
 }
 
 public enum HardwareBackend

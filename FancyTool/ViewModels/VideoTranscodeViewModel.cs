@@ -110,7 +110,7 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
     public bool IsGifMode => ContainerIndex >= 0 && ContainerIndex < ContainerValues.Count && ContainerValues[ContainerIndex] == VideoContainer.Gif;
 
     // Video codecs filtered
-    public List<string> AllVideoCodecLabels { get; } = ["H.264 (x264)", "H.265 (x265)", "AV1 (aom)", "AV1 (SVT)", "GIF"];
+    public List<string> AllVideoCodecLabels { get; } = ["H.264 (x264)", "H.265 (x265)", "AV1 (aom)", "AV1 (SVT)", "VP8", "VP9", "MPEG-4", "GIF"];
     public List<VideoCodec> AllVideoCodecValues { get; } = Enum.GetValues<VideoCodec>().ToList();
 
     public List<string> FilteredVideoCodecs
@@ -152,10 +152,10 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
     private static List<string> FilterVideoCodecsForContainer(VideoContainer c) => c switch
     {
         VideoContainer.Gif => ["GIF"],
-        VideoContainer.Mp4 => ["H.264 (x264)", "H.265 (x265)", "AV1 (aom)", "AV1 (SVT)"],
-        VideoContainer.Mkv => ["H.264 (x264)", "H.265 (x265)", "AV1 (aom)", "AV1 (SVT)"],
-        VideoContainer.Mov => ["H.264 (x264)", "H.265 (x265)"],
-        VideoContainer.Avi => ["H.264 (x264)"],
+        VideoContainer.Mp4 => ["H.264 (x264)", "H.265 (x265)", "AV1 (aom)", "AV1 (SVT)", "MPEG-4"],
+        VideoContainer.Mkv => ["H.264 (x264)", "H.265 (x265)", "AV1 (aom)", "AV1 (SVT)", "VP8", "VP9", "MPEG-4"],
+        VideoContainer.Mov => ["H.264 (x264)", "H.265 (x265)", "AV1 (aom)", "MPEG-4"],
+        VideoContainer.Avi => ["H.264 (x264)", "MPEG-4"],
         _ => ["H.264 (x264)", "H.265 (x265)", "AV1 (aom)"]
     };
 
@@ -911,7 +911,7 @@ public void AddDroppedPaths(IEnumerable<string> paths)
     {
         try
         {
-            // FFmpeg 9.0 native via FFmpeg.AutoGen: point to the latest release's 9.0 GPL-shared Windows asset (avcodec-63). Browser handles the actual download; the app does not fetch or redistribute the binary.
+            // FFmpeg exe via BtbN gpl-shared (ffmpeg.exe + ffprobe.exe). Browser handles the download; the app does not fetch or redistribute the binary.
             string url = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n9.0-latest-win64-gpl-shared-9.0.zip";
             Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
         }
@@ -1101,6 +1101,9 @@ public void AddDroppedPaths(IEnumerable<string> paths)
             "H.265 (x265)" => VideoCodec.H265,
             "AV1 (aom)" => VideoCodec.Av1Aom,
             "AV1 (SVT)" => VideoCodec.Av1Svt,
+            "VP8" => VideoCodec.Vp8,
+            "VP9" => VideoCodec.Vp9,
+            "MPEG-4" => VideoCodec.Mpeg4,
             "GIF" => VideoCodec.Gif,
             _ => VideoCodec.H264
         };
@@ -1145,12 +1148,17 @@ public void AddDroppedPaths(IEnumerable<string> paths)
             (VideoCodec.H265, _, true) => "hevc_vaapi",
             (VideoCodec.Av1Aom, _, true) => "av1_vaapi",
             (VideoCodec.Av1Svt, _, true) => "av1_vaapi",
+            (VideoCodec.Vp8, _, true) => "vp8_vaapi",
+            (VideoCodec.Vp9, _, true) => "vp9_vaapi",
             _ => c switch
             {
                 VideoCodec.H264 => "libx264",
                 VideoCodec.H265 => "libx265",
                 VideoCodec.Av1Aom => "libaom-av1",
                 VideoCodec.Av1Svt => "libsvtav1",
+                VideoCodec.Vp8 => "libvpx",
+                VideoCodec.Vp9 => "libvpx-vp9",
+                VideoCodec.Mpeg4 => "mpeg4",
                 VideoCodec.Gif => "gif",
                 _ => "libx264"
             }

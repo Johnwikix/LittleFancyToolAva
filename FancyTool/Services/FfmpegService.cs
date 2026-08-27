@@ -1,11 +1,13 @@
+using System.Diagnostics;
 using FancyToolAva.Models;
 using Microsoft.Extensions.Logging;
 
 namespace FancyToolAva.Services;
 
 /// <summary>
-/// BYO FFmpeg validator via FFmpeg.AutoGen 9.0 native libs (avcodec-63 etc).
-/// No ffmpeg.exe required. Validates shared libs via native dlopen + encoder enumeration.
+/// BYO FFmpeg validator via ffmpeg.exe + ffprobe.exe (no native dll loading).
+/// Validates user-provided directory containing ffmpeg executables and probes encoders via `ffmpeg -encoders`.
+/// Supports source pix_fmt passthrough via ffprobe; no FFmpeg.AutoGen, no unsafe.
 /// </summary>
 public sealed class FfmpegService : IFfmpegService
 {
@@ -16,6 +18,7 @@ public sealed class FfmpegService : IFfmpegService
     private bool _isAvailable;
     private string? _resolvedDirectory;
     private string? _lastError;
+    private string? _versionInfo;
     private List<string> _availableVideoEncoders = new();
     private List<string> _availableAudioEncoders = new();
 
@@ -54,13 +57,18 @@ public sealed class FfmpegService : IFfmpegService
         get { lock (_lock) return _availableAudioEncoders.AsReadOnly(); }
     }
 
-    public string? VersionInfo => FfmpegNativeLoader.VersionInfo;
+    public string? VersionInfo
+    {
+        get { lock (_lock) return _versionInfo; }
+        private set { lock (_lock) _versionInfo = value; }
+    }
 
     public FfmpegService(ILogger<FfmpegService> logger, AppPreferences preferences)
     {
         _logger = logger;
         _preferences = preferences;
         _preferences.PropertyChanged += OnPreferencesChanged;
+
         _ = Task.Run(async () =>
         {
             try { await ValidateAsync().ConfigureAwait(false); }
@@ -83,12 +91,14 @@ public sealed class FfmpegService : IFfmpegService
     public async Task<bool> ValidateAsync(CancellationToken ct = default)
     {
         if (_disposed) return false;
+
         string? dir = ResolveDirectory();
         if (string.IsNullOrWhiteSpace(dir))
         {
             SetUnavailable(null, LocalizationRegistry.Get("VideoTranscode.Msg_FfmpegNotConfigured"));
             return false;
         }
+
         dir = Path.GetFullPath(dir);
         if (!Directory.Exists(dir))
         {
@@ -108,17 +118,12 @@ public sealed class FfmpegService : IFfmpegService
             await Task.Yield();
             ct.ThrowIfCancellationRequested();
 
-            var (ok, video, audio, loadError) = TryValidateNative(dir);
-
-            if (!ok)
-            {
-                SetUnavailable(dir, LocalizationRegistry.Get("VideoTranscode.Msg_FfmpegProbeFailed", loadError ?? "native load failed"));
-                return false;
-            }
+            string? version = await ProbeVersionAsync(dir, ct).ConfigureAwait(false);
+            var (video, audio) = await ProbeEncodersAsync(dir, ct).ConfigureAwait(false);
 
             if (video.Count == 0 && audio.Count == 0)
             {
-                video = new List<string> { "libx264", "libx265", "libaom-av1", "libsvtav1", "gif" };
+                video = new List<string> { "libx264", "libx265", "libaom-av1", "libsvtav1", "libvpx", "libvpx-vp9", "mpeg4", "gif" };
                 audio = new List<string> { "aac", "libmp3lame", "libopus", "libvorbis", "flac", "ac3" };
             }
 
@@ -126,11 +131,12 @@ public sealed class FfmpegService : IFfmpegService
             {
                 _availableVideoEncoders = video.ToList();
                 _availableAudioEncoders = audio.ToList();
+                _versionInfo = version ?? _versionInfo;
             }
             ResolvedDirectory = dir;
             LastError = null;
             IsAvailable = true;
-            _logger.LogInformation("FFmpeg native validated at {Dir} version={Ver} video={Video} audio={Audio}", dir, FfmpegNativeLoader.VersionInfo, string.Join(",", _availableVideoEncoders), string.Join(",", _availableAudioEncoders));
+            _logger.LogInformation("FFmpeg validated at {Dir} version={Ver} video={Video} audio={Audio}", dir, VersionInfo, string.Join(",", _availableVideoEncoders), string.Join(",", _availableAudioEncoders));
             return true;
         }
         catch (OperationCanceledException) { throw; }
@@ -139,20 +145,6 @@ public sealed class FfmpegService : IFfmpegService
             _logger.LogWarning(ex, "FFmpeg validation probe failed at {Dir}", dir);
             SetUnavailable(dir, LocalizationRegistry.Get("VideoTranscode.Msg_FfmpegProbeFailed", ex.Message));
             return false;
-        }
-    }
-
-    private (bool Ok, IReadOnlyList<string> Video, IReadOnlyList<string> Audio, string? Error) TryValidateNative(string dir)
-    {
-        // This method contains unsafe code but is not async, so it's allowed
-        unsafe
-        {
-            if (!FfmpegNativeLoader.TryInitialize(dir, _logger, out string? loadError))
-            {
-                return (false, Array.Empty<string>(), Array.Empty<string>(), loadError);
-            }
-            var (video, audio) = FfmpegNativeLoader.EnumerateEncoders();
-            return (true, video, audio, null);
         }
     }
 
@@ -169,41 +161,133 @@ public sealed class FfmpegService : IFfmpegService
     {
         string? custom = _preferences.CustomFfmpegDirectory;
         if (!string.IsNullOrWhiteSpace(custom)) return custom;
+
         string byo = AppPaths.FfmpegBringYourOwnDirectory;
         if (Directory.Exists(byo) && CheckRequiredFiles(byo).Missing.Count == 0)
             return byo;
+
         string legacy = AppPaths.FfmpegDirectory;
         if (Directory.Exists(legacy) && CheckRequiredFiles(legacy).Missing.Count == 0)
             return legacy;
+
         return custom ?? byo;
     }
 
     private static (List<string> Missing, List<string> Found) CheckRequiredFiles(string dir)
     {
-        var bases = GetRequiredBaseNames();
+        var required = GetRequiredFileNames();
         var missing = new List<string>();
         var found = new List<string>();
-        foreach (var baseName in bases)
+        foreach (var name in required)
         {
-            bool exists;
-            if (OperatingSystem.IsWindows())
-            {
-                try { exists = Directory.GetFiles(dir, baseName + "-*.dll").Length > 0; }
-                catch { exists = false; }
-            }
-            else
-            {
-                try { exists = Directory.GetFiles(dir, baseName + ".so*").Length > 0; }
-                catch { exists = false; }
-            }
-            if (exists) found.Add(baseName); else missing.Add(baseName);
+            string path = Path.Combine(dir, name);
+            bool exists = File.Exists(path);
+            if (exists) found.Add(name); else missing.Add(name);
         }
         return (missing, found);
     }
 
-    private static IReadOnlyList<string> GetRequiredBaseNames()
+    private static IReadOnlyList<string> GetRequiredFileNames()
     {
-        return new[] { "avcodec", "avformat", "avutil", "swscale", "swresample", "avfilter" };
+        if (OperatingSystem.IsWindows())
+            return new[] { "ffmpeg.exe" };
+        else
+            return new[] { "ffmpeg" };
+    }
+
+    private static async Task<string?> ProbeVersionAsync(string dir, CancellationToken ct)
+    {
+        string exe = Path.Combine(dir, OperatingSystem.IsWindows() ? "ffmpeg.exe" : "ffmpeg");
+        if (!File.Exists(exe)) return null;
+        try
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = exe,
+                Arguments = "-version",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+            psi.Environment["PATH"] = dir + Path.PathSeparator + Environment.GetEnvironmentVariable("PATH");
+            using var proc = new Process { StartInfo = psi };
+            proc.Start();
+            string output = await proc.StandardOutput.ReadToEndAsync(ct).ConfigureAwait(false);
+            string error = await proc.StandardError.ReadToEndAsync(ct).ConfigureAwait(false);
+            await proc.WaitForExitAsync(ct).ConfigureAwait(false);
+            string firstLine = (output + "\n" + error).Split('\n').FirstOrDefault(l => !string.IsNullOrWhiteSpace(l))?.Trim() ?? "";
+            if (!string.IsNullOrWhiteSpace(firstLine))
+                return firstLine;
+            return null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static async Task<(IReadOnlyList<string> Video, IReadOnlyList<string> Audio)> ProbeEncodersAsync(string dir, CancellationToken ct)
+    {
+        string ffmpegExe = Path.Combine(dir, OperatingSystem.IsWindows() ? "ffmpeg.exe" : "ffmpeg");
+        if (!File.Exists(ffmpegExe))
+        {
+            var fallbackVideo = new[] { "libx264", "libx265", "libaom-av1", "libsvtav1", "libvpx", "libvpx-vp9", "mpeg4", "gif" };
+            var fallbackAudio = new[] { "aac", "libmp3lame", "libopus", "libvorbis", "flac", "ac3" };
+            return (fallbackVideo, fallbackAudio);
+        }
+
+        try
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = ffmpegExe,
+                Arguments = "-hide_banner -encoders",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+            psi.Environment["PATH"] = dir + Path.PathSeparator + Environment.GetEnvironmentVariable("PATH");
+
+            using var proc = new Process { StartInfo = psi };
+            proc.Start();
+            string output = await proc.StandardOutput.ReadToEndAsync(ct).ConfigureAwait(false);
+            string error = await proc.StandardError.ReadToEndAsync(ct).ConfigureAwait(false);
+            await proc.WaitForExitAsync(ct).ConfigureAwait(false);
+
+            string combined = output + "\n" + error;
+            var video = ParseEncoders(combined, isVideo: true);
+            var audio = ParseEncoders(combined, isVideo: false);
+            if (video.Count == 0 && audio.Count == 0)
+                throw new InvalidOperationException("No encoders parsed from ffmpeg output");
+            return (video, audio);
+        }
+        catch
+        {
+            var fallbackVideo = new[] { "libx264", "libx265", "libaom-av1", "libsvtav1", "libvpx", "libvpx-vp9", "mpeg4", "gif" };
+            var fallbackAudio = new[] { "aac", "libmp3lame", "libopus", "libvorbis", "flac", "ac3" };
+            return (fallbackVideo, fallbackAudio);
+        }
+    }
+
+    private static List<string> ParseEncoders(string text, bool isVideo)
+    {
+        var list = new List<string>();
+        foreach (var line in text.Split('\n'))
+        {
+            var trimmed = line.Trim();
+            if (string.IsNullOrEmpty(trimmed)) continue;
+            if (trimmed.Length < 2) continue;
+            char type = trimmed[0];
+            bool wantVideo = isVideo ? type == 'V' : type == 'A';
+            if (!wantVideo) continue;
+            var parts = trimmed.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length < 2) continue;
+            string name = parts[1].Trim();
+            list.Add(name);
+        }
+        return list.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
     }
 
     public bool ValidateEncoder(string encoderName)
