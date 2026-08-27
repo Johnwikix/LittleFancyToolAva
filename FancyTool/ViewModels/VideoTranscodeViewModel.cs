@@ -21,6 +21,12 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
         ".mp4", ".mkv", ".webm", ".mov", ".avi", ".flv", ".wmv", ".m4v", ".mpg", ".mpeg", ".3gp", ".gif", ".ts", ".mts", ".m2ts"
     };
 
+    private static bool IsVideoFile(string path)
+    {
+        if (string.IsNullOrEmpty(path)) return false;
+        return VideoExtensions.Contains(Path.GetExtension(path));
+    }
+
     private readonly IVideoTranscodeService _videoService;
     private readonly IFfmpegService _ffmpegService;
     private readonly IFileDialogService _fileDialogService;
@@ -33,6 +39,7 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
     private bool _isDisposed;
     private bool _isApplyingPreset;
     private bool _suppressPresetReset;
+    private bool _probeFailureNotified;
 
     string IViewState.ViewName => "videoTranscodeView";
 
@@ -226,6 +233,12 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
             if (SetProperty(ref field, value)) ResetPresetToCustom();
         }
     } = false;
+
+    public bool IncludeAllInFolderScan
+    {
+        get => field;
+        set => SetProperty(ref field, value);
+    }
 
     public int CrfValue
     {
@@ -671,7 +684,8 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
         GifWidth = GifWidth,
         GifLoop = GifLoop,
         GifStatsMode = GifStatsIndex == 0 ? "diff" : "single",
-        SelectedPresetIndex = HandbrakePresetIndex
+        SelectedPresetIndex = HandbrakePresetIndex,
+        IncludeAllInFolderScan = IncludeAllInFolderScan
     };
 
     void IViewState.RestoreState(object state)
@@ -709,6 +723,7 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
                 GifLoop = s.GifLoop;
                 GifStatsIndex = s.GifStatsMode == "single" ? 1 : 0;
                 HandbrakePresetIndex = Math.Clamp(s.SelectedPresetIndex, 0, HandbrakePresetLabels.Count - 1);
+                IncludeAllInFolderScan = s.IncludeAllInFolderScan;
                 if (!string.IsNullOrEmpty(s.GifStatsMode)) GifStatsIndex = s.GifStatsMode == "single" ? 1 : 0;
                 if (!string.IsNullOrEmpty(_preferences.CustomFfmpegDirectory)) FfmpegDirectory = _preferences.CustomFfmpegDirectory;
             }
@@ -719,44 +734,58 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
         }
     }
 
-    [RelayCommand(CanExecute = nameof(CanModify))]
-    private async Task AddFiles()
-    {
-        IReadOnlyList<FilePickerFileType> filters = [new(LocalizationRegistry.Get("VideoTranscode.Picker_VideoFile")) { Patterns = ["*.mp4", "*.mkv", "*.webm", "*.mov", "*.avi", "*.flv", "*.wmv", "*.m4v", "*.mpg", "*.mpeg", "*.gif"] }];
-        var paths = await _fileDialogService.PickOpenFilesAsync(LocalizationRegistry.Get("VideoTranscode.Picker_SelectVideo"), filters);
-        if (paths == null) return;
-        var existing = new HashSet<string>(FileItems.Select(x => x.FilePath), StringComparer.OrdinalIgnoreCase);
-        foreach (string path in paths)
+[RelayCommand(CanExecute = nameof(CanModify))]
+private async Task AddFiles()
+{
+    IReadOnlyList<FilePickerFileType> filters =
+    [
+        new(LocalizationRegistry.Get("VideoTranscode.Picker_VideoFile"))
         {
-            if (!existing.Contains(path) && VideoExtensions.Contains(Path.GetExtension(path)))
-            {
-                var item = CreateItem(path);
-                FileItems.Add(item);
-                existing.Add(path);
-                _ = ProbeItemAsync(item);
-            }
+            Patterns =
+            [
+                "*.mp4", "*.mkv", "*.webm", "*.mov", "*.avi", "*.flv", "*.wmv", "*.m4v",
+                "*.mpg", "*.mpeg", "*.3gp", "*.gif", "*.ts", "*.mts", ".m2ts"
+            ]
+        },
+        new(LocalizationRegistry.Get("VideoTranscode.Picker_AllFiles")) { Patterns = ["*.*"] }
+    ];
+    var paths = await _fileDialogService.PickOpenFilesAsync(LocalizationRegistry.Get("VideoTranscode.Picker_SelectVideo"), filters);
+    if (paths == null) return;
+    var existing = new HashSet<string>(FileItems.Select(x => x.FilePath), StringComparer.OrdinalIgnoreCase);
+    foreach (string path in paths)
+    {
+        if (string.IsNullOrEmpty(path)) continue;
+        if (!existing.Contains(path))
+        {
+            var item = CreateItem(path);
+            FileItems.Add(item);
+            existing.Add(path);
+            _ = ProbeItemAsync(item);
         }
-        UpdateStatusText();
     }
+    UpdateStatusText();
+}
 
-    [RelayCommand(CanExecute = nameof(CanModify))]
-    private async Task AddFolder()
+[RelayCommand(CanExecute = nameof(CanModify))]
+private async Task AddFolder()
+{
+    string? folder = await _fileDialogService.PickFolderAsync(LocalizationRegistry.Get("VideoTranscode.Picker_SelectVideoFolder"));
+    if (folder == null) return;
+    bool includeAll = IncludeAllInFolderScan;
+    var existing = new HashSet<string>(FileItems.Select(x => x.FilePath), StringComparer.OrdinalIgnoreCase);
+    foreach (string file in Directory.EnumerateFiles(folder, "*", SearchOption.AllDirectories))
     {
-        string? folder = await _fileDialogService.PickFolderAsync(LocalizationRegistry.Get("VideoTranscode.Picker_SelectVideoFolder"));
-        if (folder == null) return;
-        var existing = new HashSet<string>(FileItems.Select(x => x.FilePath), StringComparer.OrdinalIgnoreCase);
-        foreach (string file in Directory.EnumerateFiles(folder, "*", SearchOption.AllDirectories))
+        bool accept = includeAll ? !string.IsNullOrEmpty(file) : IsVideoFile(file);
+        if (accept && !existing.Contains(file))
         {
-            if (VideoExtensions.Contains(Path.GetExtension(file)) && !existing.Contains(file))
-            {
-                var item = CreateItem(file);
-                FileItems.Add(item);
-                existing.Add(file);
-                _ = ProbeItemAsync(item);
-            }
+            var item = CreateItem(file);
+            FileItems.Add(item);
+            existing.Add(file);
+            _ = ProbeItemAsync(item);
         }
-        UpdateStatusText();
     }
+    UpdateStatusText();
+}
 
     [RelayCommand(CanExecute = nameof(CanModify))]
     private void ClearList()
@@ -778,47 +807,58 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
         return item;
     }
 
-    private async Task ProbeItemAsync(VideoFileItem item)
+private async Task ProbeItemAsync(VideoFileItem item)
+{
+    if (!_ffmpegService.IsAvailable) return;
+    try
     {
-        if (!_ffmpegService.IsAvailable) return;
-        try
-        {
-            var info = await _videoService.ProbeAsync(item.FilePath).ConfigureAwait(false);
-            Dispatcher.UIThread.Post(() => item.ProbeInfo = info);
-        }
-        catch { /* ignore probe failure */ }
+        var info = await _videoService.ProbeAsync(item.FilePath).ConfigureAwait(false);
+        Dispatcher.UIThread.Post(() => item.ProbeInfo = info);
     }
-
-    public void AddDroppedPaths(IEnumerable<string> paths)
+    catch
     {
-        if (IsBusy) return;
-        var existing = new HashSet<string>(FileItems.Select(x => x.FilePath), StringComparer.OrdinalIgnoreCase);
-        foreach (string path in paths)
+        Dispatcher.UIThread.Post(() =>
         {
-            if (string.IsNullOrEmpty(path)) continue;
-            if (Directory.Exists(path))
+            if (_probeFailureNotified) return;
+            _probeFailureNotified = true;
+            _notificationService.ShowWarn(
+                LocalizationRegistry.Get("VideoTranscode.Msg_FileProbeFailed", item.FileName));
+        });
+    }
+}
+
+public void AddDroppedPaths(IEnumerable<string> paths)
+{
+    if (IsBusy) return;
+    bool includeAll = IncludeAllInFolderScan;
+    var existing = new HashSet<string>(FileItems.Select(x => x.FilePath), StringComparer.OrdinalIgnoreCase);
+    foreach (string path in paths)
+    {
+        if (string.IsNullOrEmpty(path)) continue;
+        if (Directory.Exists(path))
+        {
+            foreach (string file in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories))
             {
-                foreach (string file in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories))
+                bool accept = includeAll ? !string.IsNullOrEmpty(file) : IsVideoFile(file);
+                if (accept && !existing.Contains(file))
                 {
-                    if (VideoExtensions.Contains(Path.GetExtension(file)) && !existing.Contains(file))
-                    {
-                        var item = CreateItem(file);
-                        FileItems.Add(item);
-                        existing.Add(file);
-                        _ = ProbeItemAsync(item);
-                    }
+                    var item = CreateItem(file);
+                    FileItems.Add(item);
+                    existing.Add(file);
+                    _ = ProbeItemAsync(item);
                 }
             }
-            else if (File.Exists(path) && VideoExtensions.Contains(Path.GetExtension(path)) && !existing.Contains(path))
-            {
-                var item = CreateItem(path);
-                FileItems.Add(item);
-                existing.Add(path);
-                _ = ProbeItemAsync(item);
-            }
         }
-        UpdateStatusText();
+        else if (File.Exists(path) && !existing.Contains(path))
+        {
+            var item = CreateItem(path);
+            FileItems.Add(item);
+            existing.Add(path);
+            _ = ProbeItemAsync(item);
+        }
     }
+    UpdateStatusText();
+}
 
     private bool CanModify() => !IsBusy;
 

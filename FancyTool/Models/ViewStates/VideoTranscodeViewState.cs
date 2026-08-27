@@ -34,4 +34,5 @@ public class VideoTranscodeViewState
     public int GifLoop { get; set; } = 0;
     public string GifStatsMode { get; set; } = "diff";
     public int SelectedPresetIndex { get; set; } // Output preset index
+    public bool IncludeAllInFolderScan { get; set; }
 }

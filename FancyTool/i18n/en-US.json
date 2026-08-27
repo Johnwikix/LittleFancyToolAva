@@ -510,8 +510,11 @@
     "Picker_VideoFile": "Video Files",
     "Picker_SelectVideo": "Select Video",
     "Picker_SelectVideoFolder": "Select Video Folder",
+    "Picker_AllFiles": "All Files",
     "Picker_SelectOutputDir": "Select Output Directory",
-    "Picker_SelectFfmpegDir": "Select FFmpeg Directory"
+    "Picker_SelectFfmpegDir": "Select FFmpeg Directory",
+    "CheckBox_IncludeAllInFolder": "Include all files when scanning folder",
+    "Msg_FileProbeFailed": "Cannot recognize this file as a video: {0}"
   },
   "TerminalStatus": {
     "Label_RX": "RX ",

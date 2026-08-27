@@ -510,8 +510,11 @@
     "Picker_VideoFile": "视频文件",
     "Picker_SelectVideo": "选择视频",
     "Picker_SelectVideoFolder": "选择视频文件夹",
+    "Picker_AllFiles": "所有文件",
     "Picker_SelectOutputDir": "选择输出目录",
-    "Picker_SelectFfmpegDir": "选择 FFmpeg 目录"
+    "Picker_SelectFfmpegDir": "选择 FFmpeg 目录",
+    "CheckBox_IncludeAllInFolder": "扫描文件夹时包含所有文件",
+    "Msg_FileProbeFailed": "无法识别为视频文件：{0}"
   },
   "TerminalStatus": {
     "Label_RX": "RX ",

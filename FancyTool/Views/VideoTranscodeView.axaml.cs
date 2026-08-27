@@ -7,11 +7,6 @@ namespace FancyToolAva.Views;
 
 public partial class VideoTranscodeView : UserControl
 {
-    private static readonly HashSet<string> VideoExtensions = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ".mp4", ".mkv", ".webm", ".mov", ".avi", ".flv", ".wmv", ".m4v", ".mpg", ".mpeg", ".3gp", ".gif", ".ts", ".mts", ".m2ts"
-    };
-
     public VideoTranscodeView()
     {
         InitializeComponent();
@@ -61,7 +56,7 @@ public partial class VideoTranscodeView : UserControl
             if (!string.IsNullOrEmpty(path))
             {
                 if (Directory.Exists(path)) return true;
-                if (VideoExtensions.Contains(Path.GetExtension(path))) return true;
+                if (File.Exists(path)) return true;
             }
         }
         return false;

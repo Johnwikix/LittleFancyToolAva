@@ -226,7 +226,7 @@
                     DragDrop.DragEnter="OnDragEnter"
                     DragDrop.DragOver="OnDragOver"
                     DragDrop.Drop="OnDrop">
-                <Grid RowDefinitions="Auto,*">
+                <Grid RowDefinitions="Auto,Auto,*">
                     <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="16,12,16,4">
                         <TextBlock Grid.Column="0" Classes="SectionHeader" Text="{Binding StatusText, FallbackValue='File List'}" VerticalAlignment="Center" />
                         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
@@ -235,7 +235,12 @@
                             <Button Command="{Binding ClearListCommand}" Content="{lan:I18n FileEnc.Button_Clear}" />
                         </StackPanel>
                     </Grid>
-                    <ListBox Grid.Row="1" ItemsSource="{Binding FileItems}" SelectedItem="{Binding SelectedFileItem}" BorderThickness="0" Margin="8,0,8,8">
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="6" Margin="16,0,16,4" HorizontalAlignment="Right">
+                        <CheckBox IsChecked="{Binding IncludeAllInFolderScan, Mode=TwoWay}"
+                                  VerticalAlignment="Center"
+                                  Content="{lan:I18n VideoTranscode.CheckBox_IncludeAllInFolder}" />
+                    </StackPanel>
+                    <ListBox Grid.Row="2" ItemsSource="{Binding FileItems}" SelectedItem="{Binding SelectedFileItem}" BorderThickness="0" Margin="8,0,8,8">
                         <ListBox.ItemTemplate>
                             <DataTemplate x:DataType="models:VideoFileItem">
                                 <Grid ColumnDefinitions="Auto,*,Auto,Auto" Margin="4,2">
