@@ -74,7 +74,7 @@
     "Tile_Hash_Name": "哈希计算",
     "Tile_Hash_Desc": "MD5 / SHA / SM3 哈希摘要计算",
     "Tile_VideoTranscode_Name": "视频转码",
-    "Tile_VideoTranscode_Desc": "批量视频转码，HandBrake 风格预设、滤镜与 GIF 调色板"
+    "Tile_VideoTranscode_Desc": "批量视频转码，一键预设、滤镜与 GIF 调色板"
   },
   "Nav": {
     "Home": "首页",
@@ -455,12 +455,12 @@
   },
   "VideoTranscode": {
     "Title": "视频转码",
-    "Subtitle": "HandBrake 风格批量转码（BYO FFmpeg 9.0 原生，支持 GIF 调色板）",
+    "Subtitle": "一键批量转码（BYO FFmpeg 9.0 原生，支持 GIF 调色板）",
     "Label_OutputDir": "输出目录",
     "Placeholder_OutputDir": "请选择输出目录…",
     "Label_FfmpegDir": "FFmpeg 目录（BYO 9.0）",
     "Button_Validate": "校验",
-    "Button_DownloadPage": "下载页",
+    "Button_DownloadPage": "下载 FFmpeg 9.0 (GPL shared)",
     "Button_Help": "帮助",
     "Hint_FfmpegGpl": "含 libx264/x265 的 FFmpeg 为 GPL。请下载 BtbN FFmpeg 9.0 的 gpl-shared 构建（avcodec-63 / avutil-61 / avfilter-12 / swscale-10 / swresample-7，含 dll/so），文件名含“gpl-shared”，解压后选择其 bin 目录；无需 ffmpeg.exe，原生加载。",
     "Hint_OutputDirEmpty": "留空则输出到源文件同目录，自动加“_output”后缀（不覆盖源文件）",
@@ -470,7 +470,7 @@
     "Label_Hardware": "硬件加速",
     "Hint_Hardware": "显式三选一：NVIDIA=NVENC，Intel=QSV(Windows)/VAAPI(Linux)，AMD=AMF(Windows)/VAAPI(Linux)，需 FFmpeg 构建支持对应显卡",
     "Hint_HardwareVaapi": "Linux 下 VAAPI 将使用 /dev/dri/renderD128，需用户在 video 用户组",
-    "Label_Preset": "HandBrake 预设",
+    "Label_Preset": "输出预设",
     "Label_Container": "封装格式",
     "Label_VideoCodec": "视频编码",
     "Label_AudioCodec": "音频编码",

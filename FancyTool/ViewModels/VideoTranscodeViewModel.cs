@@ -264,7 +264,7 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
         }
     } = 5;
 
-    // HandBrake presets — order must match VideoPreset enum (for persistence)
+    // Output presets — order must match VideoPreset enum (for persistence)
     public List<string> HandbrakePresetLabels { get; } = [
         "Custom",
         "Fast 1080p30",
@@ -880,8 +880,8 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
     {
         try
         {
-            // FFmpeg 9.0 native via FFmpeg.AutoGen: recommend BtbN gpl-shared latest (avcodec-63). Point to releases page for latest 9.0 build.
-            string url = "https://github.com/BtbN/FFmpeg-Builds/releases";
+            // FFmpeg 9.0 native via FFmpeg.AutoGen: point to the latest release's 9.0 GPL-shared Windows asset (avcodec-63). Browser handles the actual download; the app does not fetch or redistribute the binary.
+            string url = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n9.0-latest-win64-gpl-shared-9.0.zip";
             Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
         }
         catch { }

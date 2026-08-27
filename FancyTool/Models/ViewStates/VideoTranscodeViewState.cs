@@ -33,5 +33,5 @@ public class VideoTranscodeViewState
     public int GifWidth { get; set; } = 480;
     public int GifLoop { get; set; } = 0;
     public string GifStatsMode { get; set; } = "diff";
-    public int SelectedPresetIndex { get; set; } // HandBrake preset
+    public int SelectedPresetIndex { get; set; } // Output preset index
 }

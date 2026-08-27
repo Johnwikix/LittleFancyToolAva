@@ -74,7 +74,7 @@
     "Tile_Hash_Name": "Hash",
     "Tile_Hash_Desc": "MD5 / SHA / SM3 hash digest computation",
     "Tile_VideoTranscode_Name": "Video Transcode",
-    "Tile_VideoTranscode_Desc": "Batch video transcode, HandBrake-style presets, filters and GIF palette"
+    "Tile_VideoTranscode_Desc": "Batch video transcode, one-click presets, filters and GIF palette"
   },
   "Nav": {
     "Home": "Home",
@@ -455,12 +455,12 @@
   },
   "VideoTranscode": {
     "Title": "Video Transcode",
-    "Subtitle": "HandBrake-style batch transcode via FFmpeg 9.0 native (BYO), supports GIF palette",
+    "Subtitle": "One-click batch transcode via FFmpeg 9.0 native (BYO), supports GIF palette",
     "Label_OutputDir": "Output Directory",
     "Placeholder_OutputDir": "Select output folder...",
     "Label_FfmpegDir": "FFmpeg Directory (BYO 9.0)",
     "Button_Validate": "Validate",
-    "Button_DownloadPage": "Download Page",
+    "Button_DownloadPage": "Download FFmpeg 9.0 (GPL shared)",
     "Button_Help": "Help",
     "Hint_FfmpegGpl": "FFmpeg with libx264/x265 is GPL. Download BtbN FFmpeg 9.0 gpl-shared build (avcodec-63 / avutil-61 / avfilter-12 / swscale-10 / swresample-7, contains DLLs/SOs) with 'gpl-shared' in filename, extract and select its bin folder. No ffmpeg.exe needed, loaded natively via FFmpeg.AutoGen.",
     "Hint_OutputDirEmpty": "Leave empty to output to source file's folder with '_output' suffix (no overwrite)",
@@ -470,7 +470,7 @@
     "Label_Hardware": "Hardware Acceleration",
     "Hint_Hardware": "Explicit selection: NVIDIA = NVENC, Intel = QSV (Windows) / VAAPI (Linux), AMD = AMF (Windows) / VAAPI (Linux). Requires GPU support in FFmpeg build.",
     "Hint_HardwareVaapi": "VAAPI will use /dev/dri/renderD128 on Linux; ensure user has video group permission.",
-    "Label_Preset": "HandBrake Preset",
+    "Label_Preset": "Output Preset",
     "Label_Container": "Container",
     "Label_VideoCodec": "Video Codec",
     "Label_AudioCodec": "Audio Codec",

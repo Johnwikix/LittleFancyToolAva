@@ -50,7 +50,7 @@
                             <TextBlock Text="{Binding StatusText}" FontSize="12" Opacity="0.8" />
                         </StackPanel>
 
-                        <!-- HandBrake Preset -->
+                        <!-- Output Preset -->
                         <StackPanel Classes="FormRow">
                             <TextBlock Classes="FieldLabel" Text="{lan:I18n VideoTranscode.Label_Preset}" />
                             <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding HandbrakePresetLabels}" SelectedIndex="{Binding HandbrakePresetIndex, Mode=TwoWay}" />
