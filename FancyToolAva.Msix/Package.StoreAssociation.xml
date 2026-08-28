@@ -1,7 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <StoreAssociation xmlns="http://schemas.microsoft.com/appx/2010/storeassociation">
-  <Publisher>CN=CF259542-70C0-4852-9523-066A80212473</Publisher>
-  <PublisherDisplayName>Sennpai Studio</PublisherDisplayName>
+  <Publisher>CN=00000000-0000-0000-0000-000000000000</Publisher>
+  <PublisherDisplayName>FancyTool</PublisherDisplayName>
   <DeveloperAccountType>MSA</DeveloperAccountType>
   <GeneratePackageHash>http://www.w3.org/2001/04/xmlenc#sha256</GeneratePackageHash>
   <SupportedLocales>
@@ -361,7 +361,7 @@
     <Language Code="zu-za" InMinimumRequirementSet="true" />
   </SupportedLocales>
   <ProductReservedInfo>
-    <MainPackageIdentityName>SennpaiStudio.---modbus</MainPackageIdentityName>
+    <MainPackageIdentityName>FancyTool.FancyTool</MainPackageIdentityName>
     <ReservedNames>
       <ReservedName>妙妙小工具---串口、modbus、网络调试、图像转换、文本文件加密解密工具</ReservedName>
       <ReservedName>妙妙串口通信和加密工具</ReservedName>
@@ -372,8 +372,8 @@
     </ReservedNames>
   </ProductReservedInfo>
   <AccountPackageIdentityNames>
-    <MainPackageIdentityName>SennpaiStudio.548925A91D69A</MainPackageIdentityName>
-    <MainPackageIdentityName>SennpaiStudio.528762A6196EF</MainPackageIdentityName>
+    <MainPackageIdentityName>FancyTool.FancyTool</MainPackageIdentityName>
+    <MainPackageIdentityName>FancyTool.FancyTool2</MainPackageIdentityName>
   </AccountPackageIdentityNames>
   <PackageInfoList LandingUrl="https://devcenterapi.dce.mp.microsoft.com/dashboard/Application?appId=9P543GHQQKVK">
     <PackageInfo>

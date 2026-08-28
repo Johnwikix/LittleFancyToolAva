@@ -157,6 +157,7 @@ public sealed class VideoTranscodeOptions
     public HardwareBackend HardwareBackend { get; set; } = HardwareBackend.Software;
     public string Profile { get; set; } = ""; // e.g. high, main
     public string Level { get; set; } = "";
+    public double AudioGainDb { get; set; } = 0; // -30..30 dB, 0 = passthrough
 
     // Filters
     public ScaleMode ScaleMode { get; set; } = ScaleMode.None;

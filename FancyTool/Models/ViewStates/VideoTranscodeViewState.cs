@@ -25,6 +25,7 @@ public class VideoTranscodeViewState
     public bool TwoPassEnabled { get; set; }
     public int HardwareBackend { get; set; }
     public int AudioBitrateKbps { get; set; } = 128;
+    public double AudioGainDb { get; set; } = 0;
     public int PresetIndex { get; set; }
     public int PresetPresetIndex { get; set; }
     public int ScaleModeIndex { get; set; }

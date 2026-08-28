@@ -184,12 +184,6 @@ dotnet run -c Debug
 
 This project is licensed under the [MIT License](LICENSE).
 
-## 📬 Contact
-
-- Author: Sennpei Studio
-- Email: dannypan9709@foxmail.com
-- Open-source repository: [https://github.com/Johnwikix/LittleFancyToolAva](https://github.com/Johnwikix/LittleFancyToolAva)
-
 ## 🗂️ Data Storage
 
 Application data is stored at:
@@ -203,7 +197,3 @@ Application data is stored at:
   - If you used an older build that stored `preferences.json` next to the executable, it is migrated to `%LocalAppData%\FancyTool\` on first launch.
 
 ---
-
-<div align="center">
-  <sub>Crafted with ❤ by Sennpei Studio</sub>
-</div>

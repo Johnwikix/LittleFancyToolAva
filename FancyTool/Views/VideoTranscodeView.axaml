@@ -11,8 +11,8 @@
              x:DataType="vm:VideoTranscodeViewModel">
     <Grid RowDefinitions="Auto,*,Auto" Margin="{StaticResource PageMargin}">
         <controls:ToolPageHeader Grid.Row="0" Title="{lan:I18n VideoTranscode.Title}" Subtitle="{lan:I18n VideoTranscode.Subtitle}" />
-        <Grid Grid.Row="1" ColumnDefinitions="*,16,360" Margin="0,16,0,0">
-            <ScrollViewer Grid.Column="0">
+        <Grid Grid.Row="1" ColumnDefinitions="500,16,*" Margin="0,16,0,0">
+            <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto">
                 <Border Classes="ToolCard">
                     <StackPanel Classes="ToolCardContent" Spacing="14">
                         <!-- Output Folder -->
@@ -56,167 +56,185 @@
                             <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding HandbrakePresetLabels}" SelectedItem="{Binding SelectedHandbrakePreset, Mode=TwoWay}" />
                         </StackPanel>
 
-                        <!-- Container / Codecs : 参数核心区，三列紧凑布局 -->
-                        <Border Background="{DynamicResource CardBackgroundFillColorSecondaryBrush}" CornerRadius="6" Padding="12" IsVisible="{Binding !IsGifMode}">
-                            <Grid ColumnDefinitions="*,12,*" RowDefinitions="Auto,8,Auto">
-                                <StackPanel Grid.Column="0" Grid.Row="0" Spacing="4">
-                                    <TextBlock Classes="FieldLabel" Text="{lan:I18n VideoTranscode.Label_Container}" FontSize="12" Opacity="0.8" />
-                                    <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding AvailableContainers}" SelectedItem="{Binding SelectedContainer, Mode=TwoWay}" />
-                                </StackPanel>
-                                <StackPanel Grid.Column="2" Grid.Row="0" Spacing="4">
-                                    <TextBlock Classes="FieldLabel" Text="{lan:I18n VideoTranscode.Label_VideoCodec}" FontSize="12" Opacity="0.8" />
-                                    <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding FilteredVideoCodecs}" SelectedItem="{Binding SelectedVideoCodec, Mode=TwoWay}" />
-                                </StackPanel>
-                                <StackPanel Grid.Column="0" Grid.Row="2" Spacing="4">
-                                    <TextBlock Classes="FieldLabel" Text="{lan:I18n VideoTranscode.Label_AudioCodec}" FontSize="12" Opacity="0.8" />
-                                    <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding FilteredAudioCodecs}" SelectedItem="{Binding SelectedAudioCodec, Mode=TwoWay}" />
-                                </StackPanel>
-                                <StackPanel Grid.Column="2" Grid.Row="2" Spacing="4">
-                                    <TextBlock Classes="FieldLabel" Text="{lan:I18n VideoTranscode.Label_PresetLevel}" FontSize="12" Opacity="0.8" />
-                                    <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding PresetLabels}" SelectedItem="{Binding SelectedPreset, Mode=TwoWay}" />
-                                </StackPanel>
-                            </Grid>
-                        </Border>
-
-                        <!-- Hardware : 显式三选一 -->
-                        <Border Background="{DynamicResource CardBackgroundFillColorSecondaryBrush}" CornerRadius="6" Padding="12" IsVisible="{Binding !IsGifMode}">
-                            <StackPanel Spacing="6">
-                                <TextBlock Text="{lan:I18n VideoTranscode.Label_Hardware}" FontWeight="Bold" FontSize="13" />
-                                <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding HardwareBackendLabels}" SelectedItem="{Binding SelectedHardwareBackend, Mode=TwoWay}" />
-                                <TextBlock Text="{lan:I18n VideoTranscode.Hint_Hardware}" FontSize="11" Opacity="0.6" TextWrapping="Wrap" />
-                                <TextBlock Text="{lan:I18n VideoTranscode.Hint_HardwareVaapi}" FontSize="11" Opacity="0.6" TextWrapping="Wrap" IsVisible="{Binding IsVaapiBackend}" />
-                            </StackPanel>
-                        </Border>
-
-                        <!-- Quality : 核心区高亮 -->
-                        <Border Background="{DynamicResource CardBackgroundFillColorSecondaryBrush}" CornerRadius="6" Padding="12" IsVisible="{Binding !IsGifMode}">
-                            <StackPanel Spacing="10">
-                                <TextBlock Text="{lan:I18n VideoTranscode.Group_Quality}" FontWeight="Bold" FontSize="13" />
-                                <StackPanel Spacing="6">
-                                    <TextBlock Classes="FieldLabel" Text="{lan:I18n VideoTranscode.Label_RateControl}" FontSize="12" Opacity="0.8" />
-                                    <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding RateControlLabels}" SelectedItem="{Binding SelectedRateControl, Mode=TwoWay}" />
-                                </StackPanel>
-                                <StackPanel IsVisible="{Binding IsCrfMode}" Spacing="4">
-                                    <Grid ColumnDefinitions="Auto,*,Auto">
-                                        <TextBlock Grid.Column="0" Text="CRF" VerticalAlignment="Center" Margin="0,0,8,0" FontSize="12" />
-                                        <Slider Grid.Column="1" Minimum="0" Maximum="51" Value="{Binding CrfValue}" />
-                                        <TextBlock Grid.Column="2" Text="{Binding CrfValue}" Margin="8,0,0,0" VerticalAlignment="Center" MinWidth="24" TextAlignment="Center" />
-                                    </Grid>
-                                    <TextBlock Text="{lan:I18n VideoTranscode.Hint_Crf}" FontSize="11" Opacity="0.6" TextWrapping="Wrap" />
-                                </StackPanel>
-                                <StackPanel IsVisible="{Binding IsBitrateMode}" Spacing="8">
-                                    <Grid ColumnDefinitions="Auto,*,Auto">
-                                        <TextBlock Grid.Column="0" Text="kbps" VerticalAlignment="Center" Margin="0,0,8,0" FontSize="12" />
-                                        <Slider Grid.Column="1" Minimum="100" Maximum="10000" Value="{Binding VideoBitrateKbps}" />
-                                        <TextBlock Grid.Column="2" Text="{Binding VideoBitrateKbps, StringFormat='{}{0}k'}" Margin="8,0,0,0" VerticalAlignment="Center" />
-                                    </Grid>
-                                    <CheckBox IsChecked="{Binding IsTwoPassEnabled}" Content="{lan:I18n VideoTranscode.Option_TwoPass}" IsVisible="{Binding ShowTwoPass}" ToolTip.Tip="{lan:I18n VideoTranscode.Caption_TwoPass}" />
-                                </StackPanel>
-                                <StackPanel Spacing="4">
-                                    <TextBlock Classes="FieldLabel" Text="{lan:I18n VideoTranscode.Label_AudioBitrate}" FontSize="12" Opacity="0.8" />
-                                    <Grid ColumnDefinitions="*,Auto">
-                                        <Slider Grid.Column="0" Minimum="32" Maximum="320" Value="{Binding AudioBitrateKbps}" />
-                                        <TextBlock Grid.Column="1" Text="{Binding AudioBitrateKbps, StringFormat='{}{0}k'}" Margin="8,0,0,0" VerticalAlignment="Center" />
+                        <!-- TabControl: 参数重组，固定 500 内不换行 -->
+                        <TabControl x:Name="ParamTabs" Margin="0,4,0,0">
+                            <!-- 1: 封装 / 编码（常驻，GIF 下仍可切回） -->
+                            <TabItem Header="{lan:I18n VideoTranscode.Label_Container}">
+                                <StackPanel Spacing="10" Margin="0,10,0,0">
+                                    <Grid ColumnDefinitions="*,12,*" RowDefinitions="Auto,8,Auto">
+                                        <StackPanel Grid.Column="0" Grid.Row="0" Spacing="4">
+                                            <TextBlock Classes="FieldLabel" Text="{lan:I18n VideoTranscode.Label_Container}" FontSize="12" Opacity="0.8" />
+                                            <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding AvailableContainers}" SelectedItem="{Binding SelectedContainer, Mode=TwoWay}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2" Grid.Row="0" Spacing="4">
+                                            <TextBlock Classes="FieldLabel" Text="{lan:I18n VideoTranscode.Label_VideoCodec}" FontSize="12" Opacity="0.8" />
+                                            <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding FilteredVideoCodecs}" SelectedItem="{Binding SelectedVideoCodec, Mode=TwoWay}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="0" Grid.Row="2" Spacing="4">
+                                            <TextBlock Classes="FieldLabel" Text="{lan:I18n VideoTranscode.Label_PresetLevel}" FontSize="12" Opacity="0.8" />
+                                            <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding PresetLabels}" SelectedItem="{Binding SelectedPreset, Mode=TwoWay}" />
+                                        </StackPanel>
                                     </Grid>
                                 </StackPanel>
-                            </StackPanel>
-                        </Border>
+                            </TabItem>
 
-                        <!-- GIF Options -->
-                        <StackPanel IsVisible="{Binding IsGifMode}" Spacing="8">
-                            <TextBlock Classes="FieldLabel" Text="{lan:I18n VideoTranscode.Group_GifOptions}" FontWeight="Bold" />
-                            <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">
-                                <TextBlock Grid.Column="0" Text="{lan:I18n VideoTranscode.Label_GifWidth}" VerticalAlignment="Center" />
-                                <Slider Grid.Column="1" Minimum="64" Maximum="800" Value="{Binding GifWidth}" Margin="8,0" />
-                                <TextBlock Grid.Column="2" Text="{Binding GifWidth, StringFormat='{}{0}px'}" VerticalAlignment="Center" />
-                            </Grid>
-                            <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">
-                                <TextBlock Grid.Column="0" Text="{lan:I18n VideoTranscode.Label_GifFps}" VerticalAlignment="Center" />
-                                <Slider Grid.Column="1" Minimum="1" Maximum="30" Value="{Binding GifFps}" Margin="8,0" />
-                                <TextBlock Grid.Column="2" Text="{Binding GifFps, StringFormat='{}{0}fps'}" VerticalAlignment="Center" />
-                            </Grid>
-                            <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">
-                                <TextBlock Grid.Column="0" Text="{lan:I18n VideoTranscode.Label_GifColors}" VerticalAlignment="Center" />
-                                <ComboBox Grid.Column="2" Width="120" ItemsSource="{Binding AvailableGifMaxColors}" SelectedItem="{Binding GifMaxColors, Mode=TwoWay}" />
-                            </Grid>
-                            <StackPanel Spacing="6">
-                                <TextBlock Text="{lan:I18n VideoTranscode.Label_GifDither}" />
-                                <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding GifDitherLabels}" SelectedItem="{Binding SelectedGifDither, Mode=TwoWay}" />
-                            </StackPanel>
-                            <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">
-                                <TextBlock Grid.Column="0" Text="{lan:I18n VideoTranscode.Label_GifLoop}" VerticalAlignment="Center" />
-                                <NumericUpDown Grid.Column="2" Minimum="0" Maximum="100" Value="{Binding GifLoop}" Width="100" />
-                            </Grid>
-                            <StackPanel Spacing="6">
-                                <TextBlock Text="{lan:I18n VideoTranscode.Label_GifStats}" />
-                                <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding GifStatsLabels}" SelectedItem="{Binding SelectedGifStats, Mode=TwoWay}" />
-                            </StackPanel>
-                        </StackPanel>
+                            <!-- 2: 音频（常驻，GIF 时禁用） -->
+                            <TabItem Header="{lan:I18n VideoTranscode.Tab_Audio}" IsEnabled="{Binding !IsGifMode}">
+                                <StackPanel Spacing="10" Margin="0,10,0,0" IsEnabled="{Binding !IsGifMode}">
+                                    <StackPanel Spacing="4">
+                                        <TextBlock Classes="FieldLabel" Text="{lan:I18n VideoTranscode.Label_AudioCodec}" FontSize="12" Opacity="0.8" />
+                                        <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding FilteredAudioCodecs}" SelectedItem="{Binding SelectedAudioCodec, Mode=TwoWay}" />
+                                    </StackPanel>
+                                    <StackPanel Spacing="4">
+                                        <TextBlock Classes="FieldLabel" Text="{lan:I18n VideoTranscode.Label_AudioBitrate}" FontSize="12" Opacity="0.8" />
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <Slider Grid.Column="0" Minimum="32" Maximum="512" Value="{Binding AudioBitrateKbps}" />
+                                            <TextBlock Grid.Column="1" Text="{Binding AudioBitrateKbps, StringFormat='{}{0}k'}" Margin="8,0,0,0" VerticalAlignment="Center" MinWidth="45" TextAlignment="Right" />
+                                        </Grid>
+                                    </StackPanel>
+                                    <StackPanel Spacing="4">
+                                        <TextBlock Classes="FieldLabel" Text="{lan:I18n VideoTranscode.Label_AudioGain}" FontSize="12" Opacity="0.8" />
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <Slider Grid.Column="0" Minimum="-30" Maximum="30" Value="{Binding AudioGainDb}" />
+                                            <TextBlock Grid.Column="1" Text="{Binding AudioGainDb, StringFormat='{}{0:0.0} dB'}" Margin="8,0,0,0" VerticalAlignment="Center" MinWidth="55" TextAlignment="Right" FontSize="11" Opacity="0.8" />
+                                        </Grid>
+                                        <TextBlock Text="{lan:I18n VideoTranscode.Hint_AudioGain}" FontSize="11" Opacity="0.6" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </TabItem>
 
-                        <!-- Filters : 次要参数折叠 -->
-                        <Expander Header="{lan:I18n VideoTranscode.Group_Filters}" IsExpanded="False" HorizontalAlignment="Stretch">
-                            <StackPanel Spacing="10">
-                            <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">
-                                <TextBlock Grid.Column="0" Text="{lan:I18n VideoTranscode.Label_Scale}" VerticalAlignment="Center" ToolTip.Tip="{lan:I18n VideoTranscode.Hint_ScaleNone}" />
-                                <ComboBox Grid.Column="2" Width="150" ItemsSource="{Binding ScaleModeLabels}" SelectedItem="{Binding SelectedScaleMode, Mode=TwoWay}" ToolTip.Tip="{lan:I18n VideoTranscode.Hint_ScaleNone}" />
-                            </Grid>
-                            <StackPanel IsVisible="{Binding IsScaleActive}" Spacing="6">
-                                <Grid ColumnDefinitions="*,8,*">
-                                    <StackPanel Grid.Column="0" Spacing="4">
-                                        <TextBlock Text="W" FontSize="11" Opacity="0.7" />
-                                        <NumericUpDown Minimum="16" Maximum="8192" Value="{Binding ScaleWidth}" />
+                            <!-- 3: 硬件 / 画质 -->
+                            <TabItem Header="{lan:I18n VideoTranscode.Group_Quality}" IsVisible="{Binding !IsGifMode}">
+                                <StackPanel Spacing="12" Margin="0,10,0,0">
+                                    <StackPanel Spacing="6">
+                                        <TextBlock Text="{lan:I18n VideoTranscode.Label_Hardware}" FontWeight="Bold" FontSize="13" />
+                                        <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding HardwareBackendLabels}" SelectedItem="{Binding SelectedHardwareBackend, Mode=TwoWay}" />
+                                        <TextBlock Text="{lan:I18n VideoTranscode.Hint_Hardware}" FontSize="11" Opacity="0.6" TextWrapping="Wrap" />
+                                        <TextBlock Text="{lan:I18n VideoTranscode.Hint_HardwareVaapi}" FontSize="11" Opacity="0.6" TextWrapping="Wrap" IsVisible="{Binding IsVaapiBackend}" />
                                     </StackPanel>
-                                    <StackPanel Grid.Column="2" Spacing="4">
-                                        <TextBlock Text="H" FontSize="11" Opacity="0.7" />
-                                        <NumericUpDown Minimum="16" Maximum="8192" Value="{Binding ScaleHeight}" />
+                                    <StackPanel Spacing="10">
+                                        <TextBlock Text="{lan:I18n VideoTranscode.Group_Quality}" FontWeight="Bold" FontSize="13" />
+                                        <StackPanel Spacing="6">
+                                            <TextBlock Classes="FieldLabel" Text="{lan:I18n VideoTranscode.Label_RateControl}" FontSize="12" Opacity="0.8" />
+                                            <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding RateControlLabels}" SelectedItem="{Binding SelectedRateControl, Mode=TwoWay}" />
+                                        </StackPanel>
+                                        <StackPanel IsVisible="{Binding IsCrfMode}" Spacing="4">
+                                            <Grid ColumnDefinitions="Auto,*,Auto">
+                                                <TextBlock Grid.Column="0" Text="CRF" VerticalAlignment="Center" Margin="0,0,8,0" FontSize="12" />
+                                                <Slider Grid.Column="1" Minimum="0" Maximum="51" Value="{Binding CrfValue}" />
+                                                <TextBlock Grid.Column="2" Text="{Binding CrfValue}" Margin="8,0,0,0" VerticalAlignment="Center" MinWidth="24" TextAlignment="Center" />
+                                            </Grid>
+                                            <TextBlock Text="{lan:I18n VideoTranscode.Hint_Crf}" FontSize="11" Opacity="0.6" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <StackPanel IsVisible="{Binding IsBitrateMode}" Spacing="8">
+                                            <Grid ColumnDefinitions="Auto,*,Auto">
+                                                <TextBlock Grid.Column="0" Text="kbps" VerticalAlignment="Center" Margin="0,0,8,0" FontSize="12" />
+                                                <Slider Grid.Column="1" Minimum="100" Maximum="100000" Value="{Binding VideoBitrateKbps}" />
+                                                <TextBlock Grid.Column="2" Text="{Binding VideoBitrateKbps, StringFormat='{}{0}k'}" Margin="8,0,0,0" VerticalAlignment="Center" />
+                                            </Grid>
+                                            <CheckBox IsChecked="{Binding IsTwoPassEnabled}" Content="{lan:I18n VideoTranscode.Option_TwoPass}" IsVisible="{Binding ShowTwoPass}" ToolTip.Tip="{lan:I18n VideoTranscode.Caption_TwoPass}" />
+                                        </StackPanel>
                                     </StackPanel>
-                                </Grid>
-                                <CheckBox IsChecked="{Binding KeepAspect}" Content="{lan:I18n VideoTranscode.Option_KeepAspect}" />
-                            </StackPanel>
+                                </StackPanel>
+                            </TabItem>
 
-                            <CheckBox IsChecked="{Binding CropEnabled}" Content="{lan:I18n VideoTranscode.Option_Crop}" />
-                            <StackPanel IsVisible="{Binding CropEnabled}" Spacing="6">
-                                <Grid ColumnDefinitions="*,8,*">
-                                    <StackPanel Grid.Column="0" Spacing="4">
-                                        <TextBlock Text="Top" FontSize="11" Opacity="0.7" />
-                                        <NumericUpDown Minimum="0" Maximum="1000" Value="{Binding CropTop}" />
+                            <!-- 4: 滤镜（常驻，视频/GIF 共用） -->
+                            <TabItem Header="{lan:I18n VideoTranscode.Group_Filters}">
+                                <StackPanel Spacing="10" Margin="0,10,0,0">
+                                    <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">
+                                        <TextBlock Grid.Column="0" Text="{lan:I18n VideoTranscode.Label_Scale}" VerticalAlignment="Center" ToolTip.Tip="{lan:I18n VideoTranscode.Hint_ScaleNone}" />
+                                        <ComboBox Grid.Column="2" Width="150" ItemsSource="{Binding ScaleModeLabels}" SelectedItem="{Binding SelectedScaleMode, Mode=TwoWay}" ToolTip.Tip="{lan:I18n VideoTranscode.Hint_ScaleNone}" />
+                                    </Grid>
+                                    <StackPanel IsVisible="{Binding IsScaleActive}" Spacing="6">
+                                        <Grid ColumnDefinitions="*,8,*">
+                                            <StackPanel Grid.Column="0" Spacing="4">
+                                                <TextBlock Text="W" FontSize="11" Opacity="0.7" />
+                                                <NumericUpDown Minimum="16" Maximum="8192" Value="{Binding ScaleWidth}" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2" Spacing="4">
+                                                <TextBlock Text="H" FontSize="11" Opacity="0.7" />
+                                                <NumericUpDown Minimum="16" Maximum="8192" Value="{Binding ScaleHeight}" />
+                                            </StackPanel>
+                                        </Grid>
+                                        <CheckBox IsChecked="{Binding KeepAspect}" Content="{lan:I18n VideoTranscode.Option_KeepAspect}" />
                                     </StackPanel>
-                                    <StackPanel Grid.Column="2" Spacing="4">
-                                        <TextBlock Text="Bottom" FontSize="11" Opacity="0.7" />
-                                        <NumericUpDown Minimum="0" Maximum="1000" Value="{Binding CropBottom}" />
-                                    </StackPanel>
-                                </Grid>
-                                <Grid ColumnDefinitions="*,8,*">
-                                    <StackPanel Grid.Column="0" Spacing="4">
-                                        <TextBlock Text="Left" FontSize="11" Opacity="0.7" />
-                                        <NumericUpDown Minimum="0" Maximum="1000" Value="{Binding CropLeft}" />
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="2" Spacing="4">
-                                        <TextBlock Text="Right" FontSize="11" Opacity="0.7" />
-                                        <NumericUpDown Minimum="0" Maximum="1000" Value="{Binding CropRight}" />
-                                    </StackPanel>
-                                </Grid>
-                            </StackPanel>
 
-                            <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">
-                                <TextBlock Grid.Column="0" Text="{lan:I18n VideoTranscode.Label_Fps}" VerticalAlignment="Center" />
-                                <ComboBox Grid.Column="2" Width="150" ItemsSource="{Binding FpsModeLabels}" SelectedItem="{Binding SelectedFpsMode, Mode=TwoWay}" />
-                            </Grid>
-                            <StackPanel IsVisible="{Binding IsFpsActive}">
-                                <NumericUpDown Minimum="1" Maximum="120" Value="{Binding FpsValue}" Increment="1" />
-                            </StackPanel>
+                                    <CheckBox IsChecked="{Binding CropEnabled}" Content="{lan:I18n VideoTranscode.Option_Crop}" />
+                                    <StackPanel IsVisible="{Binding CropEnabled}" Spacing="6">
+                                        <Grid ColumnDefinitions="*,8,*">
+                                            <StackPanel Grid.Column="0" Spacing="4">
+                                                <TextBlock Text="Top" FontSize="11" Opacity="0.7" />
+                                                <NumericUpDown Minimum="0" Maximum="1000" Value="{Binding CropTop}" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2" Spacing="4">
+                                                <TextBlock Text="Bottom" FontSize="11" Opacity="0.7" />
+                                                <NumericUpDown Minimum="0" Maximum="1000" Value="{Binding CropBottom}" />
+                                            </StackPanel>
+                                        </Grid>
+                                        <Grid ColumnDefinitions="*,8,*">
+                                            <StackPanel Grid.Column="0" Spacing="4">
+                                                <TextBlock Text="Left" FontSize="11" Opacity="0.7" />
+                                                <NumericUpDown Minimum="0" Maximum="1000" Value="{Binding CropLeft}" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2" Spacing="4">
+                                                <TextBlock Text="Right" FontSize="11" Opacity="0.7" />
+                                                <NumericUpDown Minimum="0" Maximum="1000" Value="{Binding CropRight}" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </StackPanel>
 
-                            <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">
-                                <TextBlock Grid.Column="0" Text="{lan:I18n VideoTranscode.Label_Deinterlace}" VerticalAlignment="Center" />
-                                <ComboBox Grid.Column="2" Width="150" ItemsSource="{Binding DeinterlaceLabels}" SelectedItem="{Binding SelectedDeinterlace, Mode=TwoWay}" />
-                            </Grid>
+                                    <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">
+                                        <TextBlock Grid.Column="0" Text="{lan:I18n VideoTranscode.Label_Fps}" VerticalAlignment="Center" />
+                                        <ComboBox Grid.Column="2" Width="150" ItemsSource="{Binding FpsModeLabels}" SelectedItem="{Binding SelectedFpsMode, Mode=TwoWay}" />
+                                    </Grid>
+                                    <StackPanel IsVisible="{Binding IsFpsActive}">
+                                        <NumericUpDown Minimum="1" Maximum="120" Value="{Binding FpsValue}" Increment="1" />
+                                    </StackPanel>
 
-                            <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">
-                                <TextBlock Grid.Column="0" Text="{lan:I18n VideoTranscode.Label_Denoise}" VerticalAlignment="Center" />
-                                <ComboBox Grid.Column="2" Width="150" ItemsSource="{Binding DenoiseLabels}" SelectedItem="{Binding SelectedDenoise, Mode=TwoWay}" />
-                            </Grid>
-                            </StackPanel>
-                        </Expander>
+                                    <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">
+                                        <TextBlock Grid.Column="0" Text="{lan:I18n VideoTranscode.Label_Deinterlace}" VerticalAlignment="Center" />
+                                        <ComboBox Grid.Column="2" Width="150" ItemsSource="{Binding DeinterlaceLabels}" SelectedItem="{Binding SelectedDeinterlace, Mode=TwoWay}" />
+                                    </Grid>
+
+                                    <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">
+                                        <TextBlock Grid.Column="0" Text="{lan:I18n VideoTranscode.Label_Denoise}" VerticalAlignment="Center" />
+                                        <ComboBox Grid.Column="2" Width="150" ItemsSource="{Binding DenoiseLabels}" SelectedItem="{Binding SelectedDenoise, Mode=TwoWay}" />
+                                    </Grid>
+                                </StackPanel>
+                            </TabItem>
+
+                            <!-- 5: GIF（仅 GIF 模式可见） -->
+                            <TabItem Header="{lan:I18n VideoTranscode.Group_GifOptions}" IsVisible="{Binding IsGifMode}">
+                                <StackPanel Spacing="8" Margin="0,10,0,0">
+                                    <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">
+                                        <TextBlock Grid.Column="0" Text="{lan:I18n VideoTranscode.Label_GifWidth}" VerticalAlignment="Center" />
+                                        <Slider Grid.Column="1" Minimum="64" Maximum="800" Value="{Binding GifWidth}" Margin="8,0" />
+                                        <TextBlock Grid.Column="2" Text="{Binding GifWidth, StringFormat='{}{0}px'}" VerticalAlignment="Center" MinWidth="45" TextAlignment="Right" />
+                                    </Grid>
+                                    <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">
+                                        <TextBlock Grid.Column="0" Text="{lan:I18n VideoTranscode.Label_GifFps}" VerticalAlignment="Center" />
+                                        <Slider Grid.Column="1" Minimum="1" Maximum="30" Value="{Binding GifFps}" Margin="8,0" />
+                                        <TextBlock Grid.Column="2" Text="{Binding GifFps, StringFormat='{}{0}fps'}" VerticalAlignment="Center" MinWidth="45" TextAlignment="Right" />
+                                    </Grid>
+                                    <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">
+                                        <TextBlock Grid.Column="0" Text="{lan:I18n VideoTranscode.Label_GifColors}" VerticalAlignment="Center" />
+                                        <ComboBox Grid.Column="2" Width="120" ItemsSource="{Binding AvailableGifMaxColors}" SelectedItem="{Binding GifMaxColors, Mode=TwoWay}" />
+                                    </Grid>
+                                    <StackPanel Spacing="6">
+                                        <TextBlock Text="{lan:I18n VideoTranscode.Label_GifDither}" />
+                                        <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding GifDitherLabels}" SelectedItem="{Binding SelectedGifDither, Mode=TwoWay}" />
+                                    </StackPanel>
+                                    <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">
+                                        <TextBlock Grid.Column="0" Text="{lan:I18n VideoTranscode.Label_GifLoop}" VerticalAlignment="Center" />
+                                        <NumericUpDown Grid.Column="2" Minimum="0" Maximum="100" Value="{Binding GifLoop}" Width="100" />
+                                    </Grid>
+                                    <StackPanel Spacing="6">
+                                        <TextBlock Text="{lan:I18n VideoTranscode.Label_GifStats}" />
+                                        <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding GifStatsLabels}" SelectedItem="{Binding SelectedGifStats, Mode=TwoWay}" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </TabItem>
+                        </TabControl>
                     </StackPanel>
                 </Border>
             </ScrollViewer>
@@ -246,10 +264,10 @@
                                 <Grid ColumnDefinitions="Auto,*,Auto,Auto" Margin="4,2">
                                     <SelectableTextBlock Grid.Column="0" Text="VID" Margin="0,0,8,0" VerticalAlignment="Center" FontSize="10" Opacity="0.6" />
                                     <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
-                                        <SelectableTextBlock Text="{Binding FileName}" FontWeight="Medium" />
-                                        <SelectableTextBlock Text="{Binding ProbeDisplay}" FontSize="11" Opacity="0.7" />
+                                        <SelectableTextBlock Text="{Binding FileName}" FontWeight="Medium" TextTrimming="CharacterEllipsis" />
+                                        <SelectableTextBlock Text="{Binding ProbeDisplay}" FontSize="11" Opacity="0.7" TextTrimming="CharacterEllipsis" />
                                     </StackPanel>
-                                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center" Margin="8,0">
                                         <SelectableTextBlock Text="{Binding StatusDisplay}" FontSize="11" />
                                         <SelectableTextBlock Text="{Binding ProgressDisplay}" FontSize="11" Opacity="0.8" />
                                     </StackPanel>

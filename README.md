@@ -184,12 +184,6 @@ dotnet run -c Debug
 
 本项目基于 [MIT 许可证](LICENSE) 授权。
 
-## 📬 联系方式
-
-- 作者：Sennpei Studio
-- 邮箱：dannypan9709@foxmail.com
-- 开源仓库：[https://github.com/Johnwikix/LittleFancyToolAva](https://github.com/Johnwikix/LittleFancyToolAva)
-
 ## 🗂️ 数据存储
 
 应用程序数据存储位置：
@@ -203,7 +197,3 @@ dotnet run -c Debug
   - 旧版本若把 `preferences.json` 放在 EXE 旁，首次启动会自动迁移到 `%LocalAppData%\FancyTool\`
 
 ---
-
-<div align="center">
-  <sub>由 Sennpei Studio 用 ❤ 制作</sub>
-</div>

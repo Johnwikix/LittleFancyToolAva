@@ -722,6 +722,8 @@ public sealed class VideoTranscodeService : IVideoTranscodeService
             sb.Append($"-c:a {aCodecName} ");
             if (!string.IsNullOrEmpty(aArgs)) sb.Append($"{aArgs} ");
             sb.Append($"-b:a {o.AudioBitrateKbps}k ");
+            if (Math.Abs(o.AudioGainDb) > 0.01)
+                sb.Append($"-filter:a \"volume={o.AudioGainDb.ToString(System.Globalization.CultureInfo.InvariantCulture)}dB\" ");
         }
 
         if (o.FpsMode == FpsMode.Peak)

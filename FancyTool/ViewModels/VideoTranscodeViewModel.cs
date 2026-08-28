@@ -82,7 +82,7 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
 
     public bool IsFfmpegAvailable => _ffmpegService.IsAvailable;
     public string FfmpegStatusText => _ffmpegService.IsAvailable
-        ? LocalizationRegistry.Get("VideoTranscode.Msg_FfmpegReady", _ffmpegService.ResolvedDirectory ?? "", _ffmpegService.VersionInfo ?? "9.0")
+        ? LocalizationRegistry.Get("VideoTranscode.Msg_FfmpegReady", _ffmpegService.VersionInfo ?? "9.0")
         : _ffmpegService.LastError ?? LocalizationRegistry.Get("VideoTranscode.Msg_FfmpegNotConfigured");
     public bool ShowFfmpegMissing => !_ffmpegService.IsAvailable;
 
@@ -327,7 +327,7 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
         get => field;
         set
         {
-            if (SetProperty(ref field, Math.Clamp(value, 100, 50000))) ResetPresetToCustom();
+            if (SetProperty(ref field, Math.Clamp(value, 100, 100000))) ResetPresetToCustom();
         }
     } = 2500;
 
@@ -339,6 +339,18 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
             if (SetProperty(ref field, Math.Clamp(value, 32, 512))) ResetPresetToCustom();
         }
     } = 128;
+
+    public double AudioGainDb
+    {
+        get => field;
+        set
+        {
+            double clamped = Math.Clamp(value, -30.0, 30.0);
+            // align to 0.5 dB steps to keep slider/numeric in sync
+            clamped = Math.Round(clamped * 2.0) / 2.0;
+            if (SetProperty(ref field, clamped)) ResetPresetToCustom();
+        }
+    } = 0;
 
     public List<string> PresetLabels { get; } = ["Ultrafast", "Superfast", "Veryfast", "Faster", "Fast", "Medium", "Slow", "Slower", "Veryslow", "Placebo"];
     public string? SelectedPreset
@@ -796,7 +808,7 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
                 SelectedRateControl = "CRF / Quality"; CrfValue = 22; SelectedPreset = "Fast";
                 SelectedScaleMode = "Fit Within"; ScaleWidth = w; ScaleHeight = h; KeepAspect = true;
                 SelectedFpsMode = "Same as Source"; SelectedDeinterlace = "None"; SelectedDenoise = "None";
-                SetAudioCodecByLabel("AAC");
+                SetAudioCodecByLabel("AAC"); AudioBitrateKbps = 128; AudioGainDb = 0;
             }
             void ApplyHQ(int w, int h, string codecLabel)
             {
@@ -806,6 +818,7 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
                 SelectedRateControl = "CRF / Quality"; CrfValue = 20; SelectedPreset = "Slow";
                 SelectedScaleMode = "Fit Within"; ScaleWidth = w; ScaleHeight = h; KeepAspect = true;
                 SelectedFpsMode = "Same as Source"; SelectedDeinterlace = "Yadif"; SelectedDenoise = "None";
+                AudioGainDb = 0;
             }
 
             switch (preset)
@@ -902,6 +915,7 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
         GifWidth = GifWidth,
         GifLoop = GifLoop,
         GifStatsMode = SelectedGifStats ?? (GifStatsIndex == 0 ? "diff" : "single"),
+        AudioGainDb = AudioGainDb,
         SelectedPresetIndex = HandbrakePresetIndex,
         IncludeAllInFolderScan = IncludeAllInFolderScan
     };
@@ -980,6 +994,7 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
                 VideoBitrateKbps = s.VideoBitrateKbps;
                 IsTwoPassEnabled = s.TwoPassEnabled;
                 AudioBitrateKbps = s.AudioBitrateKbps;
+                AudioGainDb = Math.Clamp(s.AudioGainDb, -30.0, 30.0);
 
                 // 预设
                 if (!string.IsNullOrEmpty(s.SelectedPreset) && PresetLabels.Contains(s.SelectedPreset))
@@ -1423,7 +1438,8 @@ public void AddDroppedPaths(IEnumerable<string> paths)
             GifMaxColors = GifMaxColors,
             GifDither = MapGifDitherByLabel(SelectedGifDither),
             GifLoop = GifLoop,
-            GifStatsMode = SelectedGifStats == "single" ? "single" : "diff"
+            GifStatsMode = SelectedGifStats == "single" ? "single" : "diff",
+            AudioGainDb = AudioGainDb
         };
     }
 

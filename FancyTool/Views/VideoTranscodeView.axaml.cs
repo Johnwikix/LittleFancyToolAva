@@ -7,9 +7,61 @@ namespace FancyToolAva.Views;
 
 public partial class VideoTranscodeView : UserControl
 {
+    private VideoTranscodeViewModel? _vm;
+    private Avalonia.Controls.TabControl? _tabs;
+
     public VideoTranscodeView()
     {
         InitializeComponent();
+        Loaded += OnLoaded;
+        DataContextChanged += OnDataContextChanged;
+    }
+
+    private void OnLoaded(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        _tabs ??= this.FindControl<Avalonia.Controls.TabControl>("ParamTabs");
+        SyncTabForContainer();
+    }
+
+    private void OnDataContextChanged(object? sender, EventArgs e)
+    {
+        if (_vm != null) _vm.PropertyChanged -= OnVmPropertyChanged;
+        _vm = DataContext as VideoTranscodeViewModel;
+        if (_vm != null) _vm.PropertyChanged += OnVmPropertyChanged;
+        _tabs ??= this.FindControl<Avalonia.Controls.TabControl>("ParamTabs");
+        SyncTabForContainer();
+    }
+
+    private void OnVmPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(VideoTranscodeViewModel.SelectedContainer) || e.PropertyName == nameof(VideoTranscodeViewModel.IsGifMode))
+            Avalonia.Threading.Dispatcher.UIThread.Post(SyncTabForContainer);
+    }
+
+    private void SyncTabForContainer()
+    {
+        if (_tabs == null) _tabs = this.FindControl<Avalonia.Controls.TabControl>("ParamTabs");
+        if (_tabs == null || _vm == null) return;
+        bool isGif = _vm.IsGifMode;
+        // Tab order: 0 封装(常驻), 1 音频(常驻禁用), 2 画质, 3 滤镜, 4 GIF
+        // 封装常驻后 GIF 模式不再需要强制切走；仅处理隐藏/禁用边界
+        if (isGif)
+        {
+            if (_tabs.SelectedIndex is 2)
+                _tabs.SelectedIndex = 4;
+            else if (_tabs.SelectedIndex == 1)
+                _tabs.SelectedIndex = 0; // 音频禁用时切到封装
+            else if (_tabs.SelectedIndex < 0)
+                _tabs.SelectedIndex = 4;
+            // 0封装/3滤镜/4GIF 均保持
+        }
+        else
+        {
+            if (_tabs.SelectedIndex == 4)
+                _tabs.SelectedIndex = 0;
+            else if (_tabs.SelectedIndex < 0)
+                _tabs.SelectedIndex = 0;
+        }
     }
 
     private void OnDragEnter(object? sender, DragEventArgs e)

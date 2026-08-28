@@ -6,13 +6,13 @@
   IgnorableNamespaces="uap rescap">
 
   <Identity
-    Name="SennpaiStudio.---modbus"
-    Publisher="CN=CF259542-70C0-4852-9523-066A80212473"
+    Name="FancyTool.FancyTool"
+    Publisher="CN=00000000-0000-0000-0000-000000000000"
     Version="1.1.0.0" />
 
   <Properties>
-    <DisplayName>妙妙小工具---串口、modbus、网络调试、图像转换、文本文件加密解密工具</DisplayName>
-    <PublisherDisplayName>Sennpai Studio</PublisherDisplayName>
+    <DisplayName>FancyTool</DisplayName>
+    <PublisherDisplayName>FancyTool</PublisherDisplayName>
     <Logo>Images\StoreLogo.png</Logo>
   </Properties>
 
