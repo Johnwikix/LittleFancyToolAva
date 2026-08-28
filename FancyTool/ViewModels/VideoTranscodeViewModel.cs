@@ -87,7 +87,7 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
     public bool ShowFfmpegMissing => !_ffmpegService.IsAvailable;
 
     // Container / Codecs
-    public List<string> AvailableContainers { get; } = ["MP4", "MKV", "MOV", "AVI", "GIF", "WebM"];
+    public List<string> AvailableContainers { get; } = ["MP4", "MKV", "MOV", "AVI", "GIF"];
     public List<VideoContainer> ContainerValues { get; } = Enum.GetValues<VideoContainer>().ToList();
 
     public string? SelectedContainer
@@ -153,7 +153,6 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
         "MOV" => VideoContainer.Mov,
         "AVI" => VideoContainer.Avi,
         "GIF" => VideoContainer.Gif,
-        "WebM" => VideoContainer.WebM,
         _ => VideoContainer.Mp4
     };
 
@@ -199,7 +198,6 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
         VideoContainer.Mkv => ["H.264 (x264)", "H.265 (x265)", "AV1 (aom)", "AV1 (SVT)", "VP8", "VP9", "MPEG-4"],
         VideoContainer.Mov => ["H.264 (x264)", "H.265 (x265)", "AV1 (aom)", "MPEG-4"],
         VideoContainer.Avi => ["H.264 (x264)", "MPEG-4"],
-        VideoContainer.WebM => ["VP8", "VP9", "AV1 (aom)", "AV1 (SVT)"],
         _ => ["H.264 (x264)", "H.265 (x265)", "AV1 (aom)"]
     };
 
@@ -210,7 +208,6 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
         VideoContainer.Mkv => ["AAC", "MP3", "Opus", "Vorbis", "FLAC", "AC3", "None"],
         VideoContainer.Mov => ["AAC", "MP3", "AC3", "None"],
         VideoContainer.Avi => ["MP3", "AAC", "AC3", "None"],
-        VideoContainer.WebM => ["Opus", "Vorbis", "None"],
         _ => ["AAC", "MP3", "Opus", "None"]
     };
 
@@ -917,13 +914,22 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
             try
             {
                 OutputFolder = s.OutputFolder;
-                // 容器：优先 SelectedItem，有交集保留，无则首项，兼容旧索引
-                if (!string.IsNullOrEmpty(s.SelectedContainer) && AvailableContainers.Contains(s.SelectedContainer))
-                    SelectedContainer = s.SelectedContainer;
-                else if (!string.IsNullOrEmpty(s.SelectedContainer) && AvailableContainers.Count > 0)
-                    SelectedContainer = AvailableContainers[0];
+                // 容器：优先 SelectedItem，有交集保留，无则首项，兼容旧索引；WebM 已移除，旧状态回落至 MP4
+                if (!string.IsNullOrEmpty(s.SelectedContainer))
+                {
+                    string normalized = s.SelectedContainer == "WebM" ? "MP4" : s.SelectedContainer;
+                    if (AvailableContainers.Contains(normalized))
+                        SelectedContainer = normalized;
+                    else if (AvailableContainers.Count > 0)
+                        SelectedContainer = AvailableContainers[0];
+                    else
+                        ContainerIndex = Math.Clamp(s.ContainerIndex, 0, AvailableContainers.Count - 1);
+                }
                 else
-                    ContainerIndex = Math.Clamp(s.ContainerIndex, 0, AvailableContainers.Count - 1);
+                {
+                    int idx = s.ContainerIndex == 5 ? 0 : s.ContainerIndex; // 5 曾为 WebM，回落 MP4
+                    ContainerIndex = Math.Clamp(idx, 0, AvailableContainers.Count - 1);
+                }
 
                 // 视音频编解码：基于已确定的容器过滤后，有交集保留 else 首项，归一化
                 var vListForRestore = FilterVideoCodecsForContainer(MapContainerLabelToEnum(SelectedContainer));
@@ -1600,7 +1606,6 @@ public void AddDroppedPaths(IEnumerable<string> paths)
             VideoContainer.Mov => ".mov",
             VideoContainer.Avi => ".avi",
             VideoContainer.Gif => ".gif",
-            VideoContainer.WebM => ".webm",
             _ => ".mp4"
         };
         string stem = Path.GetFileNameWithoutExtension(fileName);
