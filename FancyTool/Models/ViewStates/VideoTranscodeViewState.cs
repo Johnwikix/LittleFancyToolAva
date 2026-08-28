@@ -6,6 +6,19 @@ public class VideoTranscodeViewState
     public int ContainerIndex { get; set; }
     public int VideoCodecIndex { get; set; }
     public int AudioCodecIndex { get; set; }
+    public string? SelectedVideoCodec { get; set; }
+    public string? SelectedAudioCodec { get; set; }
+    public string? SelectedContainer { get; set; }
+    public string? SelectedHardwareBackend { get; set; }
+    public string? SelectedRateControl { get; set; }
+    public string? SelectedPreset { get; set; }
+    public string? SelectedHandbrakePreset { get; set; }
+    public string? SelectedScaleMode { get; set; }
+    public string? SelectedFpsMode { get; set; }
+    public string? SelectedDeinterlace { get; set; }
+    public string? SelectedDenoise { get; set; }
+    public string? SelectedGifDither { get; set; }
+    public string? SelectedGifStats { get; set; }
     public int RateControlIndex { get; set; }
     public int Crf { get; set; } = 23;
     public int VideoBitrateKbps { get; set; } = 2500;

@@ -53,7 +53,7 @@
                         <!-- Output Preset -->
                         <StackPanel Classes="FormRow">
                             <TextBlock Classes="FieldLabel" Text="{lan:I18n VideoTranscode.Label_Preset}" />
-                            <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding HandbrakePresetLabels}" SelectedIndex="{Binding HandbrakePresetIndex, Mode=TwoWay}" />
+                            <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding HandbrakePresetLabels}" SelectedItem="{Binding SelectedHandbrakePreset, Mode=TwoWay}" />
                         </StackPanel>
 
                         <!-- Container / Codecs : 参数核心区，三列紧凑布局 -->
@@ -61,19 +61,19 @@
                             <Grid ColumnDefinitions="*,12,*" RowDefinitions="Auto,8,Auto">
                                 <StackPanel Grid.Column="0" Grid.Row="0" Spacing="4">
                                     <TextBlock Classes="FieldLabel" Text="{lan:I18n VideoTranscode.Label_Container}" FontSize="12" Opacity="0.8" />
-                                    <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding AvailableContainers}" SelectedIndex="{Binding ContainerIndex, Mode=TwoWay}" />
+                                    <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding AvailableContainers}" SelectedItem="{Binding SelectedContainer, Mode=TwoWay}" />
                                 </StackPanel>
                                 <StackPanel Grid.Column="2" Grid.Row="0" Spacing="4">
                                     <TextBlock Classes="FieldLabel" Text="{lan:I18n VideoTranscode.Label_VideoCodec}" FontSize="12" Opacity="0.8" />
-                                    <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding FilteredVideoCodecs}" SelectedIndex="{Binding VideoCodecIndex, Mode=TwoWay}" />
+                                    <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding FilteredVideoCodecs}" SelectedItem="{Binding SelectedVideoCodec, Mode=TwoWay}" />
                                 </StackPanel>
                                 <StackPanel Grid.Column="0" Grid.Row="2" Spacing="4">
                                     <TextBlock Classes="FieldLabel" Text="{lan:I18n VideoTranscode.Label_AudioCodec}" FontSize="12" Opacity="0.8" />
-                                    <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding FilteredAudioCodecs}" SelectedIndex="{Binding AudioCodecIndex, Mode=TwoWay}" />
+                                    <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding FilteredAudioCodecs}" SelectedItem="{Binding SelectedAudioCodec, Mode=TwoWay}" />
                                 </StackPanel>
                                 <StackPanel Grid.Column="2" Grid.Row="2" Spacing="4">
                                     <TextBlock Classes="FieldLabel" Text="{lan:I18n VideoTranscode.Label_PresetLevel}" FontSize="12" Opacity="0.8" />
-                                    <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding PresetLabels}" SelectedIndex="{Binding PresetIndex, Mode=TwoWay}" />
+                                    <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding PresetLabels}" SelectedItem="{Binding SelectedPreset, Mode=TwoWay}" />
                                 </StackPanel>
                             </Grid>
                         </Border>
@@ -82,7 +82,7 @@
                         <Border Background="{DynamicResource CardBackgroundFillColorSecondaryBrush}" CornerRadius="6" Padding="12" IsVisible="{Binding !IsGifMode}">
                             <StackPanel Spacing="6">
                                 <TextBlock Text="{lan:I18n VideoTranscode.Label_Hardware}" FontWeight="Bold" FontSize="13" />
-                                <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding HardwareBackendLabels}" SelectedIndex="{Binding HardwareBackendIndex, Mode=TwoWay}" />
+                                <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding HardwareBackendLabels}" SelectedItem="{Binding SelectedHardwareBackend, Mode=TwoWay}" />
                                 <TextBlock Text="{lan:I18n VideoTranscode.Hint_Hardware}" FontSize="11" Opacity="0.6" TextWrapping="Wrap" />
                                 <TextBlock Text="{lan:I18n VideoTranscode.Hint_HardwareVaapi}" FontSize="11" Opacity="0.6" TextWrapping="Wrap" IsVisible="{Binding IsVaapiBackend}" />
                             </StackPanel>
@@ -94,7 +94,7 @@
                                 <TextBlock Text="{lan:I18n VideoTranscode.Group_Quality}" FontWeight="Bold" FontSize="13" />
                                 <StackPanel Spacing="6">
                                     <TextBlock Classes="FieldLabel" Text="{lan:I18n VideoTranscode.Label_RateControl}" FontSize="12" Opacity="0.8" />
-                                    <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding RateControlLabels}" SelectedIndex="{Binding RateControlIndex, Mode=TwoWay}" />
+                                    <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding RateControlLabels}" SelectedItem="{Binding SelectedRateControl, Mode=TwoWay}" />
                                 </StackPanel>
                                 <StackPanel IsVisible="{Binding IsCrfMode}" Spacing="4">
                                     <Grid ColumnDefinitions="Auto,*,Auto">
@@ -137,11 +137,11 @@
                             </Grid>
                             <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">
                                 <TextBlock Grid.Column="0" Text="{lan:I18n VideoTranscode.Label_GifColors}" VerticalAlignment="Center" />
-                                <ComboBox Grid.Column="2" Width="120" ItemsSource="{Binding AvailableGifMaxColors}" SelectedIndex="{Binding GifMaxColorsIndex, Mode=TwoWay}" />
+                                <ComboBox Grid.Column="2" Width="120" ItemsSource="{Binding AvailableGifMaxColors}" SelectedItem="{Binding GifMaxColors, Mode=TwoWay}" />
                             </Grid>
                             <StackPanel Spacing="6">
                                 <TextBlock Text="{lan:I18n VideoTranscode.Label_GifDither}" />
-                                <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding GifDitherLabels}" SelectedIndex="{Binding GifDitherIndex, Mode=TwoWay}" />
+                                <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding GifDitherLabels}" SelectedItem="{Binding SelectedGifDither, Mode=TwoWay}" />
                             </StackPanel>
                             <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">
                                 <TextBlock Grid.Column="0" Text="{lan:I18n VideoTranscode.Label_GifLoop}" VerticalAlignment="Center" />
@@ -149,7 +149,7 @@
                             </Grid>
                             <StackPanel Spacing="6">
                                 <TextBlock Text="{lan:I18n VideoTranscode.Label_GifStats}" />
-                                <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding GifStatsLabels}" SelectedIndex="{Binding GifStatsIndex, Mode=TwoWay}" />
+                                <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding GifStatsLabels}" SelectedItem="{Binding SelectedGifStats, Mode=TwoWay}" />
                             </StackPanel>
                         </StackPanel>
 
@@ -158,7 +158,7 @@
                             <StackPanel Spacing="10">
                             <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">
                                 <TextBlock Grid.Column="0" Text="{lan:I18n VideoTranscode.Label_Scale}" VerticalAlignment="Center" ToolTip.Tip="{lan:I18n VideoTranscode.Hint_ScaleNone}" />
-                                <ComboBox Grid.Column="2" Width="150" ItemsSource="{Binding ScaleModeLabels}" SelectedIndex="{Binding ScaleModeIndex, Mode=TwoWay}" ToolTip.Tip="{lan:I18n VideoTranscode.Hint_ScaleNone}" />
+                                <ComboBox Grid.Column="2" Width="150" ItemsSource="{Binding ScaleModeLabels}" SelectedItem="{Binding SelectedScaleMode, Mode=TwoWay}" ToolTip.Tip="{lan:I18n VideoTranscode.Hint_ScaleNone}" />
                             </Grid>
                             <StackPanel IsVisible="{Binding IsScaleActive}" Spacing="6">
                                 <Grid ColumnDefinitions="*,8,*">
@@ -200,7 +200,7 @@
 
                             <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">
                                 <TextBlock Grid.Column="0" Text="{lan:I18n VideoTranscode.Label_Fps}" VerticalAlignment="Center" />
-                                <ComboBox Grid.Column="2" Width="150" ItemsSource="{Binding FpsModeLabels}" SelectedIndex="{Binding FpsModeIndex, Mode=TwoWay}" />
+                                <ComboBox Grid.Column="2" Width="150" ItemsSource="{Binding FpsModeLabels}" SelectedItem="{Binding SelectedFpsMode, Mode=TwoWay}" />
                             </Grid>
                             <StackPanel IsVisible="{Binding IsFpsActive}">
                                 <NumericUpDown Minimum="1" Maximum="120" Value="{Binding FpsValue}" Increment="1" />
@@ -208,12 +208,12 @@
 
                             <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">
                                 <TextBlock Grid.Column="0" Text="{lan:I18n VideoTranscode.Label_Deinterlace}" VerticalAlignment="Center" />
-                                <ComboBox Grid.Column="2" Width="150" ItemsSource="{Binding DeinterlaceLabels}" SelectedIndex="{Binding DeinterlaceIndex, Mode=TwoWay}" />
+                                <ComboBox Grid.Column="2" Width="150" ItemsSource="{Binding DeinterlaceLabels}" SelectedItem="{Binding SelectedDeinterlace, Mode=TwoWay}" />
                             </Grid>
 
                             <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">
                                 <TextBlock Grid.Column="0" Text="{lan:I18n VideoTranscode.Label_Denoise}" VerticalAlignment="Center" />
-                                <ComboBox Grid.Column="2" Width="150" ItemsSource="{Binding DenoiseLabels}" SelectedIndex="{Binding DenoiseIndex, Mode=TwoWay}" />
+                                <ComboBox Grid.Column="2" Width="150" ItemsSource="{Binding DenoiseLabels}" SelectedItem="{Binding SelectedDenoise, Mode=TwoWay}" />
                             </Grid>
                             </StackPanel>
                         </Expander>

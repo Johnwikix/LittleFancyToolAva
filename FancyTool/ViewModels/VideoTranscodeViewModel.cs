@@ -90,7 +90,7 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
     public List<string> AvailableContainers { get; } = ["MP4", "MKV", "MOV", "AVI", "GIF", "WebM"];
     public List<VideoContainer> ContainerValues { get; } = Enum.GetValues<VideoContainer>().ToList();
 
-    public int ContainerIndex
+    public string? SelectedContainer
     {
         get => field;
         set
@@ -99,15 +99,30 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
             {
                 OnPropertyChanged(nameof(IsGifMode));
                 OnPropertyChanged(nameof(ShowTwoPass));
-                UpdateCodecIndicesForContainer();
+                // 先更新源再定选，避免 SelectedItem 在旧 ItemsSource 上被 TwoWay 回推 null
                 OnPropertyChanged(nameof(FilteredVideoCodecs));
                 OnPropertyChanged(nameof(FilteredAudioCodecs));
+                EnsureCodecSelectionValid();
+                OnPropertyChanged(nameof(ContainerIndex));
+                // 兼容旧索引绑定
+                OnPropertyChanged(nameof(VideoCodecIndex));
+                OnPropertyChanged(nameof(AudioCodecIndex));
                 ResetPresetToCustom();
             }
         }
-    } = 0;
+    } = "MP4";
 
-    public bool IsGifMode => ContainerIndex >= 0 && ContainerIndex < ContainerValues.Count && ContainerValues[ContainerIndex] == VideoContainer.Gif;
+    public int ContainerIndex
+    {
+        get => Math.Max(AvailableContainers.IndexOf(SelectedContainer ?? "MP4"), 0);
+        set
+        {
+            var clamped = Math.Clamp(value, 0, AvailableContainers.Count - 1);
+            SelectedContainer = AvailableContainers[clamped];
+        }
+    }
+
+    public bool IsGifMode => SelectedContainer == "GIF";
 
     // Video codecs filtered
     public List<string> AllVideoCodecLabels { get; } = ["H.264 (x264)", "H.265 (x265)", "AV1 (aom)", "AV1 (SVT)", "VP8", "VP9", "MPEG-4", "GIF"];
@@ -117,7 +132,7 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
     {
         get
         {
-            var container = ContainerIndex >= 0 && ContainerIndex < ContainerValues.Count ? ContainerValues[ContainerIndex] : VideoContainer.Mp4;
+            var container = MapContainerLabelToEnum(SelectedContainer);
             return FilterVideoCodecsForContainer(container);
         }
     }
@@ -126,19 +141,47 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
     {
         get
         {
-            var container = ContainerIndex >= 0 && ContainerIndex < ContainerValues.Count ? ContainerValues[ContainerIndex] : VideoContainer.Mp4;
+            var container = MapContainerLabelToEnum(SelectedContainer);
             return FilterAudioCodecsForContainer(container);
         }
     }
 
-    private void UpdateCodecIndicesForContainer()
+    private static VideoContainer MapContainerLabelToEnum(string? label) => label switch
     {
-        // Keep indices in range; if current codec not allowed, reset to 0
-        if (VideoCodecIndex >= FilteredVideoCodecs.Count) VideoCodecIndex = 0;
-        if (AudioCodecIndex >= FilteredAudioCodecs.Count) AudioCodecIndex = 0;
-        OnPropertyChanged(nameof(FilteredVideoCodecs));
-        OnPropertyChanged(nameof(FilteredAudioCodecs));
+        "MP4" => VideoContainer.Mp4,
+        "MKV" => VideoContainer.Mkv,
+        "MOV" => VideoContainer.Mov,
+        "AVI" => VideoContainer.Avi,
+        "GIF" => VideoContainer.Gif,
+        "WebM" => VideoContainer.WebM,
+        _ => VideoContainer.Mp4
+    };
+
+    /// <summary>按值校验：有交集保留（归一到新集合实例），无交集回落首项，避免 ComboBox 空选。</summary>
+    private void EnsureCodecSelectionValid()
+    {
+        var vList = FilteredVideoCodecs;
+        var aList = FilteredAudioCodecs;
+        if (SelectedVideoCodec is null || !vList.Contains(SelectedVideoCodec))
+            SelectedVideoCodec = vList.Count > 0 ? vList[0] : null;
+        else
+        {
+            var idx = vList.IndexOf(SelectedVideoCodec);
+            if (idx >= 0 && !ReferenceEquals(vList[idx], SelectedVideoCodec))
+                SelectedVideoCodec = vList[idx];
+        }
+        if (SelectedAudioCodec is null || !aList.Contains(SelectedAudioCodec))
+            SelectedAudioCodec = aList.Count > 0 ? aList[0] : null;
+        else
+        {
+            var idx = aList.IndexOf(SelectedAudioCodec);
+            if (idx >= 0 && !ReferenceEquals(aList[idx], SelectedAudioCodec))
+                SelectedAudioCodec = aList[idx];
+        }
     }
+
+    [Obsolete("仅为兼容旧索引调用保留，请使用 SelectedVideoCodec/SelectedAudioCodec")]
+    private void UpdateCodecIndicesForContainer() => EnsureCodecSelectionValid();
 
     private void ResetPresetToCustom()
     {
@@ -171,26 +214,38 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
         _ => ["AAC", "MP3", "Opus", "None"]
     };
 
-    public int VideoCodecIndex
+    public string? SelectedVideoCodec
     {
         get => field;
         set
         {
-            if (SetProperty(ref field, value)) ResetPresetToCustom();
+            if (SetProperty(ref field, value))
+            {
+                OnPropertyChanged(nameof(VideoCodecIndex));
+                ResetPresetToCustom();
+            }
         }
-    } = 0;
+    } = "H.264 (x264)";
 
-    public int AudioCodecIndex
+    public string? SelectedAudioCodec
     {
         get => field;
         set
         {
-            if (SetProperty(ref field, value)) ResetPresetToCustom();
+            if (SetProperty(ref field, value))
+            {
+                OnPropertyChanged(nameof(AudioCodecIndex));
+                ResetPresetToCustom();
+            }
         }
-    } = 0;
+    } = "AAC";
+
+    public int VideoCodecIndex => SelectedVideoCodec is null ? 0 : Math.Max(FilteredVideoCodecs.IndexOf(SelectedVideoCodec), 0);
+
+    public int AudioCodecIndex => SelectedAudioCodec is null ? 0 : Math.Max(FilteredAudioCodecs.IndexOf(SelectedAudioCodec), 0);
 
     public List<string> HardwareBackendLabels { get; } = ["Software (CPU)", "NVIDIA NVENC", "Intel QSV/VAAPI", "AMD AMF/VAAPI"];
-    public int HardwareBackendIndex
+    public string? SelectedHardwareBackend
     {
         get => field;
         set
@@ -199,15 +254,25 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
             {
                 OnPropertyChanged(nameof(IsVaapiBackend));
                 OnPropertyChanged(nameof(ShowTwoPass));
-                // Hardware change does not reset preset, but two-pass visibility changes
+                OnPropertyChanged(nameof(HardwareBackendIndex));
             }
         }
-    } = 0;
+    } = "Software (CPU)";
+
+    public int HardwareBackendIndex
+    {
+        get => Math.Max(HardwareBackendLabels.IndexOf(SelectedHardwareBackend ?? "Software (CPU)"), 0);
+        set
+        {
+            var clamped = Math.Clamp(value, 0, HardwareBackendLabels.Count - 1);
+            SelectedHardwareBackend = HardwareBackendLabels[clamped];
+        }
+    }
 
     public bool IsVaapiBackend => ((HardwareBackend)HardwareBackendIndex == HardwareBackend.Intel || (HardwareBackend)HardwareBackendIndex == HardwareBackend.Amd) && !OperatingSystem.IsWindows();
 
     public List<string> RateControlLabels { get; } = ["CRF / Quality", "Bitrate"];
-    public int RateControlIndex
+    public string? SelectedRateControl
     {
         get => field;
         set
@@ -217,13 +282,24 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
                 OnPropertyChanged(nameof(IsCrfMode));
                 OnPropertyChanged(nameof(IsBitrateMode));
                 OnPropertyChanged(nameof(ShowTwoPass));
+                OnPropertyChanged(nameof(RateControlIndex));
                 ResetPresetToCustom();
             }
         }
-    } = 0;
+    } = "CRF / Quality";
 
-    public bool IsCrfMode => RateControlIndex == 0;
-    public bool IsBitrateMode => RateControlIndex == 1;
+    public int RateControlIndex
+    {
+        get => Math.Max(RateControlLabels.IndexOf(SelectedRateControl ?? "CRF / Quality"), 0);
+        set
+        {
+            var clamped = Math.Clamp(value, 0, RateControlLabels.Count - 1);
+            SelectedRateControl = RateControlLabels[clamped];
+        }
+    }
+
+    public bool IsCrfMode => SelectedRateControl == "CRF / Quality";
+    public bool IsBitrateMode => SelectedRateControl == "Bitrate";
     public bool ShowTwoPass => IsBitrateMode && !IsGifMode && HardwareBackendIndex == 0;
     public bool IsTwoPassEnabled
     {
@@ -268,14 +344,28 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
     } = 128;
 
     public List<string> PresetLabels { get; } = ["Ultrafast", "Superfast", "Veryfast", "Faster", "Fast", "Medium", "Slow", "Slower", "Veryslow", "Placebo"];
-    public int PresetIndex
+    public string? SelectedPreset
     {
         get => field;
         set
         {
-            if (SetProperty(ref field, value)) ResetPresetToCustom();
+            if (SetProperty(ref field, value))
+            {
+                OnPropertyChanged(nameof(PresetIndex));
+                ResetPresetToCustom();
+            }
         }
-    } = 5;
+    } = "Medium";
+
+    public int PresetIndex
+    {
+        get => Math.Max(PresetLabels.IndexOf(SelectedPreset ?? "Medium"), 0);
+        set
+        {
+            var clamped = Math.Clamp(value, 0, PresetLabels.Count - 1);
+            SelectedPreset = PresetLabels[clamped];
+        }
+    }
 
     // Output presets — order must match VideoPreset enum (for persistence)
     public List<string> HandbrakePresetLabels { get; } = [
@@ -301,21 +391,61 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
         "HQ 2160p30 (x265)"
     ];
 
-    public int HandbrakePresetIndex
+    public string? SelectedHandbrakePreset
     {
         get => field;
         set
         {
             if (SetProperty(ref field, value))
             {
-                if (value != 0) ApplyHandbrakePreset((VideoPreset)value);
+                OnPropertyChanged(nameof(HandbrakePresetIndex));
+                if (value is not null && value != "Custom")
+                {
+                    var preset = MapHandbrakeLabelToPreset(value);
+                    if (preset != VideoPreset.Custom)
+                        ApplyHandbrakePreset(preset);
+                }
             }
         }
-    } = 0;
+    } = "Custom";
+
+    public int HandbrakePresetIndex
+    {
+        get => Math.Max(HandbrakePresetLabels.IndexOf(SelectedHandbrakePreset ?? "Custom"), 0);
+        set
+        {
+            var clamped = Math.Clamp(value, 0, HandbrakePresetLabels.Count - 1);
+            SelectedHandbrakePreset = HandbrakePresetLabels[clamped];
+        }
+    }
+
+    private static VideoPreset MapHandbrakeLabelToPreset(string label) => label switch
+    {
+        "Fast 1080p30" => VideoPreset.Fast1080p30,
+        "HQ 1080p30" => VideoPreset.HQ1080p30,
+        "Fast 720p30" => VideoPreset.Fast720p30,
+        "HQ 720p30" => VideoPreset.HQ720p30,
+        "Fast 480p30" => VideoPreset.Fast480p30,
+        "GIF 480p 15fps" => VideoPreset.Gif480p,
+        "Fast 1440p30" => VideoPreset.Fast1440p30,
+        "HQ 1440p30" => VideoPreset.HQ1440p30,
+        "Fast 2160p30" => VideoPreset.Fast2160p30,
+        "HQ 2160p30" => VideoPreset.HQ2160p30,
+        "Fast 1080p30 (x265)" => VideoPreset.Fast1080p30X265,
+        "HQ 1080p30 (x265)" => VideoPreset.HQ1080p30X265,
+        "Fast 720p30 (x265)" => VideoPreset.Fast720p30X265,
+        "HQ 720p30 (x265)" => VideoPreset.HQ720p30X265,
+        "Fast 480p30 (x265)" => VideoPreset.Fast480p30X265,
+        "Fast 1440p30 (x265)" => VideoPreset.Fast1440p30X265,
+        "HQ 1440p30 (x265)" => VideoPreset.HQ1440p30X265,
+        "Fast 2160p30 (x265)" => VideoPreset.Fast2160p30X265,
+        "HQ 2160p30 (x265)" => VideoPreset.HQ2160p30X265,
+        _ => VideoPreset.Custom
+    };
 
     // Filters
     public List<string> ScaleModeLabels { get; } = ["None", "Fit Within", "Exact", "Fix Width", "Fix Height"];
-    public int ScaleModeIndex
+    public string? SelectedScaleMode
     {
         get => field;
         set
@@ -323,12 +453,23 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
             if (SetProperty(ref field, value))
             {
                 OnPropertyChanged(nameof(IsScaleActive));
+                OnPropertyChanged(nameof(ScaleModeIndex));
                 ResetPresetToCustom();
             }
         }
-    } = 0;
+    } = "None";
 
-    public bool IsScaleActive => ScaleModeIndex != 0;
+    public int ScaleModeIndex
+    {
+        get => Math.Max(ScaleModeLabels.IndexOf(SelectedScaleMode ?? "None"), 0);
+        set
+        {
+            var clamped = Math.Clamp(value, 0, ScaleModeLabels.Count - 1);
+            SelectedScaleMode = ScaleModeLabels[clamped];
+        }
+    }
+
+    public bool IsScaleActive => SelectedScaleMode != "None";
 
     public int ScaleWidth
     {
@@ -372,7 +513,7 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
     public int CropRight { get => field; set { if (SetProperty(ref field, Math.Clamp(value, 0, 1000))) ResetPresetToCustom(); } } = 0;
 
     public List<string> FpsModeLabels { get; } = ["Same as Source", "Fixed", "Peak (max)"];
-    public int FpsModeIndex
+    public string? SelectedFpsMode
     {
         get => field;
         set
@@ -380,11 +521,22 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
             if (SetProperty(ref field, value))
             {
                 OnPropertyChanged(nameof(IsFpsActive));
+                OnPropertyChanged(nameof(FpsModeIndex));
                 ResetPresetToCustom();
             }
         }
-    } = 0;
-    public bool IsFpsActive => FpsModeIndex != 0;
+    } = "Same as Source";
+
+    public int FpsModeIndex
+    {
+        get => Math.Max(FpsModeLabels.IndexOf(SelectedFpsMode ?? "Same as Source"), 0);
+        set
+        {
+            var clamped = Math.Clamp(value, 0, FpsModeLabels.Count - 1);
+            SelectedFpsMode = FpsModeLabels[clamped];
+        }
+    }
+    public bool IsFpsActive => SelectedFpsMode != "Same as Source";
     public double FpsValue
     {
         get => field;
@@ -395,24 +547,52 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
     } = 30;
 
     public List<string> DeinterlaceLabels { get; } = ["None", "Yadif", "Bwdif"];
+    public string? SelectedDeinterlace
+    {
+        get => field;
+        set
+        {
+            if (SetProperty(ref field, value))
+            {
+                OnPropertyChanged(nameof(DeinterlaceIndex));
+                ResetPresetToCustom();
+            }
+        }
+    } = "None";
+
     public int DeinterlaceIndex
     {
-        get => field;
+        get => Math.Max(DeinterlaceLabels.IndexOf(SelectedDeinterlace ?? "None"), 0);
         set
         {
-            if (SetProperty(ref field, value)) ResetPresetToCustom();
+            var clamped = Math.Clamp(value, 0, DeinterlaceLabels.Count - 1);
+            SelectedDeinterlace = DeinterlaceLabels[clamped];
         }
-    } = 0;
+    }
 
     public List<string> DenoiseLabels { get; } = ["None", "Light (hqdn3d)", "Medium", "Strong"];
-    public int DenoiseIndex
+    public string? SelectedDenoise
     {
         get => field;
         set
         {
-            if (SetProperty(ref field, value)) ResetPresetToCustom();
+            if (SetProperty(ref field, value))
+            {
+                OnPropertyChanged(nameof(DenoiseIndex));
+                ResetPresetToCustom();
+            }
         }
-    } = 0;
+    } = "None";
+
+    public int DenoiseIndex
+    {
+        get => Math.Max(DenoiseLabels.IndexOf(SelectedDenoise ?? "None"), 0);
+        set
+        {
+            var clamped = Math.Clamp(value, 0, DenoiseLabels.Count - 1);
+            SelectedDenoise = DenoiseLabels[clamped];
+        }
+    }
 
     // GIF specific
     public int GifWidth
@@ -446,14 +626,28 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
         set => GifMaxColors = value == 0 ? 128 : 256;
     }
     public List<string> GifDitherLabels { get; } = ["None", "Bayer", "Floyd-Steinberg", "Sierra2_4a"];
-    public int GifDitherIndex
+    public string? SelectedGifDither
     {
         get => field;
         set
         {
-            if (SetProperty(ref field, value)) ResetPresetToCustom();
+            if (SetProperty(ref field, value))
+            {
+                OnPropertyChanged(nameof(GifDitherIndex));
+                ResetPresetToCustom();
+            }
         }
-    } = 1;
+    } = "Bayer";
+
+    public int GifDitherIndex
+    {
+        get => Math.Max(GifDitherLabels.IndexOf(SelectedGifDither ?? "Bayer"), 0);
+        set
+        {
+            var clamped = Math.Clamp(value, 0, GifDitherLabels.Count - 1);
+            SelectedGifDither = GifDitherLabels[clamped];
+        }
+    }
     public int GifLoop
     {
         get => field;
@@ -463,14 +657,28 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
         }
     } = 0;
     public List<string> GifStatsLabels { get; } = ["diff", "single"];
-    public int GifStatsIndex
+    public string? SelectedGifStats
     {
         get => field;
         set
         {
-            if (SetProperty(ref field, value)) ResetPresetToCustom();
+            if (SetProperty(ref field, value))
+            {
+                OnPropertyChanged(nameof(GifStatsIndex));
+                ResetPresetToCustom();
+            }
         }
-    } = 0;
+    } = "diff";
+
+    public int GifStatsIndex
+    {
+        get => Math.Max(GifStatsLabels.IndexOf(SelectedGifStats ?? "diff"), 0);
+        set
+        {
+            var clamped = Math.Clamp(value, 0, GifStatsLabels.Count - 1);
+            SelectedGifStats = GifStatsLabels[clamped];
+        }
+    }
 
     public bool IsBusy
     {
@@ -581,26 +789,26 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
         _isApplyingPreset = true;
         try
         {
-            bool isHw = HardwareBackendIndex != 0;
+            bool isHw = SelectedHardwareBackend != "Software (CPU)";
             void ApplyFast(int w, int h, string codecLabel)
             {
                 // HW presets default to HEVC (265) as requested
                 string effectiveCodec = isHw && codecLabel == "H.264 (x264)" ? "H.265 (x265)" : codecLabel;
-                ContainerIndex = 0; // MP4
+                SelectedContainer = "MP4";
                 SetCodecByLabel(effectiveCodec);
-                RateControlIndex = 0; CrfValue = 22; PresetIndex = 4; // Fast
-                ScaleModeIndex = 1; ScaleWidth = w; ScaleHeight = h; KeepAspect = true;
-                FpsModeIndex = 0; DeinterlaceIndex = 0; DenoiseIndex = 0;
-                AudioCodecIndex = 0; // AAC
+                SelectedRateControl = "CRF / Quality"; CrfValue = 22; SelectedPreset = "Fast";
+                SelectedScaleMode = "Fit Within"; ScaleWidth = w; ScaleHeight = h; KeepAspect = true;
+                SelectedFpsMode = "Same as Source"; SelectedDeinterlace = "None"; SelectedDenoise = "None";
+                SetAudioCodecByLabel("AAC");
             }
             void ApplyHQ(int w, int h, string codecLabel)
             {
                 string effectiveCodec = isHw && codecLabel == "H.264 (x264)" ? "H.265 (x265)" : codecLabel;
-                ContainerIndex = 0;
+                SelectedContainer = "MP4";
                 SetCodecByLabel(effectiveCodec);
-                RateControlIndex = 0; CrfValue = 20; PresetIndex = 6; // Slow
-                ScaleModeIndex = 1; ScaleWidth = w; ScaleHeight = h; KeepAspect = true;
-                FpsModeIndex = 0; DeinterlaceIndex = 1; DenoiseIndex = 0;
+                SelectedRateControl = "CRF / Quality"; CrfValue = 20; SelectedPreset = "Slow";
+                SelectedScaleMode = "Fit Within"; ScaleWidth = w; ScaleHeight = h; KeepAspect = true;
+                SelectedFpsMode = "Same as Source"; SelectedDeinterlace = "Yadif"; SelectedDenoise = "None";
             }
 
             switch (preset)
@@ -624,9 +832,9 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
                 case VideoPreset.Fast2160p30X265: ApplyFast(3840, 2160, "H.265 (x265)"); break;
                 case VideoPreset.HQ2160p30X265: ApplyHQ(3840, 2160, "H.265 (x265)"); break;
                 case VideoPreset.Gif480p:
-                    ContainerIndex = 4; // GIF
-                    ScaleModeIndex = 0;
-                    GifWidth = 480; GifFps = 15; GifMaxColors = 256; GifDitherIndex = 1; GifLoop = 0;
+                    SelectedContainer = "GIF";
+                    SelectedScaleMode = "None";
+                    GifWidth = 480; GifFps = 15; GifMaxColors = 256; SelectedGifDither = "Bayer"; GifLoop = 0;
                     break;
             }
             OnPropertyChanged(nameof(IsGifMode));
@@ -641,8 +849,15 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
     private void SetCodecByLabel(string label)
     {
         var list = FilteredVideoCodecs;
-        int idx = list.IndexOf(label);
-        if (idx >= 0) VideoCodecIndex = idx;
+        if (list.Contains(label)) SelectedVideoCodec = list[list.IndexOf(label)];
+        else if (list.Count > 0) SelectedVideoCodec = list[0];
+    }
+
+    private void SetAudioCodecByLabel(string label)
+    {
+        var list = FilteredAudioCodecs;
+        if (list.Contains(label)) SelectedAudioCodec = list[list.IndexOf(label)];
+        else if (list.Count > 0) SelectedAudioCodec = list[0];
     }
 
     object IViewState.CaptureState() => new VideoTranscodeViewState
@@ -651,6 +866,19 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
         ContainerIndex = ContainerIndex,
         VideoCodecIndex = VideoCodecIndex,
         AudioCodecIndex = AudioCodecIndex,
+        SelectedVideoCodec = SelectedVideoCodec,
+        SelectedAudioCodec = SelectedAudioCodec,
+        SelectedContainer = SelectedContainer,
+        SelectedHardwareBackend = SelectedHardwareBackend,
+        SelectedRateControl = SelectedRateControl,
+        SelectedPreset = SelectedPreset,
+        SelectedHandbrakePreset = SelectedHandbrakePreset,
+        SelectedScaleMode = SelectedScaleMode,
+        SelectedFpsMode = SelectedFpsMode,
+        SelectedDeinterlace = SelectedDeinterlace,
+        SelectedDenoise = SelectedDenoise,
+        SelectedGifDither = SelectedGifDither,
+        SelectedGifStats = SelectedGifStats,
         RateControlIndex = RateControlIndex,
         Crf = CrfValue,
         VideoBitrateKbps = VideoBitrateKbps,
@@ -676,7 +904,7 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
         GifFps = GifFps,
         GifWidth = GifWidth,
         GifLoop = GifLoop,
-        GifStatsMode = GifStatsIndex == 0 ? "diff" : "single",
+        GifStatsMode = SelectedGifStats ?? (GifStatsIndex == 0 ? "diff" : "single"),
         SelectedPresetIndex = HandbrakePresetIndex,
         IncludeAllInFolderScan = IncludeAllInFolderScan
     };
@@ -689,35 +917,136 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
             try
             {
                 OutputFolder = s.OutputFolder;
-                ContainerIndex = Math.Clamp(s.ContainerIndex, 0, AvailableContainers.Count - 1);
-                VideoCodecIndex = s.VideoCodecIndex;
-                AudioCodecIndex = s.AudioCodecIndex;
-                RateControlIndex = s.RateControlIndex is 0 or 1 ? s.RateControlIndex : 0;
+                // 容器：优先 SelectedItem，有交集保留，无则首项，兼容旧索引
+                if (!string.IsNullOrEmpty(s.SelectedContainer) && AvailableContainers.Contains(s.SelectedContainer))
+                    SelectedContainer = s.SelectedContainer;
+                else if (!string.IsNullOrEmpty(s.SelectedContainer) && AvailableContainers.Count > 0)
+                    SelectedContainer = AvailableContainers[0];
+                else
+                    ContainerIndex = Math.Clamp(s.ContainerIndex, 0, AvailableContainers.Count - 1);
+
+                // 视音频编解码：基于已确定的容器过滤后，有交集保留 else 首项，归一化
+                var vListForRestore = FilterVideoCodecsForContainer(MapContainerLabelToEnum(SelectedContainer));
+                var aListForRestore = FilterAudioCodecsForContainer(MapContainerLabelToEnum(SelectedContainer));
+                if (!string.IsNullOrEmpty(s.SelectedVideoCodec) && vListForRestore.Contains(s.SelectedVideoCodec))
+                    SelectedVideoCodec = vListForRestore[vListForRestore.IndexOf(s.SelectedVideoCodec)];
+                else if (!string.IsNullOrEmpty(s.SelectedVideoCodec) && vListForRestore.Count > 0)
+                    SelectedVideoCodec = vListForRestore[0];
+                else if (!string.IsNullOrEmpty(s.SelectedVideoCodec))
+                    SelectedVideoCodec = s.SelectedVideoCodec;
+                else
+                {
+                    int vIdx = Math.Clamp(s.VideoCodecIndex, 0, Math.Max(vListForRestore.Count - 1, 0));
+                    SelectedVideoCodec = vListForRestore.Count > 0 ? vListForRestore[vIdx] : "H.264 (x264)";
+                }
+
+                if (!string.IsNullOrEmpty(s.SelectedAudioCodec) && aListForRestore.Contains(s.SelectedAudioCodec))
+                    SelectedAudioCodec = aListForRestore[aListForRestore.IndexOf(s.SelectedAudioCodec)];
+                else if (!string.IsNullOrEmpty(s.SelectedAudioCodec) && aListForRestore.Count > 0)
+                    SelectedAudioCodec = aListForRestore[0];
+                else if (!string.IsNullOrEmpty(s.SelectedAudioCodec))
+                    SelectedAudioCodec = s.SelectedAudioCodec;
+                else
+                {
+                    int aIdx = Math.Clamp(s.AudioCodecIndex, 0, Math.Max(aListForRestore.Count - 1, 0));
+                    SelectedAudioCodec = aListForRestore.Count > 0 ? aListForRestore[aIdx] : "AAC";
+                }
+                // 再次校验，确保还原后不出现空选
+                EnsureCodecSelectionValid();
+
+                // 硬件后端
+                if (!string.IsNullOrEmpty(s.SelectedHardwareBackend) && HardwareBackendLabels.Contains(s.SelectedHardwareBackend))
+                    SelectedHardwareBackend = s.SelectedHardwareBackend;
+                else if (!string.IsNullOrEmpty(s.SelectedHardwareBackend))
+                    SelectedHardwareBackend = HardwareBackendLabels[0];
+                else
+                    HardwareBackendIndex = Math.Clamp(s.HardwareBackend, 0, HardwareBackendLabels.Count - 1);
+
+                // 速率控制
+                if (!string.IsNullOrEmpty(s.SelectedRateControl) && RateControlLabels.Contains(s.SelectedRateControl))
+                    SelectedRateControl = s.SelectedRateControl;
+                else if (!string.IsNullOrEmpty(s.SelectedRateControl))
+                    SelectedRateControl = RateControlLabels[0];
+                else
+                    RateControlIndex = s.RateControlIndex is 0 or 1 ? s.RateControlIndex : 0;
+
                 CrfValue = Math.Clamp(s.Crf, 0, 51);
                 VideoBitrateKbps = s.VideoBitrateKbps;
                 IsTwoPassEnabled = s.TwoPassEnabled;
-                HardwareBackendIndex = Math.Clamp(s.HardwareBackend, 0, HardwareBackendLabels.Count - 1);
                 AudioBitrateKbps = s.AudioBitrateKbps;
-                PresetIndex = Math.Clamp(s.PresetIndex, 0, PresetLabels.Count - 1);
-                ScaleModeIndex = Math.Clamp(s.ScaleModeIndex, 0, ScaleModeLabels.Count - 1);
+
+                // 预设
+                if (!string.IsNullOrEmpty(s.SelectedPreset) && PresetLabels.Contains(s.SelectedPreset))
+                    SelectedPreset = s.SelectedPreset;
+                else if (!string.IsNullOrEmpty(s.SelectedPreset))
+                    SelectedPreset = PresetLabels[0];
+                else
+                    PresetIndex = Math.Clamp(s.PresetIndex, 0, PresetLabels.Count - 1);
+
+                // 滤镜
+                if (!string.IsNullOrEmpty(s.SelectedScaleMode) && ScaleModeLabels.Contains(s.SelectedScaleMode))
+                    SelectedScaleMode = s.SelectedScaleMode;
+                else if (!string.IsNullOrEmpty(s.SelectedScaleMode))
+                    SelectedScaleMode = ScaleModeLabels[0];
+                else
+                    ScaleModeIndex = Math.Clamp(s.ScaleModeIndex, 0, ScaleModeLabels.Count - 1);
+
                 ScaleWidth = s.ScaleWidth;
                 ScaleHeight = s.ScaleHeight;
                 KeepAspect = s.KeepAspect;
                 CropEnabled = s.CropEnabled;
                 CropTop = s.CropTop; CropBottom = s.CropBottom; CropLeft = s.CropLeft; CropRight = s.CropRight;
-                FpsModeIndex = Math.Clamp(s.FpsModeIndex, 0, FpsModeLabels.Count - 1);
+
+                if (!string.IsNullOrEmpty(s.SelectedFpsMode) && FpsModeLabels.Contains(s.SelectedFpsMode))
+                    SelectedFpsMode = s.SelectedFpsMode;
+                else if (!string.IsNullOrEmpty(s.SelectedFpsMode))
+                    SelectedFpsMode = FpsModeLabels[0];
+                else
+                    FpsModeIndex = Math.Clamp(s.FpsModeIndex, 0, FpsModeLabels.Count - 1);
+
                 FpsValue = s.FpsValue;
-                DeinterlaceIndex = Math.Clamp(s.DeinterlaceIndex, 0, DeinterlaceLabels.Count - 1);
-                DenoiseIndex = Math.Clamp(s.DenoiseIndex, 0, DenoiseLabels.Count - 1);
-                GifDitherIndex = Math.Clamp(s.GifDitherIndex, 0, GifDitherLabels.Count - 1);
+
+                if (!string.IsNullOrEmpty(s.SelectedDeinterlace) && DeinterlaceLabels.Contains(s.SelectedDeinterlace))
+                    SelectedDeinterlace = s.SelectedDeinterlace;
+                else if (!string.IsNullOrEmpty(s.SelectedDeinterlace))
+                    SelectedDeinterlace = DeinterlaceLabels[0];
+                else
+                    DeinterlaceIndex = Math.Clamp(s.DeinterlaceIndex, 0, DeinterlaceLabels.Count - 1);
+
+                if (!string.IsNullOrEmpty(s.SelectedDenoise) && DenoiseLabels.Contains(s.SelectedDenoise))
+                    SelectedDenoise = s.SelectedDenoise;
+                else if (!string.IsNullOrEmpty(s.SelectedDenoise))
+                    SelectedDenoise = DenoiseLabels[0];
+                else
+                    DenoiseIndex = Math.Clamp(s.DenoiseIndex, 0, DenoiseLabels.Count - 1);
+
+                if (!string.IsNullOrEmpty(s.SelectedGifDither) && GifDitherLabels.Contains(s.SelectedGifDither))
+                    SelectedGifDither = s.SelectedGifDither;
+                else if (!string.IsNullOrEmpty(s.SelectedGifDither))
+                    SelectedGifDither = GifDitherLabels[0];
+                else
+                    GifDitherIndex = Math.Clamp(s.GifDitherIndex, 0, GifDitherLabels.Count - 1);
+
                 GifMaxColors = s.GifMaxColors == 128 ? 128 : 256;
                 GifFps = s.GifFps;
                 GifWidth = s.GifWidth;
                 GifLoop = s.GifLoop;
-                GifStatsIndex = s.GifStatsMode == "single" ? 1 : 0;
-                HandbrakePresetIndex = Math.Clamp(s.SelectedPresetIndex, 0, HandbrakePresetLabels.Count - 1);
+
+                if (!string.IsNullOrEmpty(s.SelectedGifStats) && GifStatsLabels.Contains(s.SelectedGifStats))
+                    SelectedGifStats = s.SelectedGifStats;
+                else if (!string.IsNullOrEmpty(s.SelectedGifStats))
+                    SelectedGifStats = GifStatsLabels[0];
+                else
+                    GifStatsIndex = s.GifStatsMode == "single" ? 1 : 0;
+
+                // 输出预设
+                if (!string.IsNullOrEmpty(s.SelectedHandbrakePreset) && HandbrakePresetLabels.Contains(s.SelectedHandbrakePreset))
+                    SelectedHandbrakePreset = s.SelectedHandbrakePreset;
+                else if (!string.IsNullOrEmpty(s.SelectedHandbrakePreset))
+                    SelectedHandbrakePreset = HandbrakePresetLabels[0];
+                else
+                    HandbrakePresetIndex = Math.Clamp(s.SelectedPresetIndex, 0, HandbrakePresetLabels.Count - 1);
                 IncludeAllInFolderScan = s.IncludeAllInFolderScan;
-                if (!string.IsNullOrEmpty(s.GifStatsMode)) GifStatsIndex = s.GifStatsMode == "single" ? 1 : 0;
                 if (!string.IsNullOrEmpty(_preferences.CustomFfmpegDirectory)) FfmpegDirectory = _preferences.CustomFfmpegDirectory;
             }
             finally
@@ -1047,9 +1376,9 @@ public void AddDroppedPaths(IEnumerable<string> paths)
 
     private VideoTranscodeOptions BuildOptions()
     {
-        var container = ContainerIndex >= 0 && ContainerIndex < ContainerValues.Count ? ContainerValues[ContainerIndex] : VideoContainer.Mp4;
-        var vCodec = MapFilteredVideoCodec(container, VideoCodecIndex);
-        var aCodec = MapFilteredAudioCodec(container, AudioCodecIndex);
+        var container = MapContainerLabelToEnum(SelectedContainer);
+        var vCodec = MapVideoCodecByLabel(SelectedVideoCodec);
+        var aCodec = MapAudioCodecByLabel(SelectedAudioCodec);
 
         // If Gif, force gif codec and no audio
         if (container == VideoContainer.Gif)
@@ -1063,14 +1392,14 @@ public void AddDroppedPaths(IEnumerable<string> paths)
             Container = container,
             VideoCodec = vCodec,
             AudioCodec = aCodec,
-            RateControl = RateControlIndex == 0 ? RateControlMode.Crf : RateControlMode.Bitrate,
+            RateControl = MapRateControlByLabel(SelectedRateControl),
             Crf = CrfValue,
             VideoBitrateKbps = VideoBitrateKbps,
-            TwoPassEnabled = IsTwoPassEnabled && IsBitrateMode && !IsGifMode && HardwareBackendIndex == 0,
-            HardwareBackend = (HardwareBackend)HardwareBackendIndex,
+            TwoPassEnabled = IsTwoPassEnabled && IsBitrateMode && !IsGifMode && MapHardwareBackendByLabel(SelectedHardwareBackend) == HardwareBackend.Software,
+            HardwareBackend = MapHardwareBackendByLabel(SelectedHardwareBackend),
             AudioBitrateKbps = AudioBitrateKbps,
-            Preset = (PresetLevel)PresetIndex,
-            ScaleMode = (ScaleMode)ScaleModeIndex,
+            Preset = MapPresetByLabel(SelectedPreset),
+            ScaleMode = MapScaleModeByLabel(SelectedScaleMode),
             ScaleWidth = ScaleWidth,
             ScaleHeight = ScaleHeight,
             KeepAspect = KeepAspect,
@@ -1079,18 +1408,86 @@ public void AddDroppedPaths(IEnumerable<string> paths)
             CropBottom = CropBottom,
             CropLeft = CropLeft,
             CropRight = CropRight,
-            FpsMode = (FpsMode)FpsModeIndex,
+            FpsMode = MapFpsModeByLabel(SelectedFpsMode),
             FpsValue = FpsValue,
-            Deinterlace = (DeinterlaceMode)DeinterlaceIndex,
-            Denoise = (DenoiseMode)DenoiseIndex,
+            Deinterlace = MapDeinterlaceByLabel(SelectedDeinterlace),
+            Denoise = MapDenoiseByLabel(SelectedDenoise),
             GifWidth = GifWidth,
             GifFps = GifFps,
             GifMaxColors = GifMaxColors,
-            GifDither = (GifDither)GifDitherIndex,
+            GifDither = MapGifDitherByLabel(SelectedGifDither),
             GifLoop = GifLoop,
-            GifStatsMode = GifStatsIndex == 1 ? "single" : "diff"
+            GifStatsMode = SelectedGifStats == "single" ? "single" : "diff"
         };
     }
+
+    private static RateControlMode MapRateControlByLabel(string? label) => label switch
+    {
+        "Bitrate" => RateControlMode.Bitrate,
+        _ => RateControlMode.Crf
+    };
+
+    private static HardwareBackend MapHardwareBackendByLabel(string? label) => label switch
+    {
+        "NVIDIA NVENC" => HardwareBackend.Nvidia,
+        "Intel QSV/VAAPI" => HardwareBackend.Intel,
+        "AMD AMF/VAAPI" => HardwareBackend.Amd,
+        _ => HardwareBackend.Software
+    };
+
+    private static PresetLevel MapPresetByLabel(string? label) => label switch
+    {
+        "Ultrafast" => PresetLevel.Ultrafast,
+        "Superfast" => PresetLevel.Superfast,
+        "Veryfast" => PresetLevel.Veryfast,
+        "Faster" => PresetLevel.Faster,
+        "Fast" => PresetLevel.Fast,
+        "Medium" => PresetLevel.Medium,
+        "Slow" => PresetLevel.Slow,
+        "Slower" => PresetLevel.Slower,
+        "Veryslow" => PresetLevel.Veryslow,
+        "Placebo" => PresetLevel.Placebo,
+        _ => PresetLevel.Medium
+    };
+
+    private static ScaleMode MapScaleModeByLabel(string? label) => label switch
+    {
+        "Fit Within" => ScaleMode.FitWithin,
+        "Exact" => ScaleMode.Exact,
+        "Fix Width" => ScaleMode.Width,
+        "Fix Height" => ScaleMode.Height,
+        _ => ScaleMode.None
+    };
+
+    private static FpsMode MapFpsModeByLabel(string? label) => label switch
+    {
+        "Fixed" => FpsMode.Fixed,
+        "Peak (max)" => FpsMode.Peak,
+        _ => FpsMode.SameAsSource
+    };
+
+    private static DeinterlaceMode MapDeinterlaceByLabel(string? label) => label switch
+    {
+        "Yadif" => DeinterlaceMode.Yadif,
+        "Bwdif" => DeinterlaceMode.Bwdif,
+        _ => DeinterlaceMode.None
+    };
+
+    private static DenoiseMode MapDenoiseByLabel(string? label) => label switch
+    {
+        "Light (hqdn3d)" => DenoiseMode.Hqdn3dLight,
+        "Medium" => DenoiseMode.Hqdn3dMedium,
+        "Strong" => DenoiseMode.Hqdn3dStrong,
+        _ => DenoiseMode.None
+    };
+
+    private static GifDither MapGifDitherByLabel(string? label) => label switch
+    {
+        "Bayer" => GifDither.Bayer,
+        "Floyd-Steinberg" => GifDither.FloydSteinberg,
+        "Sierra2_4a" => GifDither.Sierpinski,
+        _ => GifDither.None
+    };
 
     private static VideoCodec MapFilteredVideoCodec(VideoContainer container, int filteredIndex)
     {
@@ -1128,6 +1525,31 @@ public void AddDroppedPaths(IEnumerable<string> paths)
             _ => AudioCodec.Aac
         };
     }
+
+    private static VideoCodec MapVideoCodecByLabel(string? label) => label switch
+    {
+        "H.264 (x264)" => VideoCodec.H264,
+        "H.265 (x265)" => VideoCodec.H265,
+        "AV1 (aom)" => VideoCodec.Av1Aom,
+        "AV1 (SVT)" => VideoCodec.Av1Svt,
+        "VP8" => VideoCodec.Vp8,
+        "VP9" => VideoCodec.Vp9,
+        "MPEG-4" => VideoCodec.Mpeg4,
+        "GIF" => VideoCodec.Gif,
+        _ => VideoCodec.H264
+    };
+
+    private static AudioCodec MapAudioCodecByLabel(string? label) => label switch
+    {
+        "AAC" => AudioCodec.Aac,
+        "MP3" => AudioCodec.Mp3,
+        "Opus" => AudioCodec.Opus,
+        "Vorbis" => AudioCodec.Vorbis,
+        "FLAC" => AudioCodec.Flac,
+        "AC3" => AudioCodec.Ac3,
+        "None" => AudioCodec.None,
+        _ => AudioCodec.Aac
+    };
 
     private static string MapVideoCodecName(VideoCodec c, HardwareBackend hw = HardwareBackend.Software)
     {
