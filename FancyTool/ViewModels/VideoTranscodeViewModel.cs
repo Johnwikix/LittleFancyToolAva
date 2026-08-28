@@ -18,7 +18,7 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
 {
     private static readonly HashSet<string> VideoExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
-        ".mp4", ".mkv", ".mov", ".avi", ".flv", ".wmv", ".m4v", ".mpg", ".mpeg", ".3gp", ".gif", ".ts", ".mts", ".m2ts"
+        ".mp4", ".mkv", ".mov", ".avi", ".flv", ".wmv", ".m4v", ".mpg", ".mpeg", ".3gp", ".gif", ".ts", ".mts", ".m2ts", ".webm"
     };
 
     private static bool IsVideoFile(string path)
@@ -87,7 +87,7 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
     public bool ShowFfmpegMissing => !_ffmpegService.IsAvailable;
 
     // Container / Codecs
-    public List<string> AvailableContainers { get; } = ["MP4", "MKV", "MOV", "AVI", "GIF"];
+    public List<string> AvailableContainers { get; } = ["MP4", "MKV", "MOV", "AVI", "GIF", "WebM"];
     public List<VideoContainer> ContainerValues { get; } = Enum.GetValues<VideoContainer>().ToList();
 
     public int ContainerIndex
@@ -156,6 +156,7 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
         VideoContainer.Mkv => ["H.264 (x264)", "H.265 (x265)", "AV1 (aom)", "AV1 (SVT)", "VP8", "VP9", "MPEG-4"],
         VideoContainer.Mov => ["H.264 (x264)", "H.265 (x265)", "AV1 (aom)", "MPEG-4"],
         VideoContainer.Avi => ["H.264 (x264)", "MPEG-4"],
+        VideoContainer.WebM => ["VP8", "VP9", "AV1 (aom)", "AV1 (SVT)"],
         _ => ["H.264 (x264)", "H.265 (x265)", "AV1 (aom)"]
     };
 
@@ -166,6 +167,7 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
         VideoContainer.Mkv => ["AAC", "MP3", "Opus", "Vorbis", "FLAC", "AC3", "None"],
         VideoContainer.Mov => ["AAC", "MP3", "AC3", "None"],
         VideoContainer.Avi => ["MP3", "AAC", "AC3", "None"],
+        VideoContainer.WebM => ["Opus", "Vorbis", "None"],
         _ => ["AAC", "MP3", "Opus", "None"]
     };
 
@@ -735,7 +737,7 @@ private async Task AddFiles()
             Patterns =
             [
                 "*.mp4", "*.mkv", "*.mov", "*.avi", "*.flv", "*.wmv", "*.m4v",
-                "*.mpg", "*.mpeg", "*.3gp", "*.gif", "*.ts", "*.mts", ".m2ts"
+                "*.mpg", "*.mpeg", "*.3gp", "*.gif", "*.ts", "*.mts", ".m2ts", "*.webm"
             ]
         },
         new(LocalizationRegistry.Get("VideoTranscode.Picker_AllFiles")) { Patterns = ["*.*"] }
@@ -1176,6 +1178,7 @@ public void AddDroppedPaths(IEnumerable<string> paths)
             VideoContainer.Mov => ".mov",
             VideoContainer.Avi => ".avi",
             VideoContainer.Gif => ".gif",
+            VideoContainer.WebM => ".webm",
             _ => ".mp4"
         };
         string stem = Path.GetFileNameWithoutExtension(fileName);

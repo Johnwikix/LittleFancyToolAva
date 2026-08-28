@@ -9,7 +9,8 @@ public enum VideoContainer
     Mkv = 1,
     Mov = 2,
     Avi = 3,
-    Gif = 4
+    Gif = 4,
+    WebM = 5
 }
 
 public enum VideoCodec

@@ -450,6 +450,7 @@ public sealed class VideoTranscodeService : IVideoTranscodeService
         VideoContainer.Mov => "mov",
         VideoContainer.Avi => "avi",
         VideoContainer.Gif => "gif",
+        VideoContainer.WebM => "webm",
         _ => "mp4"
     };
 
