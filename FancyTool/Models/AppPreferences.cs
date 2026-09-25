@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Styling;
 using CommunityToolkit.Mvvm.ComponentModel;
+using FancyToolAva.Services;
 
 namespace FancyToolAva.Models
 {
@@ -50,6 +51,41 @@ namespace FancyToolAva.Models
             get => (ThemeMode)ThemeIndex;
             set => ThemeIndex = (int)value;
         }
+
+        public int BackdropIndex
+        {
+            get;
+            // ComboBox 被禁用/重置时会推送 -1（无选中），不应覆盖用户的选择
+            set => SetProperty(ref field, value < 0 ? field : Math.Clamp(value, 0, 4));
+        } = (int)BackdropMode.Mica;
+
+        public BackdropMode Backdrop
+        {
+            get => (BackdropMode)BackdropIndex;
+            set => BackdropIndex = (int)value;
+        }
+
+        /// <summary>自定义亚克力色调预设索引，0 = 跟随主题。</summary>
+        public int AcrylicTintIndex
+        {
+            get;
+            // -1 是 ComboBox 失焦/禁用时的“无选中”哨兵，忽略而非回退 0
+            set => SetProperty(ref field, value < 0 ? field : Math.Clamp(value, 0, BackdropService.TintPresetCount - 1));
+        } = 0;
+
+        /// <summary>着色层不透明度（0-100）。</summary>
+        public int AcrylicTintOpacity
+        {
+            get;
+            set => SetProperty(ref field, Math.Clamp(value, 0, 100));
+        } = 50;
+
+        /// <summary>材质层不透明度（0-100）。</summary>
+        public int AcrylicMaterialOpacity
+        {
+            get;
+            set => SetProperty(ref field, Math.Clamp(value, 0, 100));
+        } = 65;
 
         private int _connectionTimeoutSec = 5;
 

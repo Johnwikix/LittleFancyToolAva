@@ -137,6 +137,7 @@ namespace FancyToolAva
 
             services.AddSingleton<AppObserveModel>();
             services.AddSingleton<AppPreferences>(sp => sp.GetRequiredService<AppObserveModel>().Preferences);
+            services.AddSingleton<IBackdropService, BackdropService>();
             services.AddSingleton<FileService>();
             services.AddSingleton<IViewStateService, ViewStateService>();
             services.AddSingleton<ApplicationHostService>();

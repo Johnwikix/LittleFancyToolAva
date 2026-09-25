@@ -25,6 +25,12 @@ namespace FancyToolAva.ViewModels
         public string ThemeSystem => LocalizationStrings.Current["Settings.Theme_System"];
         public string ThemeLight => LocalizationStrings.Current["Settings.Theme_Light"];
         public string ThemeDark => LocalizationStrings.Current["Settings.Theme_Dark"];
+        public string LabelBackdrop => LocalizationStrings.Current["Settings.Label_Backdrop"];
+        public string CaptionBackdrop => LocalizationStrings.Current["Settings.Caption_Backdrop"];
+        public string LabelAcrylicTint => LocalizationStrings.Current["Settings.Label_AcrylicTint"];
+        public string CaptionAcrylicTint => LocalizationStrings.Current["Settings.Caption_AcrylicTint"];
+        public string LabelTintOpacity => LocalizationStrings.Current["Settings.Label_TintOpacity"];
+        public string LabelMaterialOpacity => LocalizationStrings.Current["Settings.Label_MaterialOpacity"];
         public string GroupLanguage => LocalizationStrings.Current["Settings.Group_Language"];
         public string LabelLanguage => LocalizationStrings.Current["Settings.Label_Language"];
         public string CaptionLanguage => LocalizationStrings.Current["Settings.Caption_Language"];
@@ -50,6 +56,20 @@ namespace FancyToolAva.ViewModels
         public bool CanSelectSrTileSize =>
             CanUseSuperResolutionGpu && App.Preferences.UseSuperResolutionDml;
 
+        // Mica / 亚克力等系统背景依赖 Windows DWM，其它平台上整个选项禁用
+        public bool CanUseBackdrop => OperatingSystem.IsWindows();
+
+        public bool CanCustomizeAcrylic =>
+            CanUseBackdrop && App.Preferences.Backdrop == BackdropMode.CustomAcrylic;
+
+        private IReadOnlyList<string> _backdropOptions = [];
+
+        public IReadOnlyList<string> BackdropOptions => _backdropOptions;
+
+        private IReadOnlyList<string> _tintOptions = [];
+
+        public IReadOnlyList<string> TintOptions => _tintOptions;
+
         public string LabelConnectionTimeout => LocalizationStrings.Current["Settings.Label_ConnectionTimeout"];
         public string CaptionConnectionTimeout => LocalizationStrings.Current["Settings.Caption_ConnectionTimeout"];
         public string GroupAbout => LocalizationStrings.Current["Settings.Group_About"];
@@ -73,6 +93,7 @@ namespace FancyToolAva.ViewModels
             var currentCulture = I18nManager.Instance.Culture?.Name ?? "en-US";
             SelectedLanguage = AvailableLanguages.FirstOrDefault(l => l.Culture == currentCulture)
                             ?? AvailableLanguages[0];
+            RefreshBackdropOptions();
             RefreshSrTileOptions();
         }
 
@@ -80,6 +101,36 @@ namespace FancyToolAva.ViewModels
         {
             if (e.PropertyName == nameof(AppPreferences.UseSuperResolutionDml))
                 OnPropertyChanged(nameof(CanSelectSrTileSize));
+            if (e.PropertyName == nameof(AppPreferences.BackdropIndex))
+                OnPropertyChanged(nameof(CanCustomizeAcrylic));
+        }
+
+        public void RefreshBackdropOptions()
+        {
+            _backdropOptions =
+            [
+                LocalizationStrings.Current["Settings.Backdrop_Mica"],
+                LocalizationStrings.Current["Settings.Backdrop_Acrylic"],
+                LocalizationStrings.Current["Settings.Backdrop_CustomAcrylic"],
+                LocalizationStrings.Current["Settings.Backdrop_Transparent"]
+            ];
+            _tintOptions =
+            [
+                LocalizationStrings.Current["Settings.Tint_FollowTheme"],
+                LocalizationStrings.Current["Settings.Tint_Blue"],
+                LocalizationStrings.Current["Settings.Tint_Purple"],
+                LocalizationStrings.Current["Settings.Tint_Green"],
+                LocalizationStrings.Current["Settings.Tint_Orange"],
+                LocalizationStrings.Current["Settings.Tint_Red"]
+            ];
+            OnPropertyChanged(nameof(BackdropOptions));
+            OnPropertyChanged(nameof(TintOptions));
+            OnPropertyChanged(nameof(LabelBackdrop));
+            OnPropertyChanged(nameof(CaptionBackdrop));
+            OnPropertyChanged(nameof(LabelAcrylicTint));
+            OnPropertyChanged(nameof(CaptionAcrylicTint));
+            OnPropertyChanged(nameof(LabelTintOpacity));
+            OnPropertyChanged(nameof(LabelMaterialOpacity));
         }
 
         public void RefreshSrTileOptions()
@@ -119,6 +170,7 @@ namespace FancyToolAva.ViewModels
             OnPropertyChanged(nameof(ThemeSystem));
             OnPropertyChanged(nameof(ThemeLight));
             OnPropertyChanged(nameof(ThemeDark));
+            RefreshBackdropOptions();
             OnPropertyChanged(nameof(GroupLanguage));
             OnPropertyChanged(nameof(LabelLanguage));
             OnPropertyChanged(nameof(CaptionLanguage));

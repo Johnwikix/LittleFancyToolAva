@@ -14,6 +14,8 @@ namespace FancyToolAva.Views
 
             if (App.Current is App app && app.TryGetService<NavigationFactory>() is { } navFactory)
             {
+                app.TryGetService<IBackdropService>()?.Attach(this, RootLayers);
+
                 navFactory.Register<HomeViewModel, HomeView>();
                 navFactory.Register<SymmetricEncryptionViewModel, SymmetricEncryptionView>();
                 navFactory.Register<AsymmetricEncryptionViewModel, AsymmetricEncryptionView>();

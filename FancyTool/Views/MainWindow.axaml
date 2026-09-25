@@ -16,48 +16,51 @@
                  Title="{lan:I18n App.Title}"
                  MinWidth="900" MinHeight="600">
 
-    <Grid RowDefinitions="48,*">
-        <Grid x:Name="AppTitleBar"
-              Grid.Row="0"
-              Height="48"
-              ColumnDefinitions="Auto,*,Auto"
-              Background="Transparent"
-              PointerPressed="AppTitleBar_OnPointerPressed">
-            <Image Grid.Column="0"
-                   Source="/Assets/storeIcon.ico"
-                   Width="20" Height="20"
-                   Margin="16,0,8,0"
-                   VerticalAlignment="Center" />
-            <TextBlock Grid.Column="1"
-                       Text="{lan:I18n App.Title}"
-                       VerticalAlignment="Center"
-                       FontSize="14"
-                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-            <ContentControl Grid.Column="2" Width="150" />
+    <!-- 亚克力层由 BackdropService 动态创建/替换（见 BackdropService.ReplaceAcrylicLayer） -->
+    <Panel x:Name="RootLayers">
+        <Grid RowDefinitions="48,*">
+            <Grid x:Name="AppTitleBar"
+                  Grid.Row="0"
+                  Height="48"
+                  ColumnDefinitions="Auto,*,Auto"
+                  Background="Transparent"
+                  PointerPressed="AppTitleBar_OnPointerPressed">
+                <Image Grid.Column="0"
+                       Source="/Assets/storeIcon.ico"
+                       Width="20" Height="20"
+                       Margin="16,0,8,0"
+                       VerticalAlignment="Center" />
+                <TextBlock Grid.Column="1"
+                           Text="{lan:I18n App.Title}"
+                           VerticalAlignment="Center"
+                           FontSize="14"
+                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                <ContentControl Grid.Column="2" Width="150" />
+            </Grid>
+
+            <ui:FANavigationView Grid.Row="1"
+                                 PaneDisplayMode="Auto"
+                                 IsBackButtonVisible="False"
+                                 IsSettingsVisible="False"
+                                 OpenPaneLength="220"
+                                 MenuItemsSource="{Binding Pages}"
+                                 FooterMenuItemsSource="{Binding FooterPages}"
+                                 SelectedItem="{Binding SelectedPage, Mode=TwoWay}"
+                                 MenuItemTemplate="{StaticResource MenuItemDataTemplate}">
+
+                <ui:FANavigationView.Resources>
+                    <helpers:InverseBoolConverter x:Key="InverseBoolConverter" />
+                    <DataTemplate x:Key="MenuItemDataTemplate" DataType="models:PageNavigationItem">
+                        <ui:FANavigationViewItem Content="{Binding Label}"
+                                                  IconSource="{Binding IconSource}"
+                                                   SelectsOnInvoked="{Binding HasChildren, Converter={StaticResource InverseBoolConverter}}"
+                                                   MenuItemsSource="{Binding Children}"
+                                                   IsExpanded="{Binding IsExpanded, Mode=TwoWay}" />
+                    </DataTemplate>
+                </ui:FANavigationView.Resources>
+
+                <ui:FAFrame Name="FrameView" />
+            </ui:FANavigationView>
         </Grid>
-
-        <ui:FANavigationView Grid.Row="1"
-                             PaneDisplayMode="Auto"
-                             IsBackButtonVisible="False"
-                             IsSettingsVisible="False"
-                             OpenPaneLength="220"
-                             MenuItemsSource="{Binding Pages}"
-                             FooterMenuItemsSource="{Binding FooterPages}"
-                             SelectedItem="{Binding SelectedPage, Mode=TwoWay}"
-                             MenuItemTemplate="{StaticResource MenuItemDataTemplate}">
-
-            <ui:FANavigationView.Resources>
-                <helpers:InverseBoolConverter x:Key="InverseBoolConverter" />
-                <DataTemplate x:Key="MenuItemDataTemplate" DataType="models:PageNavigationItem">
-                    <ui:FANavigationViewItem Content="{Binding Label}"
-                                              IconSource="{Binding IconSource}"
-                                               SelectsOnInvoked="{Binding HasChildren, Converter={StaticResource InverseBoolConverter}}"
-                                               MenuItemsSource="{Binding Children}"
-                                               IsExpanded="{Binding IsExpanded, Mode=TwoWay}" />
-                </DataTemplate>
-            </ui:FANavigationView.Resources>
-
-            <ui:FAFrame Name="FrameView" />
-        </ui:FANavigationView>
-    </Grid>
+    </Panel>
 </win:FAAppWindow>
