@@ -156,6 +156,44 @@ internal static class Program
             Check(string.IsNullOrEmpty(back.Title) || back.Title == Path.GetFileNameWithoutExtension(dst), $"wav title unexpectedly carried: {back.Title}");
         });
 
+        // 10. 拼接/损坏 MP3：两段不同采样率/声道数的 MP3 字节直拼（模拟用户库中的拼接文件），
+        //     中途参数变化必须重建重采样器继续转，而不是 AVERROR_INPUT_CHANGED 整体失败
+        Run("glued-mp3-param-change", () =>
+        {
+            string part1 = Out("glue-p1.mp3");
+            string part2 = Out("glue-p2.mp3");
+            WriteSineWav(Out("g1.wav"), 44100, 2, 0.5);
+            WriteSineWav(Out("g2.wav"), 24000, 1, 0.5);
+            svc.ConvertAsync(Out("g1.wav"), part1, new AudioConvertOptions { Format = AudioConvertFormat.Mp3 }).GetAwaiter().GetResult();
+            svc.ConvertAsync(Out("g2.wav"), part2, new AudioConvertOptions { Format = AudioConvertFormat.Mp3 }).GetAwaiter().GetResult();
+            File.WriteAllBytes(Out("glued.mp3"), File.ReadAllBytes(part1).Concat(File.ReadAllBytes(part2)).ToArray());
+
+            svc.ConvertAsync(Out("glued.mp3"), Out("glued.m4a"), new AudioConvertOptions { Format = AudioConvertFormat.AacM4a }).GetAwaiter().GetResult();
+            var p = Require(svc, Out("glued.m4a"));
+            Check(p.Codec == "aac", $"codec: {p.Codec}");
+            // 探测取拼接文件最后的帧头（24k 单声道），编码器按其开声道；关键断言是两段都被完整转出
+            Check(p.DurationMs >= 850, $"both segments converted: duration {p.DurationMs}ms");
+            Check(p.Channels is 1 or 2, $"channels: {p.Channels}");
+        });
+
+        // 11. 损坏封面：内嵌截断 JPEG（解析不出宽高）时必须跳过封面继续转，
+        //     而不是把 0x0 尺寸的封面流写进 m4a 导致 write_header EINVAL
+        Run("corrupt-cover-skip", () =>
+        {
+            string tagged = Out("tagged.mp3");
+            if (!File.Exists(tagged)) throw new InvalidOperationException("tagged.mp3 missing");
+            string bad = Out("badcover.mp3");
+            File.Copy(tagged, bad, overwrite: true);
+            var t = new Track(bad);
+            t.EmbeddedPictures.Clear();
+            t.EmbeddedPictures.Add(PictureInfo.fromBinaryData([0xFF, 0xD8, 0xFF, 0xD9])); // 仅 SOI+EOI，无 SOF 尺寸
+            if (!t.Save()) throw new InvalidOperationException("ATL tag save failed");
+
+            svc.ConvertAsync(bad, Out("badcover.m4a"), new AudioConvertOptions { Format = AudioConvertFormat.AacM4a }).GetAwaiter().GetResult();
+            var p = Require(svc, Out("badcover.m4a"));
+            Check(p.Codec == "aac", $"codec: {p.Codec}");
+        });
+
         Console.WriteLine($"----\nruns={_runs} failures={_failures}");
         if (_failures > 0) return 3;
         Console.WriteLine("ALL PASS");
