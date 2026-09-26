@@ -26,22 +26,9 @@
                             <TextBlock Text="{lan:I18n VideoTranscode.Hint_OutputDirEmpty}" FontSize="11" Opacity="0.6" Margin="0,4,0,0" IsVisible="{Binding IsOutputFolderEmpty}" />
                         </StackPanel>
 
-                        <!-- FFmpeg BYO Status -->
-                        <Border Background="{DynamicResource CardBackgroundFillColorSecondaryBrush}" CornerRadius="6" Padding="10" >
-                            <StackPanel Spacing="8">
-                                <TextBlock Classes="FieldLabel" Text="{lan:I18n VideoTranscode.Label_FfmpegDir}" />
-                                <Grid ColumnDefinitions="*,8,Auto">
-                                    <TextBox Grid.Column="0" Text="{Binding FfmpegDirectory, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" PlaceholderText="D:\ffmpeg\gpl-shared\bin" />
-                                    <Button Grid.Column="2" Command="{Binding PickFfmpegFolderCommand}" Content="{lan:I18n Common.Button_Select}" />
-                                </Grid>
-                                <TextBlock Text="{Binding FfmpegStatusText}" FontSize="12" Opacity="0.85" TextWrapping="Wrap" />
-                                <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding ShowFfmpegMissing}">
-                                    <Button Command="{Binding ValidateFfmpegCommand}" Content="{lan:I18n VideoTranscode.Button_Validate}" />
-                                    <Button Command="{Binding OpenFfmpegDownloadPageCommand}" Content="{lan:I18n VideoTranscode.Button_DownloadPage}" />
-                                    <Button Command="{Binding OpenFfmpegHelpCommand}" Content="{lan:I18n VideoTranscode.Button_Help}" />
-                                </StackPanel>
-                                <TextBlock Text="{lan:I18n VideoTranscode.Hint_FfmpegGpl}" FontSize="11" Opacity="0.6" TextWrapping="Wrap" IsVisible="{Binding ShowFfmpegMissing}" />
-                            </StackPanel>
+                        <!-- FFmpeg 内置状态（进程内 shared 库，随应用分发） -->
+                        <Border Background="{DynamicResource CardBackgroundFillColorSecondaryBrush}" CornerRadius="6" Padding="10" IsVisible="{Binding ShowFfmpegMissing}">
+                            <TextBlock Text="{Binding FfmpegStatusText}" FontSize="12" Opacity="0.85" TextWrapping="Wrap" />
                         </Border>
 
                         <Button Command="{Binding StartTranscodeCommand}" Classes="Primary" HorizontalAlignment="Stretch" Content="{lan:I18n VideoTranscode.Button_Start}" Margin="0,4,0,0" />

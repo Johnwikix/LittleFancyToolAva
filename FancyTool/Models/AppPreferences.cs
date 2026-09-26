@@ -111,20 +111,10 @@ namespace FancyToolAva.Models
             set => SetProperty(ref _useSuperResolutionDml, value);
         }
 
-        private int _superResolutionTileSizeIndex = 2;
-
         public int SuperResolutionTileSizeIndex
         {
-            get => _superResolutionTileSizeIndex;
-            set => SetProperty(ref _superResolutionTileSizeIndex, Math.Clamp(value, 0, 3));
-        }
-
-        private string? _customFfmpegDirectory;
-
-        public string? CustomFfmpegDirectory
-        {
-            get => _customFfmpegDirectory;
-            set => SetProperty(ref _customFfmpegDirectory, string.IsNullOrWhiteSpace(value) ? null : value.Trim());
-        }
+            get => field;
+            set => SetProperty(ref field, Math.Clamp(value, 0, 3));
+        } = 2;
     }
 }

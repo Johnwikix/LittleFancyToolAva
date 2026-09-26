@@ -19,7 +19,7 @@
     <img src="https://img.shields.io/badge/主题-FluentAvalonia-blue" alt="FluentAvalonia">
     <img src="https://img.shields.io/badge/.NET-10.0-purple" alt=".NET 10">
     <img src="https://img.shields.io/badge/平台-Windows%20%7C%20Linux-blue" alt="Platform">
-    <img src="https://img.shields.io/badge/许可证-MIT-blue" alt="License">
+    <img src="https://img.shields.io/badge/许可证-GPL--3.0-blue" alt="License">
   </div>
 
   <div>
@@ -178,11 +178,16 @@ dotnet run -c Debug
 | [Avalonia.Skia](https://github.com/AvaloniaUI/Avalonia) | Skia 渲染层（Avalonia Desktop 传递依赖） | MIT |
 | [SkiaSharp](https://github.com/mono/SkiaSharp) | 图片处理与格式转换（直接用于 ICO / PNG / JPEG / WebP / HEIF / GIF / BMP 编码） | MIT |
 | [HarfBuzzSharp](https://github.com/harfbuzz/harfbuzz-sharp) | 文字整形（Avalonia Desktop 传递依赖） | MIT |
+| [FFmpeg](https://ffmpeg.org/) | 视频/音频转码（FFmpeg 9.0.1 GPL shared 库随应用分发，进程内经 FFmpeg.AutoGen 直调，见 `FancyTool/Libraries/FFmpeg/BUILD_INFO.md`） | GPL-3.0 |
+| [FFmpeg.AutoGen](https://github.com/Ruslan-B/FFmpeg.AutoGen) | FFmpeg C API 的 .NET 绑定 | MIT |
 | [Packaging.Targets](https://github.com/qmfrederik/dotnet-packaging) | Linux `.deb` 包打包（`CreateDeb` MSBuild 目标） | MIT |
 
 ## 📄 许可证
 
-本项目基于 [MIT 许可证](LICENSE) 授权。
+本项目基于 [GPL-3.0 许可证](LICENSE) 授权。
+
+视频转码功能捆绑分发 FFmpeg 9.0.1 GPL shared 库（含 libx264/libx265 等 GPL 组件，位于应用根目录，
+许可证文本随应用分发至 `Licenses/FFmpeg.txt`），因此本仓库自捆绑之日起由 MIT 变更为 GPL-3.0。
 
 ## 🗂️ 数据存储
 

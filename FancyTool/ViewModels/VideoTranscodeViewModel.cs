@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using System.Diagnostics;
 using System.Globalization;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
@@ -66,24 +65,11 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
 
     public bool IsOutputFolderEmpty => string.IsNullOrWhiteSpace(OutputFolder);
 
-    // Ffmpeg BYO
-    public string? FfmpegDirectory
-    {
-        get => field;
-        set
-        {
-            if (SetProperty(ref field, value))
-            {
-                _preferences.CustomFfmpegDirectory = value;
-                InvalidateValidateFfmpeg();
-            }
-        }
-    }
-
+    // FFmpeg（进程内内置库）
     public bool IsFfmpegAvailable => _ffmpegService.IsAvailable;
     public string FfmpegStatusText => _ffmpegService.IsAvailable
-        ? LocalizationRegistry.Get("VideoTranscode.Msg_FfmpegReady", _ffmpegService.VersionInfo ?? "9.0")
-        : _ffmpegService.LastError ?? LocalizationRegistry.Get("VideoTranscode.Msg_FfmpegNotConfigured");
+        ? LocalizationRegistry.Get("VideoTranscode.Msg_FfmpegReady", _ffmpegService.VersionInfo ?? "FFmpeg")
+        : _ffmpegService.LastError ?? LocalizationRegistry.Get("VideoTranscode.Msg_FfmpegNotAvailable");
     public bool ShowFfmpegMissing => !_ffmpegService.IsAvailable;
 
     // Container / Codecs
@@ -196,7 +182,7 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
         VideoContainer.Gif => ["GIF"],
         VideoContainer.Mp4 => ["H.264 (x264)", "H.265 (x265)", "AV1 (aom)", "AV1 (SVT)", "MPEG-4"],
         VideoContainer.Mkv => ["H.264 (x264)", "H.265 (x265)", "AV1 (aom)", "AV1 (SVT)", "VP8", "VP9", "MPEG-4"],
-        VideoContainer.Mov => ["H.264 (x264)", "H.265 (x265)", "AV1 (aom)", "MPEG-4"],
+        VideoContainer.Mov => ["H.264 (x264)", "H.265 (x265)", "MPEG-4"],
         VideoContainer.Avi => ["H.264 (x264)", "MPEG-4"],
         _ => ["H.264 (x264)", "H.265 (x265)", "AV1 (aom)"]
     };
@@ -719,8 +705,6 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
             PickOutputFolderCommand.NotifyCanExecuteChanged();
             OpenOutputFolderCommand.NotifyCanExecuteChanged();
             StartTranscodeCommand.NotifyCanExecuteChanged();
-            PickFfmpegFolderCommand.NotifyCanExecuteChanged();
-            ValidateFfmpegCommand.NotifyCanExecuteChanged();
         }
     }
 
@@ -728,12 +712,6 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
     {
         if (Dispatcher.UIThread.CheckAccess()) OpenOutputFolderCommand.NotifyCanExecuteChanged();
         else Dispatcher.UIThread.Post(() => OpenOutputFolderCommand.NotifyCanExecuteChanged());
-    }
-
-    private void InvalidateValidateFfmpeg()
-    {
-        if (Dispatcher.UIThread.CheckAccess()) ValidateFfmpegCommand.NotifyCanExecuteChanged();
-        else Dispatcher.UIThread.Post(() => ValidateFfmpegCommand.NotifyCanExecuteChanged());
     }
 
     private void InvalidateStartTranscode()
@@ -764,7 +742,6 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
         _preferences = preferences;
         _viewStateService.Register(this);
         FileItems.CollectionChanged += (_, _) => InvalidateStartTranscode();
-        FfmpegDirectory = _preferences.CustomFfmpegDirectory ?? AppPaths.FfmpegBringYourOwnDirectory;
         _ffmpegService.AvailabilityChanged += OnFfmpegAvailabilityChanged;
         I18nManager.Instance.CultureChanged += OnCultureChanged;
         UpdateStatusText();
@@ -1068,7 +1045,6 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
                 else
                     HandbrakePresetIndex = Math.Clamp(s.SelectedPresetIndex, 0, HandbrakePresetLabels.Count - 1);
                 IncludeAllInFolderScan = s.IncludeAllInFolderScan;
-                if (!string.IsNullOrEmpty(_preferences.CustomFfmpegDirectory)) FfmpegDirectory = _preferences.CustomFfmpegDirectory;
             }
             finally
             {
@@ -1220,65 +1196,6 @@ public void AddDroppedPaths(IEnumerable<string> paths)
     }
 
     private bool CanOpenOutputFolder() => !IsBusy && !string.IsNullOrEmpty(OutputFolder) && Directory.Exists(OutputFolder!);
-
-    [RelayCommand(CanExecute = nameof(CanModify))]
-    private async Task PickFfmpegFolder()
-    {
-        string? folder = await _fileDialogService.PickFolderAsync(LocalizationRegistry.Get("VideoTranscode.Picker_SelectFfmpegDir"));
-        if (folder != null)
-        {
-            FfmpegDirectory = folder;
-            _preferences.CustomFfmpegDirectory = folder;
-            await _ffmpegService.ValidateAsync().ConfigureAwait(false);
-            Dispatcher.UIThread.Post(() =>
-            {
-                OnPropertyChanged(nameof(IsFfmpegAvailable));
-                OnPropertyChanged(nameof(FfmpegStatusText));
-                OnPropertyChanged(nameof(ShowFfmpegMissing));
-            });
-            // Re-probe all items
-            foreach (var item in FileItems) _ = ProbeItemAsync(item);
-        }
-    }
-
-    [RelayCommand]
-    private async Task ValidateFfmpeg()
-    {
-        bool ok = await _ffmpegService.ValidateAsync().ConfigureAwait(false);
-        Dispatcher.UIThread.Post(() =>
-        {
-            OnPropertyChanged(nameof(IsFfmpegAvailable));
-            OnPropertyChanged(nameof(FfmpegStatusText));
-            OnPropertyChanged(nameof(ShowFfmpegMissing));
-        });
-        Dispatcher.UIThread.Post(() =>
-        {
-            if (ok) _notificationService.ShowSuccess(LocalizationRegistry.Get("VideoTranscode.Msg_FfmpegValidated"));
-            else _notificationService.ShowError(FfmpegStatusText);
-        });
-    }
-
-    [RelayCommand]
-    private void OpenFfmpegDownloadPage()
-    {
-        try
-        {
-            // FFmpeg exe via BtbN gpl-shared (ffmpeg.exe + ffprobe.exe). Browser handles the download; the app does not fetch or redistribute the binary.
-            string url = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n9.0-latest-win64-gpl-shared-9.0.zip";
-            Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
-        }
-        catch { }
-    }
-
-    [RelayCommand]
-    private void OpenFfmpegHelp()
-    {
-        try
-        {
-            Process.Start(new ProcessStartInfo("https://ffmpeg.org/download.html") { UseShellExecute = true });
-        }
-        catch { }
-    }
 
     [RelayCommand(CanExecute = nameof(CanStartTranscode))]
     private async Task StartTranscode()
@@ -1574,42 +1491,7 @@ public void AddDroppedPaths(IEnumerable<string> paths)
     };
 
     private static string MapVideoCodecName(VideoCodec c, HardwareBackend hw = HardwareBackend.Software)
-    {
-        bool isVaapi = (hw == HardwareBackend.Intel || hw == HardwareBackend.Amd) && !OperatingSystem.IsWindows();
-        return (c, hw, isVaapi) switch
-        {
-            (VideoCodec.H264, HardwareBackend.Nvidia, _) => "h264_nvenc",
-            (VideoCodec.H265, HardwareBackend.Nvidia, _) => "hevc_nvenc",
-            (VideoCodec.Av1Aom, HardwareBackend.Nvidia, _) => "av1_nvenc",
-            (VideoCodec.Av1Svt, HardwareBackend.Nvidia, _) => "av1_nvenc",
-            (VideoCodec.H264, HardwareBackend.Intel, false) => "h264_qsv",
-            (VideoCodec.H265, HardwareBackend.Intel, false) => "hevc_qsv",
-            (VideoCodec.Av1Aom, HardwareBackend.Intel, false) => "av1_qsv",
-            (VideoCodec.Av1Svt, HardwareBackend.Intel, false) => "av1_qsv",
-            (VideoCodec.H264, HardwareBackend.Amd, false) => "h264_amf",
-            (VideoCodec.H265, HardwareBackend.Amd, false) => "hevc_amf",
-            (VideoCodec.Av1Aom, HardwareBackend.Amd, false) => "av1_amf",
-            (VideoCodec.Av1Svt, HardwareBackend.Amd, false) => "av1_amf",
-            (VideoCodec.H264, _, true) => "h264_vaapi",
-            (VideoCodec.H265, _, true) => "hevc_vaapi",
-            (VideoCodec.Av1Aom, _, true) => "av1_vaapi",
-            (VideoCodec.Av1Svt, _, true) => "av1_vaapi",
-            (VideoCodec.Vp8, _, true) => "vp8_vaapi",
-            (VideoCodec.Vp9, _, true) => "vp9_vaapi",
-            _ => c switch
-            {
-                VideoCodec.H264 => "libx264",
-                VideoCodec.H265 => "libx265",
-                VideoCodec.Av1Aom => "libaom-av1",
-                VideoCodec.Av1Svt => "libsvtav1",
-                VideoCodec.Vp8 => "libvpx",
-                VideoCodec.Vp9 => "libvpx-vp9",
-                VideoCodec.Mpeg4 => "mpeg4",
-                VideoCodec.Gif => "gif",
-                _ => "libx264"
-            }
-        };
-    }
+        => VideoTranscodeService.MapVideoEncoderName(new VideoTranscodeOptions { VideoCodec = c, HardwareBackend = hw });
 
     private static string GetUniqueOutputPath(string folder, string fileName, VideoContainer container) => GetOutputPath(folder, fileName, container, false);
 
