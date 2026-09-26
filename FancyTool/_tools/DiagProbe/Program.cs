@@ -71,7 +71,7 @@ internal static unsafe class Program
                 bool scan = args.Contains("--scan");
                 var pkt = ffmpeg.av_packet_alloc();
                 var frame = ffmpeg.av_frame_alloc();
-                int shown = 0; long idx = 0;
+                int shown = 0; long idx = 0; long totalSamples = 0;
                 int lastFmt = -1, lastRate = -1, lastCh = -1;
                 while (ffmpeg.av_read_frame(fmt, pkt) >= 0)
                 {
@@ -84,14 +84,14 @@ internal static unsafe class Program
                         if (shown < 5 || changed)
                             Console.WriteLine($"  frame[{idx}]: fmt={(AVSampleFormat)frame->format} rate={frame->sample_rate} " +
                                 $"ch={frame->ch_layout.nb_channels} order={frame->ch_layout.order} samples={frame->nb_samples}{(changed ? "  <<<< PARAM CHANGED" : "")}");
-                        lastFmt = frame->format; lastRate = frame->sample_rate; lastCh = frame->ch_layout.nb_channels;
+                        totalSamples += frame->nb_samples; lastFmt = frame->format; lastRate = frame->sample_rate; lastCh = frame->ch_layout.nb_channels;
                         ffmpeg.av_frame_unref(frame);
                         shown++; idx++;
                         if (!scan && shown >= 5) break;
                     }
                     if (!scan && shown >= 5) break;
                 }
-                Console.WriteLine($"  total frames seen: {idx}");
+                Console.WriteLine($"  total frames seen: {idx}, decoded samples: {totalSamples} (~{totalSamples / (double)lastRate * 1000:F0}ms), container duration: {fmt->duration / (double)ffmpeg.AV_TIME_BASE * 1000:F0}ms");
                 ffmpeg.av_frame_free(&frame);
                 ffmpeg.av_packet_free(&pkt);
                 ffmpeg.avcodec_free_context(&ctx);
