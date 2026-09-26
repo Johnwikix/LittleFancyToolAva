@@ -30,6 +30,7 @@ namespace FancyToolAva.Views
                 navFactory.Register<Img2Base64ViewModel, Img2Base64View>();
                 navFactory.Register<ImageConvertViewModel, ImageConvertView>();
                 navFactory.Register<VideoTranscodeViewModel, VideoTranscodeView>();
+                navFactory.Register<AudioConvertViewModel, AudioConvertView>();
                 FrameView.NavigationPageFactory = navFactory;
             }
 

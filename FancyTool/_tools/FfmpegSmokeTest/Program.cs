@@ -19,11 +19,16 @@ internal static class Program
     private static int Main(string[] args)
     {
         string workDir = args.Length > 0 ? args[0] : Path.Combine(Path.GetTempPath(), "fancytool-smoke");
-        string sample = Path.Combine(workDir, "sample.mp4");
+        // 自包含测试输入：C# 直写 AVI（rawvideo BGR24 + PCM16 正弦）。
+        // 10bit/422 特殊源需外部 ffmpeg 生成（可选，存在才测）：
+        //   ffmpeg -f lavfi -i testsrc2=duration=2:size=160x120:rate=10 -c:v libx265 -preset ultrafast -pix_fmt yuv420p10le sample10bit.mkv
+        //   ffmpeg -f lavfi -i testsrc2=duration=2:size=160x120:rate=10 -c:v libx264 -preset ultrafast -pix_fmt yuv422p sample422.mkv
+        string sample = Path.Combine(workDir, "sample.avi");
         string sample10bit = Path.Combine(workDir, "sample10bit.mkv");
         string sample422 = Path.Combine(workDir, "sample422.mkv");
         Directory.CreateDirectory(workDir);
-        Console.WriteLine($"work dir: {workDir}");
+        WriteTestAvi(sample, width: 160, height: 120, fps: 10, seconds: 2);
+        Console.WriteLine($"sample avi: {new FileInfo(sample).Length} bytes; 10bit={File.Exists(sample10bit)} 422={File.Exists(sample422)}");
 
         // 1. 库加载 + 关键编码器存在性
         var svc = new VideoTranscodeService(NullLogger<VideoTranscodeService>.Instance);
@@ -268,4 +273,163 @@ internal static class Program
         VideoContainer.Gif => "gif",
         _ => "mp4",
     };
+
+    /// <summary>直写最小 AVI（BGR24 rawvideo + PCM16 单声道正弦），供烟测自包含生成输入。</summary>
+    private static void WriteTestAvi(string path, int width, int height, int fps, double seconds)
+    {
+        int frames = (int)(fps * seconds);
+        int sampleRate = 44100;
+        int totalAudioSamples = (int)(sampleRate * seconds);
+        int stride = (width * 3 + 3) & ~3;
+        int frameBytes = stride * height;
+
+        // 先在内存里生成帧（渐变+移动方块）与音频
+        var frameData = new byte[frames][];
+        for (int f = 0; f < frames; f++)
+        {
+            var buf = new byte[frameBytes];
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    int sx = x * 4 + f * 2;
+                    int sy = y * 3;
+                    byte r = (byte)(sx % 256);
+                    byte g = (byte)(sy % 256);
+                    byte b = (byte)((sx + sy) % 256);
+                    bool inBox = Math.Abs(x - 40 - f * 3) < 20 && Math.Abs(y - 60) < 20;
+                    int row = height - 1 - y; // bottom-up
+                    int off = row * stride + x * 3;
+                    buf[off] = inBox ? (byte)255 : b;
+                    buf[off + 1] = inBox ? (byte)200 : g;
+                    buf[off + 2] = inBox ? (byte)0 : r;
+                }
+            }
+            frameData[f] = buf;
+        }
+        short[] audio = new short[totalAudioSamples];
+        for (int i = 0; i < totalAudioSamples; i++)
+            audio[i] = (short)(Math.Sin(2 * Math.PI * 440.0 * i / sampleRate) * 12000);
+
+        using var ms = new MemoryStream();
+        using var w = new BinaryWriter(ms);
+        void fourcc(string tag) => w.Write(System.Text.Encoding.ASCII.GetBytes(tag));
+
+        fourcc("RIFF");
+        var riffSizePos = ms.Position; w.Write(0u);
+        fourcc("AVI ");
+
+        // ── hdrl ──
+        fourcc("LIST");
+        w.Write(4 + 8 + 56 + 8 + 40 + 8 + 8 + 56 + 8 + 16);
+        fourcc("hdrl");
+        fourcc("avih");
+        w.Write(56);
+        w.Write((uint)(1_000_000 / fps));           // microsec per frame
+        w.Write((uint)(frameBytes * fps + sampleRate * 2)); // max bytes/sec approx
+        w.Write(0u);                                // padding
+        w.Write(0x10u);                             // AVIF_HASINDEX
+        w.Write((uint)frames);
+        w.Write(0u);                                // initial frames
+        w.Write(2u);                                // streams
+        w.Write((uint)frameBytes);                  // suggested buffer
+        w.Write((uint)width);
+        w.Write((uint)height);
+        for (int i = 0; i < 4; i++) w.Write(0u);
+
+        // ── video strl ──
+        fourcc("LIST");
+        w.Write(4 + 8 + 56 + 8 + 40);
+        fourcc("strl");
+        fourcc("strh");
+        w.Write(56);
+        fourcc("vids"); fourcc("DIB ");
+        w.Write(0u); w.Write((ushort)0); w.Write((ushort)0);
+        w.Write(0u);                                // initial frames
+        w.Write(1u); w.Write((uint)fps);            // scale/rate
+        w.Write(0u); w.Write((uint)frames);
+        w.Write((uint)frameBytes);
+        w.Write(0xFFFFFFFF);                        // quality
+        w.Write(0u);                                // sample size
+        w.Write((ushort)0); w.Write((ushort)0); w.Write((ushort)width); w.Write((ushort)height);
+
+        fourcc("strf");
+        w.Write(40);
+        w.Write(40);                                // biSize
+        w.Write(width); w.Write(height);
+        w.Write((ushort)1); w.Write((ushort)24);
+        w.Write(0u);                                // BI_RGB
+        w.Write((uint)frameBytes);
+        for (int i = 0; i < 4; i++) w.Write(0u);
+
+        // ── audio strl ──
+        fourcc("LIST");
+        w.Write(4 + 8 + 56 + 8 + 16);
+        fourcc("strl");
+        fourcc("strh");
+        w.Write(56);
+        fourcc("auds"); fourcc("\0\0\0\0");
+        w.Write(0u); w.Write((ushort)0); w.Write((ushort)0);
+        w.Write(0u);
+        w.Write(1u); w.Write((uint)sampleRate);
+        w.Write(0u); w.Write((uint)totalAudioSamples);
+        w.Write((uint)sampleRate * 2);
+        w.Write(0xFFFFFFFF);
+        w.Write(2u);                                // sample size (bytes)
+        w.Write((ushort)0); w.Write((ushort)0); w.Write((ushort)0); w.Write((ushort)0);
+
+        fourcc("strf");
+        w.Write(16);
+        w.Write((ushort)1);                         // PCM
+        w.Write((ushort)1);                         // mono
+        w.Write(sampleRate);
+        w.Write(sampleRate * 2);
+        w.Write((ushort)2);
+        w.Write((ushort)16);
+
+        // ── movi ──
+        fourcc("LIST");
+        var moviSizePos = ms.Position; w.Write(0u); // patch later
+        long moviStart = ms.Position;
+        fourcc("movi");
+        var idx = new List<(string Id, uint Off, uint Len)>();
+        int audioSent = 0;
+        for (int f = 0; f < frames; f++)
+        {
+            uint off = (uint)(ms.Position - moviStart);
+            fourcc("00db"); w.Write((uint)frameBytes); w.Write(frameData[f]);
+            idx.Add(("00db", off, (uint)frameBytes));
+
+            int take = (totalAudioSamples - audioSent) / (frames - f);
+            if (take > 0)
+            {
+                off = (uint)(ms.Position - moviStart);
+                int bytes = take * 2;
+                fourcc("01wb"); w.Write((uint)bytes);
+                for (int i = 0; i < take; i++) w.Write(audio[audioSent + i]);
+                audioSent += take;
+                idx.Add(("01wb", off, (uint)bytes));
+            }
+        }
+        uint moviSize = (uint)(ms.Position - moviStart);
+
+        // ── idx1 ──
+        fourcc("idx1");
+        w.Write((uint)(idx.Count * 16));
+        foreach (var (id, off, len) in idx)
+        {
+            fourcc(id);
+            w.Write(0x10u);                         // AVIIF_KEYFRAME
+            w.Write(off);
+            w.Write(len);
+        }
+
+        // patch sizes
+        long end = ms.Position;
+        ms.Position = riffSizePos; w.Write((uint)(end - 8));
+        ms.Position = moviSizePos; w.Write(moviSize);
+        ms.Position = end;
+
+        File.WriteAllBytes(path, ms.ToArray());
+    }
 }

@@ -132,6 +132,7 @@ public class ViewStateService : IViewStateService
         "folderCompareView" => root.FolderCompareView,
         "imageConvertView" => root.ImageConvertView,
         "videoTranscodeView" => root.VideoTranscodeView,
+        "audioConvertView" => root.AudioConvertView,
         _ => null
     };
 
@@ -150,6 +151,7 @@ public class ViewStateService : IViewStateService
             case "folderCompareView": root.FolderCompareView = (FolderCompareViewState?)state; break;
             case "imageConvertView": root.ImageConvertView = (ImageConvertViewState?)state; break;
             case "videoTranscodeView": root.VideoTranscodeView = (VideoTranscodeViewState?)state; break;
+            case "audioConvertView": root.AudioConvertView = (AudioConvertViewState?)state; break;
         }
     }
 

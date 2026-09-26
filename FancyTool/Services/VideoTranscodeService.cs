@@ -257,12 +257,21 @@ public sealed unsafe class VideoTranscodeService : IVideoTranscodeService
             if (o.Container == VideoContainer.Gif)
                 TrySetOpt(ofmt->priv_data, "loop", o.GifLoop <= 0 ? "0" : o.GifLoop.ToString());
 
-            // ── 3. 视频滤镜图（缓冲源参数来自解码器上下文）──
+            // ── 3. 视频编码器查询 + 像素格式对齐（需先于滤镜图：format 滤镜与编码器能力必须一致）──
+            string encoderName = MapVideoEncoderName(o);
+            AVCodec* vCodecPtr = ffmpeg.avcodec_find_encoder_by_name(encoderName);
+            if (vCodecPtr == null)
+                throw new InvalidOperationException(LocalizationRegistry.Get("VideoTranscode.Msg_EncoderUnavailable", encoderName));
+            string? targetPixFmt = null;
+            if (o.Container != VideoContainer.Gif && !IsVaapiBackend(o.HardwareBackend))
+                targetPixFmt = AlignTargetPixFmt(vCodecPtr, o, sourcePixFmt);
+
+            // ── 3b. 视频滤镜图（缓冲源参数来自解码器上下文）──
             graph = ffmpeg.avfilter_graph_alloc();
             srcCtx = CreateBufferSource(graph, vDec, vInStream);
             sinkCtx = CreateBufferSink(graph);
 
-            string filterDesc = BuildFilterDescription(o, sourcePixFmt);
+            string filterDesc = BuildFilterDescription(o, targetPixFmt);
             if (!BindGraphAndConfigure(graph, srcCtx, sinkCtx, filterDesc,
                     IsVaapiBackend(o.HardwareBackend), "/dev/dri/renderD128", &hwDevice))
                 throw new InvalidOperationException($"滤镜图初始化失败: {filterDesc}");
@@ -282,14 +291,9 @@ public sealed unsafe class VideoTranscodeService : IVideoTranscodeService
             }
 
             // ── 4. 视频编码器 ──
-            string encoderName = MapVideoEncoderName(o);
-            AVCodec* vCodecPtr = ffmpeg.avcodec_find_encoder_by_name(encoderName);
-            if (vCodecPtr == null)
-                throw new InvalidOperationException(LocalizationRegistry.Get("VideoTranscode.Msg_EncoderUnavailable", encoderName));
-
             vEnc = ffmpeg.avcodec_alloc_context3(vCodecPtr);
-            ConfigureVideoEncoder(vEnc, o, sourcePixFmt, pass, passLogFile,
-                sinkCtx->inputs[0], hwDevice != null ? hwFrames : null, ofmt, sourceFps);
+            ConfigureVideoEncoder(vEnc, o, pass, passLogFile,
+                sinkCtx->inputs[0], hwDevice != null ? hwFrames : null, ofmt, sourceFps, targetPixFmt);
             ret = ffmpeg.avcodec_open2(vEnc, vCodecPtr, null);
             if (ret < 0) throw FFmpegNative.CreateException(ret, $"视频编码器打开失败 ({encoderName})");
 
@@ -596,8 +600,9 @@ public sealed unsafe class VideoTranscodeService : IVideoTranscodeService
 
     // ── 编码器配置 ──
 
-    private static void ConfigureVideoEncoder(AVCodecContext* enc, VideoTranscodeOptions o, string? sourcePixFmt,
-        int pass, string? passLogFile, AVFilterLink* sinkLink, AVBufferRef* hwFrames, AVFormatContext* ofmt, double sourceFps)
+    private static void ConfigureVideoEncoder(AVCodecContext* enc, VideoTranscodeOptions o,
+        int pass, string? passLogFile, AVFilterLink* sinkLink, AVBufferRef* hwFrames, AVFormatContext* ofmt,
+        double sourceFps, string? targetPixFmt)
     {
         string encoderName = MapVideoEncoderName(o);
         bool vaapi = IsVaapiBackend(o.HardwareBackend);
@@ -630,8 +635,9 @@ public sealed unsafe class VideoTranscodeService : IVideoTranscodeService
         }
         else
         {
-            string? pix = PickTargetPixFmt(o, sourcePixFmt);
-            enc->pix_fmt = pix != null ? ffmpeg.av_get_pix_fmt(pix) : (AVPixelFormat)sinkLink->format;
+            enc->pix_fmt = targetPixFmt != null
+                ? ffmpeg.av_get_pix_fmt(targetPixFmt)
+                : (AVPixelFormat)sinkLink->format;
         }
 
         if ((ofmt->oformat->flags & ffmpeg.AVFMT_GLOBALHEADER) != 0)
@@ -1126,9 +1132,46 @@ public sealed unsafe class VideoTranscodeService : IVideoTranscodeService
         }
     }
 
+    /// <summary>
+    /// 目标像素格式对齐编码器支持表：444 透传目标在 mpeg4/SVT-AV1/VP8 或显式 baseline/main/high
+    /// profile 下不可用，逐级回落（想要格式 → yuv420p → 支持表首项）。
+    /// </summary>
+    private static string? AlignTargetPixFmt(AVCodec* codec, VideoTranscodeOptions o, string? sourcePixFmt)
+    {
+        string? want = PickTargetPixFmt(o, sourcePixFmt);
+        if (want == null) return null;
+        AVPixelFormat wantFmt = ffmpeg.av_get_pix_fmt(want);
+
+        void* cfg = null;
+        int cnt = 0;
+        int ret = ffmpeg.avcodec_get_supported_config(null, codec, AVCodecConfig.AV_CODEC_CONFIG_PIX_FORMAT, 0, &cfg, &cnt);
+        if (ret < 0 || cfg == null || cnt <= 0) return want;
+        AVPixelFormat* fmts = (AVPixelFormat*)cfg;
+
+        bool hasWant = false, has420 = false;
+        for (int i = 0; i < cnt; i++)
+        {
+            if (fmts[i] == wantFmt) hasWant = true;
+            if (fmts[i] == AVPixelFormat.AV_PIX_FMT_YUV420P) has420 = true;
+        }
+        // baseline/main/high 等显式 profile 仅支持 420（422/444/10bit 需专门 profile 名），
+        // 须在命中想要格式之前生效：444 源 + "high" 会让 x264 直接拒绝
+        string prof = o.Profile ?? "";
+        bool restrict420 = prof.Length > 0
+            && !prof.Contains("422", StringComparison.OrdinalIgnoreCase)
+            && !prof.Contains("444", StringComparison.OrdinalIgnoreCase)
+            && !prof.Contains("10", StringComparison.Ordinal);
+        if (restrict420 && has420) return "yuv420p";
+
+        if (hasWant) return want;
+        if (has420) return "yuv420p";
+        string? n = ffmpeg.av_get_pix_fmt_name(fmts[0]);
+        return string.IsNullOrEmpty(n) ? want : n;
+    }
+
     // ══════════════════════════════ 滤镜串（与旧 CLI 参数构造等价）══════════════════════════════
 
-    private static string BuildFilterDescription(VideoTranscodeOptions o, string? sourcePixFmt)
+    private static string BuildFilterDescription(VideoTranscodeOptions o, string? targetPixFmt)
     {
         if (o.Container == VideoContainer.Gif)
         {
@@ -1170,8 +1213,7 @@ public sealed unsafe class VideoTranscodeService : IVideoTranscodeService
         }
         else
         {
-            string? pix = PickTargetPixFmt(o, sourcePixFmt);
-            if (pix != null) filters.Add($"format={pix}");
+            if (targetPixFmt != null) filters.Add($"format={targetPixFmt}");
         }
 
         return filters.Count > 0 ? string.Join(",", filters) : "null";

@@ -135,6 +135,7 @@ namespace FancyToolAva.ViewModels
         {
             var category = new PageNavigationItem(L.Localize("Nav.Category_Video"), FASymbol.Video);
             category.Children.Add(new PageNavigationItem(L.Localize("Nav.Item_VideoTranscode"), FASymbol.Video, sp.GetRequiredService<VideoTranscodeViewModel>()));
+            category.Children.Add(new PageNavigationItem(L.Localize("Nav.Item_AudioTranscode"), FASymbol.MusicInfo, sp.GetRequiredService<AudioConvertViewModel>()));
             return category;
         }
 

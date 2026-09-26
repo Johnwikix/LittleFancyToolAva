@@ -74,7 +74,9 @@
     "Tile_Hash_Name": "哈希计算",
     "Tile_Hash_Desc": "MD5 / SHA / SM3 哈希摘要计算",
     "Tile_VideoTranscode_Name": "视频转码",
-    "Tile_VideoTranscode_Desc": "批量视频转码，一键预设、滤镜与 GIF 调色板"
+    "Tile_VideoTranscode_Desc": "批量视频转码，一键预设、滤镜与 GIF 调色板",
+    "Tile_AudioTranscode_Name": "音频转码",
+    "Tile_AudioTranscode_Desc": "批量音频转换，11 种输出格式，保留标签与封面"
   },
   "Nav": {
     "Home": "首页",
@@ -95,7 +97,8 @@
     "Item_FileEncrypt": "文件加解密",
     "Item_Img2Base64": "图片转 Base64",
     "Item_ImageConvert": "图片转换",
-    "Item_VideoTranscode": "视频转码"
+    "Item_VideoTranscode": "视频转码",
+    "Item_AudioTranscode": "音频转码"
   },
   "Settings": {
     "Page_Title": "设置",
@@ -527,6 +530,26 @@
     "Picker_SelectOutputDir": "选择输出目录",
     "CheckBox_IncludeAllInFolder": "扫描文件夹时包含所有文件",
     "Msg_FileProbeFailed": "无法识别为视频文件：{0}"
+  },
+  "AudioTranscode": {
+    "Title": "音频转码",
+    "Subtitle": "批量音频转换（内置 FFmpeg 进程内调用，标签/封面跟随写入）",
+    "Label_Format": "输出格式",
+    "Hint_Format": "无损：FLAC / ALAC / WAV / AIFF（可选位深）；有损：MP3 / AAC / OGG / Opus / WMA / AC3 / MP2",
+    "Label_BitDepth": "位深",
+    "Hint_BitDepth": "Auto 按源位深推断：24bit 源保持 24bit，16bit/未知出 16bit，32bit/float/DSD 出 32bit/float",
+    "Label_SampleRate": "采样率",
+    "Hint_SampleRate": "跟随源时按编码器支持表自动对齐（如 MP3 上限 48kHz、Opus 仅 8/12/16/24/48kHz）；DSD 源默认 176.4kHz",
+    "Option_CopyMetadata": "保留标签与封面（wav/aiff 除外）",
+    "Hint_CopyMetadata": "从源读取 标题/艺术家/专辑/音轨/年份 与封面并写入输出；ogg/opus 封面走 METADATA_BLOCK_PICTURE",
+    "Button_Start": "开始批量转换",
+    "Status_Files": "文件列表",
+    "Picker_AudioFile": "音频文件",
+    "Picker_SelectAudio": "选择音频",
+    "Picker_SelectFolder": "选择音频文件夹",
+    "Msg_AllDone": "全部转换完成（共 {0} 个）",
+    "Msg_FileProbeFailed": "无法识别为音频文件：{0}",
+    "Msg_NoAudioStream": "文件中没有音频流。"
   },
   "TerminalStatus": {
     "Label_RX": "RX ",

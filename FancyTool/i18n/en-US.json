@@ -74,7 +74,9 @@
     "Tile_Hash_Name": "Hash",
     "Tile_Hash_Desc": "MD5 / SHA / SM3 hash digest computation",
     "Tile_VideoTranscode_Name": "Video Transcode",
-    "Tile_VideoTranscode_Desc": "Batch video transcode, one-click presets, filters and GIF palette"
+    "Tile_VideoTranscode_Desc": "Batch video transcode, one-click presets, filters and GIF palette",
+    "Tile_AudioTranscode_Name": "Audio Transcode",
+    "Tile_AudioTranscode_Desc": "Batch audio conversion, 11 output formats, keeps tags and covers"
   },
   "Nav": {
     "Home": "Home",
@@ -95,7 +97,8 @@
     "Item_FileEncrypt": "File Encryption",
     "Item_Img2Base64": "Image to Base64",
     "Item_ImageConvert": "Image Convert",
-    "Item_VideoTranscode": "Video Transcode"
+    "Item_VideoTranscode": "Video Transcode",
+    "Item_AudioTranscode": "Audio Transcode"
   },
   "Settings": {
     "Page_Title": "Settings",
@@ -527,6 +530,26 @@
     "Picker_SelectOutputDir": "Select Output Directory",
     "CheckBox_IncludeAllInFolder": "Include all files when scanning folder",
     "Msg_FileProbeFailed": "Cannot recognize this file as a video: {0}"
+  },
+  "AudioTranscode": {
+    "Title": "Audio Transcode",
+    "Subtitle": "Batch audio conversion (built-in in-process FFmpeg, tags/covers carried over)",
+    "Label_Format": "Output Format",
+    "Hint_Format": "Lossless: FLAC / ALAC / WAV / AIFF (bit depth selectable); lossy: MP3 / AAC / OGG / Opus / WMA / AC3 / MP2",
+    "Label_BitDepth": "Bit Depth",
+    "Hint_BitDepth": "Auto follows source: 24-bit stays 24-bit, 16-bit/unknown yields 16-bit, 32-bit/float/DSD yields 32-bit/float",
+    "Label_SampleRate": "Sample Rate",
+    "Hint_SampleRate": "Same-as-source snaps to the encoder's supported rates (MP3 caps at 48 kHz, Opus only 8/12/16/24/48 kHz); DSD sources default to 176.4 kHz",
+    "Option_CopyMetadata": "Keep tags and cover (except wav/aiff)",
+    "Hint_CopyMetadata": "Reads title/artist/album/track/year and the cover from the source and writes them to the output; ogg/opus covers use METADATA_BLOCK_PICTURE",
+    "Button_Start": "Start Batch Conversion",
+    "Status_Files": "File List",
+    "Picker_AudioFile": "Audio Files",
+    "Picker_SelectAudio": "Select Audio",
+    "Picker_SelectFolder": "Select Audio Folder",
+    "Msg_AllDone": "All conversions complete ({0} files)",
+    "Msg_FileProbeFailed": "Cannot recognize this file as audio: {0}",
+    "Msg_NoAudioStream": "No audio stream in the file."
   },
   "TerminalStatus": {
     "Label_RX": "RX ",

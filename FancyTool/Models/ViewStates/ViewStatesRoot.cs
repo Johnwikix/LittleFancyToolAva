@@ -15,6 +15,7 @@ public class ViewStatesRoot
     public FolderCompareViewState? FolderCompareView { get; set; }
     public ImageConvertViewState? ImageConvertView { get; set; }
     public VideoTranscodeViewState? VideoTranscodeView { get; set; }
+    public AudioConvertViewState? AudioConvertView { get; set; }
 }
 
 [JsonSourceGenerationOptions(WriteIndented = true, MaxDepth = 64)]
@@ -34,6 +35,7 @@ public class ViewStatesRoot
 [JsonSerializable(typeof(FolderCompareViewState))]
 [JsonSerializable(typeof(ImageConvertViewState))]
 [JsonSerializable(typeof(VideoTranscodeViewState))]
+[JsonSerializable(typeof(AudioConvertViewState))]
 internal partial class ViewStatesJsonContext : JsonSerializerContext
 {
 }

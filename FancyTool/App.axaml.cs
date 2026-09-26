@@ -178,12 +178,14 @@ namespace FancyToolAva
 
             services.AddSingleton<IFfmpegService, FfmpegService>();
             services.AddSingleton<IVideoTranscodeService, VideoTranscodeService>();
+            services.AddSingleton<IAudioConvertService, AudioConvertService>();
 
             services.AddTransient<FileEncryptionViewModel>();
             services.AddTransient<FolderCompareViewModel>();
             services.AddTransient<Img2Base64ViewModel>();
             services.AddTransient<ImageConvertViewModel>();
             services.AddTransient<VideoTranscodeViewModel>();
+            services.AddTransient<AudioConvertViewModel>();
         }
     }
 }
