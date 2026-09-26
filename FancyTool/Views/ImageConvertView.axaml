@@ -112,6 +112,11 @@
                     <ListBox Grid.Row="1" ItemsSource="{Binding FileItems}"
                              SelectedItem="{Binding SelectedFileItem}"
                              BorderThickness="0" Margin="8,0,8,8">
+                        <ListBox.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <VirtualizingStackPanel />
+                            </ItemsPanelTemplate>
+                        </ListBox.ItemsPanel>
                         <ListBox.ItemTemplate>
                             <DataTemplate x:DataType="models:ImageFileItem">
                                 <Grid ColumnDefinitions="Auto,*,Auto,Auto" Margin="4,2">

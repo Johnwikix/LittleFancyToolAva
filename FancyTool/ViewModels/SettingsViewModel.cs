@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using Lang.Avalonia;
 using FancyToolAva.Models;
 using FancyToolAva.Services;
@@ -11,6 +12,7 @@ namespace FancyToolAva.ViewModels
     public partial class SettingsViewModel : ViewModelBase
     {
         private readonly AppObserveModel _app;
+        private readonly IFileDialogService _fileDialogService;
 
         public AppObserveModel App => _app;
 
@@ -75,6 +77,10 @@ namespace FancyToolAva.ViewModels
         public string GroupAbout => LocalizationStrings.Current["Settings.Group_About"];
         public string AboutTitle => LocalizationStrings.Current["Settings.About_Title"];
         public string AboutDesc => LocalizationStrings.Current["Settings.About_Desc"];
+        public string LabelOpenLogs => LocalizationStrings.Current["Settings.Label_OpenLogs"];
+        public string CaptionOpenLogs => LocalizationStrings.Current["Settings.Caption_OpenLogs"];
+        // LocalizationStrings.Current 只装 Settings.* 键集，Common 键走带兜底的 LocalizationRegistry
+        public string ButtonOpenLogs => LocalizationRegistry.Get("Common.Button_Open");
 
         public LanguageOption? SelectedLanguage
         {
@@ -86,9 +92,10 @@ namespace FancyToolAva.ViewModels
             }
         }
 
-        public SettingsViewModel(AppObserveModel app)
+        public SettingsViewModel(AppObserveModel app, IFileDialogService fileDialogService)
         {
             _app = app;
+            _fileDialogService = fileDialogService;
             _app.Preferences.PropertyChanged += OnPreferencesPropertyChanged;
             var currentCulture = I18nManager.Instance.Culture?.Name ?? "en-US";
             SelectedLanguage = AvailableLanguages.FirstOrDefault(l => l.Culture == currentCulture)
@@ -143,6 +150,15 @@ namespace FancyToolAva.ViewModels
             OnPropertyChanged(nameof(SrTileQuality));
         }
 
+        [RelayCommand]
+        private void OpenLogFolder()
+        {
+            // 与 Program.cs 里 Serilog 的落盘目录保持一致；不存在则先建，避免打开失败
+            string dir = Path.Combine(AppPaths.DataDirectory, "logs");
+            Directory.CreateDirectory(dir);
+            _fileDialogService.OpenInExplorer(dir);
+        }
+
         private void OnSelectedLanguageChanged(LanguageOption? value)
         {
             if (value is null) return;
@@ -186,6 +202,9 @@ namespace FancyToolAva.ViewModels
             OnPropertyChanged(nameof(GroupAbout));
             OnPropertyChanged(nameof(AboutTitle));
             OnPropertyChanged(nameof(AboutDesc));
+            OnPropertyChanged(nameof(LabelOpenLogs));
+            OnPropertyChanged(nameof(CaptionOpenLogs));
+            OnPropertyChanged(nameof(ButtonOpenLogs));
         }
     }
 }

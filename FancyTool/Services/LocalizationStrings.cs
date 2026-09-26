@@ -51,6 +51,8 @@ namespace FancyToolAva.Services
             "Settings.Group_About",
             "Settings.About_Title",
             "Settings.About_Desc",
+            "Settings.Label_OpenLogs",
+            "Settings.Caption_OpenLogs",
         ];
 
         public static IReadOnlyDictionary<string, string> Current => _current;

@@ -65,6 +65,9 @@ public partial class AudioFileItem : ObservableObject
     public string FilePath { get; }
     public string FileName => Path.GetFileName(FilePath);
 
+    /// <summary>“添加文件夹”时该文件所属的根目录；输出到指定目录时按相对路径镜像子目录。单独添加的文件为 null。</summary>
+    public string? RootFolder { get; init; }
+
     private FileStatus _status = FileStatus.Pending;
     private string? _errorMessage;
     private double _progress;
@@ -98,7 +101,12 @@ public partial class AudioFileItem : ObservableObject
 
     public string ProbeDisplay => ProbeInfo?.Display ?? "—";
 
-    public AudioFileItem(string filePath) { FilePath = filePath; RefreshStatusDisplay(); }
+    public AudioFileItem(string filePath, string? rootFolder = null)
+    {
+        FilePath = filePath;
+        RootFolder = rootFolder;
+        RefreshStatusDisplay();
+    }
 
     public void RefreshLocalization()
     {

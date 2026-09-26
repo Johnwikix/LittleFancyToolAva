@@ -32,16 +32,20 @@ public partial class AudioConvertViewModel : ViewModelBase, IViewState, IAudioFi
     private readonly IFileDialogService _fileDialogService;
     private readonly INotificationService _notificationService;
     private readonly IViewStateService _viewStateService;
-    private readonly ILogger<AudioConvertViewModel> _logger = LoggerFactory.Create(b => { }).CreateLogger<AudioConvertViewModel>();
+    private readonly ILogger<AudioConvertViewModel> _logger;
     private CancellationTokenSource? _cts;
     private int _completedCountField;
     private int _failedCountField;
     private bool _isDisposed;
     private bool _probeFailureNotified;
+    private volatile bool _stopRequested;
 
     string IViewState.ViewName => "audioConvertView";
 
-    public ObservableCollection<AudioFileItem> FileItems { get; } = [];
+    public RangeObservableCollection<AudioFileItem> FileItems { get; } = [];
+
+    // 探测队列闸门：上千文件若不限流并发开 FFmpeg 探测，线程池与磁盘会被打满
+    private readonly SemaphoreSlim _probeGate = new(Math.Clamp(Environment.ProcessorCount / 2, 2, 4));
 
     public AudioFileItem? SelectedFileItem
     {
@@ -161,6 +165,22 @@ public partial class AudioConvertViewModel : ViewModelBase, IViewState, IAudioFi
     public double ConversionProgress { get => field; set => SetProperty(ref field, value); }
     public string StatusText { get => field; set => SetProperty(ref field, value); } = string.Empty;
 
+    /// <summary>批量暂停中：不再启动新任务，进行中的任务跑完为止。</summary>
+    public bool IsPaused
+    {
+        get => field;
+        set
+        {
+            if (SetProperty(ref field, value))
+                OnPropertyChanged(nameof(PauseResumeLabel));
+        }
+    }
+
+    public string PauseResumeLabel => LocalizationRegistry.Get(IsPaused ? "Common.Button_Resume" : "Common.Button_Pause");
+
+    /// <summary>批量总进度文本（百分比 + 完成数 + 失败数），转换期间显示。</summary>
+    public string BatchProgressText { get => field; set => SetProperty(ref field, value); } = string.Empty;
+
     public bool IncludeAllInFolderScan { get => field; set => SetProperty(ref field, value); }
 
     public AudioConvertViewModel(
@@ -168,13 +188,15 @@ public partial class AudioConvertViewModel : ViewModelBase, IViewState, IAudioFi
         IFfmpegService ffmpegService,
         IFileDialogService fileDialogService,
         INotificationService notificationService,
-        IViewStateService viewStateService)
+        IViewStateService viewStateService,
+        ILogger<AudioConvertViewModel>? logger = null)
     {
         _convertService = convertService;
         _ffmpegService = ffmpegService;
         _fileDialogService = fileDialogService;
         _notificationService = notificationService;
         _viewStateService = viewStateService;
+        _logger = logger ?? LoggerFactory.Create(b => { }).CreateLogger<AudioConvertViewModel>();
         _viewStateService.Register(this);
         FileItems.CollectionChanged += (_, _) => InvalidateCommands();
         I18nManager.Instance.CultureChanged += OnCultureChanged;
@@ -186,6 +208,8 @@ public partial class AudioConvertViewModel : ViewModelBase, IViewState, IAudioFi
         Dispatcher.UIThread.Post(() =>
         {
             UpdateStatusText();
+            OnPropertyChanged(nameof(PauseResumeLabel));
+            RefreshBatchProgressText();
             foreach (var item in FileItems) item.RefreshLocalization();
         });
     }
@@ -202,10 +226,26 @@ public partial class AudioConvertViewModel : ViewModelBase, IViewState, IAudioFi
             PickOutputFolderCommand.NotifyCanExecuteChanged();
             OpenOutputFolderCommand.NotifyCanExecuteChanged();
             StartConvertCommand.NotifyCanExecuteChanged();
+            TogglePauseCommand.NotifyCanExecuteChanged();
+            StopConvertCommand.NotifyCanExecuteChanged();
         }
     }
 
     private bool CanModify() => !IsBusy;
+
+    private bool CanPauseOrStop() => IsBusy;
+
+    [RelayCommand(CanExecute = nameof(CanPauseOrStop))]
+    private void TogglePause() => IsPaused = !IsPaused;
+
+    [RelayCommand(CanExecute = nameof(CanPauseOrStop))]
+    private void StopConvert()
+    {
+        if (!IsBusy) return;
+        _stopRequested = true;
+        _logger.LogWarning("用户终止批量音频转换（已完成 {Done}/{Total}）", _completedCountField - Volatile.Read(ref _failedCountField), TotalCount);
+        _cts?.Cancel();
+    }
 
     [RelayCommand(CanExecute = nameof(CanModify))]
     private async Task AddFiles()
@@ -220,7 +260,7 @@ public partial class AudioConvertViewModel : ViewModelBase, IViewState, IAudioFi
         ];
         var paths = await _fileDialogService.PickOpenFilesAsync(LocalizationRegistry.Get("AudioTranscode.Picker_SelectAudio"), filters);
         if (paths == null) return;
-        AddPaths(paths);
+        await AddPathsAsync(paths);
     }
 
     [RelayCommand(CanExecute = nameof(CanModify))]
@@ -228,7 +268,7 @@ public partial class AudioConvertViewModel : ViewModelBase, IViewState, IAudioFi
     {
         string? folder = await _fileDialogService.PickFolderAsync(LocalizationRegistry.Get("AudioTranscode.Picker_SelectFolder"));
         if (folder == null) return;
-        AddPaths(new[] { folder });
+        await AddPathsAsync(new[] { folder });
     }
 
     [RelayCommand(CanExecute = nameof(CanModify))]
@@ -247,43 +287,45 @@ public partial class AudioConvertViewModel : ViewModelBase, IViewState, IAudioFi
     public void AddDroppedPaths(IEnumerable<string> paths)
     {
         if (IsBusy) return;
-        AddPaths(paths);
+        _ = AddPathsAsync(paths);
     }
 
-    private void AddPaths(IEnumerable<string> paths)
+    /// <summary>
+    /// 扫描与去重在后台线程完成（上万文件/大目录时枚举可达分钟级，不能占着 UI 线程），
+    /// 回到 UI 线程后一次性 AddRange 批量入列表，避免逐条通知引发上千次布局。
+    /// </summary>
+    private async Task AddPathsAsync(IEnumerable<string> paths)
     {
+        if (IsBusy) return;
+        string[] roots = paths.Where(p => !string.IsNullOrEmpty(p)).ToArray();
+        if (roots.Length == 0) return;
+
         bool includeAll = IncludeAllInFolderScan;
+        // 已有文件快照在 UI 线程构建：扫描在后台跑，期间其他添加完成会改列表，不能在后台枚举它
         var existing = new HashSet<string>(FileItems.Select(x => x.FilePath), StringComparer.OrdinalIgnoreCase);
-        foreach (string path in paths)
-        {
-            if (string.IsNullOrEmpty(path)) continue;
-            if (Directory.Exists(path))
-            {
-                foreach (string file in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories))
-                {
-                    bool accept = includeAll ? !string.IsNullOrEmpty(file) : IsAudioFile(file);
-                    if (accept && !existing.Contains(file)) AddItem(file, existing);
-                }
-            }
-            else if (File.Exists(path) && !existing.Contains(path))
-            {
-                AddItem(path, existing);
-            }
-        }
-        UpdateStatusText();
-    }
+        var found = await Task.Run(() => BatchFileScanner.Scan(roots, file => includeAll || IsAudioFile(file), existing))
+            .ConfigureAwait(true);
+        if (IsBusy || found.Count == 0) return;
 
-    private void AddItem(string file, HashSet<string> existing)
-    {
-        var item = new AudioFileItem(file) { Owner = this };
-        FileItems.Add(item);
-        existing.Add(file);
-        _ = ProbeItemAsync(item);
+        // 再次按当前列表去重（扫描期间用户可能又添加了同一批文件）
+        var current = new HashSet<string>(FileItems.Select(x => x.FilePath), StringComparer.OrdinalIgnoreCase);
+        var newItems = new List<AudioFileItem>(found.Count);
+        foreach ((string file, string? root) in found)
+        {
+            if (current.Contains(file)) continue;
+            current.Add(file);
+            newItems.Add(new AudioFileItem(file, root) { Owner = this });
+        }
+        FileItems.AddRange(newItems);
+        foreach (var item in newItems)
+            _ = ProbeItemAsync(item);
+        UpdateStatusText();
     }
 
     private async Task ProbeItemAsync(AudioFileItem item)
     {
         if (!_ffmpegService.IsAvailable) return;
+        await _probeGate.WaitAsync().ConfigureAwait(false);
         try
         {
             var info = await _convertService.ProbeAsync(item.FilePath).ConfigureAwait(false);
@@ -297,6 +339,10 @@ public partial class AudioConvertViewModel : ViewModelBase, IViewState, IAudioFi
                 _probeFailureNotified = true;
                 _notificationService.ShowWarn(LocalizationRegistry.Get("AudioTranscode.Msg_FileProbeFailed", item.FileName));
             });
+        }
+        finally
+        {
+            _probeGate.Release();
         }
     }
 
@@ -337,6 +383,8 @@ public partial class AudioConvertViewModel : ViewModelBase, IViewState, IAudioFi
 
         _cts?.Cancel();
         _cts = new CancellationTokenSource();
+        _stopRequested = false;
+        IsPaused = false;
         IsBusy = true;
         TotalCount = FileItems.Count;
         CompletedCount = 0;
@@ -345,6 +393,7 @@ public partial class AudioConvertViewModel : ViewModelBase, IViewState, IAudioFi
         _failedCountField = 0;
         ConversionProgress = 0;
         UpdateStatusText();
+        RefreshBatchProgressText();
 
         var options = new AudioConvertOptions
         {
@@ -356,35 +405,61 @@ public partial class AudioConvertViewModel : ViewModelBase, IViewState, IAudioFi
             CopyMetadata = CopyMetadata,
         };
         string targetExt = AudioConvertService.GetExtension(options.Format);
+        _logger.LogInformation("批量音频转换开始：{Count} 个文件，格式 {Format}，输出目录 {Dir}",
+            TotalCount, options.Format, useSourceDir ? "(源文件目录)" : OutputFolder);
 
         foreach (var item in FileItems) item.Status = FileStatus.Pending;
 
-        foreach (var item in FileItems)
+        // 路径规划含逐文件 File.Exists/建目录磁盘 IO，上千文件时移出 UI 线程
+        var snapshot = FileItems.ToArray();
+        var plan = await Task.Run(() =>
         {
-            if (_cts.Token.IsCancellationRequested) break;
-            item.Status = FileStatus.Converting;
-            item.Progress = 0;
+            // 并行执行前统一规划输出路径：文件夹添加的文件镜像源目录结构到输出目录，
+            // 单独添加的文件平铺；同名文件在批内与磁盘上去重，避免并发写冲突。
+            var taken = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+            var result = new List<(AudioFileItem, string)>(snapshot.Length);
+            foreach (var item in snapshot)
+            {
+                string sourceDir = Path.GetDirectoryName(item.FilePath) ?? Path.GetTempPath();
+                string outputDir = useSourceDir ? sourceDir
+                    : OutputPathPlanner.ResolveOutputDir(OutputFolder!, item.FilePath, item.RootFolder);
+                bool sameDir = string.Equals(Path.GetFullPath(outputDir), Path.GetFullPath(sourceDir), StringComparison.OrdinalIgnoreCase);
+                string outputPath = OutputPathPlanner.PlanUniquePath(outputDir,
+                    Path.GetFileNameWithoutExtension(item.FileName), targetExt, sameDir, taken);
+                result.Add((item, outputPath));
+            }
+            return result;
+        }).ConfigureAwait(false);
+
+        // 单条音频管线基本单线程，并行度取逻辑核数（封顶 8 已足够吃满 IO+编码）
+        int dop = Math.Clamp(Environment.ProcessorCount, 1, 8);
+        await Parallel.ForEachAsync(plan, new ParallelOptions { MaxDegreeOfParallelism = dop }, async (entry, _) =>
+        {
+            var (item, outputPath) = entry;
+            // 暂停：不再启动新任务（进行中的跑完为止）；终止：直接返回不再排队
+            while (IsPaused && !_cts.Token.IsCancellationRequested)
+                await Task.Delay(200).ConfigureAwait(false);
+            if (_cts.Token.IsCancellationRequested) return;
+
+            Dispatcher.UIThread.Post(() => { item.Status = FileStatus.Converting; item.Progress = 0; });
             var progress = new Progress<double>(p => Dispatcher.UIThread.Post(() => item.Progress = p));
 
             bool itemFailed = false;
             try
             {
-                string sourceDir = Path.GetDirectoryName(item.FilePath) ?? Path.GetTempPath();
-                string outputDir = useSourceDir ? sourceDir : OutputFolder!;
-                bool sameDir = string.Equals(Path.GetFullPath(outputDir), Path.GetFullPath(sourceDir), StringComparison.OrdinalIgnoreCase);
-                string outputPath = GetOutputPath(outputDir, Path.GetFileNameWithoutExtension(item.FileName), targetExt, sameDir);
                 await _convertService.ConvertAsync(item.FilePath, outputPath, options, progress, _cts.Token).ConfigureAwait(false);
                 Dispatcher.UIThread.Post(() => { item.Progress = 1.0; item.Status = FileStatus.Completed; });
             }
             catch (OperationCanceledException)
             {
                 Dispatcher.UIThread.Post(() => item.Status = FileStatus.Pending);
-                break;
             }
             catch (Exception ex)
             {
                 itemFailed = true;
                 string msg = ex.Message.Split('\n').FirstOrDefault() ?? ex.Message;
+                // 失败明细落日志文件（logs/tool-*.log）：哪个文件、因为什么
+                _logger.LogError(ex, "音频转换失败: {File} -> {Output}", item.FilePath, outputPath);
                 Dispatcher.UIThread.Post(() => { item.Status = FileStatus.Failed; item.ErrorMessage = msg.Length > 200 ? msg[..200] : msg; });
             }
             finally
@@ -398,35 +473,38 @@ public partial class AudioConvertViewModel : ViewModelBase, IViewState, IAudioFi
                     FailedCount = failed;
                     ConversionProgress = (double)processed / TotalCount;
                     UpdateStatusText();
+                    RefreshBatchProgressText();
                 });
             }
-        }
+        }).ConfigureAwait(false);
 
         IsBusy = false;
 
         int finalFailed = Volatile.Read(ref _failedCountField);
         int finalTotal = TotalCount;
+        int finalProcessed = Volatile.Read(ref _completedCountField);
+        int finalDone = finalProcessed - finalFailed;
         Dispatcher.UIThread.Post(() =>
         {
             FailedCount = finalFailed;
-            CompletedCount = finalTotal - finalFailed;
-            if (finalFailed == 0)
+            CompletedCount = finalDone;
+            if (_stopRequested)
+            {
+                _logger.LogWarning("批量音频转换已终止：完成 {Done}/{Total}，失败 {Failed}", finalDone, finalTotal, finalFailed);
+                _notificationService.ShowInfo(LocalizationRegistry.Get("VideoTranscode.Msg_Stopped", finalDone, finalTotal, finalFailed));
+            }
+            else if (finalFailed == 0)
                 _notificationService.ShowSuccess(LocalizationRegistry.Get("AudioTranscode.Msg_AllDone", finalTotal));
             else
                 _notificationService.ShowWarn(LocalizationRegistry.Get("VideoTranscode.Msg_PartialFail", finalFailed, finalTotal));
         });
     }
 
-    private static string GetOutputPath(string folder, string stem, string ext, bool addSuffix)
+    private void RefreshBatchProgressText()
     {
-        string baseName = addSuffix ? stem + "_output" : stem;
-        string basePath = Path.Combine(folder, baseName + ext);
-        if (!File.Exists(basePath)) return basePath;
-        for (int i = 1; ; i++)
-        {
-            string candidate = Path.Combine(folder, $"{baseName}_{i}{ext}");
-            if (!File.Exists(candidate)) return candidate;
-        }
+        BatchProgressText = TotalCount > 0
+            ? LocalizationRegistry.Get("VideoTranscode.Status_BatchProgress", CompletedCount, TotalCount, ConversionProgress, FailedCount)
+            : string.Empty;
     }
 
     private void UpdateStatusText()

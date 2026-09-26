@@ -158,6 +158,20 @@
                     <TextBlock Classes="Caption" Text="{Binding AboutDesc}" />
                 </StackPanel>
             </Border>
+
+            <Border Classes="ToolCard">
+                <StackPanel Classes="ToolCardContent">
+                    <Grid ColumnDefinitions="200,*,Auto" Margin="0,4">
+                        <StackPanel Grid.Column="0">
+                            <TextBlock FontWeight="SemiBold" Text="{Binding LabelOpenLogs}" />
+                            <TextBlock Classes="Caption" Text="{Binding CaptionOpenLogs}" />
+                        </StackPanel>
+                        <Button Grid.Column="2" VerticalAlignment="Center"
+                                Command="{Binding OpenLogFolderCommand}"
+                                Content="{Binding ButtonOpenLogs}" />
+                    </Grid>
+                </StackPanel>
+            </Border>
         </StackPanel>
     </ScrollViewer>
 </UserControl>

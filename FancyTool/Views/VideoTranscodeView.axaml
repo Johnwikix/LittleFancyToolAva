@@ -31,10 +31,14 @@
                             <TextBlock Text="{Binding FfmpegStatusText}" FontSize="12" Opacity="0.85" TextWrapping="Wrap" />
                         </Border>
 
-                        <Button Command="{Binding StartTranscodeCommand}" Classes="Primary" HorizontalAlignment="Stretch" Content="{lan:I18n VideoTranscode.Button_Start}" Margin="0,4,0,0" />
+                        <Grid ColumnDefinitions="*,8,Auto,8,Auto" Margin="0,4,0,0">
+                            <Button Grid.Column="0" Command="{Binding StartTranscodeCommand}" Classes="Primary" HorizontalAlignment="Stretch" Content="{lan:I18n VideoTranscode.Button_Start}" />
+                            <Button Grid.Column="2" Command="{Binding TogglePauseCommand}" IsVisible="{Binding IsBusy}" Content="{Binding PauseResumeLabel}" />
+                            <Button Grid.Column="4" Command="{Binding StopTranscodeCommand}" IsVisible="{Binding IsBusy}" Content="{lan:I18n Common.Button_Stop}" />
+                        </Grid>
                         <StackPanel IsVisible="{Binding IsBusy}" Spacing="4">
                             <ProgressBar Value="{Binding ConversionProgress}" Minimum="0" Maximum="1" Height="8" />
-                            <TextBlock Text="{Binding StatusText}" FontSize="12" Opacity="0.8" />
+                            <TextBlock Text="{Binding BatchProgressText}" FontSize="12" Opacity="0.8" />
                         </StackPanel>
 
                         <!-- Output Preset -->
@@ -246,6 +250,11 @@
                                   Content="{lan:I18n VideoTranscode.CheckBox_IncludeAllInFolder}" />
                     </StackPanel>
                     <ListBox Grid.Row="2" ItemsSource="{Binding FileItems}" SelectedItem="{Binding SelectedFileItem}" BorderThickness="0" Margin="8,0,8,8">
+                        <ListBox.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <VirtualizingStackPanel />
+                            </ItemsPanelTemplate>
+                        </ListBox.ItemsPanel>
                         <ListBox.ItemTemplate>
                             <DataTemplate x:DataType="models:VideoFileItem">
                                 <Grid ColumnDefinitions="Auto,*,Auto,Auto" Margin="4,2">
