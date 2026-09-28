@@ -79,7 +79,8 @@ namespace FancyToolAva
                 // the background model warmup kicks off even before the user
                 // navigates to the image-convert page.
                 _ = _serviceProvider.GetRequiredService<ISuperResolutionService>();
-                // Touch FFmpeg BYO validator so it probes the user-provided directory at startup
+                // Touch the FFmpeg validator so the bundled in-process libraries
+                // are probed (and encoders enumerated) before the user opens the page.
                 _ = _serviceProvider.GetRequiredService<IFfmpegService>();
 
                 desktop.Exit += async (_, _) =>
@@ -137,6 +138,7 @@ namespace FancyToolAva
 
             services.AddSingleton<AppObserveModel>();
             services.AddSingleton<AppPreferences>(sp => sp.GetRequiredService<AppObserveModel>().Preferences);
+            services.AddSingleton<IBackdropService, BackdropService>();
             services.AddSingleton<FileService>();
             services.AddSingleton<IViewStateService, ViewStateService>();
             services.AddSingleton<ApplicationHostService>();
@@ -176,12 +178,14 @@ namespace FancyToolAva
 
             services.AddSingleton<IFfmpegService, FfmpegService>();
             services.AddSingleton<IVideoTranscodeService, VideoTranscodeService>();
+            services.AddSingleton<IAudioConvertService, AudioConvertService>();
 
             services.AddTransient<FileEncryptionViewModel>();
             services.AddTransient<FolderCompareViewModel>();
             services.AddTransient<Img2Base64ViewModel>();
             services.AddTransient<ImageConvertViewModel>();
             services.AddTransient<VideoTranscodeViewModel>();
+            services.AddTransient<AudioConvertViewModel>();
         }
     }
 }

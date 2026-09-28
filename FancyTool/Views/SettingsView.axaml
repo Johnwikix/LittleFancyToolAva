@@ -39,6 +39,46 @@
                                          IsChecked="{Binding App.Preferences.ThemeIndex, Mode=TwoWay, Converter={StaticResource IntEq}, ConverterParameter=2}" />
                         </StackPanel>
                     </Grid>
+                    <Grid ColumnDefinitions="200,*,Auto" Margin="0,8,0,4" IsEnabled="{Binding CanUseBackdrop}">
+                        <StackPanel Grid.Column="0">
+                            <TextBlock FontWeight="SemiBold" Text="{Binding LabelBackdrop}" />
+                            <TextBlock Classes="Caption" Text="{Binding CaptionBackdrop}" />
+                        </StackPanel>
+                        <ComboBox Grid.Column="2"
+                                  Width="220" VerticalAlignment="Center"
+                                  ItemsSource="{Binding BackdropOptions}"
+                                  SelectedIndex="{Binding App.Preferences.BackdropIndex, Mode=TwoWay}" />
+                    </Grid>
+                    <Grid ColumnDefinitions="200,*,Auto" Margin="0,4" IsEnabled="{Binding CanCustomizeAcrylic}">
+                        <StackPanel Grid.Column="0">
+                            <TextBlock FontWeight="SemiBold" Text="{Binding LabelAcrylicTint}" />
+                            <TextBlock Classes="Caption" Text="{Binding CaptionAcrylicTint}" />
+                        </StackPanel>
+                        <ComboBox Grid.Column="2"
+                                  Width="220" VerticalAlignment="Center"
+                                  ItemsSource="{Binding TintOptions}"
+                                  SelectedIndex="{Binding App.Preferences.AcrylicTintIndex, Mode=TwoWay}" />
+                    </Grid>
+                    <Grid ColumnDefinitions="200,*,Auto" Margin="0,4" IsEnabled="{Binding CanCustomizeAcrylic}">
+                        <StackPanel Grid.Column="0">
+                            <TextBlock FontWeight="SemiBold" Text="{Binding LabelTintOpacity}" />
+                        </StackPanel>
+                        <Slider Grid.Column="2"
+                                Width="220" VerticalAlignment="Center"
+                                Minimum="0" Maximum="100"
+                                TickFrequency="10"
+                                Value="{Binding App.Preferences.AcrylicTintOpacity, Mode=TwoWay}" />
+                    </Grid>
+                    <Grid ColumnDefinitions="200,*,Auto" Margin="0,4" IsEnabled="{Binding CanCustomizeAcrylic}">
+                        <StackPanel Grid.Column="0">
+                            <TextBlock FontWeight="SemiBold" Text="{Binding LabelMaterialOpacity}" />
+                        </StackPanel>
+                        <Slider Grid.Column="2"
+                                Width="220" VerticalAlignment="Center"
+                                Minimum="0" Maximum="100"
+                                TickFrequency="10"
+                                Value="{Binding App.Preferences.AcrylicMaterialOpacity, Mode=TwoWay}" />
+                    </Grid>
                 </StackPanel>
             </Border>
 
@@ -116,6 +156,20 @@
                 <StackPanel Classes="ToolCardContent">
                     <TextBlock FontWeight="SemiBold" Text="{Binding AboutTitle}" />
                     <TextBlock Classes="Caption" Text="{Binding AboutDesc}" />
+                </StackPanel>
+            </Border>
+
+            <Border Classes="ToolCard">
+                <StackPanel Classes="ToolCardContent">
+                    <Grid ColumnDefinitions="200,*,Auto" Margin="0,4">
+                        <StackPanel Grid.Column="0">
+                            <TextBlock FontWeight="SemiBold" Text="{Binding LabelOpenLogs}" />
+                            <TextBlock Classes="Caption" Text="{Binding CaptionOpenLogs}" />
+                        </StackPanel>
+                        <Button Grid.Column="2" VerticalAlignment="Center"
+                                Command="{Binding OpenLogFolderCommand}"
+                                Content="{Binding ButtonOpenLogs}" />
+                    </Grid>
                 </StackPanel>
             </Border>
         </StackPanel>

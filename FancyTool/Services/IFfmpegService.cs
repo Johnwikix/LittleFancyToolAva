@@ -1,10 +1,11 @@
 namespace FancyToolAva.Services;
 
+/// <summary>
+/// 进程内 FFmpeg（shared DLL，随应用分发）可用性探针。
+/// </summary>
 public interface IFfmpegService : IDisposable
 {
     bool IsAvailable { get; }
-
-    string? ResolvedDirectory { get; }
 
     string? LastError { get; }
 

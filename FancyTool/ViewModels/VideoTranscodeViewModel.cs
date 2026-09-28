@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using System.Diagnostics;
 using System.Globalization;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
@@ -34,6 +33,7 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
     private readonly IViewStateService _viewStateService;
     private readonly AppPreferences _preferences;
     private CancellationTokenSource? _cts;
+    private volatile bool _stopRequested;
     private int _completedCountField;
     private int _failedCountField;
     private bool _isDisposed;
@@ -43,7 +43,10 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
 
     string IViewState.ViewName => "videoTranscodeView";
 
-    public ObservableCollection<VideoFileItem> FileItems { get; } = [];
+    public RangeObservableCollection<VideoFileItem> FileItems { get; } = [];
+
+    // 探测队列闸门：上千文件若不限流并发开 FFmpeg 探测，线程池与磁盘会被打满
+    private readonly SemaphoreSlim _probeGate = new(Math.Clamp(Environment.ProcessorCount / 2, 2, 4));
 
     public VideoFileItem? SelectedFileItem
     {
@@ -66,24 +69,11 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
 
     public bool IsOutputFolderEmpty => string.IsNullOrWhiteSpace(OutputFolder);
 
-    // Ffmpeg BYO
-    public string? FfmpegDirectory
-    {
-        get => field;
-        set
-        {
-            if (SetProperty(ref field, value))
-            {
-                _preferences.CustomFfmpegDirectory = value;
-                InvalidateValidateFfmpeg();
-            }
-        }
-    }
-
+    // FFmpeg（进程内内置库）
     public bool IsFfmpegAvailable => _ffmpegService.IsAvailable;
     public string FfmpegStatusText => _ffmpegService.IsAvailable
-        ? LocalizationRegistry.Get("VideoTranscode.Msg_FfmpegReady", _ffmpegService.VersionInfo ?? "9.0")
-        : _ffmpegService.LastError ?? LocalizationRegistry.Get("VideoTranscode.Msg_FfmpegNotConfigured");
+        ? LocalizationRegistry.Get("VideoTranscode.Msg_FfmpegReady", _ffmpegService.VersionInfo ?? "FFmpeg")
+        : _ffmpegService.LastError ?? LocalizationRegistry.Get("VideoTranscode.Msg_FfmpegNotAvailable");
     public bool ShowFfmpegMissing => !_ffmpegService.IsAvailable;
 
     // Container / Codecs
@@ -196,7 +186,7 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
         VideoContainer.Gif => ["GIF"],
         VideoContainer.Mp4 => ["H.264 (x264)", "H.265 (x265)", "AV1 (aom)", "AV1 (SVT)", "MPEG-4"],
         VideoContainer.Mkv => ["H.264 (x264)", "H.265 (x265)", "AV1 (aom)", "AV1 (SVT)", "VP8", "VP9", "MPEG-4"],
-        VideoContainer.Mov => ["H.264 (x264)", "H.265 (x265)", "AV1 (aom)", "MPEG-4"],
+        VideoContainer.Mov => ["H.264 (x264)", "H.265 (x265)", "MPEG-4"],
         VideoContainer.Avi => ["H.264 (x264)", "MPEG-4"],
         _ => ["H.264 (x264)", "H.265 (x265)", "AV1 (aom)"]
     };
@@ -719,8 +709,8 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
             PickOutputFolderCommand.NotifyCanExecuteChanged();
             OpenOutputFolderCommand.NotifyCanExecuteChanged();
             StartTranscodeCommand.NotifyCanExecuteChanged();
-            PickFfmpegFolderCommand.NotifyCanExecuteChanged();
-            ValidateFfmpegCommand.NotifyCanExecuteChanged();
+            TogglePauseCommand.NotifyCanExecuteChanged();
+            StopTranscodeCommand.NotifyCanExecuteChanged();
         }
     }
 
@@ -728,12 +718,6 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
     {
         if (Dispatcher.UIThread.CheckAccess()) OpenOutputFolderCommand.NotifyCanExecuteChanged();
         else Dispatcher.UIThread.Post(() => OpenOutputFolderCommand.NotifyCanExecuteChanged());
-    }
-
-    private void InvalidateValidateFfmpeg()
-    {
-        if (Dispatcher.UIThread.CheckAccess()) ValidateFfmpegCommand.NotifyCanExecuteChanged();
-        else Dispatcher.UIThread.Post(() => ValidateFfmpegCommand.NotifyCanExecuteChanged());
     }
 
     private void InvalidateStartTranscode()
@@ -748,13 +732,30 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
     public double ConversionProgress { get => field; set => SetProperty(ref field, value); }
     public string StatusText { get => field; set => SetProperty(ref field, value); } = string.Empty;
 
+    /// <summary>批量暂停中：不再启动新任务，进行中的任务跑完为止。</summary>
+    public bool IsPaused
+    {
+        get => field;
+        set
+        {
+            if (SetProperty(ref field, value))
+                OnPropertyChanged(nameof(PauseResumeLabel));
+        }
+    }
+
+    public string PauseResumeLabel => LocalizationRegistry.Get(IsPaused ? "Common.Button_Resume" : "Common.Button_Pause");
+
+    /// <summary>批量总进度文本（百分比 + 完成数 + 失败数），转换期间显示。</summary>
+    public string BatchProgressText { get => field; set => SetProperty(ref field, value); } = string.Empty;
+
     public VideoTranscodeViewModel(
         IVideoTranscodeService videoService,
         IFfmpegService ffmpegService,
         IFileDialogService fileDialogService,
         INotificationService notificationService,
         IViewStateService viewStateService,
-        AppPreferences preferences)
+        AppPreferences preferences,
+        ILogger<VideoTranscodeViewModel>? logger = null)
     {
         _videoService = videoService;
         _ffmpegService = ffmpegService;
@@ -762,9 +763,9 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
         _notificationService = notificationService;
         _viewStateService = viewStateService;
         _preferences = preferences;
+        _loggerField = logger ?? LoggerFactory.Create(b => { }).CreateLogger<VideoTranscodeViewModel>();
         _viewStateService.Register(this);
         FileItems.CollectionChanged += (_, _) => InvalidateStartTranscode();
-        FfmpegDirectory = _preferences.CustomFfmpegDirectory ?? AppPaths.FfmpegBringYourOwnDirectory;
         _ffmpegService.AvailabilityChanged += OnFfmpegAvailabilityChanged;
         I18nManager.Instance.CultureChanged += OnCultureChanged;
         UpdateStatusText();
@@ -787,6 +788,8 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
         {
             UpdateStatusText();
             OnPropertyChanged(nameof(FfmpegStatusText));
+            OnPropertyChanged(nameof(PauseResumeLabel));
+            RefreshBatchProgressText();
             foreach (var item in FileItems) item.RefreshLocalization();
             // Re-validate to regenerate LastError in new language
             _ = _ffmpegService.ValidateAsync();
@@ -1068,7 +1071,6 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
                 else
                     HandbrakePresetIndex = Math.Clamp(s.SelectedPresetIndex, 0, HandbrakePresetLabels.Count - 1);
                 IncludeAllInFolderScan = s.IncludeAllInFolderScan;
-                if (!string.IsNullOrEmpty(_preferences.CustomFfmpegDirectory)) FfmpegDirectory = _preferences.CustomFfmpegDirectory;
             }
             finally
             {
@@ -1094,19 +1096,7 @@ private async Task AddFiles()
     ];
     var paths = await _fileDialogService.PickOpenFilesAsync(LocalizationRegistry.Get("VideoTranscode.Picker_SelectVideo"), filters);
     if (paths == null) return;
-    var existing = new HashSet<string>(FileItems.Select(x => x.FilePath), StringComparer.OrdinalIgnoreCase);
-    foreach (string path in paths)
-    {
-        if (string.IsNullOrEmpty(path)) continue;
-        if (!existing.Contains(path))
-        {
-            var item = CreateItem(path);
-            FileItems.Add(item);
-            existing.Add(path);
-            _ = ProbeItemAsync(item);
-        }
-    }
-    UpdateStatusText();
+    await AddPathsAsync(paths);
 }
 
 [RelayCommand(CanExecute = nameof(CanModify))]
@@ -1114,20 +1104,7 @@ private async Task AddFolder()
 {
     string? folder = await _fileDialogService.PickFolderAsync(LocalizationRegistry.Get("VideoTranscode.Picker_SelectVideoFolder"));
     if (folder == null) return;
-    bool includeAll = IncludeAllInFolderScan;
-    var existing = new HashSet<string>(FileItems.Select(x => x.FilePath), StringComparer.OrdinalIgnoreCase);
-    foreach (string file in Directory.EnumerateFiles(folder, "*", SearchOption.AllDirectories))
-    {
-        bool accept = includeAll ? !string.IsNullOrEmpty(file) : IsVideoFile(file);
-        if (accept && !existing.Contains(file))
-        {
-            var item = CreateItem(file);
-            FileItems.Add(item);
-            existing.Add(file);
-            _ = ProbeItemAsync(item);
-        }
-    }
-    UpdateStatusText();
+    await AddPathsAsync(new[] { folder });
 }
 
     [RelayCommand(CanExecute = nameof(CanModify))]
@@ -1143,16 +1120,10 @@ private async Task AddFolder()
         UpdateStatusText();
     }
 
-    private VideoFileItem CreateItem(string path)
-    {
-        var item = new VideoFileItem(path);
-        item.Owner = this;
-        return item;
-    }
-
 private async Task ProbeItemAsync(VideoFileItem item)
 {
     if (!_ffmpegService.IsAvailable) return;
+    await _probeGate.WaitAsync().ConfigureAwait(false);
     try
     {
         var info = await _videoService.ProbeAsync(item.FilePath).ConfigureAwait(false);
@@ -1168,42 +1139,66 @@ private async Task ProbeItemAsync(VideoFileItem item)
                 LocalizationRegistry.Get("VideoTranscode.Msg_FileProbeFailed", item.FileName));
         });
     }
+    finally
+    {
+        _probeGate.Release();
+    }
 }
 
 public void AddDroppedPaths(IEnumerable<string> paths)
 {
     if (IsBusy) return;
+    _ = AddPathsAsync(paths);
+}
+
+/// <summary>
+/// 扫描与去重在后台线程完成（上万文件/大目录时枚举可达分钟级，不能占着 UI 线程），
+/// 回到 UI 线程后一次性 AddRange 批量入列表，避免逐条通知引发上千次布局。
+/// </summary>
+private async Task AddPathsAsync(IEnumerable<string> paths)
+{
+    if (IsBusy) return;
+    string[] roots = paths.Where(p => !string.IsNullOrEmpty(p)).ToArray();
+    if (roots.Length == 0) return;
+
     bool includeAll = IncludeAllInFolderScan;
+    // 已有文件快照在 UI 线程构建：扫描在后台跑，期间其他添加完成会改列表，不能在后台枚举它
     var existing = new HashSet<string>(FileItems.Select(x => x.FilePath), StringComparer.OrdinalIgnoreCase);
-    foreach (string path in paths)
+    var found = await Task.Run(() => BatchFileScanner.Scan(roots, file => includeAll || IsVideoFile(file), existing))
+        .ConfigureAwait(true);
+    if (IsBusy || found.Count == 0) return;
+
+    // 再次按当前列表去重（扫描期间用户可能又添加了同一批文件）
+    var current = new HashSet<string>(FileItems.Select(x => x.FilePath), StringComparer.OrdinalIgnoreCase);
+    var newItems = new List<VideoFileItem>(found.Count);
+    foreach ((string file, string? root) in found)
     {
-        if (string.IsNullOrEmpty(path)) continue;
-        if (Directory.Exists(path))
-        {
-            foreach (string file in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories))
-            {
-                bool accept = includeAll ? !string.IsNullOrEmpty(file) : IsVideoFile(file);
-                if (accept && !existing.Contains(file))
-                {
-                    var item = CreateItem(file);
-                    FileItems.Add(item);
-                    existing.Add(file);
-                    _ = ProbeItemAsync(item);
-                }
-            }
-        }
-        else if (File.Exists(path) && !existing.Contains(path))
-        {
-            var item = CreateItem(path);
-            FileItems.Add(item);
-            existing.Add(path);
-            _ = ProbeItemAsync(item);
-        }
+        if (current.Contains(file)) continue;
+        current.Add(file);
+        var item = new VideoFileItem(file, root) { Owner = this };
+        newItems.Add(item);
     }
+    FileItems.AddRange(newItems);
+    foreach (var item in newItems)
+        _ = ProbeItemAsync(item);
     UpdateStatusText();
 }
 
     private bool CanModify() => !IsBusy;
+
+    private bool CanPauseOrStop() => IsBusy;
+
+    [RelayCommand(CanExecute = nameof(CanPauseOrStop))]
+    private void TogglePause() => IsPaused = !IsPaused;
+
+    [RelayCommand(CanExecute = nameof(CanPauseOrStop))]
+    private void StopTranscode()
+    {
+        if (!IsBusy) return;
+        _stopRequested = true;
+        _loggerField.LogWarning("用户终止批量视频转码（已完成 {Done}/{Total}）", _completedCountField - Volatile.Read(ref _failedCountField), TotalCount);
+        _cts?.Cancel();
+    }
 
     [RelayCommand(CanExecute = nameof(CanModify))]
     private async Task PickOutputFolder()
@@ -1220,65 +1215,6 @@ public void AddDroppedPaths(IEnumerable<string> paths)
     }
 
     private bool CanOpenOutputFolder() => !IsBusy && !string.IsNullOrEmpty(OutputFolder) && Directory.Exists(OutputFolder!);
-
-    [RelayCommand(CanExecute = nameof(CanModify))]
-    private async Task PickFfmpegFolder()
-    {
-        string? folder = await _fileDialogService.PickFolderAsync(LocalizationRegistry.Get("VideoTranscode.Picker_SelectFfmpegDir"));
-        if (folder != null)
-        {
-            FfmpegDirectory = folder;
-            _preferences.CustomFfmpegDirectory = folder;
-            await _ffmpegService.ValidateAsync().ConfigureAwait(false);
-            Dispatcher.UIThread.Post(() =>
-            {
-                OnPropertyChanged(nameof(IsFfmpegAvailable));
-                OnPropertyChanged(nameof(FfmpegStatusText));
-                OnPropertyChanged(nameof(ShowFfmpegMissing));
-            });
-            // Re-probe all items
-            foreach (var item in FileItems) _ = ProbeItemAsync(item);
-        }
-    }
-
-    [RelayCommand]
-    private async Task ValidateFfmpeg()
-    {
-        bool ok = await _ffmpegService.ValidateAsync().ConfigureAwait(false);
-        Dispatcher.UIThread.Post(() =>
-        {
-            OnPropertyChanged(nameof(IsFfmpegAvailable));
-            OnPropertyChanged(nameof(FfmpegStatusText));
-            OnPropertyChanged(nameof(ShowFfmpegMissing));
-        });
-        Dispatcher.UIThread.Post(() =>
-        {
-            if (ok) _notificationService.ShowSuccess(LocalizationRegistry.Get("VideoTranscode.Msg_FfmpegValidated"));
-            else _notificationService.ShowError(FfmpegStatusText);
-        });
-    }
-
-    [RelayCommand]
-    private void OpenFfmpegDownloadPage()
-    {
-        try
-        {
-            // FFmpeg exe via BtbN gpl-shared (ffmpeg.exe + ffprobe.exe). Browser handles the download; the app does not fetch or redistribute the binary.
-            string url = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n9.0-latest-win64-gpl-shared-9.0.zip";
-            Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
-        }
-        catch { }
-    }
-
-    [RelayCommand]
-    private void OpenFfmpegHelp()
-    {
-        try
-        {
-            Process.Start(new ProcessStartInfo("https://ffmpeg.org/download.html") { UseShellExecute = true });
-        }
-        catch { }
-    }
 
     [RelayCommand(CanExecute = nameof(CanStartTranscode))]
     private async Task StartTranscode()
@@ -1302,6 +1238,8 @@ public void AddDroppedPaths(IEnumerable<string> paths)
 
         _cts?.Cancel();
         _cts = new CancellationTokenSource();
+        _stopRequested = false;
+        IsPaused = false;
         IsBusy = true;
         TotalCount = FileItems.Count;
         CompletedCount = 0;
@@ -1310,8 +1248,11 @@ public void AddDroppedPaths(IEnumerable<string> paths)
         _failedCountField = 0;
         ConversionProgress = 0;
         UpdateStatusText();
+        RefreshBatchProgressText();
 
         var options = BuildOptions();
+        _loggerField.LogInformation("批量视频转码开始：{Count} 个文件，编码 {Codec}，输出目录 {Dir}",
+            TotalCount, MapVideoCodecName(options.VideoCodec, options.HardwareBackend), useSourceDir ? "(源文件目录)" : OutputFolder);
 
         // Validate encoder availability
         string vCodecName = MapVideoCodecName(options.VideoCodec, options.HardwareBackend);
@@ -1323,34 +1264,55 @@ public void AddDroppedPaths(IEnumerable<string> paths)
 
         foreach (var item in FileItems) item.Status = FileStatus.Pending;
 
-        // Serial queue
-        foreach (var item in FileItems)
+        // 路径规划含逐文件 File.Exists/建目录磁盘 IO，上千文件时移出 UI 线程
+        var snapshot = FileItems.ToArray();
+        var plan = await Task.Run(() =>
         {
-            if (_cts.Token.IsCancellationRequested) break;
-            item.Status = FileStatus.Converting;
-            item.Progress = 0;
+            // 并行执行前统一规划输出路径：文件夹添加的文件镜像源目录结构到输出目录，
+            // 单独添加的文件平铺；同名文件在批内与磁盘上去重，避免并发写冲突。
+            var taken = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+            var result = new List<(VideoFileItem, string)>(snapshot.Length);
+            foreach (var item in snapshot)
+            {
+                string sourceDir = Path.GetDirectoryName(item.FilePath) ?? Path.GetTempPath();
+                string outputDir = useSourceDir ? sourceDir
+                    : OutputPathPlanner.ResolveOutputDir(commonOutputDir!, item.FilePath, item.RootFolder);
+                string outputPath = OutputPathPlanner.PlanUniquePath(outputDir,
+                    Path.GetFileNameWithoutExtension(item.FileName), ContainerExtension(options.Container), useSourceDir, taken);
+                result.Add((item, outputPath));
+            }
+            return result;
+        }).ConfigureAwait(false);
+
+        // 软件编码器（x264/x265 等）内部已多线程，批级并行取小值避免过度订阅
+        int dop = Math.Clamp(Environment.ProcessorCount / 4, 1, 4);
+        await Parallel.ForEachAsync(plan, new ParallelOptions { MaxDegreeOfParallelism = dop }, async (entry, _) =>
+        {
+            var (item, outputPath) = entry;
+            // 暂停：不再启动新任务（进行中的跑完为止）；终止：直接返回不再排队
+            while (IsPaused && !_cts.Token.IsCancellationRequested)
+                await Task.Delay(200).ConfigureAwait(false);
+            if (_cts.Token.IsCancellationRequested) return;
+
+            Dispatcher.UIThread.Post(() => { item.Status = FileStatus.Converting; item.Progress = 0; });
             var progress = new Progress<double>(p => Dispatcher.UIThread.Post(() => item.Progress = p));
 
             bool itemFailed = false;
             try
             {
-                string outputDir = useSourceDir
-                    ? Path.GetDirectoryName(item.FilePath) ?? Path.GetTempPath()
-                    : commonOutputDir!;
-                bool addOutputSuffix = useSourceDir;
-                string outputPath = GetOutputPath(outputDir, item.FileName, options.Container, addOutputSuffix);
                 await _videoService.TranscodeAsync(item.FilePath, outputPath, options, progress, _cts.Token).ConfigureAwait(false);
                 Dispatcher.UIThread.Post(() => { item.Progress = 1.0; item.Status = FileStatus.Completed; });
             }
             catch (OperationCanceledException)
             {
                 Dispatcher.UIThread.Post(() => item.Status = FileStatus.Pending);
-                break;
             }
             catch (Exception ex)
             {
                 itemFailed = true;
                 string msg = ex.Message.Split('\n').FirstOrDefault() ?? ex.Message;
+                // 失败明细落日志文件（logs/tool-*.log）：哪个文件、因为什么
+                _loggerField.LogError(ex, "视频转码失败: {File} -> {Output}", item.FilePath, outputPath);
                 Dispatcher.UIThread.Post(() => { item.Status = FileStatus.Failed; item.ErrorMessage = msg.Length > 200 ? msg[..200] : msg; });
             }
             finally
@@ -1366,9 +1328,10 @@ public void AddDroppedPaths(IEnumerable<string> paths)
                     FailedCount = failed;
                     ConversionProgress = (double)processed / TotalCount;
                     UpdateStatusText();
+                    RefreshBatchProgressText();
                 });
             }
-        }
+        }).ConfigureAwait(false);
 
         IsBusy = false;
 
@@ -1381,16 +1344,30 @@ public void AddDroppedPaths(IEnumerable<string> paths)
 
         int finalFailed = Volatile.Read(ref _failedCountField);
         int finalTotal = TotalCount;
+        int finalProcessed = Volatile.Read(ref _completedCountField);
+        int finalDone = finalProcessed - finalFailed;
         Dispatcher.UIThread.Post(() =>
         {
             // Ensure UI counters reflect final values before notification
             FailedCount = finalFailed;
-            CompletedCount = finalTotal - finalFailed;
-            if (finalFailed == 0)
+            CompletedCount = finalDone;
+            if (_stopRequested)
+            {
+                _loggerField.LogWarning("批量视频转码已终止：完成 {Done}/{Total}，失败 {Failed}", finalDone, finalTotal, finalFailed);
+                _notificationService.ShowInfo(LocalizationRegistry.Get("VideoTranscode.Msg_Stopped", finalDone, finalTotal, finalFailed));
+            }
+            else if (finalFailed == 0)
                 _notificationService.ShowSuccess(LocalizationRegistry.Get("VideoTranscode.Msg_AllDone", finalTotal));
             else
                 _notificationService.ShowWarn(LocalizationRegistry.Get("VideoTranscode.Msg_PartialFail", finalFailed, finalTotal));
         });
+    }
+
+    private void RefreshBatchProgressText()
+    {
+        BatchProgressText = TotalCount > 0
+            ? LocalizationRegistry.Get("VideoTranscode.Status_BatchProgress", CompletedCount, TotalCount, ConversionProgress, FailedCount)
+            : string.Empty;
     }
 
     private bool CanStartTranscode() => !IsBusy && FileItems.Count > 0 && _ffmpegService.IsAvailable;
@@ -1574,68 +1551,16 @@ public void AddDroppedPaths(IEnumerable<string> paths)
     };
 
     private static string MapVideoCodecName(VideoCodec c, HardwareBackend hw = HardwareBackend.Software)
-    {
-        bool isVaapi = (hw == HardwareBackend.Intel || hw == HardwareBackend.Amd) && !OperatingSystem.IsWindows();
-        return (c, hw, isVaapi) switch
-        {
-            (VideoCodec.H264, HardwareBackend.Nvidia, _) => "h264_nvenc",
-            (VideoCodec.H265, HardwareBackend.Nvidia, _) => "hevc_nvenc",
-            (VideoCodec.Av1Aom, HardwareBackend.Nvidia, _) => "av1_nvenc",
-            (VideoCodec.Av1Svt, HardwareBackend.Nvidia, _) => "av1_nvenc",
-            (VideoCodec.H264, HardwareBackend.Intel, false) => "h264_qsv",
-            (VideoCodec.H265, HardwareBackend.Intel, false) => "hevc_qsv",
-            (VideoCodec.Av1Aom, HardwareBackend.Intel, false) => "av1_qsv",
-            (VideoCodec.Av1Svt, HardwareBackend.Intel, false) => "av1_qsv",
-            (VideoCodec.H264, HardwareBackend.Amd, false) => "h264_amf",
-            (VideoCodec.H265, HardwareBackend.Amd, false) => "hevc_amf",
-            (VideoCodec.Av1Aom, HardwareBackend.Amd, false) => "av1_amf",
-            (VideoCodec.Av1Svt, HardwareBackend.Amd, false) => "av1_amf",
-            (VideoCodec.H264, _, true) => "h264_vaapi",
-            (VideoCodec.H265, _, true) => "hevc_vaapi",
-            (VideoCodec.Av1Aom, _, true) => "av1_vaapi",
-            (VideoCodec.Av1Svt, _, true) => "av1_vaapi",
-            (VideoCodec.Vp8, _, true) => "vp8_vaapi",
-            (VideoCodec.Vp9, _, true) => "vp9_vaapi",
-            _ => c switch
-            {
-                VideoCodec.H264 => "libx264",
-                VideoCodec.H265 => "libx265",
-                VideoCodec.Av1Aom => "libaom-av1",
-                VideoCodec.Av1Svt => "libsvtav1",
-                VideoCodec.Vp8 => "libvpx",
-                VideoCodec.Vp9 => "libvpx-vp9",
-                VideoCodec.Mpeg4 => "mpeg4",
-                VideoCodec.Gif => "gif",
-                _ => "libx264"
-            }
-        };
-    }
+        => VideoTranscodeService.MapVideoEncoderName(new VideoTranscodeOptions { VideoCodec = c, HardwareBackend = hw });
 
-    private static string GetUniqueOutputPath(string folder, string fileName, VideoContainer container) => GetOutputPath(folder, fileName, container, false);
-
-    private static string GetOutputPath(string folder, string fileName, VideoContainer container, bool addOutputSuffix)
+    private static string ContainerExtension(VideoContainer container) => container switch
     {
-        string ext = container switch
-        {
-            VideoContainer.Mp4 => ".mp4",
-            VideoContainer.Mkv => ".mkv",
-            VideoContainer.Mov => ".mov",
-            VideoContainer.Avi => ".avi",
-            VideoContainer.Gif => ".gif",
-            _ => ".mp4"
-        };
-        string stem = Path.GetFileNameWithoutExtension(fileName);
-        string baseName = addOutputSuffix ? stem + "_output" : stem;
-        // If addOutputSuffix and baseName already ends with _output but source file is same extension, we still keep _output to avoid overwrite
-        string basePath = Path.Combine(folder, baseName + ext);
-        if (!File.Exists(basePath)) return basePath;
-        // If file exists, append _1, _2 ... after _output (or base)
-        for (int i = 1; ; i++)
-        {
-            string candidate = Path.Combine(folder, $"{baseName}_{i}{ext}");
-            if (!File.Exists(candidate)) return candidate;
-        }
-    }
+        VideoContainer.Mkv => ".mkv",
+        VideoContainer.Mov => ".mov",
+        VideoContainer.Avi => ".avi",
+        VideoContainer.Gif => ".gif",
+        _ => ".mp4"
+    };
 
     private void UpdateStatusText()
     {
@@ -1644,7 +1569,7 @@ public void AddDroppedPaths(IEnumerable<string> paths)
             : LocalizationRegistry.Get("VideoTranscode.Status_FileCount", FileItems.Count);
     }
 
-    private readonly ILogger<VideoTranscodeViewModel> _loggerField = LoggerFactory.Create(b => { }).CreateLogger<VideoTranscodeViewModel>();
+    private readonly ILogger<VideoTranscodeViewModel> _loggerField;
 
     public void Dispose()
     {

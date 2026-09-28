@@ -1,0 +1,131 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:FancyToolAva.ViewModels"
+             xmlns:models="using:FancyToolAva.Models"
+             xmlns:controls="using:FancyToolAva.Views.Controls"
+             xmlns:lan="clr-namespace:Lang.Avalonia.MarkupExtensions;assembly=Lang.Avalonia"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             x:Class="FancyToolAva.Views.AudioConvertView"
+             x:DataType="vm:AudioConvertViewModel">
+    <Grid RowDefinitions="Auto,*,Auto" Margin="{StaticResource PageMargin}">
+        <controls:ToolPageHeader Grid.Row="0" Title="{lan:I18n AudioTranscode.Title}" Subtitle="{lan:I18n AudioTranscode.Subtitle}" />
+        <Grid Grid.Row="1" ColumnDefinitions="440,16,*" Margin="0,16,0,0">
+            <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto">
+                <Border Classes="ToolCard">
+                    <StackPanel Classes="ToolCardContent" Spacing="14">
+                        <!-- Output Folder -->
+                        <StackPanel Classes="FormRow">
+                            <TextBlock Classes="FieldLabel" Text="{lan:I18n VideoTranscode.Label_OutputDir}" />
+                            <Grid ColumnDefinitions="*,8,Auto,8,Auto">
+                                <TextBox Grid.Column="0" Text="{Binding OutputFolder, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" PlaceholderText="{lan:I18n VideoTranscode.Placeholder_OutputDir}" ToolTip.Tip="{lan:I18n VideoTranscode.Hint_OutputDirEmpty}" />
+                                <Button Grid.Column="2" Command="{Binding PickOutputFolderCommand}" Content="{lan:I18n Common.Button_Select}" />
+                                <Button Grid.Column="4" Command="{Binding OpenOutputFolderCommand}" Content="{lan:I18n FileEnc.Button_Open}" />
+                            </Grid>
+                            <TextBlock Text="{lan:I18n VideoTranscode.Hint_OutputDirEmpty}" FontSize="11" Opacity="0.6" Margin="0,4,0,0" IsVisible="{Binding IsOutputFolderEmpty}" />
+                        </StackPanel>
+
+                        <Grid ColumnDefinitions="*,8,Auto,8,Auto" Margin="0,4,0,0">
+                            <Button Grid.Column="0" Command="{Binding StartConvertCommand}" Classes="Primary" HorizontalAlignment="Stretch" Content="{lan:I18n AudioTranscode.Button_Start}" />
+                            <Button Grid.Column="2" Command="{Binding TogglePauseCommand}" IsVisible="{Binding IsBusy}" Content="{Binding PauseResumeLabel}" />
+                            <Button Grid.Column="4" Command="{Binding StopConvertCommand}" IsVisible="{Binding IsBusy}" Content="{lan:I18n Common.Button_Stop}" />
+                        </Grid>
+                        <StackPanel IsVisible="{Binding IsBusy}" Spacing="4">
+                            <ProgressBar Value="{Binding ConversionProgress}" Minimum="0" Maximum="1" Height="8" />
+                            <TextBlock Text="{Binding BatchProgressText}" FontSize="12" Opacity="0.8" />
+                        </StackPanel>
+
+                        <!-- 输出格式 -->
+                        <StackPanel Classes="FormRow">
+                            <TextBlock Classes="FieldLabel" Text="{lan:I18n AudioTranscode.Label_Format}" />
+                            <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding FormatLabels}" SelectedItem="{Binding SelectedFormat, Mode=TwoWay}" />
+                            <TextBlock Text="{lan:I18n AudioTranscode.Hint_Format}" FontSize="11" Opacity="0.6" TextWrapping="Wrap" />
+                        </StackPanel>
+
+                        <!-- 码率（有损格式） -->
+                        <StackPanel Classes="FormRow" IsVisible="{Binding !IsLosslessFormat}">
+                            <TextBlock Classes="FieldLabel" Text="{lan:I18n VideoTranscode.Label_AudioBitrate}" />
+                            <Grid ColumnDefinitions="*,Auto">
+                                <Slider Grid.Column="0" Minimum="16" Maximum="1000" Value="{Binding BitrateKbps}" />
+                                <TextBlock Grid.Column="1" Text="{Binding BitrateKbps, StringFormat='{}{0}k'}" Margin="8,0,0,0" VerticalAlignment="Center" MinWidth="52" TextAlignment="Right" />
+                            </Grid>
+                        </StackPanel>
+
+                        <!-- 位深（无损 PCM） -->
+                        <StackPanel Classes="FormRow" IsVisible="{Binding IsBitDepthRelevant}">
+                            <TextBlock Classes="FieldLabel" Text="{lan:I18n AudioTranscode.Label_BitDepth}" />
+                            <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding BitDepthLabels}" SelectedItem="{Binding SelectedBitDepth, Mode=TwoWay}" />
+                            <TextBlock Text="{lan:I18n AudioTranscode.Hint_BitDepth}" FontSize="11" Opacity="0.6" TextWrapping="Wrap" />
+                        </StackPanel>
+
+                        <!-- 采样率 -->
+                        <StackPanel Classes="FormRow">
+                            <TextBlock Classes="FieldLabel" Text="{lan:I18n AudioTranscode.Label_SampleRate}" />
+                            <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding SampleRateLabels}" SelectedItem="{Binding SelectedSampleRate, Mode=TwoWay}" />
+                            <TextBlock Text="{lan:I18n AudioTranscode.Hint_SampleRate}" FontSize="11" Opacity="0.6" TextWrapping="Wrap" />
+                        </StackPanel>
+
+                        <!-- 增益 -->
+                        <StackPanel Classes="FormRow">
+                            <TextBlock Classes="FieldLabel" Text="{lan:I18n VideoTranscode.Label_AudioGain}" />
+                            <Grid ColumnDefinitions="*,Auto">
+                                <Slider Grid.Column="0" Minimum="-30" Maximum="30" Value="{Binding GainDb}" />
+                                <TextBlock Grid.Column="1" Text="{Binding GainDb, StringFormat='{}{0:0.0} dB'}" Margin="8,0,0,0" VerticalAlignment="Center" MinWidth="55" TextAlignment="Right" FontSize="11" Opacity="0.8" />
+                            </Grid>
+                            <TextBlock Text="{lan:I18n VideoTranscode.Hint_AudioGain}" FontSize="11" Opacity="0.6" TextWrapping="Wrap" />
+                        </StackPanel>
+
+                        <!-- 元数据 -->
+                        <CheckBox IsChecked="{Binding CopyMetadata}" Content="{lan:I18n AudioTranscode.Option_CopyMetadata}" ToolTip.Tip="{lan:I18n AudioTranscode.Hint_CopyMetadata}" />
+                    </StackPanel>
+                </Border>
+            </ScrollViewer>
+
+            <Border Grid.Column="2" Classes="ToolCard" Padding="0"
+                    DragDrop.AllowDrop="True"
+                    DragDrop.DragEnter="OnDragEnter"
+                    DragDrop.DragOver="OnDragOver"
+                    DragDrop.Drop="OnDrop">
+                <Grid RowDefinitions="Auto,Auto,*">
+                    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="16,12,16,4">
+                        <TextBlock Grid.Column="0" Classes="SectionHeader" Text="{Binding StatusText, FallbackValue='File List'}" VerticalAlignment="Center" />
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                            <Button Command="{Binding AddFilesCommand}" Content="{lan:I18n FileEnc.Button_AddFiles}" />
+                            <Button Command="{Binding AddFolderCommand}" Content="{lan:I18n FileEnc.Button_AddFolder}" />
+                            <Button Command="{Binding ClearListCommand}" Content="{lan:I18n FileEnc.Button_Clear}" />
+                        </StackPanel>
+                    </Grid>
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="6" Margin="16,0,16,4" HorizontalAlignment="Right">
+                        <CheckBox IsChecked="{Binding IncludeAllInFolderScan, Mode=TwoWay}"
+                                  VerticalAlignment="Center"
+                                  Content="{lan:I18n VideoTranscode.CheckBox_IncludeAllInFolder}" />
+                    </StackPanel>
+                    <ListBox Grid.Row="2" ItemsSource="{Binding FileItems}" SelectedItem="{Binding SelectedFileItem}" BorderThickness="0" Margin="8,0,8,8">
+                        <ListBox.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <VirtualizingStackPanel />
+                            </ItemsPanelTemplate>
+                        </ListBox.ItemsPanel>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="models:AudioFileItem">
+                                <Grid ColumnDefinitions="Auto,*,Auto,Auto" Margin="4,2">
+                                    <SelectableTextBlock Grid.Column="0" Text="AUD" Margin="0,0,8,0" VerticalAlignment="Center" FontSize="10" Opacity="0.6" />
+                                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                                        <SelectableTextBlock Text="{Binding FileName}" FontWeight="Medium" TextTrimming="CharacterEllipsis" />
+                                        <SelectableTextBlock Text="{Binding ProbeDisplay}" FontSize="11" Opacity="0.7" TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center" Margin="8,0">
+                                        <SelectableTextBlock Text="{Binding StatusDisplay}" FontSize="11" />
+                                        <SelectableTextBlock Text="{Binding ProgressDisplay}" FontSize="11" Opacity="0.8" />
+                                    </StackPanel>
+                                    <Button Grid.Column="3" Command="{Binding RemoveCommand}" Padding="6,2" Background="Transparent" BorderThickness="0" ToolTip.Tip="{lan:I18n FileEnc.Tooltip_Remove}" Content="🗑️" />
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

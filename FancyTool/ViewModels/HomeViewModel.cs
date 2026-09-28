@@ -24,6 +24,7 @@ namespace FancyToolAva.ViewModels
             [typeof(Img2Base64ViewModel)] = ("Home.Tile_Img2Base64_Name", "Home.Tile_Img2Base64_Desc"),
             [typeof(ImageConvertViewModel)] = ("Home.Tile_ImageConvert_Name", "Home.Tile_ImageConvert_Desc"),
             [typeof(VideoTranscodeViewModel)] = ("Home.Tile_VideoTranscode_Name", "Home.Tile_VideoTranscode_Desc"),
+            [typeof(AudioConvertViewModel)] = ("Home.Tile_AudioTranscode_Name", "Home.Tile_AudioTranscode_Desc"),
         };
 
         public Action<PageNavigationItem>? NavigateToPage { get; set; }

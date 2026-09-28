@@ -20,7 +20,7 @@
     <img src="https://img.shields.io/badge/Theme-FluentAvalonia-blue" alt="FluentAvalonia">
     <img src="https://img.shields.io/badge/.NET-10.0-purple" alt=".NET 10">
     <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-blue" alt="Platform">
-    <img src="https://img.shields.io/badge/License-MIT-blue" alt="License">
+    <img src="https://img.shields.io/badge/License-GPL--3.0-blue" alt="License">
   </div>
 
   <div>
@@ -178,11 +178,17 @@ dotnet run -c Debug
 | [Avalonia.Skia](https://github.com/AvaloniaUI/Avalonia) | Skia renderer (transitive via Avalonia Desktop) | MIT |
 | [SkiaSharp](https://github.com/mono/SkiaSharp) | Image processing & format conversion (directly drives ICO / PNG / JPEG / WebP / HEIF / GIF / BMP encoding) | MIT |
 | [HarfBuzzSharp](https://github.com/harfbuzz/harfbuzz-sharp) | Text shaping (transitive via Avalonia Desktop) | MIT |
+| [FFmpeg](https://ffmpeg.org/) | Video/audio transcoding (FFmpeg 9.0.1 GPL shared libs bundled with the app, called in-process via FFmpeg.AutoGen; see `FancyTool/Libraries/FFmpeg/BUILD_INFO.md`) | GPL-3.0 |
+| [FFmpeg.AutoGen](https://github.com/Ruslan-B/FFmpeg.AutoGen) | .NET bindings for the FFmpeg C API | MIT |
 | [Packaging.Targets](https://github.com/qmfrederik/dotnet-packaging) | Linux `.deb` packaging (`CreateDeb` MSBuild target) | MIT |
 
 ## 📄 License
 
-This project is licensed under the [MIT License](LICENSE).
+This project is licensed under the [GPL-3.0 License](LICENSE).
+
+The video transcode feature bundles FFmpeg 9.0.1 GPL shared libraries (which include GPL components such as
+libx264/libx265; placed next to the app executable, license text shipped as `Licenses/FFmpeg.txt`). Because of
+this bundling, the repository license changed from MIT to GPL-3.0.
 
 ## 🗂️ Data Storage
 

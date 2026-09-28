@@ -14,6 +14,8 @@ namespace FancyToolAva.Views
 
             if (App.Current is App app && app.TryGetService<NavigationFactory>() is { } navFactory)
             {
+                app.TryGetService<IBackdropService>()?.Attach(this, RootLayers);
+
                 navFactory.Register<HomeViewModel, HomeView>();
                 navFactory.Register<SymmetricEncryptionViewModel, SymmetricEncryptionView>();
                 navFactory.Register<AsymmetricEncryptionViewModel, AsymmetricEncryptionView>();
@@ -28,6 +30,7 @@ namespace FancyToolAva.Views
                 navFactory.Register<Img2Base64ViewModel, Img2Base64View>();
                 navFactory.Register<ImageConvertViewModel, ImageConvertView>();
                 navFactory.Register<VideoTranscodeViewModel, VideoTranscodeView>();
+                navFactory.Register<AudioConvertViewModel, AudioConvertView>();
                 FrameView.NavigationPageFactory = navFactory;
             }
 

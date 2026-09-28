@@ -28,7 +28,7 @@ public partial class ImageConvertViewModel : ViewModelBase, IViewState, IFileIte
 
     string IViewState.ViewName => "imageConvertView";
 
-    public ObservableCollection<ImageFileItem> FileItems { get; } = [];
+    public RangeObservableCollection<ImageFileItem> FileItems { get; } = [];
 
     public ImageFileItem? SelectedFileItem
     {
@@ -319,17 +319,7 @@ public partial class ImageConvertViewModel : ViewModelBase, IViewState, IFileIte
         IReadOnlyList<FilePickerFileType> filters = [new(LocalizationRegistry.Get("ImageConvert.Picker_ImageFile")) { Patterns = ["*.png", "*.jpg", "*.jpeg", "*.bmp", "*.webp", "*.tiff", "*.gif", "*.dds", "*.jxl", "*.heic"] }];
         var paths = await _fileDialogService.PickOpenFilesAsync(LocalizationRegistry.Get("ImageConvert.Picker_SelectImage"), filters);
         if (paths == null) return;
-
-        var existing = new HashSet<string>(FileItems.Select(x => x.FilePath), StringComparer.OrdinalIgnoreCase);
-        foreach (string path in paths)
-        {
-            if (!existing.Contains(path))
-            {
-                FileItems.Add(CreateItem(path));
-                existing.Add(path);
-            }
-        }
-        UpdateStatusText();
+        await AddPathsAsync(paths);
     }
 
     [RelayCommand(CanExecute = nameof(CanModify))]
@@ -337,17 +327,7 @@ public partial class ImageConvertViewModel : ViewModelBase, IViewState, IFileIte
     {
         string? folder = await _fileDialogService.PickFolderAsync(LocalizationRegistry.Get("ImageConvert.Picker_SelectImageFolder"));
         if (folder == null) return;
-
-        var existing = new HashSet<string>(FileItems.Select(x => x.FilePath), StringComparer.OrdinalIgnoreCase);
-        foreach (string file in Directory.EnumerateFiles(folder, "*", SearchOption.AllDirectories))
-        {
-            if (ImageExtensions.Contains(Path.GetExtension(file)) && !existing.Contains(file))
-            {
-                FileItems.Add(CreateItem(file));
-                existing.Add(file);
-            }
-        }
-        UpdateStatusText();
+        await AddPathsAsync(new[] { folder });
     }
 
     [RelayCommand(CanExecute = nameof(CanModify))]
@@ -363,38 +343,35 @@ public partial class ImageConvertViewModel : ViewModelBase, IViewState, IFileIte
         UpdateStatusText();
     }
 
-    private ImageFileItem CreateItem(string path)
-    {
-        var item = new ImageFileItem(path);
-        item.Owner = this;
-        return item;
-    }
-
     public void AddDroppedPaths(IEnumerable<string> paths)
     {
         if (IsBusy) return;
+        _ = AddPathsAsync(paths);
+    }
 
+    /// <summary>扫描在后台线程完成（大目录枚举不能占 UI 线程），回到 UI 线程后一次性批量入列表。</summary>
+    private async Task AddPathsAsync(IEnumerable<string> paths)
+    {
+        if (IsBusy) return;
+        string[] roots = paths.Where(p => !string.IsNullOrEmpty(p)).ToArray();
+        if (roots.Length == 0) return;
+
+        // 已有文件快照在 UI 线程构建：扫描在后台跑，期间其他添加完成会改列表，不能在后台枚举它
         var existing = new HashSet<string>(FileItems.Select(x => x.FilePath), StringComparer.OrdinalIgnoreCase);
-        foreach (string path in paths)
+        var found = await Task.Run(() => BatchFileScanner.Scan(
+                roots, file => ImageExtensions.Contains(Path.GetExtension(file)), existing))
+            .ConfigureAwait(true);
+        if (IsBusy || found.Count == 0) return;
+
+        var current = new HashSet<string>(FileItems.Select(x => x.FilePath), StringComparer.OrdinalIgnoreCase);
+        var newItems = new List<ImageFileItem>(found.Count);
+        foreach ((string file, _) in found)
         {
-            if (string.IsNullOrEmpty(path)) continue;
-            if (Directory.Exists(path))
-            {
-                foreach (string file in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories))
-                {
-                    if (ImageExtensions.Contains(Path.GetExtension(file)) && !existing.Contains(file))
-                    {
-                        FileItems.Add(CreateItem(file));
-                        existing.Add(file);
-                    }
-                }
-            }
-            else if (File.Exists(path) && ImageExtensions.Contains(Path.GetExtension(path)) && !existing.Contains(path))
-            {
-                FileItems.Add(CreateItem(path));
-                existing.Add(path);
-            }
+            if (current.Contains(file)) continue;
+            current.Add(file);
+            newItems.Add(new ImageFileItem(file) { Owner = this });
         }
+        FileItems.AddRange(newItems);
         UpdateStatusText();
     }
 
