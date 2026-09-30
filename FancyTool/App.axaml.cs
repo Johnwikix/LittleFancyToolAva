@@ -179,6 +179,10 @@ namespace FancyToolAva
             services.AddSingleton<IFfmpegService, FfmpegService>();
             services.AddSingleton<IVideoTranscodeService, VideoTranscodeService>();
             services.AddSingleton<IAudioConvertService, AudioConvertService>();
+            services.AddSingleton<Services.Lyrics.PcmAudioDecoder>();
+            services.AddSingleton<Services.Lyrics.LyricsModelService>();
+            services.AddSingleton<Services.Lyrics.LyricsExtractionService>();
+            services.AddSingleton<LyricsExtractionViewModel>();
 
             services.AddTransient<FileEncryptionViewModel>();
             services.AddTransient<FolderCompareViewModel>();

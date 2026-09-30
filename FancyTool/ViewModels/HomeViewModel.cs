@@ -25,6 +25,7 @@ namespace FancyToolAva.ViewModels
             [typeof(ImageConvertViewModel)] = ("Home.Tile_ImageConvert_Name", "Home.Tile_ImageConvert_Desc"),
             [typeof(VideoTranscodeViewModel)] = ("Home.Tile_VideoTranscode_Name", "Home.Tile_VideoTranscode_Desc"),
             [typeof(AudioConvertViewModel)] = ("Home.Tile_AudioTranscode_Name", "Home.Tile_AudioTranscode_Desc"),
+            [typeof(LyricsExtractionViewModel)] = ("Home.Tile_LyricsExtraction_Name", "Home.Tile_LyricsExtraction_Desc"),
         };
 
         public Action<PageNavigationItem>? NavigateToPage { get; set; }

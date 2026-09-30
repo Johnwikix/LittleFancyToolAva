@@ -1,0 +1,50 @@
+[
+  {
+    "FileName": "encoder.onnx",
+    "SourceUrl": "https://huggingface.co/andrewleech/qwen3-asr-1.7b-onnx/resolve/df916193ac67e59347769891a21e10d81d12acdd/encoder.onnx",
+    "MirrorUrl": "https://hf-mirror.com/andrewleech/qwen3-asr-1.7b-onnx/resolve/df916193ac67e59347769891a21e10d81d12acdd/encoder.onnx",
+    "Sha256": "C19FF8D702707693877A509BA1867472B0AD964593B93751091891A143EDFFEC"
+  },
+  {
+    "FileName": "decoder_init.onnx",
+    "SourceUrl": "https://huggingface.co/andrewleech/qwen3-asr-1.7b-onnx/resolve/df916193ac67e59347769891a21e10d81d12acdd/decoder_init.onnx",
+    "MirrorUrl": "https://hf-mirror.com/andrewleech/qwen3-asr-1.7b-onnx/resolve/df916193ac67e59347769891a21e10d81d12acdd/decoder_init.onnx",
+    "Sha256": "209662EFA6DDC74D2BEF5DD1CE922409A3896F6FCEDDB15AB721393059818E39"
+  },
+  {
+    "FileName": "decoder_step.onnx",
+    "SourceUrl": "https://huggingface.co/andrewleech/qwen3-asr-1.7b-onnx/resolve/df916193ac67e59347769891a21e10d81d12acdd/decoder_step.onnx",
+    "MirrorUrl": "https://hf-mirror.com/andrewleech/qwen3-asr-1.7b-onnx/resolve/df916193ac67e59347769891a21e10d81d12acdd/decoder_step.onnx",
+    "Sha256": "45E90E376CB937D9C772D1C8D2B8330E34A94555B29730389E0FA8FF0AD2E1C0"
+  },
+  {
+    "FileName": "decoder_weights.data",
+    "SourceUrl": "https://huggingface.co/andrewleech/qwen3-asr-1.7b-onnx/resolve/df916193ac67e59347769891a21e10d81d12acdd/decoder_weights.data",
+    "MirrorUrl": "https://hf-mirror.com/andrewleech/qwen3-asr-1.7b-onnx/resolve/df916193ac67e59347769891a21e10d81d12acdd/decoder_weights.data",
+    "Sha256": "A46FF8CF2EF299A3737F7EBD78F39A8FB2CA273F2807F33F9B2A337EF0EBB4BB"
+  },
+  {
+    "FileName": "embed_tokens.bin",
+    "SourceUrl": "https://huggingface.co/andrewleech/qwen3-asr-1.7b-onnx/resolve/df916193ac67e59347769891a21e10d81d12acdd/embed_tokens.bin",
+    "MirrorUrl": "https://hf-mirror.com/andrewleech/qwen3-asr-1.7b-onnx/resolve/df916193ac67e59347769891a21e10d81d12acdd/embed_tokens.bin",
+    "Sha256": "1489075DBD08FCD6B87BC69C5FECA278014D29FA5693BD4AA61E47C1A3A160D4"
+  },
+  {
+    "FileName": "tokenizer.json",
+    "SourceUrl": "https://huggingface.co/andrewleech/qwen3-asr-1.7b-onnx/resolve/df916193ac67e59347769891a21e10d81d12acdd/tokenizer.json",
+    "MirrorUrl": "https://hf-mirror.com/andrewleech/qwen3-asr-1.7b-onnx/resolve/df916193ac67e59347769891a21e10d81d12acdd/tokenizer.json",
+    "Sha256": "BD2A97B55C8F7F9C328C73EE9B9178771037E9F566DFCA8E238A063D41CBAC92"
+  },
+  {
+    "FileName": "config.json",
+    "SourceUrl": "https://huggingface.co/andrewleech/qwen3-asr-1.7b-onnx/resolve/df916193ac67e59347769891a21e10d81d12acdd/config.json",
+    "MirrorUrl": "https://hf-mirror.com/andrewleech/qwen3-asr-1.7b-onnx/resolve/df916193ac67e59347769891a21e10d81d12acdd/config.json",
+    "Sha256": "D82437248B7C4674FE4091F98819A2A6167355B0FA66C0198F70622D1B778B49"
+  },
+  {
+    "FileName": "preprocessor_config.json",
+    "SourceUrl": "https://huggingface.co/andrewleech/qwen3-asr-1.7b-onnx/resolve/df916193ac67e59347769891a21e10d81d12acdd/preprocessor_config.json",
+    "MirrorUrl": "https://hf-mirror.com/andrewleech/qwen3-asr-1.7b-onnx/resolve/df916193ac67e59347769891a21e10d81d12acdd/preprocessor_config.json",
+    "Sha256": "9C7C558A05F326FE4365E5E59E486383FF127DFD93CE1CD5E6E23F883CD02281"
+  }
+]

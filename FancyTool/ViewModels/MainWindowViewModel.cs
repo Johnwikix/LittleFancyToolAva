@@ -94,6 +94,8 @@ namespace FancyToolAva.ViewModels
             categories[3].Children[1].Label = L.Localize("Nav.Item_ImageConvert");
             categories[4].Label = L.Localize("Nav.Category_Video");
             categories[4].Children[0].Label = L.Localize("Nav.Item_VideoTranscode");
+            categories[4].Children[1].Label = L.Localize("Nav.Item_AudioTranscode");
+            categories[4].Children[2].Label = L.Localize("Nav.Item_LyricsExtraction");
         }
 
         private static PageNavigationItem BuildCommCategory(IServiceProvider sp)
@@ -137,6 +139,7 @@ namespace FancyToolAva.ViewModels
             category.Children.Add(new PageNavigationItem(L.Localize("Nav.Item_VideoTranscode"), FASymbol.Video, sp.GetRequiredService<VideoTranscodeViewModel>()));
             // MusicInfo(E142) 在 FluentAvalonia 内嵌 Symbols 字体中无字形，会渲染成空框，只能用 Audio(E189)
             category.Children.Add(new PageNavigationItem(L.Localize("Nav.Item_AudioTranscode"), FASymbol.Audio, sp.GetRequiredService<AudioConvertViewModel>()));
+            category.Children.Add(new PageNavigationItem(L.Localize("Nav.Item_LyricsExtraction"), FASymbol.Document, sp.GetRequiredService<LyricsExtractionViewModel>()));
             return category;
         }
 

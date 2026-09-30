@@ -7,10 +7,10 @@ namespace FancyToolAva.Services
         // to the package's LocalCache, which is writable and persists across
         // app upgrades. Plain .exe installations get %LocalAppData%\FancyTool,
         // which avoids the "Program Files is read-only" failure mode.
-        public static string DataDirectory { get; } =
-            OperatingSystem.IsWindows()
+        public static string DataDirectory { get; } = Environment.GetEnvironmentVariable("FANCYTOOL_DATA_DIRECTORY") ??
+            (OperatingSystem.IsWindows()
                 ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FancyTool")
-                : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "fancy-tool");
+                : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "fancy-tool"));
 
         public static string ModelsDirectory => Path.Combine(DataDirectory, "Models");
 

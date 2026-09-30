@@ -1,0 +1,56 @@
+[
+  {
+    "FileName": "LICENSE",
+    "SourceUrl": "https://huggingface.co/jinhwan000/qwen3-aligner-0.6b-onnx/resolve/205d9c69b78e2228f8d0b8c9edce72cd1891e752/LICENSE",
+    "MirrorUrl": "https://hf-mirror.com/jinhwan000/qwen3-aligner-0.6b-onnx/resolve/205d9c69b78e2228f8d0b8c9edce72cd1891e752/LICENSE",
+    "Sha256": "E1B4DC6F479B2401E8D1ACF04B7CC41E39B9DEB6C9AED6A3633F9CE5A2BE2ABF"
+  },
+  {
+    "FileName": "decoder_init.int4.onnx",
+    "SourceUrl": "https://huggingface.co/jinhwan000/qwen3-aligner-0.6b-onnx/resolve/205d9c69b78e2228f8d0b8c9edce72cd1891e752/decoder_init.int4.onnx",
+    "MirrorUrl": "https://hf-mirror.com/jinhwan000/qwen3-aligner-0.6b-onnx/resolve/205d9c69b78e2228f8d0b8c9edce72cd1891e752/decoder_init.int4.onnx",
+    "Sha256": "88A41F7AF5942BDF74AF60213EC8E20DBA8000E522BCC8BEAD8D4D4777316E42"
+  },
+  {
+    "FileName": "decoder_init.int4.onnx.data",
+    "SourceUrl": "https://huggingface.co/jinhwan000/qwen3-aligner-0.6b-onnx/resolve/205d9c69b78e2228f8d0b8c9edce72cd1891e752/decoder_init.int4.onnx.data",
+    "MirrorUrl": "https://hf-mirror.com/jinhwan000/qwen3-aligner-0.6b-onnx/resolve/205d9c69b78e2228f8d0b8c9edce72cd1891e752/decoder_init.int4.onnx.data",
+    "Sha256": "F93DE731CA041FCDCC65C244B52ADFB18938967E704B54D8F06770D1E6908A36"
+  },
+  {
+    "FileName": "encoder.int4.onnx",
+    "SourceUrl": "https://huggingface.co/jinhwan000/qwen3-aligner-0.6b-onnx/resolve/205d9c69b78e2228f8d0b8c9edce72cd1891e752/encoder.int4.onnx",
+    "MirrorUrl": "https://hf-mirror.com/jinhwan000/qwen3-aligner-0.6b-onnx/resolve/205d9c69b78e2228f8d0b8c9edce72cd1891e752/encoder.int4.onnx",
+    "Sha256": "ED3B81365E92D58D872D5376730CBC8982990C0B4BB9E2477C04048D9663209A"
+  },
+  {
+    "FileName": "encoder.int4.onnx.data",
+    "SourceUrl": "https://huggingface.co/jinhwan000/qwen3-aligner-0.6b-onnx/resolve/205d9c69b78e2228f8d0b8c9edce72cd1891e752/encoder.int4.onnx.data",
+    "MirrorUrl": "https://hf-mirror.com/jinhwan000/qwen3-aligner-0.6b-onnx/resolve/205d9c69b78e2228f8d0b8c9edce72cd1891e752/encoder.int4.onnx.data",
+    "Sha256": "6CA9EA91857A88F02F238F4D84BD370FD0FF8159F4332AF193A21D65AB9188BE"
+  },
+  {
+    "FileName": "hann_400.f32",
+    "SourceUrl": "https://huggingface.co/jinhwan000/qwen3-aligner-0.6b-onnx/resolve/205d9c69b78e2228f8d0b8c9edce72cd1891e752/hann_400.f32",
+    "MirrorUrl": "https://hf-mirror.com/jinhwan000/qwen3-aligner-0.6b-onnx/resolve/205d9c69b78e2228f8d0b8c9edce72cd1891e752/hann_400.f32",
+    "Sha256": "9336CE3C7C7A0263B32D468D98FCFF67CFD06621C3E10A515875746CAF4CDFC4"
+  },
+  {
+    "FileName": "mel_filters.f32",
+    "SourceUrl": "https://huggingface.co/jinhwan000/qwen3-aligner-0.6b-onnx/resolve/205d9c69b78e2228f8d0b8c9edce72cd1891e752/mel_filters.f32",
+    "MirrorUrl": "https://hf-mirror.com/jinhwan000/qwen3-aligner-0.6b-onnx/resolve/205d9c69b78e2228f8d0b8c9edce72cd1891e752/mel_filters.f32",
+    "Sha256": "2A5F9822897750E047C85DEA37CC268D3BE0ECFD23C28A5F10DA129D99D05AFE"
+  },
+  {
+    "FileName": "merges.txt",
+    "SourceUrl": "https://huggingface.co/jinhwan000/qwen3-aligner-0.6b-onnx/resolve/205d9c69b78e2228f8d0b8c9edce72cd1891e752/merges.txt",
+    "MirrorUrl": "https://hf-mirror.com/jinhwan000/qwen3-aligner-0.6b-onnx/resolve/205d9c69b78e2228f8d0b8c9edce72cd1891e752/merges.txt",
+    "Sha256": "8831E4F1A044471340F7C0A83D7BD71306A5B867E95FD870F74D0C5308A904D5"
+  },
+  {
+    "FileName": "vocab.json",
+    "SourceUrl": "https://huggingface.co/jinhwan000/qwen3-aligner-0.6b-onnx/resolve/205d9c69b78e2228f8d0b8c9edce72cd1891e752/vocab.json",
+    "MirrorUrl": "https://hf-mirror.com/jinhwan000/qwen3-aligner-0.6b-onnx/resolve/205d9c69b78e2228f8d0b8c9edce72cd1891e752/vocab.json",
+    "Sha256": "CA10D7E9FB3ED18575DD1E277A2579C16D108E32F27439684AFA0E10B1440910"
+  }
+]

@@ -70,6 +70,18 @@
 - 🖼️ **Image → Base64**: convert an image into a Base64 string
 - 🖼️ **Image Convert**: batch image format conversion (jpg / png / bmp / webp / tiff / dds / jxl / heic / ico, powered by SkiaSharp)
 
+### Lyrics and subtitles
+
+Open **Audio/Video → Lyrics & subtitles** for recursive folder scanning, drag and drop, batch processing, pause, cancellation, retries and queue recovery. Recognition uses Qwen3-ASR 1.7B; word timing uses Qwen3-ForcedAligner 0.6B. Both reuse ONNX Runtime and bundled FFmpeg without Python. Chinese, English, Japanese, Korean, French, Spanish, Russian, German and Portuguese have recognition and word alignment; Italian and Cantonese also have alignment. Other recognition languages retain chunk timing.
+
+INT4 with Windows DirectML GPU acceleration is the default for both recognition and alignment. All profiles enable “Prefer GPU acceleration” by default. GPU loading or inference errors automatically retry the affected step on CPU; results show the actual backend and a fallback notice. Disable this option to force CPU. Non-Windows systems use CPU. The resource-saving profile uses fewer threads and shorter chunks; the high-precision profile uses FP32 weights of the same recognizer. The current INT4 recognizer export still has an FP32 encoder. Default downloads total about 5 GB. Earlier CPU tests used approximately 5.3 GB peak process memory; 12–16 GB system RAM is recommended. GPU memory or shared-memory usage depends on the driver and chunk length. FP32 requires about 10 GB of additional downloads and at least 24 GB RAM is recommended; its performance has not been tested. If a GPU or driver produces incorrect recognition, disable GPU and retry.
+
+Exports include LRC, ELRC, KRC, QRC, YRC, SRT, VTT, ASS, TXT and JSON, plus an editable `.fancylyrics.json` project. KRC is compressed and encrypted; QRC uses compatible plaintext XML. Valid embedded synchronized lyrics and matching sidecars can be reused; untimed tags fall back to recognition. Results support LRC editing, realignment and a global time offset. Singing, accompaniment and overlapping vocals can affect timing; zero-duration words are flagged for review.
+
+Models use pinned revisions and SHA-256 checks, then run offline. Advanced settings allow changing the model folder. New extraction results receive a numeric suffix when an output already exists. Queue recovery restarts interrupted files and preserves completed projects. The copied Lyricify helper retains its System.Text.Json source-generation changes; licensing is recorded in `FancyTool/External/NOTICE-Lyrics.txt`. The application's existing FFmpeg dynamic bindings continue to require managed publishing rather than NativeAOT.
+
+`FancyTool/_tools/LyricsSmokeTest` contains format and inference checks. `FANCYTOOL_DATA_DIRECTORY`, `FANCYTOOL_LYRICS_MODELS` and `FANCYTOOL_LYRICS_DATA` allow isolated application data, model caches and queues. QA artifacts remain under the ignored `.qa/lyrics` folder.
+
 ## 📊 Feature Matrix
 
 | Category | Tool | Description | Algorithm / Implementation | Main Dependency |
@@ -110,7 +122,7 @@
 - **State Persistence**: `IViewStateService` serializes per-tool page state; `AppPreferences` persists theme, animations, shadows, notification placement, etc.; `ApplicationHostService` calls `LoadState` / `LoadViewStates` on launch and `SaveState` on exit
 - **Logging**: `Serilog` 4 + `Serilog.Extensions.Logging` bridging `Microsoft.Extensions.Logging`; daily-rolling output to `{AppBaseDirectory}\logs\tool-.log`, capped at 50 MB per file, 30 days retained
 - **Stability**: `Program.cs` registers `AppDomain.UnhandledException` and `TaskScheduler.UnobservedTaskException`; startup failures surface through `MessageBoxW`
-- **Publishing**: Native AOT for non-Debug builds (`PublishAot`); `FolderProfile.pubxml` provides `SelfContained` + `PublishSingleFile` folder publishing; two PowerShell scripts at the repo root act as entry points — `publish-win.ps1` (Windows x64 self-contained publish) and `publish-linux-deb.ps1` (`.deb` packaging backed by the `Packaging.Targets` `CreateDeb` MSBuild target); both wrap `dotnet` subprocess calls
+- **Publishing**: Self-contained managed publishing for FFmpeg dynamic bindings (`PublishAot=false`); `FolderProfile.pubxml` provides `SelfContained` + `PublishSingleFile` folder publishing; two PowerShell scripts at the repo root act as entry points — `publish-win.ps1` (Windows x64 self-contained publish) and `publish-linux-deb.ps1` (`.deb` packaging backed by the `Packaging.Targets` `CreateDeb` MSBuild target); both wrap `dotnet` subprocess calls
 
 ## 🛠️ Build
 

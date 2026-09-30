@@ -48,11 +48,18 @@
   <ItemGroup>
     <Compile Remove="_tools\**" />
     <None Remove="_tools\**" />
+    <Compile Remove="External\**" />
+    <EmbeddedResource Remove="External\**" />
+    <None Remove="External\**" />
+    <ProjectReference Include="External\Lyricify.Lyrics.Helper\Lyricify.Lyrics.Helper.csproj" />
+    <None Include="External\Lyricify.Lyrics.Helper\LICENSE" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Link="Licenses\Lyricify-Lyrics-Helper.txt" />
+    <None Include="External\NOTICE-Lyrics.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Link="Licenses\Lyrics-NOTICE.txt" />
   </ItemGroup>
 
   <ItemGroup>
     <AvaloniaResource Include="Assets\**" />
     <AvaloniaResource Include="Resources\**" />
+    <EmbeddedResource Include="Resources\LyricsModels\*.json" />
   </ItemGroup>
 
   <ItemGroup>

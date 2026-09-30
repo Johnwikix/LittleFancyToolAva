@@ -70,6 +70,26 @@
 - 🖼️ **图片转 Base64**：将图片转换为 Base64 编码字符串
 - 🖼️ **图片转换**：图片格式批量转换（jpg / png / bmp / webp / tiff / dds / jxl / heic / ico，基于 SkiaSharp）
 
+### 歌词与字幕提取
+
+“音视频处理 → 歌词与字幕提取”支持文件夹递归扫描、拖放、批量队列、暂停、取消、失败重试及队列恢复。使用 Qwen3-ASR 1.7B 和独立的 Qwen3-ForcedAligner 0.6B 时间对齐器，复用已有 ONNX Runtime 与进程内 FFmpeg，无需 Python。可识别中文、英语、日语、韩语、法语、西班牙语、俄语、德语、葡萄牙语等语言；逐词对齐覆盖上述九种语言以及意大利语、粤语。其他识别语言保留分块时间，逐词格式会提示需要对齐。
+
+默认 INT4，识别与对齐都优先使用 Windows DirectML GPU 加速。所有档位默认开启“优先使用 GPU 加速”，GPU 加载或推理失败时自动改用 CPU 重试相应步骤，结果会显示实际后端和回退提示；也可关闭该选项强制使用 CPU。非 Windows 平台使用 CPU。节省资源档减少线程与分块长度，高精度档使用同一识别模型的 FP32 权重。当前 INT4 导出的识别编码器仍为 FP32，模型合计下载约 5 GB；此前 CPU 测试的进程峰值约 5.3 GB，建议至少 12–16 GB 系统内存。GPU 另需显存或共享内存，具体用量随驱动和分块长度变化。FP32 额外下载约 10 GB，建议至少 24 GB 内存，尚未进行实际性能测试。若某个 GPU 或驱动的识别结果异常，可关闭 GPU 选项后重新识别。
+
+导出 LRC、ELRC、KRC、QRC、YRC、SRT、VTT、ASS、TXT 与 JSON，并保留 `.fancylyrics.json` 校正项目。KRC 为实际压缩加密文件；QRC 输出明文 XML 兼容格式。优先读取有效的内嵌同步歌词与同名歌词文件；未同步标签回退到识别。支持预览、LRC 文本校正、重新对齐和整体时间偏移。歌曲长音、伴奏与合唱仍可能造成识别或对齐偏差，零时长词会显示复核提示。
+
+模型保存在应用数据目录的 `Models/Qwen3Lyrics`，可在高级设置修改目录。下载采用固定版本及 SHA-256 校验，下载完成后可离线处理。新提取结果遇到同名文件自动加编号，不覆盖原歌词；校正后再次导出更新对应结果。恢复队列时，进行中的文件重新排队，完成的结果可继续预览；当前文件从头重试。
+
+歌词库使用本地音乐播放器中的 System.Text.Json 修改版，保留源生成序列化。许可证和分词来源见 `FancyTool/External/NOTICE-Lyrics.txt`。主项目原有的 FFmpeg 动态绑定仍不支持 NativeAOT，发布方式保持自包含托管应用。
+
+验证工程位于 `FancyTool/_tools/LyricsSmokeTest`。例如运行格式回读检查：
+
+```powershell
+dotnet run --project FancyTool/_tools/LyricsSmokeTest -- formats .qa/lyrics/formats
+```
+
+测试可用 `FANCYTOOL_DATA_DIRECTORY` 隔离应用数据，`FANCYTOOL_LYRICS_MODELS` 指定已有模型根目录，`FANCYTOOL_LYRICS_DATA` 隔离歌词队列。测试模型、音频缓存和输出放在已忽略的 `.qa/lyrics`，不随源码分发。
+
 ## 📊 功能矩阵
 
 | 类别 | 工具 | 说明 | 算法 / 实现 | 主要依赖 |
@@ -109,7 +129,7 @@
 - **状态持久化**：`IViewStateService` 序列化各工具页面状态；`AppPreferences` 持久化主题、动画、阴影、通知位置等设置；`ApplicationHostService` 在启动时 `LoadState` / `LoadViewStates`，退出时 `SaveState`
 - **日志**：`Serilog` 4 + `Serilog.Extensions.Logging` 桥接 `Microsoft.Extensions.Logging`；按天滚动写入 `{AppBaseDirectory}\logs\tool-.log`，单文件上限 50 MB，保留 30 天
 - **稳定性**：`Program.cs` 注册 `AppDomain.UnhandledException` 与 `TaskScheduler.UnobservedTaskException`；启动失败时通过 `MessageBoxW` 兜底提示
-- **发布**：非 Debug 启用 Native AOT（`PublishAot`）；`FolderProfile.pubxml` 提供 `SelfContained` + `PublishSingleFile` 文件夹发布；仓库根目录提供两个 PowerShell 脚本作为入口——`publish-win.ps1`（Windows x64 自包含发布）与 `publish-linux-deb.ps1`（基于 `Packaging.Targets` 的 `.deb` 打包），均封装了 `dotnet` 子进程调用
+- **发布**：因 FFmpeg 动态绑定使用自包含托管发布（`PublishAot=false`）；`FolderProfile.pubxml` 提供 `SelfContained` + `PublishSingleFile` 文件夹发布；仓库根目录提供两个 PowerShell 脚本作为入口——`publish-win.ps1`（Windows x64 自包含发布）与 `publish-linux-deb.ps1`（基于 `Packaging.Targets` 的 `.deb` 打包），均封装了 `dotnet` 子进程调用
 
 ## 🛠️ 构建
 
