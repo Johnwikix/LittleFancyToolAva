@@ -127,8 +127,8 @@ if (mode == "formats")
         if (ext is ".krc" or ".qrc" or ".yrc" && imported.Lines[0].Words.Count != 2) throw new Exception("Word timings lost: " + ext);
         Console.WriteLine("PASS " + ext);
     }
-    string decrypted = Lyricify.Lyrics.Decrypter.Krc.Decrypter.DecryptLyrics(Convert.ToBase64String(File.ReadAllBytes(Path.Combine(work, "roundtrip.krc"))))!;
-    if (!decrypted.Contains("Hello")) throw new Exception("KRC consumer rejected export");
+    string krcText = File.ReadAllText(Path.Combine(work, "roundtrip.krc"), new System.Text.UTF8Encoding(false, true));
+    if (!krcText.Contains("Hello") || krcText.Contains("krc1")) throw new Exception("KRC text export is not readable");
     if (!LyricsFileService.FromEditor(LyricsFileService.ToEditor(doc), doc).Lines.All(l => l.Words.Count > 0)) throw new Exception("Editor lost word timings");
     string wordEditor = LyricsFileService.ToEditor(doc, LyricsFormats.Krc);
     if (!wordEditor.Contains('<')) throw new Exception("Word-format preview did not expose word timestamps");

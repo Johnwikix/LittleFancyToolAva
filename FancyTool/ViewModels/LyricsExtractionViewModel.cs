@@ -164,7 +164,7 @@ public partial class LyricsExtractionViewModel : ViewModelBase, IDisposable
     [RelayCommand(CanExecute = nameof(CanIdle))]
     private async Task StartAsync()
     {
-        try { LyricsExtractionService.Validate(Options); if (string.IsNullOrWhiteSpace(Options.OutputDirectory)) throw new ArgumentException("Lyrics.Error_Output"); }
+        try { LyricsExtractionService.Validate(Options); }
         catch (Exception ex) { ShowError(ex); return; }
         var queued = Tasks.Where(t => t.Status != LyricsTaskStatus.Completed).ToArray();
         if (queued.Length == 0) { StatusMessage = L("Lyrics.Hint_AddFiles"); return; }
@@ -198,7 +198,12 @@ public partial class LyricsExtractionViewModel : ViewModelBase, IDisposable
     }
     public static string UniqueBase(LyricsTaskItem item, string output)
     {
-        string relative = item.RootFolder == null ? Path.GetFileNameWithoutExtension(item.SourceFile) : Path.ChangeExtension(Path.GetRelativePath(item.RootFolder, item.SourceFile), null);
+        // An empty output field means sidecar files next to the source audio.
+        // Keep this decision per item so a mixed queue can still mirror folders
+        // when an explicit destination is supplied.
+        bool sidecar = string.IsNullOrWhiteSpace(output);
+        if (sidecar) output = Path.GetDirectoryName(item.SourceFile) ?? ".";
+        string relative = sidecar || item.RootFolder == null ? Path.GetFileNameWithoutExtension(item.SourceFile) : Path.ChangeExtension(Path.GetRelativePath(item.RootFolder, item.SourceFile), null);
         if (relative.StartsWith(".." + Path.DirectorySeparatorChar) || Path.IsPathRooted(relative)) relative = Path.GetFileNameWithoutExtension(item.SourceFile);
         string original = Path.Combine(output, relative), candidate = original; int suffix = 1;
         // Check all supported sidecars, including originals when the user chooses the input folder.

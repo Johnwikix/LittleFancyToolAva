@@ -38,6 +38,7 @@
                 <TextBox Text="{Binding Options.OutputDirectory, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.AutomationId="LyricsOutput" />
                 <Button Grid.Column="2" Content="{lan:I18n Common.Button_Select}" Command="{Binding PickOutputCommand}" />
               </Grid>
+              <TextBlock Text="{lan:I18n Lyrics.Hint_OutputEmpty}" TextWrapping="Wrap" FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
               <Expander Header="{lan:I18n Lyrics.Label_Advanced}" HorizontalAlignment="Stretch">
                 <StackPanel Spacing="8">
                   <TextBlock Text="{lan:I18n Lyrics.Label_Models}" />

@@ -168,12 +168,11 @@ public static partial class LyricsFileService
                 if ((formats & format) == 0) continue;
                 string final = basePath + extension, temp = final + "." + Guid.NewGuid().ToString("N") + ".tmp";
                 staged.Add((temp, final)); ct.ThrowIfCancellationRequested();
-                if (format == LyricsFormats.Krc) await File.WriteAllBytesAsync(temp, PackKrc(KrcGenerator.Generate(library)), ct);
-                else
                 {
                     string content = format switch
                     {
                         LyricsFormats.Lrc => LrcGenerator.Generate(library),
+                        LyricsFormats.Krc => KrcGenerator.Generate(library),
                         LyricsFormats.Qrc => new XDocument(new XElement("QrcInfos", new XElement("LyricInfo", new XElement("Lyric_1", new XAttribute("LyricType", "1"), new XAttribute("LyricContent", QrcGenerator.Generate(library)))))).ToString(),
                         LyricsFormats.Yrc => YrcGenerator.Generate(library),
                         LyricsFormats.Text => string.Join(Environment.NewLine, document.Lines.Select(l => l.Text)),

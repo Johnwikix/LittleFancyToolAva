@@ -87,22 +87,16 @@
     <PackageReference Include="System.IO.Ports" Version="10.0.11" />
     <PackageReference Include="z440.atl.core" Version="7.16.0" />
     <PackageReference Include="FFmpeg.AutoGen" Version="9.0.1.1" />
-    <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.22.1" />
     <PackageReference Include="Microsoft.ML.OnnxRuntime.DirectML" Version="1.22.1" />
   </ItemGroup>
 
   <!--
-    Microsoft.ML.OnnxRuntime and Microsoft.ML.OnnxRuntime.DirectML 1.22.1 both
-    ship runtimes/win-x64/native/onnxruntime.dll and onnxruntime_providers_shared.dll,
-    which trips NETSDK1152 during publish because both files map to the same
-    relative output path. The two binaries are bit-identical between the two
-    packages for this release, so it does not matter which copy wins — first
-    writer wins. Both packages must stay referenced: the base package supplies
-    the managed CPU EP bindings (InferenceSession, SessionOptions,
-    AppendExecutionProvider_CPU) and the DML package layers the DirectML
-    execution provider on top of the same native runtime. Disabling the SDK's
-    duplicate-publish-output check is the documented escape hatch for this
-    exact situation; see Microsoft.NET.ConflictResolution.targets.
+    Microsoft.ML.OnnxRuntime.DirectML transitively supplies the managed ONNX
+    Runtime API and the native runtime that contains the DirectML entry point.
+    Do not add Microsoft.ML.OnnxRuntime beside it: both packages contain a
+    different runtimes/win-x64/native/onnxruntime.dll, and the CPU copy can win
+    during output resolution. That produces a misleading DirectML load failure
+    followed by a CPU fallback.
   -->
   <PropertyGroup>
     <ErrorOnDuplicatePublishOutputFiles>false</ErrorOnDuplicatePublishOutputFiles>
