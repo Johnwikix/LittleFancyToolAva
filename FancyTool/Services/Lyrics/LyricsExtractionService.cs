@@ -10,6 +10,19 @@ public sealed class LyricsExtractionService(LyricsModelService models, PcmAudioD
         "Arabic", "Cantonese", "Italian", "Indonesian", "Vietnamese", "Thai", "Turkish", "Hindi", "Malay", "Dutch", "Swedish", "Danish", "Finnish", "Polish", "Czech", "Filipino", "Persian", "Greek", "Romanian", "Hungarian", "Macedonian"];
     private static readonly HashSet<string> AlignmentLanguages = new(StringComparer.OrdinalIgnoreCase)
         { "Chinese", "English", "Japanese", "Korean", "French", "Spanish", "Russian", "German", "Portuguese", "Italian", "Cantonese" };
+    // Keep the automatic probe deliberately limited to the nine languages
+    // exposed by the first release. The rest of the recognizer's language list
+    // remains available when the user selects a language explicitly.
+    private static readonly string[] AutoProbeLanguages =
+        ["Chinese", "English", "Japanese", "Korean", "French", "Spanish", "Russian", "German", "Portuguese"];
+    private static readonly Dictionary<string, string[]> AutoProbeMarkers = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["English"] = ["the", "and", "you", "that", "this", "with", "for", "are", "have", "love", "i", "me", "my", "we"],
+        ["French"] = ["le", "la", "les", "des", "une", "est", "je", "que", "dans", "pour"],
+        ["Spanish"] = ["el", "la", "los", "las", "una", "es", "que", "en", "para", "por"],
+        ["German"] = ["der", "die", "das", "und", "nicht", "ich", "ein", "ist", "mit", "für"],
+        ["Portuguese"] = ["que", "não", "uma", "para", "com", "dos", "das", "por", "está", "não"]
+    };
     private sealed record Chunk(int Start, int Length, int Left, int Right, string Text, string Language);
 
     public Task<LyricsDocument> ExtractAsync(string source, LyricsOptions options, IProgress<LyricsProgress>? progress, CancellationToken ct,
@@ -37,6 +50,10 @@ public sealed class LyricsExtractionService(LyricsModelService models, PcmAudioD
                 }
                 await models.EnsureAsync(ModelDirectory(options), options.Performance == LyricsPerformance.HighPrecision, progress, ct).ConfigureAwait(false);
                 var document = new LyricsDocument { SourceFile = source, DurationMs = duration };
+                // Auto mode gets a deterministic language hint from embedded metadata
+                // or the filename before asking the model. This avoids the common
+                // singing failure where a Japanese or Cyrillic song is decoded as English.
+                string recognitionLanguage = options.Language == "Auto" ? InferTrackLanguage(source) : options.Language;
                 var chunks = new List<Chunk>();
                 int size = (options.Performance == LyricsPerformance.ResourceSaving ? Math.Min(15, options.ChunkSeconds) : options.ChunkSeconds) * 16000;
                 int overlap = options.SongMode ? 32000 : 16000, step = size - overlap;
@@ -45,6 +62,16 @@ public sealed class LyricsExtractionService(LyricsModelService models, PcmAudioD
                 using (var asr = new QwenInference(Path.Combine(ModelDirectory(options), options.Performance == LyricsPerformance.HighPrecision ? "asr-fp32" : "asr"),
                     false, useDml: options.UseGpu, quantized: options.Performance != LyricsPerformance.HighPrecision, threads: Threads(options)))
                 {
+                    if (recognitionLanguage == "Auto")
+                    {
+                        // Qwen's unforced language mode can translate a sung
+                        // passage into English. Probe all nine primary languages
+                        // with the same ASR session, then lock the best language
+                        // before the full pass. The probe uses two short windows
+                        // at most, so a quiet intro cannot decide the whole song.
+                        progress?.Report(new("Lyrics.Stage_DetectLanguage", .03));
+                        recognitionLanguage = ProbeAutoLanguage(asr, pcm, total, ct);
+                    }
                     async Task Recognize(int start, int length, int left, int right)
                     {
                         await Pause(waitIfPaused, ct);
@@ -52,7 +79,7 @@ public sealed class LyricsExtractionService(LyricsModelService models, PcmAudioD
                         progress?.Report(new("Lyrics.Stage_Recognize", .05 + .5 * start / total, $"{start / 16000}s / {duration / 1000}s"));
                         if (audio.Length < 400 || audio.All(x => Math.Abs(x) < .00001f)) return;
                         string raw;
-                        try { raw = asr.Transcribe(audio, options.Language, ct); }
+                        try { raw = asr.Transcribe(audio, recognitionLanguage, ct); }
                         catch (InvalidDataException ex) when (ex.Message == "Lyrics.Error_TokenLimit" && length > 80000)
                         {
                             // A difficult music segment can loop during greedy decoding. Retry smaller
@@ -63,7 +90,14 @@ public sealed class LyricsExtractionService(LyricsModelService models, PcmAudioD
                             await Recognize(start + cut - pad, length - cut + pad, Math.Max(left, start + cut), right);
                             return;
                         }
-                        var (language, text) = ParseRecognition(raw, options.Language);
+                        var (language, text) = ParseRecognition(raw, recognitionLanguage);
+                        if (recognitionLanguage != "Auto")
+                        {
+                            string script = InferScriptLanguage(text, "Auto");
+                            if (script != "Auto") language = script;
+                            else if (LatinLetterCount(text) >= 2)
+                                language = InferLatinLanguage(text, recognitionLanguage);
+                        }
                         if (!string.IsNullOrWhiteSpace(text)) chunks.Add(new(start, length, left, right, text, language));
                     }
                     for (int start = 0; start < total; start += step)
@@ -79,7 +113,9 @@ public sealed class LyricsExtractionService(LyricsModelService models, PcmAudioD
                     ReportGpuFallback(document, asr);
                 }
                 if (chunks.Count == 0) throw new InvalidDataException("Lyrics.Error_NoVocals");
-                document.Language = string.Join(", ", chunks.Select(c => c.Language).Distinct());
+                document.Language = recognitionLanguage != "Auto"
+                    ? recognitionLanguage
+                    : string.Join(", ", chunks.Select(c => c.Language).Distinct());
                 progress?.Report(new("Lyrics.Stage_LoadAligner", .55));
                 using (var aligner = new QwenInference(Path.Combine(ModelDirectory(options), "aligner"), true, useDml: options.UseGpu, threads: Threads(options)))
                 {
@@ -189,7 +225,7 @@ public sealed class LyricsExtractionService(LyricsModelService models, PcmAudioD
         if (separator >= 0)
         {
             string prefix = raw[..separator].Trim();
-            if (prefix.StartsWith("language ", StringComparison.OrdinalIgnoreCase)) language = prefix[9..].Trim();
+            if (selected == "Auto" && prefix.StartsWith("language ", StringComparison.OrdinalIgnoreCase)) language = prefix[9..].Trim();
             raw = raw[(separator + 10)..];
         }
         if (language == "Auto") language = "English";
@@ -215,6 +251,160 @@ public sealed class LyricsExtractionService(LyricsModelService models, PcmAudioD
         if (cyrillic >= 2 && cyrillic > letters / 3) return "Russian";
         return fallback;
     }
+
+    private static string InferTrackLanguage(string source)
+    {
+        try
+        {
+            var track = new ATL.Track(source);
+            string metadata = string.Join(" ", track.Title, track.Artist, track.Album, Path.GetFileNameWithoutExtension(source));
+            return InferScriptLanguage(metadata, "Auto");
+        }
+        catch { return InferScriptLanguage(Path.GetFileNameWithoutExtension(source), "Auto"); }
+    }
+    private static string ProbeAutoLanguage(QwenInference asr, string pcm, int total, CancellationToken ct)
+    {
+        // Score all nine candidates on the same audio windows. The first pass
+        // uses one prefill to compare the language tokens; ambiguous tracks then
+        // receive a small number of full forced-language decodes. Script and
+        // stop-word evidence stabilize CJK/Cyrillic and Latin-script choices.
+        int length = Math.Min(total, 8 * 16000);
+        if (length < 400) return "Auto";
+        var starts = total > length * 2
+            ? new[] { 0, Math.Max(0, total - length) }
+            : new[] { 0 };
+        var scores = AutoProbeLanguages.ToDictionary(language => language, _ => 0d, StringComparer.OrdinalIgnoreCase);
+        var usable = AutoProbeLanguages.ToDictionary(language => language, _ => 0, StringComparer.OrdinalIgnoreCase);
+        var autoVotes = AutoProbeLanguages.ToDictionary(language => language, _ => 0d, StringComparer.OrdinalIgnoreCase);
+        var tokenVotes = AutoProbeLanguages.ToDictionary(language => language, _ => 0d, StringComparer.OrdinalIgnoreCase);
+        var trustedScripts = new Dictionary<int, string>();
+        foreach (int start in starts.Distinct())
+        {
+            ct.ThrowIfCancellationRequested();
+            var audio = PcmAudioDecoder.ReadChunk(pcm, start, length);
+            string trustedScript = "Auto";
+            try
+            {
+                var auto = ParseRecognition(asr.Transcribe(audio, "Auto", ct), "Auto");
+                if (!string.IsNullOrWhiteSpace(auto.Text))
+                {
+                    trustedScript = InferScriptLanguage(auto.Text, "Auto");
+                    string autoLanguage = trustedScript != "Auto" ? trustedScript : auto.Language;
+                    if (AutoProbeLanguages.Contains(autoLanguage, StringComparer.OrdinalIgnoreCase))
+                        autoVotes[autoLanguage] += trustedScript != "Auto" && auto.Text.EnumerateRunes().Count(System.Text.Rune.IsLetter) >= 8 ? 2 : 1;
+                }
+            }
+            catch (InvalidDataException ex) when (ex.Message == "Lyrics.Error_TokenLimit") { /* Forced probes can still recover language. */ }
+            trustedScripts[start] = trustedScript;
+            foreach (var score in asr.GetLanguageScores(audio, AutoProbeLanguages, ct))
+                tokenVotes[score.Language] += score.Probability;
+        }
+        var autoRanked = autoVotes.OrderByDescending(pair => pair.Value).ToArray();
+        string autoWinner = autoRanked[0].Key;
+        if (autoRanked[0].Value > 0 && (autoRanked[0].Value - autoRanked.ElementAtOrDefault(1).Value >= .5 || autoWinner is "Chinese" or "Japanese" or "Korean" or "Russian"))
+            return autoWinner;
+        var tokenRanked = AutoProbeLanguages.OrderByDescending(language => tokenVotes[language]).ToArray();
+        double tokenTotal = tokenVotes.Values.Sum();
+        double tokenWinnerShare = tokenTotal > 0 ? tokenVotes[tokenRanked[0]] / tokenTotal : 0;
+        if (autoRanked[0].Value == 0 && tokenWinnerShare >= .8)
+            return tokenRanked[0];
+
+        // The cheap prefill scores every language. Only ambiguous cases need
+        // full forced decoding, and always include the four non-Latin scripts
+        // when English was the unforced guess so Japanese translation errors can
+        // still be corrected.
+        var deepCandidates = tokenRanked.Take(3).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (autoWinner == "English" || autoRanked[0].Value == 0)
+            foreach (string language in new[] { "Chinese", "Japanese", "Korean", "Russian" }) deepCandidates.Add(language);
+        foreach (int start in starts.Distinct())
+        {
+            ct.ThrowIfCancellationRequested();
+            var audio = PcmAudioDecoder.ReadChunk(pcm, start, length);
+            string trustedScript = trustedScripts.GetValueOrDefault(start, "Auto");
+            foreach (string language in deepCandidates)
+            {
+                ct.ThrowIfCancellationRequested();
+                QwenInference.ScoredTranscription scored;
+                try { scored = asr.TranscribeScored(audio, language, ct); }
+                catch (InvalidDataException ex) when (ex.Message == "Lyrics.Error_TokenLimit")
+                {
+                    // A forced language can occasionally enter a repetition loop
+                    // on a dense music passage. Retry a shorter context for the
+                    // detector; normal extraction still has its split retry path.
+                    int retryLength = Math.Min(audio.Length, 5 * 16000);
+                    try { scored = asr.TranscribeScored(audio[..retryLength], language, ct); }
+                    catch (InvalidDataException retry) when (retry.Message == "Lyrics.Error_TokenLimit") { continue; }
+                }
+                string text = ParseRecognition(scored.Text, language).Text;
+                if (string.IsNullOrWhiteSpace(text) || !double.IsFinite(scored.AverageLogProbability)) continue;
+                scores[language] += scored.AverageLogProbability + ProbeTextEvidence(text, language, trustedScript);
+                usable[language]++;
+            }
+        }
+        foreach (string language in AutoProbeLanguages)
+            if (usable[language] > 0) scores[language] /= usable[language];
+        var ranked = AutoProbeLanguages.OrderByDescending(language => scores[language]).ToArray();
+        if (ranked.Length > 1 && usable[ranked[0]] > 0 && scores[ranked[0]] - scores[ranked[1]] >= .35)
+            return ranked[0];
+        // Instrumental openings can make every forced prompt hallucinate a
+        // plausible sentence. Keep a deterministic fallback for that case.
+        return ranked.Length > 0 && usable[ranked[0]] > 0 ? ranked[0] : "English";
+    }
+    private static double ProbeTextEvidence(string text, string language, string trustedScript)
+    {
+        int letters = text.EnumerateRunes().Count(System.Text.Rune.IsLetter);
+        if (letters < 2) return -2;
+        string script = InferScriptLanguage(text, "Auto");
+        // Forced prompts can make the model emit any requested script. Trust
+        // script evidence only when the unforced pass observed the same one.
+        double score = script.Equals(trustedScript, StringComparison.OrdinalIgnoreCase) && trustedScript != "Auto" ? 2.5 : 0;
+        if (AutoProbeMarkers.TryGetValue(language, out string[]? markers))
+        {
+            string lower = text.ToLowerInvariant();
+            var words = Regex.Matches(lower, @"\p{L}+").Select(m => m.Value).ToHashSet(StringComparer.Ordinal);
+            score += Math.Min(1.5, markers.Count(words.Contains) * .3);
+        }
+        string accents = language switch
+        {
+            "French" => "àâæçéèêëîïôœùûüÿ",
+            "Spanish" => "áéíóúüñ¿¡",
+            "German" => "äöüß",
+            "Portuguese" => "ãõçáâêô",
+            _ => ""
+        };
+        if (accents.Length > 0) score += Math.Min(.8, text.Count(accents.Contains) * .2);
+        return score;
+    }
+    private static string InferLatinLanguage(string text, string fallback)
+    {
+        var scores = AutoProbeMarkers.Keys.ToDictionary(language => language, _ => 0d, StringComparer.OrdinalIgnoreCase);
+        string lower = text.ToLowerInvariant();
+        var words = Regex.Matches(lower, @"\p{L}+").Select(m => m.Value).ToHashSet(StringComparer.Ordinal);
+        foreach (var pair in AutoProbeMarkers)
+            scores[pair.Key] += pair.Value.Count(words.Contains);
+        foreach (string language in scores.Keys)
+        {
+            string accents = language switch
+            {
+                "French" => "àâæçéèêëîïôœùûüÿ",
+                "Spanish" => "áéíóúüñ¿¡",
+                "German" => "äöüß",
+                "Portuguese" => "ãõçáâêô",
+                _ => ""
+            };
+            if (accents.Length > 0) scores[language] += text.Count(accents.Contains) * .8;
+        }
+        var ranked = scores.OrderByDescending(pair => pair.Value).ToArray();
+        if (ranked[0].Value < 2 || ranked[0].Value - ranked[1].Value < 1) return fallback;
+        return ranked[0].Key;
+    }
+    private static int LatinLetterCount(string text)
+    {
+        int count = 0;
+        foreach (var rune in text.EnumerateRunes())
+            if (rune.Value is >= 'A' and <= 'Z' or >= 'a' and <= 'z') count++;
+        return count;
+    }
     public static List<LyricsLine> GroupWords(List<LyricsWord> words, int maxCharacters, int pauseMs = 700)
     {
         var lines = new List<LyricsLine>(); var current = new List<LyricsWord>(); int chars = 0;
@@ -236,7 +426,11 @@ public sealed class LyricsExtractionService(LyricsModelService models, PcmAudioD
     private static int Threads(LyricsOptions options) => options.Performance == LyricsPerformance.ResourceSaving ? Math.Clamp(Environment.ProcessorCount / 4, 1, 4) : 0;
     private static void ReportGpuFallback(LyricsDocument document, QwenInference inference)
     {
-        if (inference.GpuFallbackReason != null) document.Warnings.Add("Lyrics.Warning_GpuFallback");
+        if (inference.GpuFallbackReason != null)
+        {
+            document.Warnings.Add("Lyrics.Warning_GpuFallback");
+            document.Diagnostics.Add($"DirectML fallback: {inference.GpuFallbackReason}");
+        }
     }
     private static async Task Pause(Func<CancellationToken, Task>? pause, CancellationToken ct) { ct.ThrowIfCancellationRequested(); if (pause != null) await pause(ct).ConfigureAwait(false); }
     public static void Validate(LyricsOptions options)

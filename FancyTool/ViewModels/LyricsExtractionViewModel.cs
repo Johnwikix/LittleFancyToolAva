@@ -111,8 +111,9 @@ public partial class LyricsExtractionViewModel : ViewModelBase, IDisposable
     {
         if (SelectedTask?.Document is { } doc)
         {
-            EditorText = LyricsFileService.ToEditor(doc);
-            PreviewInfo = $"{doc.Language} · {doc.Lines.Count} {L("Lyrics.Label_Lines")} · {doc.Backend}\n" + string.Join("\n", doc.Warnings.Distinct().Select(L));
+            EditorText = LyricsFileService.ToEditor(doc, Options.Formats);
+            PreviewInfo = $"{doc.Language} · {doc.Lines.Count} {L("Lyrics.Label_Lines")} · {doc.Backend}\n" +
+                string.Join("\n", doc.Warnings.Distinct().Select(L).Concat(doc.Diagnostics));
         }
         OnPropertyChanged(nameof(HasPreview)); ExportEditedCommand.NotifyCanExecuteChanged(); RealignEditedCommand.NotifyCanExecuteChanged(); ImportLyricsCommand.NotifyCanExecuteChanged();
     }

@@ -16,6 +16,12 @@ public static partial class LyricsFileService
     private static readonly byte[] KrcKey = [0x40, 0x47, 0x61, 0x77, 0x5e, 0x32, 0x74, 0x47, 0x51, 0x36, 0x31, 0x2d, 0xce, 0xd2, 0x6e, 0x69];
     public static readonly string[] Extensions = [".lrc", ".elrc", ".krc", ".qrc", ".yrc", ".srt", ".vtt", ".ass", ".txt", ".json"];
     public const LyricsFormats WordFormats = LyricsFormats.Krc | LyricsFormats.Qrc | LyricsFormats.Yrc | LyricsFormats.EnhancedLrc;
+    public static LyricsDocument ImportText(string text, string extension, string sourceAudio, int durationMs)
+    {
+        string path = Path.Combine(Path.GetTempPath(), "fancy-lyrics-import-" + Guid.NewGuid().ToString("N") + extension);
+        try { File.WriteAllText(path, text, new UTF8Encoding(false)); return Import(path, sourceAudio, durationMs); }
+        finally { if (File.Exists(path)) File.Delete(path); }
+    }
     [GeneratedRegex(@"(?m)^\s*((?:\d+:)?\d{2}:\d{2}[,.]\d{3})\s*-->\s*((?:\d+:)?\d{2}:\d{2}[,.]\d{3})[^\r\n]*\r?\n([\s\S]*?)(?=\r?\n\s*\r?\n|\z)")]
     private static partial Regex Subtitles();
     public static LyricsDocument Import(string file, string sourceAudio, int durationMs)
@@ -88,24 +94,64 @@ public static partial class LyricsFileService
         }
         return result;
     }
-    public static string ToEditor(LyricsDocument document) => LrcGenerator.Generate(ToLibrary(document, 0), LrcGenerator.EndTimeOutputType.None).Replace("\r\n", "\n");
+    public static string ToEditor(LyricsDocument document) => ToEditor(document, LyricsFormats.Lrc);
+    public static string ToEditor(LyricsDocument document, LyricsFormats formats)
+    {
+        // Keep the editor textual and reversible, but expose word timing whenever a
+        // selected output format needs it. Enhanced LRC is the common editable form
+        // and is lossless for KRC/QRC/YRC export.
+        if ((formats & WordFormats) != 0 && document.Lines.All(l => l.Words.Count > 0))
+            return Enhanced(document, 0).Replace("\r\n", "\n");
+        return LrcGenerator.Generate(ToLibrary(document, 0), LrcGenerator.EndTimeOutputType.None).Replace("\r\n", "\n");
+    }
     public static LyricsDocument FromEditor(string content, LyricsDocument original)
     {
         original = JsonSerializer.Deserialize(JsonSerializer.Serialize(original, LyricsJsonContext.Default.LyricsDocument), LyricsJsonContext.Default.LyricsDocument)!;
-        var parsed = ParseHelper.ParseLyrics(content, LyricsRawTypes.Lrc);
-        if (parsed?.Lines is not { Count: > 0 }) throw new InvalidDataException("Lyrics editor requires [mm:ss.xx] timed lines.");
+        var parsed = ParseEditor(content);
+        if (parsed.Count == 0) throw new InvalidDataException("Lyrics editor requires [mm:ss.xx] timed lines.");
         var doc = new LyricsDocument { SourceFile = original.SourceFile, DurationMs = original.DurationMs, Language = original.Language,
             Model = original.Model, Backend = original.Backend, Warnings = [.. original.Warnings] };
-        foreach (var line in parsed.Lines.OrderBy(l => l.StartTime))
+        foreach (var line in parsed.OrderBy(l => l.StartMs))
         {
-            if (line.StartTime == null || string.IsNullOrWhiteSpace(line.Text)) continue;
-            var unchanged = original.Lines.FirstOrDefault(l => l.StartMs == line.StartTime && l.Text.Trim() == line.Text.Trim());
-            doc.Lines.Add(unchanged ?? new LyricsLine { Text = line.Text, StartMs = line.StartTime.Value, EndMs = line.EndTime ?? line.StartTime.Value });
+            if (string.IsNullOrWhiteSpace(line.Text)) continue;
+            var unchanged = line.Words.Count == 0 ? original.Lines.FirstOrDefault(l => l.StartMs == line.StartMs && l.Text.Trim() == line.Text.Trim()) : null;
+            doc.Lines.Add(unchanged ?? line);
         }
         for (int i = 0; i < doc.Lines.Count; i++)
             if (doc.Lines[i].Words.Count == 0 && doc.Lines[i].EndMs <= doc.Lines[i].StartMs) doc.Lines[i].EndMs = i + 1 < doc.Lines.Count ? doc.Lines[i + 1].StartMs : doc.DurationMs;
         if (doc.Lines.Count == 0) throw new InvalidDataException("Lyrics editor has no timed text.");
         return doc;
+    }
+
+    private static List<LyricsLine> ParseEditor(string content)
+    {
+        var lines = new List<LyricsLine>();
+        foreach (string raw in content.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n'))
+        {
+            Match lineMatch = Regex.Match(raw, @"^\s*\[(?<time>(?:\d+:)?\d{2}:\d{2}\.\d{2,3})\](?<body>.*)$");
+            if (!lineMatch.Success) continue;
+            int start = ParseTime(lineMatch.Groups["time"].Value);
+            string body = lineMatch.Groups["body"].Value;
+            var tags = Regex.Matches(body, @"<(?<time>(?:\d+:)?\d{2}:\d{2}\.\d{2,3})>");
+            var words = new List<LyricsWord>();
+            if (tags.Count > 0)
+            {
+                for (int i = 0; i < tags.Count; i++)
+                {
+                    int wordStart = ParseTime(tags[i].Groups["time"].Value);
+                    int bodyStart = tags[i].Index + tags[i].Length;
+                    int bodyEnd = i + 1 < tags.Count ? tags[i + 1].Index : body.Length;
+                    string text = body[bodyStart..bodyEnd];
+                    if (!string.IsNullOrEmpty(text)) words.Add(new() { Text = text, StartMs = wordStart, EndMs = i + 1 < tags.Count ? ParseTime(tags[i + 1].Groups["time"].Value) : wordStart });
+                }
+            }
+            string textValue = words.Count > 0 ? string.Concat(words.Select(w => w.Text)) : body;
+            lines.Add(new LyricsLine { Text = textValue, StartMs = start, EndMs = words.Count > 0 ? words[^1].EndMs : start, Words = words });
+        }
+        for (int i = 0; i < lines.Count; i++)
+            if (lines[i].EndMs <= lines[i].StartMs && lines[i].Words.Count == 0)
+                lines[i].EndMs = i + 1 < lines.Count ? lines[i + 1].StartMs : lines[i].StartMs;
+        return lines;
     }
     public static async Task<string> ExportAsync(LyricsDocument document, string basePath, LyricsFormats formats, int offsetMs, CancellationToken ct)
     {

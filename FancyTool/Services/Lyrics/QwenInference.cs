@@ -6,6 +6,9 @@ namespace FancyToolAva.Services.Lyrics;
 
 public sealed class QwenInference : IDisposable
 {
+    public readonly record struct ScoredTranscription(string Text, double AverageLogProbability, int TokenCount);
+    public readonly record struct LanguageScore(string Language, double Probability);
+
     private InferenceSession _encoder = null!;
     private InferenceSession _init = null!;
     private InferenceSession? _step;
@@ -65,18 +68,41 @@ public sealed class QwenInference : IDisposable
         Load(false);
     }
     public string Transcribe(float[] audio, string language, CancellationToken ct)
+        => TranscribeWithScore(audio, language, false, ct).Text;
+
+    /// <summary>
+    /// Runs the same greedy ASR path as <see cref="Transcribe"/> and also returns
+    /// the mean log probability of the generated tokens. The score is used only
+    /// by automatic language detection; regular extraction keeps the simpler
+    /// string API and skips probability calculation.
+    /// </summary>
+    public ScoredTranscription TranscribeScored(float[] audio, string language, CancellationToken ct)
+        => TranscribeWithScore(audio, language, true, ct);
+
+    private ScoredTranscription TranscribeWithScore(float[] audio, string language, bool scoreTokens, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
-        try { return TranscribeCore(audio, language, ct); }
+        try { return TranscribeCore(audio, language, scoreTokens, ct); }
         catch (Exception) when (ct.IsCancellationRequested) { throw new OperationCanceledException(ct); }
         catch (Exception ex) when (Backend == "DirectML" && IsGpuFailure(ex) && !ct.IsCancellationRequested)
         {
             FallBackToCpu(ex);
             ct.ThrowIfCancellationRequested();
-            return TranscribeCore(audio, language, ct);
+            return TranscribeCore(audio, language, scoreTokens, ct);
         }
     }
-    private string TranscribeCore(float[] audio, string language, CancellationToken ct)
+    public List<LanguageScore> GetLanguageScores(float[] audio, IReadOnlyList<string> languages, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        try { return GetLanguageScoresCore(audio, languages, ct); }
+        catch (Exception) when (ct.IsCancellationRequested) { throw new OperationCanceledException(ct); }
+        catch (Exception ex) when (Backend == "DirectML" && IsGpuFailure(ex) && !ct.IsCancellationRequested)
+        {
+            FallBackToCpu(ex);
+            return GetLanguageScoresCore(audio, languages, ct);
+        }
+    }
+    private List<LanguageScore> GetLanguageScoresCore(float[] audio, IReadOnlyList<string> languages, CancellationToken ct)
     {
         if (_aligner) throw new InvalidOperationException();
         using var run = new RunOptions();
@@ -85,12 +111,50 @@ public sealed class QwenInference : IDisposable
         using var input = OrtValue.CreateTensorValueFromMemory(mel, [1, 128, frames]);
         using var features = _encoder.Run(run, ["mel"], [input], ["audio_features"]);
         int featureCount = (int)features[0].GetTensorTypeAndShape().Shape[1];
+        var (prompt, audioOffset) = RecognitionPrompt(featureCount, "Auto");
+        prompt.AddRange(_tokenizer.Encode("language").Select(i => (long)i));
+        long[] ids = prompt.ToArray(), positions = Enumerable.Range(0, ids.Length).Select(i => (long)i).ToArray();
+        using var idInput = OrtValue.CreateTensorValueFromMemory(ids, [1, ids.Length]);
+        using var posInput = OrtValue.CreateTensorValueFromMemory(positions, [1, ids.Length]);
+        using var offInput = OrtValue.CreateTensorValueFromMemory(new long[] { audioOffset }, [1]);
+        using var output = _init.Run(run, ["input_ids", "position_ids", "audio_features", "audio_offset"], [idInput, posInput, features[0], offInput], ["logits"]);
+        var logits = output[0].GetTensorDataAsSpan<float>()[^151936..];
+        var values = new double[languages.Count];
+        for (int i = 0; i < languages.Count; i++)
+        {
+            // All nine supported names are single tokens including their leading
+            // space. Compare these logits in one prefill; no lyrics are decoded.
+            int[] tokens = _tokenizer.Encode(" " + languages[i]);
+            if (tokens.Length != 1) throw new InvalidOperationException("Language name must be a single token: " + languages[i]);
+            values[i] = logits[tokens[0]];
+            if (!double.IsFinite(values[i])) throw new InvalidDataException("Non-finite model output.");
+        }
+        double maximum = values.Max(), sum = 0;
+        for (int i = 0; i < values.Length; i++) sum += values[i] = Math.Exp(values[i] - maximum);
+        var result = new List<LanguageScore>(values.Length);
+        for (int i = 0; i < values.Length; i++) result.Add(new(languages[i], values[i] / sum));
+        return result;
+    }
+    private (List<long> Prompt, int AudioOffset) RecognitionPrompt(int featureCount, string language)
+    {
         var prompt = new List<long> { 151644 }; prompt.AddRange(_tokenizer.Encode("system\n").Select(i => (long)i));
         prompt.AddRange([151645, 198, 151644]); prompt.AddRange(_tokenizer.Encode("user\n").Select(i => (long)i)); prompt.Add(151669);
         int audioOffset = prompt.Count;
         prompt.AddRange(Enumerable.Repeat(151676L, featureCount)); prompt.AddRange([151670, 151645, 198, 151644]);
         prompt.AddRange(_tokenizer.Encode("assistant\n").Select(i => (long)i));
         if (language != "Auto") { prompt.AddRange(_tokenizer.Encode("language " + language).Select(i => (long)i)); prompt.Add(151704); }
+        return (prompt, audioOffset);
+    }
+    private ScoredTranscription TranscribeCore(float[] audio, string language, bool scoreTokens, CancellationToken ct)
+    {
+        if (_aligner) throw new InvalidOperationException();
+        using var run = new RunOptions();
+        using var cancellation = ct.Register(() => run.Terminate = true);
+        float[] mel = _mel.Extract(audio, out int frames, ct);
+        using var input = OrtValue.CreateTensorValueFromMemory(mel, [1, 128, frames]);
+        using var features = _encoder.Run(run, ["mel"], [input], ["audio_features"]);
+        int featureCount = (int)features[0].GetTensorTypeAndShape().Shape[1];
+        var (prompt, audioOffset) = RecognitionPrompt(featureCount, language);
         long[] ids = prompt.ToArray(), positions = Enumerable.Range(0, ids.Length).Select(i => (long)i).ToArray();
         using var idInput = OrtValue.CreateTensorValueFromMemory(ids, [1, ids.Length]);
         using var posInput = OrtValue.CreateTensorValueFromMemory(positions, [1, ids.Length]);
@@ -99,7 +163,9 @@ public sealed class QwenInference : IDisposable
         var generated = new List<int>();
         try
         {
-            int next = ArgMax(output[0].GetTensorDataAsSpan<float>(), 151936);
+            var first = ArgMaxWithLogProbability(output[0].GetTensorDataAsSpan<float>(), 151936, scoreTokens);
+            int next = first.Index;
+            double logProbabilitySum = 0;
             int budget = Math.Clamp((int)(audio.Length / 16000.0 * 15) + 64, 64, 1024), position = ids.Length;
             var embeddings = new float[_hidden]; var bytes = new byte[_hidden * 2];
             while (next is not (151643 or 151645))
@@ -107,15 +173,19 @@ public sealed class QwenInference : IDisposable
                 ct.ThrowIfCancellationRequested();
                 if (generated.Count >= budget) throw new InvalidDataException("Lyrics.Error_TokenLimit");
                 generated.Add(next);
+                logProbabilitySum += first.LogProbability;
                 _embedding!.Position = (long)next * _hidden * 2; _embedding.ReadExactly(bytes);
                 for (int i = 0; i < _hidden; i++) embeddings[i] = (float)BitConverter.UInt16BitsToHalf(BitConverter.ToUInt16(bytes, i * 2));
                 using var embInput = OrtValue.CreateTensorValueFromMemory(embeddings, [1, 1, _hidden]);
                 using var positionInput = OrtValue.CreateTensorValueFromMemory(new long[] { position++ }, [1, 1]);
                 var newer = _step!.Run(run, ["input_embeds", "position_ids", "past_keys", "past_values"], [embInput, positionInput, output[1], output[2]], ["logits", "present_keys", "present_values"]);
                 output.Dispose(); output = newer;
-                next = ArgMax(output[0].GetTensorDataAsSpan<float>(), 151936);
+                first = ArgMaxWithLogProbability(output[0].GetTensorDataAsSpan<float>(), 151936, scoreTokens);
+                next = first.Index;
             }
-            return _tokenizer.Decode(generated);
+            string text = _tokenizer.Decode(generated);
+            double average = generated.Count == 0 ? double.NegativeInfinity : logProbabilitySum / generated.Count;
+            return new ScoredTranscription(text, average, generated.Count);
         }
         finally { output.Dispose(); }
     }
@@ -203,6 +273,17 @@ public sealed class QwenInference : IDisposable
         for (int i = 1; i < logits.Length; i++) if (logits[i] > logits[best]) best = i;
         if (!float.IsFinite(logits[best])) throw new InvalidDataException("Non-finite model output.");
         return best;
+    }
+    private static (int Index, double LogProbability) ArgMaxWithLogProbability(ReadOnlySpan<float> logits, int width, bool scoreTokens)
+    {
+        logits = logits[^width..]; int best = 0;
+        for (int i = 1; i < logits.Length; i++) if (logits[i] > logits[best]) best = i;
+        float maximum = logits[best];
+        if (!float.IsFinite(maximum)) throw new InvalidDataException("Non-finite model output.");
+        if (!scoreTokens) return (best, 0);
+        double sum = 0;
+        for (int i = 0; i < logits.Length; i++) sum += Math.Exp(logits[i] - maximum);
+        return (best, logits[best] - maximum - Math.Log(sum));
     }
     public void Dispose()
     {

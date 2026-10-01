@@ -668,7 +668,7 @@
     "Profile_Auto": "自动 · INT4",
     "Profile_Precision": "高精度 · FP32",
     "Hint_Saving": "15 秒分块，降低单次推理的内存用量。默认优先 GPU，不可用时回退 CPU。",
-    "Hint_Auto": "默认 INT4，优先 GPU 加速；不可用时自动回退 CPU。识别与对齐依次加载，首次下载约 5 GB 模型。",
+    "Hint_Auto": "默认 INT4，优先 GPU 加速；不可用时自动回退 CPU。无文字脚本提示时会用同一个 ASR 会话探测中、英、日、韩、法、西、俄、德、葡九种语言，最多采样两个 8 秒窗口；识别与对齐依次加载，首次下载约 5 GB 模型。",
     "Hint_Precision": "使用同一模型的 FP32 权重，额外下载约 10 GB，需要更多内存。",
     "Hint_Formats": "KRC 为压缩加密文件；QRC 导出 XML 明文兼容格式。逐词格式需要对齐。",
     "Hint_AddFiles": "请添加文件；失败或取消的任务可再次开始。",

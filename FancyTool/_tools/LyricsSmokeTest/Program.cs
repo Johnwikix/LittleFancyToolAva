@@ -14,11 +14,50 @@ if (mode == "metadata")
         foreach (var phrase in info.SynchronizedLyrics) Console.WriteLine($"{phrase.TimestampStart} {phrase.TimestampEnd} chars={phrase.Text.Length} beats={phrase.Beats?.Count}");
     return;
 }
-if (mode == "raw")
+if (mode == "network")
+{
+    var networkComparison = new LyricsNetworkComparisonService();
+    var comparisons = await networkComparison.FetchAsync(args[2], default);
+    Directory.CreateDirectory(work);
+    foreach (string diagnostic in networkComparison.Diagnostics) Console.WriteLine("NETWORK_DIAGNOSTIC " + diagnostic);
+    foreach (var comparison in comparisons)
+    {
+        string safe = string.Concat(comparison.Provider.Where(char.IsLetterOrDigit));
+        string basePath = Path.Combine(work, Path.GetFileNameWithoutExtension(args[2]) + "." + safe);
+        string project = await LyricsFileService.ExportAsync(comparison.Document, basePath, LyricsFormats.Lrc | LyricsFormats.EnhancedLrc | LyricsFormats.Krc | LyricsFormats.Qrc | LyricsFormats.Yrc | LyricsFormats.Json, 0, default);
+        Console.WriteLine($"NETWORK {comparison.Provider} match={comparison.Match} title={comparison.Title} lines={comparison.Document.Lines.Count} words={comparison.Document.Lines.Sum(l => l.Words.Count)} {project}");
+    }
+    if (comparisons.Count == 0) Console.WriteLine("NETWORK no usable public lyric source");
+    return;
+}
+if (mode is "raw" or "rawlang" or "language-scores")
 {
     string pcm = Path.Combine(work, "raw.pcm"); await new PcmAudioDecoder().DecodeAsync(args[3], pcm, default);
     using var model = new QwenInference(args[2], false);
-    string raw = model.Transcribe(PcmAudioDecoder.ReadChunk(pcm, int.Parse(args.ElementAtOrDefault(4) ?? "0") * 16000, 30 * 16000), "Auto", default);
+    int seconds = int.Parse(args.ElementAtOrDefault(6) ?? "30");
+    if (mode == "language-scores")
+    {
+        var languages = new[] { "Chinese", "English", "Japanese", "Korean", "French", "Spanish", "Russian", "German", "Portuguese" };
+        foreach (int start in args.Skip(4).Select(int.Parse).DefaultIfEmpty(0))
+        {
+            Console.WriteLine("WINDOW " + start);
+            float[] sample = PcmAudioDecoder.ReadChunk(pcm, start * 16000, 12 * 16000);
+            foreach (var score in model.GetLanguageScores(sample, languages, default).OrderByDescending(s => s.Probability))
+                Console.WriteLine($"TOKEN {score.Language} {score.Probability:F6}");
+            foreach (string language in languages)
+            {
+                try
+                {
+                    var result = model.TranscribeScored(sample, language, default);
+                    Console.WriteLine($"TEXT {language} lp={result.AverageLogProbability:F4} tokens={result.TokenCount} {LyricsExtractionService.ParseRecognition(result.Text, language).Text}");
+                }
+                catch (InvalidDataException ex) when (ex.Message == "Lyrics.Error_TokenLimit") { Console.WriteLine($"TEXT {language} TOKEN_LIMIT"); }
+            }
+        }
+        Console.WriteLine("BACKEND=" + model.Backend + " FALLBACK=" + model.GpuFallbackReason);
+        File.Delete(pcm); return;
+    }
+    string raw = model.Transcribe(PcmAudioDecoder.ReadChunk(pcm, int.Parse(args.ElementAtOrDefault(4) ?? "0") * 16000, seconds * 16000), mode == "rawlang" ? args.ElementAtOrDefault(5) ?? "Auto" : "Auto", default);
     Console.WriteLine("RAW=" + raw); Console.WriteLine("PARSED=" + LyricsExtractionService.ParseRecognition(raw, "Auto")); File.Delete(pcm); return;
 }
 if (mode is "backend" or "gpu-cancel")
@@ -91,6 +130,9 @@ if (mode == "formats")
     string decrypted = Lyricify.Lyrics.Decrypter.Krc.Decrypter.DecryptLyrics(Convert.ToBase64String(File.ReadAllBytes(Path.Combine(work, "roundtrip.krc"))))!;
     if (!decrypted.Contains("Hello")) throw new Exception("KRC consumer rejected export");
     if (!LyricsFileService.FromEditor(LyricsFileService.ToEditor(doc), doc).Lines.All(l => l.Words.Count > 0)) throw new Exception("Editor lost word timings");
+    string wordEditor = LyricsFileService.ToEditor(doc, LyricsFormats.Krc);
+    if (!wordEditor.Contains('<')) throw new Exception("Word-format preview did not expose word timestamps");
+    if (!LyricsFileService.FromEditor(wordEditor, doc).Lines.All(l => l.Words.Count > 0)) throw new Exception("Word-format editor lost timings");
     var edited = LyricsFileService.FromEditor(LyricsFileService.ToEditor(doc), doc); edited.Lines[0].Words[0].StartMs = 99;
     if (doc.Lines[0].Words[0].StartMs != 1120) throw new Exception("Editor changed the original document");
     var zero = new LyricsDocument { DurationMs = 5000, Lines = [new() { Text = "長音", StartMs = 1200, EndMs = 1200, Words = [new() { Text = "長音", StartMs = 1200, EndMs = 1200 }] }] };
@@ -122,6 +164,22 @@ if (mode == "decode")
 using var http = new HttpClient();
 var models = new LyricsModelService(new ModelDownloadService(http, NullLogger<ModelDownloadService>.Instance));
 var service = new LyricsExtractionService(models, new PcmAudioDecoder());
+if (mode == "language-regression")
+{
+    string expected = args.ElementAtOrDefault(4) ?? "Japanese";
+    int limit = int.Parse(args.ElementAtOrDefault(5) ?? "30");
+    var regressionOptions = new LyricsOptions
+    {
+        ModelDirectory = Path.GetFullPath(args[2]), OutputDirectory = work,
+        Language = "Auto", PreferExisting = false, Formats = LyricsFormats.Lrc,
+        UseGpu = true
+    };
+    var regressionDocument = await service.ExtractAsync(args[3], regressionOptions, null, default, testLimitSeconds: limit);
+    Console.WriteLine($"LANGUAGE_RESULT {regressionDocument.Language} backend={regressionDocument.Backend}");
+    if (!string.Equals(regressionDocument.Language, expected, StringComparison.OrdinalIgnoreCase))
+        throw new Exception($"Expected auto language {expected}, got {regressionDocument.Language}");
+    return;
+}
 var options = new LyricsOptions { ModelDirectory = Path.GetFullPath(args[2]), OutputDirectory = work, Language = args.ElementAtOrDefault(4) ?? "Auto", PreferExisting = false, Formats = (LyricsFormats)1023 };
 var watch = Stopwatch.StartNew();
 var progress = new Progress<LyricsProgress>(p => Console.WriteLine($"{watch.Elapsed.TotalSeconds:F1}s {p.Stage} {p.Fraction:P0} {p.Detail}"));

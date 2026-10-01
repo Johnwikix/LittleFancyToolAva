@@ -45,6 +45,7 @@ public sealed class LyricsDocument
     public int DurationMs { get; set; }
     public List<LyricsLine> Lines { get; set; } = [];
     public List<string> Warnings { get; set; } = [];
+    public List<string> Diagnostics { get; set; } = [];
 }
 public sealed record LyricsProgress(string Stage, double Fraction, string Detail = "");
 public sealed class LyricsTaskRecord

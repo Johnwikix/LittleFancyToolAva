@@ -666,7 +666,7 @@
     "Profile_Auto": "Automatic · INT4",
     "Profile_Precision": "High precision · FP32",
     "Hint_Saving": "15-second chunks reduce memory per run. GPU is preferred with automatic CPU fallback.",
-    "Hint_Auto": "INT4 with GPU acceleration by default; CPU fallback if unavailable. Recognition and alignment load sequentially. First use downloads about 5 GB.",
+    "Hint_Auto": "INT4 with GPU acceleration by default; CPU fallback if unavailable. Without a metadata script hint, one ASR session probes Chinese, English, Japanese, Korean, French, Spanish, Russian, German and Portuguese using at most two 8-second windows. Recognition and alignment load sequentially. First use downloads about 5 GB.",
     "Hint_Precision": "FP32 weights of the same model. About 10 GB of additional downloads and higher RAM usage.",
     "Hint_Formats": "KRC is compressed and encrypted. QRC exports compatible plaintext XML. Word formats require alignment.",
     "Hint_AddFiles": "Add files to start. Failed or cancelled tasks can be retried.",
