@@ -12,4 +12,5 @@
   <Project Path="FancyToolAva.csproj">
     <Platform Solution="*|x64" Project="x64" />
   </Project>
+  <Project Path="External/Lyricify.Lyrics.Helper/Lyricify.Lyrics.Helper.csproj" />
 </Solution>
