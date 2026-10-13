@@ -145,6 +145,21 @@ public sealed record VideoProbeInfo(
 
 public sealed class VideoTranscodeOptions
 {
+    /// <summary>Gets or sets the inclusive trim start on the source timeline, in seconds.</summary>
+    public double TrimStartSeconds { get; set; }
+
+    /// <summary>Gets or sets the exclusive trim end in seconds, or null to keep the source ending.</summary>
+    public double? TrimEndSeconds { get; set; }
+
+    /// <summary>Copies the encoding settings with an independent per-file trim range.</summary>
+    internal VideoTranscodeOptions WithTrim(double startSeconds, double? endSeconds)
+    {
+        var copy = (VideoTranscodeOptions)MemberwiseClone();
+        copy.TrimStartSeconds = startSeconds;
+        copy.TrimEndSeconds = endSeconds;
+        return copy;
+    }
+
     public VideoContainer Container { get; set; } = VideoContainer.Mp4;
     public VideoCodec VideoCodec { get; set; } = VideoCodec.H264;
     public AudioCodec AudioCodec { get; set; } = AudioCodec.Aac;
@@ -188,6 +203,12 @@ public sealed class VideoTranscodeOptions
 
 public partial class VideoFileItem : ObservableObject
 {
+    /// <summary>Gets or sets the trim start for this file, in seconds.</summary>
+    public double TrimStartSeconds { get; set; }
+
+    /// <summary>Gets or sets the trim end for this file, or null to keep its entire ending.</summary>
+    public double? TrimEndSeconds { get; set; }
+
     public string FilePath { get; }
     public string FileName => Path.GetFileName(FilePath);
 

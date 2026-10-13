@@ -12,7 +12,7 @@ namespace FancyToolAva.Services;
 /// 硬编 nvenc/qsv/amf/vaapi）→ avformat 封装。音频经 swresample 重采样（可选增益）后编码。
 /// 无 ffmpeg.exe 子进程，无外部 ffprobe；滤镜串与旧 CLI 参数一一对应。
 /// </summary>
-public sealed unsafe class VideoTranscodeService : IVideoTranscodeService
+public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeService
 {
     private readonly ILogger<VideoTranscodeService> _logger;
 
@@ -122,8 +122,9 @@ public sealed unsafe class VideoTranscodeService : IVideoTranscodeService
 
     // ══════════════════════════════ 转码入口 ══════════════════════════════
 
+    /// <inheritdoc />
     public Task TranscodeAsync(string inputPath, string outputPath, VideoTranscodeOptions options,
-        IProgress<double>? progress = null, CancellationToken ct = default)
+        IProgress<double>? progress = null, CancellationToken ct = default, IProgress<VideoPreviewFrame>? preview = null)
     {
         if (!File.Exists(inputPath)) throw new FileNotFoundException(inputPath);
         return Task.Run(() =>
@@ -134,6 +135,7 @@ public sealed unsafe class VideoTranscodeService : IVideoTranscodeService
 
             var src = ProbeInternal(inputPath);
             long durationMs = src.Probe.DurationMs;
+            ValidateTrim(options, durationMs);
 
             string tmpPath = BuildTmpPath(outputPath);
             Directory.CreateDirectory(Path.GetDirectoryName(outputPath) ?? ".");
@@ -155,10 +157,10 @@ public sealed unsafe class VideoTranscodeService : IVideoTranscodeService
                     {
                         _logger.LogInformation("FFmpeg in-process 2-pass pass1: {Input} encoder={Enc}", inputPath, encoderName);
                         ConvertOnce(inputPath, pass1Out, options, src.PixFmt, src.Probe.Fps, pass: 1, passLogFile: passLog,
-                            durationMs, new ScaledProgress(progress, 0, 0.5), ct);
+                            durationMs, new ScaledProgress(progress, 0, 0.5), ct, preview);
                         _logger.LogInformation("FFmpeg in-process 2-pass pass2: {Input} -> {Output}", inputPath, outputPath);
                         ConvertOnce(inputPath, tmpPath, options, src.PixFmt, src.Probe.Fps, pass: 2, passLogFile: passLog,
-                            durationMs, new ScaledProgress(progress, 0.5, 0.5), ct);
+                            durationMs, new ScaledProgress(progress, 0.5, 0.5), ct, preview);
                     }
                     finally
                     {
@@ -174,7 +176,7 @@ public sealed unsafe class VideoTranscodeService : IVideoTranscodeService
                 {
                     _logger.LogInformation("FFmpeg in-process transcode: {Input} -> {Output} encoder={Enc} muxer={Fmt}",
                         inputPath, outputPath, encoderName, GetMuxerName(options.Container));
-                    ConvertOnce(inputPath, tmpPath, options, src.PixFmt, src.Probe.Fps, pass: 0, passLogFile: null, durationMs, progress, ct);
+                    ConvertOnce(inputPath, tmpPath, options, src.PixFmt, src.Probe.Fps, pass: 0, passLogFile: null, durationMs, progress, ct, preview);
                 }
 
                 if (File.Exists(outputPath)) File.Delete(outputPath);
@@ -192,7 +194,8 @@ public sealed unsafe class VideoTranscodeService : IVideoTranscodeService
 
     /// <summary>单次完整管线执行（两通编码时 pass=1/2，pass=0 表示单通）。</summary>
     private void ConvertOnce(string inputPath, string outputPath, VideoTranscodeOptions o, string? sourcePixFmt,
-        double sourceFps, int pass, string? passLogFile, long durationMs, IProgress<double>? progress, CancellationToken ct)
+        double sourceFps, int pass, string? passLogFile, long durationMs, IProgress<double>? progress, CancellationToken ct,
+        IProgress<VideoPreviewFrame>? preview)
     {
         ct.ThrowIfCancellationRequested();
 
@@ -217,6 +220,7 @@ public sealed unsafe class VideoTranscodeService : IVideoTranscodeService
         AVStream* vOutStream = null;
         AVStream* aOutStream = null;
         bool outputOpened = false;
+        using var previewConverter = new PreviewConverter();
 
         try
         {
@@ -239,9 +243,11 @@ public sealed unsafe class VideoTranscodeService : IVideoTranscodeService
                 : -1;
 
             vDec = OpenDecoder(vInStream);
+            vDec->pkt_timebase = vInStream->time_base;
             if (aIdx >= 0)
             {
                 aDec = OpenDecoder(inFmt->streams[aIdx]);
+                aDec->pkt_timebase = inFmt->streams[aIdx]->time_base;
                 // WAV/PCM 解码器常给出 UNSPEC 顺序布局；规范化成默认布局，swr 配置比较才不会报 INPUT_CHANGED
                 if (aDec->ch_layout.order == AVChannelOrder.AV_CHANNEL_ORDER_UNSPEC)
                 {
@@ -319,13 +325,25 @@ public sealed unsafe class VideoTranscodeService : IVideoTranscodeService
             if (ret < 0) throw FFmpegNative.CreateException(ret, "写入文件头失败");
 
             // ── 7. 主循环：解复用 → 解码 → 滤镜 → 编码 → 封装 ──
-            double totalSec = durationMs > 0 ? durationMs / 1000.0 : 0;
+            var timeline = new TrimTimeline(inFmt, vInStream, o, durationMs, aDec != null);
+            double totalSec = double.IsFinite(timeline.End) ? timeline.End - timeline.Start : 0;
             // 无 pts 的解码帧按源帧率推算（帧时间戳统一用输入流 time_base，直通解码器）
             double srcFps = ffmpeg.av_q2d(vInStream->avg_frame_rate);
             if (srcFps <= 0) srcFps = 30;
             double streamTbSec = ffmpeg.av_q2d(vInStream->time_base);
             long frameStep = Math.Max(1, (long)Math.Round((1.0 / srcFps) / Math.Max(1e-9, streamTbSec)));
-            long nextPts = 0;
+            double decodeStart = timeline.Origin;
+            if (timeline.Start > 0)
+            {
+                // Keep the audio packet overlapping the boundary, even when the demuxer seeks by video frames.
+                double seekPosition = Math.Max(0, timeline.Start - 1);
+                long target = (long)Math.Round((timeline.Origin + seekPosition) / streamTbSec);
+                if (ffmpeg.av_seek_frame(inFmt, vIdx, target, ffmpeg.AVSEEK_FLAG_BACKWARD) >= 0)
+                    decodeStart += seekPosition;
+            }
+            long nextPts = (long)Math.Round(decodeStart / streamTbSec);
+            AVRational audioTimeBase = aIdx >= 0 ? inFmt->streams[aIdx]->time_base : default;
+            if (aIdx >= 0) timeline.NextAudioPts = (long)Math.Round(decodeStart / ffmpeg.av_q2d(audioTimeBase));
 
             while ((ret = ffmpeg.av_read_frame(inFmt, pkt)) >= 0)
             {
@@ -336,37 +354,38 @@ public sealed unsafe class VideoTranscodeService : IVideoTranscodeService
                     if (ret == ErrEagain)
                     {
                         // 解码器输出满：先排空再重送一次（数据包不得丢弃）
-                        ProcessVideoFrames(vDec, decFrame, filtFrame, srcCtx, sinkCtx, vEnc, ofmt, vOutStream, encPkt, totalSec, progress, ref nextPts, frameStep);
+                        ProcessVideoFrames(vDec, decFrame, filtFrame, srcCtx, sinkCtx, vEnc, ofmt, vOutStream, encPkt, totalSec, progress, ref nextPts, frameStep, vInStream->time_base, timeline, previewConverter, preview);
                         ret = ffmpeg.avcodec_send_packet(vDec, pkt);
                     }
                     if (ret < 0 && ret != ErrEagain && ret != ffmpeg.AVERROR_EOF)
                         throw FFmpegNative.CreateException(ret, "视频解码失败");
                     ffmpeg.av_packet_unref(pkt);
-                    ProcessVideoFrames(vDec, decFrame, filtFrame, srcCtx, sinkCtx, vEnc, ofmt, vOutStream, encPkt, totalSec, progress, ref nextPts, frameStep);
+                    ProcessVideoFrames(vDec, decFrame, filtFrame, srcCtx, sinkCtx, vEnc, ofmt, vOutStream, encPkt, totalSec, progress, ref nextPts, frameStep, vInStream->time_base, timeline, previewConverter, preview);
                 }
                 else if (aDec != null && pkt->stream_index == aIdx)
                 {
                     ret = ffmpeg.avcodec_send_packet(aDec, pkt);
                     if (ret == ErrEagain)
                     {
-                        ProcessAudioFrames(aDec, decFrame, swrFrame, aEnc, swr, audioFeeder!, o.AudioGainDb);
+                        ProcessAudioFrames(aDec, decFrame, swrFrame, aEnc, swr, audioFeeder!, o.AudioGainDb, audioTimeBase, timeline);
                         ret = ffmpeg.avcodec_send_packet(aDec, pkt);
                     }
                     if (ret < 0 && ret != ErrEagain && ret != ffmpeg.AVERROR_EOF)
                         throw FFmpegNative.CreateException(ret, "音频解码失败");
                     ffmpeg.av_packet_unref(pkt);
-                    ProcessAudioFrames(aDec, decFrame, swrFrame, aEnc, swr, audioFeeder!, o.AudioGainDb);
+                    ProcessAudioFrames(aDec, decFrame, swrFrame, aEnc, swr, audioFeeder!, o.AudioGainDb, audioTimeBase, timeline);
                 }
                 else
                 {
                     ffmpeg.av_packet_unref(pkt);
                 }
+                if (timeline.VideoEnded && timeline.AudioEnded) break;
             }
             CheckReadError(ret, inputPath);
 
             // ── 8. 冲洗：解码器 → 滤镜图 → 音频 → 编码器 ──
             ffmpeg.avcodec_send_packet(vDec, null);
-            ProcessVideoFrames(vDec, decFrame, filtFrame, srcCtx, sinkCtx, vEnc, ofmt, vOutStream, encPkt, totalSec, progress, ref nextPts, frameStep);
+            ProcessVideoFrames(vDec, decFrame, filtFrame, srcCtx, sinkCtx, vEnc, ofmt, vOutStream, encPkt, totalSec, progress, ref nextPts, frameStep, vInStream->time_base, timeline, previewConverter, preview);
 
             ffmpeg.av_buffersrc_add_frame(srcCtx, null); // 通知 EOF，滤镜图内部冲刷
             DrainSink(sinkCtx, filtFrame, vEnc, ofmt, vOutStream, encPkt, totalSec, progress);
@@ -376,7 +395,7 @@ public sealed unsafe class VideoTranscodeService : IVideoTranscodeService
             if (aDec != null)
             {
                 ffmpeg.avcodec_send_packet(aDec, null);
-                ProcessAudioFrames(aDec, decFrame, swrFrame, aEnc, swr, audioFeeder!, o.AudioGainDb);
+                ProcessAudioFrames(aDec, decFrame, swrFrame, aEnc, swr, audioFeeder!, o.AudioGainDb, audioTimeBase, timeline);
                 FlushSwr(swr, swrFrame, aEnc, audioFeeder!, o.AudioGainDb);
                 audioFeeder!.Flush();
                 ffmpeg.avcodec_send_frame(aEnc, null);
@@ -424,11 +443,21 @@ public sealed unsafe class VideoTranscodeService : IVideoTranscodeService
         if (codec == null)
             throw new InvalidOperationException($"没有可用解码器: {ffmpeg.avcodec_get_name(stream->codecpar->codec_id)}");
         AVCodecContext* ctx = ffmpeg.avcodec_alloc_context3(codec);
-        ffmpeg.avcodec_parameters_to_context(ctx, stream->codecpar);
-        ctx->thread_count = 0;
-        if (ffmpeg.avcodec_open2(ctx, codec, null) < 0)
-            throw new InvalidOperationException("解码器打开失败");
-        return ctx;
+        if (ctx == null) throw new OutOfMemoryException();
+        try
+        {
+            int ret = ffmpeg.avcodec_parameters_to_context(ctx, stream->codecpar);
+            if (ret < 0) throw FFmpegNative.CreateException(ret, "读取解码器参数失败");
+            ctx->thread_count = 0;
+            if (ffmpeg.avcodec_open2(ctx, codec, null) < 0)
+                throw new InvalidOperationException("解码器打开失败");
+            return ctx;
+        }
+        catch
+        {
+            ffmpeg.avcodec_free_context(&ctx);
+            throw;
+        }
     }
 
     // ── 帧/包流动 ──
@@ -437,10 +466,13 @@ public sealed unsafe class VideoTranscodeService : IVideoTranscodeService
     private static void ProcessVideoFrames(AVCodecContext* vDec, AVFrame* decFrame, AVFrame* filtFrame,
         AVFilterContext* srcCtx, AVFilterContext* sinkCtx, AVCodecContext* vEnc,
         AVFormatContext* ofmt, AVStream* stream, AVPacket* pkt,
-        double totalSec, IProgress<double>? progress, ref long nextPts, long frameStep)
+        double totalSec, IProgress<double>? progress, ref long nextPts, long frameStep, AVRational inputTimeBase,
+        TrimTimeline timeline, PreviewConverter previewConverter, IProgress<VideoPreviewFrame>? preview)
     {
         while (ffmpeg.avcodec_receive_frame(vDec, decFrame) >= 0)
         {
+            if (decFrame->best_effort_timestamp != ffmpeg.AV_NOPTS_VALUE)
+                decFrame->pts = decFrame->best_effort_timestamp;
             if (decFrame->pts == ffmpeg.AV_NOPTS_VALUE)
             {
                 decFrame->pts = nextPts;
@@ -450,7 +482,11 @@ public sealed unsafe class VideoTranscodeService : IVideoTranscodeService
             {
                 nextPts = decFrame->pts + frameStep;
             }
-            PushVideoFrame(srcCtx, sinkCtx, decFrame, filtFrame, vEnc, ofmt, stream, pkt, totalSec, progress);
+            if (timeline.KeepVideo(decFrame, inputTimeBase, out double position))
+            {
+                previewConverter.Report(decFrame, position, preview);
+                PushVideoFrame(srcCtx, sinkCtx, decFrame, filtFrame, vEnc, ofmt, stream, pkt, totalSec, progress);
+            }
             ffmpeg.av_frame_unref(decFrame);
         }
     }
@@ -487,11 +523,13 @@ public sealed unsafe class VideoTranscodeService : IVideoTranscodeService
     }
 
     private static void ProcessAudioFrames(AVCodecContext* aDec, AVFrame* decFrame, AVFrame* swrFrame,
-        AVCodecContext* aEnc, SwrContext* swr, EncoderFrameFeeder feeder, double gainDb)
+        AVCodecContext* aEnc, SwrContext* swr, EncoderFrameFeeder feeder, double gainDb,
+        AVRational inputTimeBase, TrimTimeline timeline)
     {
         while (ffmpeg.avcodec_receive_frame(aDec, decFrame) >= 0)
         {
-            ConvertAudioFrame(decFrame, swrFrame, aEnc, swr, feeder, gainDb);
+            if (timeline.KeepAudio(decFrame, inputTimeBase, feeder))
+                ConvertAudioFrame(decFrame, swrFrame, aEnc, swr, feeder, gainDb);
             ffmpeg.av_frame_unref(decFrame);
         }
     }
@@ -1023,6 +1061,9 @@ public sealed unsafe class VideoTranscodeService : IVideoTranscodeService
         private readonly int _capacity;
         private int _filled;
         private long _nextPts;
+
+        /// <summary>Preserves an initial audio offset relative to the clipped video timeline.</summary>
+        public void SetStartSeconds(double seconds) => _nextPts = (long)Math.Round(seconds * _encCtx->sample_rate);
 
         public EncoderFrameFeeder(AVCodecContext* encCtx, AVFormatContext* ofmt, AVStream* stream, AVPacket* pkt)
         {

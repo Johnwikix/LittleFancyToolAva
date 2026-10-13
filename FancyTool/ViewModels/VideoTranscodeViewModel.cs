@@ -51,7 +51,21 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
     public VideoFileItem? SelectedFileItem
     {
         get => field;
-        set => SetProperty(ref field, value);
+        set
+        {
+            bool restoreSelection = value == null && FileItems.Count > 0;
+            if (restoreSelection) value = FileItems[0];
+            if (ReferenceEquals(field, value))
+            {
+                // ListBox clears its selection after processing a collection removal; restore it after that event.
+                if (restoreSelection) Dispatcher.UIThread.Post(() => OnPropertyChanged(nameof(SelectedFileItem)));
+                return;
+            }
+            if (field != null) field.PropertyChanged -= OnSelectedItemChanged;
+            SetProperty(ref field, value);
+            if (field != null) field.PropertyChanged += OnSelectedItemChanged;
+            RefreshEditor();
+        }
     }
 
     public string? OutputFolder
@@ -687,6 +701,8 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
             if (SetProperty(ref field, value))
             {
                 InvalidateAllCommands();
+                if (Dispatcher.UIThread.CheckAccess()) RefreshEditingAvailability();
+                else Dispatcher.UIThread.Post(RefreshEditingAvailability);
             }
         }
     }
@@ -765,7 +781,7 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
         _preferences = preferences;
         _loggerField = logger ?? LoggerFactory.Create(b => { }).CreateLogger<VideoTranscodeViewModel>();
         _viewStateService.Register(this);
-        FileItems.CollectionChanged += (_, _) => InvalidateStartTranscode();
+        FileItems.CollectionChanged += OnFileItemsChanged;
         _ffmpegService.AvailabilityChanged += OnFfmpegAvailabilityChanged;
         I18nManager.Instance.CultureChanged += OnCultureChanged;
         UpdateStatusText();
@@ -790,6 +806,9 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
             OnPropertyChanged(nameof(FfmpegStatusText));
             OnPropertyChanged(nameof(PauseResumeLabel));
             RefreshBatchProgressText();
+            OnPropertyChanged(nameof(PreviewModeText));
+            OnPropertyChanged(nameof(PreviewStatusText));
+            OnPropertyChanged(nameof(PreviewFileName));
             foreach (var item in FileItems) item.RefreshLocalization();
             // Re-validate to regenerate LastError in new language
             _ = _ffmpegService.ValidateAsync();
@@ -1116,6 +1135,7 @@ private async Task AddFolder()
 
     void IVideoFileItemOwner.Remove(VideoFileItem item)
     {
+        if (IsBusy) return;
         FileItems.Remove(item);
         UpdateStatusText();
     }
@@ -1294,13 +1314,20 @@ private async Task AddPathsAsync(IEnumerable<string> paths)
                 await Task.Delay(200).ConfigureAwait(false);
             if (_cts.Token.IsCancellationRequested) return;
 
-            Dispatcher.UIThread.Post(() => { item.Status = FileStatus.Converting; item.Progress = 0; });
+            Dispatcher.UIThread.Post(() =>
+            {
+                item.Status = FileStatus.Converting;
+                item.Progress = 0;
+                if (SelectedFileItem?.Status != FileStatus.Converting) SelectedFileItem = item;
+            });
             var progress = new Progress<double>(p => Dispatcher.UIThread.Post(() => item.Progress = p));
 
             bool itemFailed = false;
             try
             {
-                await _videoService.TranscodeAsync(item.FilePath, outputPath, options, progress, _cts.Token).ConfigureAwait(false);
+                // Every file owns its clip range; shared encoding settings are snapshotted for the batch.
+                var itemOptions = options.WithTrim(item.TrimStartSeconds, item.TrimEndSeconds);
+                await _videoService.TranscodeAsync(item.FilePath, outputPath, itemOptions, progress, _cts.Token, CreateProgressPreview(item)).ConfigureAwait(false);
                 Dispatcher.UIThread.Post(() => { item.Progress = 1.0; item.Status = FileStatus.Completed; });
             }
             catch (OperationCanceledException)
@@ -1329,6 +1356,11 @@ private async Task AddPathsAsync(IEnumerable<string> paths)
                     ConversionProgress = (double)processed / TotalCount;
                     UpdateStatusText();
                     RefreshBatchProgressText();
+                    if (ReferenceEquals(SelectedFileItem, item))
+                    {
+                        var active = FileItems.FirstOrDefault(x => x.Status == FileStatus.Converting);
+                        if (active != null) SelectedFileItem = active;
+                    }
                 });
             }
         }).ConfigureAwait(false);
@@ -1579,6 +1611,11 @@ private async Task AddPathsAsync(IEnumerable<string> paths)
         try { I18nManager.Instance.CultureChanged -= OnCultureChanged; } catch { }
         _cts?.Cancel();
         _cts?.Dispose();
+        _previewCts?.Cancel();
+        _previewCts?.Dispose();
+        FileItems.CollectionChanged -= OnFileItemsChanged;
+        if (SelectedFileItem != null) SelectedFileItem.PropertyChanged -= OnSelectedItemChanged;
+        ReplacePreview(null);
         _viewStateService.Unregister(this);
     }
 }

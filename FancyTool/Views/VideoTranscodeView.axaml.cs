@@ -17,6 +17,29 @@ public partial class VideoTranscodeView : UserControl
         DataContextChanged += OnDataContextChanged;
     }
 
+    private void OnBodySizeChanged(object? sender, SizeChangedEventArgs e)
+    {
+        if (this.FindControl<Grid>("BodyGrid") is not { } body
+            || this.FindControl<ScrollViewer>("SettingsPanel") is not { } settings
+            || this.FindControl<Grid>("EditorPanel") is not { } editor) return;
+        bool narrow = e.NewSize.Width < 820;
+        body.ColumnDefinitions = new ColumnDefinitions(narrow ? "*" : "360,16,*");
+        body.RowDefinitions = new RowDefinitions(narrow ? "560,12,480" : "*");
+        body.Height = narrow ? 1052 : Math.Max(560, e.NewSize.Height);
+        Grid.SetColumn(settings, 0);
+        Grid.SetRow(settings, narrow ? 2 : 0);
+        Grid.SetColumn(editor, narrow ? 0 : 2);
+        Grid.SetRow(editor, 0);
+        if (this.FindControl<StackPanel>("ActionPanel") is { } actions)
+        {
+            Grid.SetColumn(actions, narrow ? 0 : 2);
+            Grid.SetRow(actions, narrow ? 1 : 0);
+            Grid.SetColumnSpan(actions, narrow ? 3 : 1);
+            actions.Margin = narrow ? new Avalonia.Thickness(0, 8, 0, 0) : default;
+        }
+        if (this.FindControl<Grid>("FooterProgress") is { } progress) Grid.SetRow(progress, narrow ? 2 : 1);
+    }
+
     private void OnLoaded(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         _tabs ??= this.FindControl<Avalonia.Controls.TabControl>("ParamTabs");

@@ -3,52 +3,48 @@
              xmlns:vm="using:FancyToolAva.ViewModels"
              xmlns:models="using:FancyToolAva.Models"
              xmlns:controls="using:FancyToolAva.Views.Controls"
+             xmlns:fa="using:FluentAvalonia.UI.Controls"
              xmlns:lan="clr-namespace:Lang.Avalonia.MarkupExtensions;assembly=Lang.Avalonia"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d"
              x:Class="FancyToolAva.Views.VideoTranscodeView"
              x:DataType="vm:VideoTranscodeViewModel">
+    <UserControl.Styles>
+        <Style Selector="TabControl#ParamTabs TabItem">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Padding" Value="8,8" />
+        </Style>
+    </UserControl.Styles>
     <Grid RowDefinitions="Auto,*,Auto" Margin="{StaticResource PageMargin}">
-        <controls:ToolPageHeader Grid.Row="0" Title="{lan:I18n VideoTranscode.Title}" Subtitle="{lan:I18n VideoTranscode.Subtitle}" />
-        <Grid Grid.Row="1" ColumnDefinitions="500,16,*" Margin="0,16,0,0">
-            <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto">
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+            <controls:ToolPageHeader Title="{lan:I18n VideoTranscode.Title}" Subtitle="{lan:I18n VideoTranscode.Subtitle}" />
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" Margin="12,0,0,0">
+                <Button Command="{Binding AddFilesCommand}" Content="{lan:I18n FileEnc.Button_AddFiles}" />
+                <Button Command="{Binding AddFolderCommand}" Content="{lan:I18n FileEnc.Button_AddFolder}" />
+                <Button Command="{Binding ClearListCommand}" Content="{lan:I18n FileEnc.Button_Clear}" />
+            </StackPanel>
+        </Grid>
+        <ScrollViewer Grid.Row="1" x:Name="BodyScroll" Margin="0,16,0,0" SizeChanged="OnBodySizeChanged" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <Grid x:Name="BodyGrid" ColumnDefinitions="360,16,*" Height="560">
+            <ScrollViewer x:Name="SettingsPanel" Grid.Column="0" VerticalScrollBarVisibility="Auto">
                 <Border Classes="ToolCard">
                     <StackPanel Classes="ToolCardContent" Spacing="14">
-                        <!-- Output Folder -->
-                        <StackPanel Classes="FormRow">
-                            <TextBlock Classes="FieldLabel" Text="{lan:I18n VideoTranscode.Label_OutputDir}" />
-                            <Grid ColumnDefinitions="*,8,Auto,8,Auto">
-                                <TextBox Grid.Column="0" Text="{Binding OutputFolder, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" PlaceholderText="{lan:I18n VideoTranscode.Placeholder_OutputDir}" ToolTip.Tip="{lan:I18n VideoTranscode.Hint_OutputDirEmpty}" />
-                                <Button Grid.Column="2" Command="{Binding PickOutputFolderCommand}" Content="{lan:I18n Common.Button_Select}" />
-                                <Button Grid.Column="4" Command="{Binding OpenOutputFolderCommand}" Content="{lan:I18n FileEnc.Button_Open}" />
-                            </Grid>
-                            <TextBlock Text="{lan:I18n VideoTranscode.Hint_OutputDirEmpty}" FontSize="11" Opacity="0.6" Margin="0,4,0,0" IsVisible="{Binding IsOutputFolderEmpty}" />
-                        </StackPanel>
+                        <TextBlock Classes="SectionHeader" Text="{lan:I18n VideoTranscode.Label_Settings}" />
 
                         <!-- FFmpeg 内置状态（进程内 shared 库，随应用分发） -->
                         <Border Background="{DynamicResource CardBackgroundFillColorSecondaryBrush}" CornerRadius="6" Padding="10" IsVisible="{Binding ShowFfmpegMissing}">
                             <TextBlock Text="{Binding FfmpegStatusText}" FontSize="12" Opacity="0.85" TextWrapping="Wrap" />
                         </Border>
 
-                        <Grid ColumnDefinitions="*,8,Auto,8,Auto" Margin="0,4,0,0">
-                            <Button Grid.Column="0" Command="{Binding StartTranscodeCommand}" Classes="Primary" HorizontalAlignment="Stretch" Content="{lan:I18n VideoTranscode.Button_Start}" />
-                            <Button Grid.Column="2" Command="{Binding TogglePauseCommand}" IsVisible="{Binding IsBusy}" Content="{Binding PauseResumeLabel}" />
-                            <Button Grid.Column="4" Command="{Binding StopTranscodeCommand}" IsVisible="{Binding IsBusy}" Content="{lan:I18n Common.Button_Stop}" />
-                        </Grid>
-                        <StackPanel IsVisible="{Binding IsBusy}" Spacing="4">
-                            <ProgressBar Value="{Binding ConversionProgress}" Minimum="0" Maximum="1" Height="8" />
-                            <TextBlock Text="{Binding BatchProgressText}" FontSize="12" Opacity="0.8" />
-                        </StackPanel>
-
                         <!-- Output Preset -->
                         <StackPanel Classes="FormRow">
                             <TextBlock Classes="FieldLabel" Text="{lan:I18n VideoTranscode.Label_Preset}" />
-                            <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding HandbrakePresetLabels}" SelectedItem="{Binding SelectedHandbrakePreset, Mode=TwoWay}" />
+                            <ComboBox IsEnabled="{Binding !IsBusy}" HorizontalAlignment="Stretch" ItemsSource="{Binding HandbrakePresetLabels}" SelectedItem="{Binding SelectedHandbrakePreset, Mode=TwoWay}" />
                         </StackPanel>
 
-                        <!-- TabControl: 参数重组，固定 500 内不换行 -->
-                        <TabControl x:Name="ParamTabs" Margin="0,4,0,0">
+                        <!-- Compact parameter tabs keep space available for the preview. -->
+                        <TabControl x:Name="ParamTabs" Margin="0,4,0,0" IsEnabled="{Binding !IsBusy}">
                             <!-- 1: 封装 / 编码（常驻，GIF 下仍可切回） -->
                             <TabItem Header="{lan:I18n VideoTranscode.Label_Container}">
                                 <StackPanel Spacing="10" Margin="0,10,0,0">
@@ -230,26 +226,64 @@
                 </Border>
             </ScrollViewer>
 
-            <Border Grid.Column="2" Classes="ToolCard" Padding="0"
+            <Grid x:Name="EditorPanel" Grid.Column="2" RowDefinitions="2*,12,*">
+                <Border Grid.Row="0" Classes="ToolCard" Padding="14">
+                    <Grid RowDefinitions="Auto,*,Auto">
+                        <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,8">
+                            <TextBlock Text="{Binding PreviewFileName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="1" Text="{Binding PreviewModeText}" FontSize="11" Opacity="0.7" Margin="8,0,0,0" VerticalAlignment="Center" />
+                        </Grid>
+                        <Border Grid.Row="1" Background="#11151B" CornerRadius="6" ClipToBounds="True">
+                            <Grid>
+                                <Image Source="{Binding PreviewBitmap}" Stretch="Uniform" />
+                                <TextBlock Text="{Binding PreviewStatusText}" IsVisible="{Binding !HasPreview}" Foreground="#BCC4D0" TextWrapping="Wrap" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="20" />
+                                <Border Background="#B0000000" CornerRadius="4" Padding="8,3" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="8">
+                                    <TextBlock Text="{Binding PreviewPositionText}" Foreground="White" FontFamily="monospace" FontSize="11" />
+                                </Border>
+                            </Grid>
+                        </Border>
+                        <StackPanel Grid.Row="2" Spacing="6" Margin="0,8,0,0">
+                            <Grid ColumnDefinitions="Auto,*,Auto">
+                                <TextBlock Text="{lan:I18n VideoTranscode.Label_Trim}" FontWeight="SemiBold" FontSize="12" />
+                                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6">
+                                    <TextBlock Text="{lan:I18n VideoTranscode.Label_KeepDuration}" FontSize="11" Opacity="0.7" />
+                                    <TextBlock Text="{Binding TrimDurationText}" FontSize="11" />
+                                </StackPanel>
+                            </Grid>
+                            <fa:FARangeSlider Minimum="0" Maximum="{Binding TimelineMaximum}" MinimumRange="{Binding MinimumTrimRange}" StepFrequency="0.01" RangeStart="{Binding TrimStartSeconds, Mode=TwoWay}" RangeEnd="{Binding TrimEndSeconds, Mode=TwoWay}" IsEnabled="{Binding CanEditTrim}" ShowValueToolTip="True" ToolTipStringFormat="{}{0:0.00} s" />
+                            <Grid ColumnDefinitions="*,12,*">
+                                <StackPanel Spacing="3" IsEnabled="{Binding CanEditTrim}">
+                                    <Button Command="{Binding PreviewStartCommand}" Content="{lan:I18n VideoTranscode.Label_TrimStart}" HorizontalAlignment="Left" Padding="0" Background="Transparent" BorderThickness="0" FontSize="11" />
+                                    <NumericUpDown Minimum="0" Maximum="{Binding TrimEndSeconds}" Value="{Binding TrimStartSeconds, Mode=TwoWay}" Increment="0.01" FormatString="0.000" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Spacing="3" IsEnabled="{Binding CanEditTrim}">
+                                    <Button Command="{Binding PreviewEndCommand}" Content="{lan:I18n VideoTranscode.Label_TrimEnd}" HorizontalAlignment="Left" Padding="0" Background="Transparent" BorderThickness="0" FontSize="11" />
+                                    <NumericUpDown Minimum="{Binding TrimStartSeconds}" Maximum="{Binding TimelineMaximum}" Value="{Binding TrimEndSeconds, Mode=TwoWay}" Increment="0.01" FormatString="0.000" />
+                                </StackPanel>
+                            </Grid>
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Text="{lan:I18n VideoTranscode.Hint_Trim}" FontSize="10" Opacity="0.65" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                <Button Grid.Column="1" Command="{Binding ResetTrimCommand}" Content="{lan:I18n VideoTranscode.Button_ResetTrim}" Padding="8,3" FontSize="11" />
+                            </Grid>
+                            <ProgressBar IsVisible="{Binding IsProgressPreview}" Value="{Binding PreviewConversionProgress}" Minimum="0" Maximum="1" Height="4" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            <Border Grid.Row="2" Classes="ToolCard" Padding="0"
                     DragDrop.AllowDrop="True"
                     DragDrop.DragEnter="OnDragEnter"
                     DragDrop.DragOver="OnDragOver"
                     DragDrop.Drop="OnDrop">
                 <Grid RowDefinitions="Auto,Auto,*">
-                    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="16,12,16,4">
+                    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="12,8,12,4">
                         <TextBlock Grid.Column="0" Classes="SectionHeader" Text="{Binding StatusText, FallbackValue='File List'}" VerticalAlignment="Center" />
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
-                            <Button Command="{Binding AddFilesCommand}" Content="{lan:I18n FileEnc.Button_AddFiles}" />
-                            <Button Command="{Binding AddFolderCommand}" Content="{lan:I18n FileEnc.Button_AddFolder}" />
-                            <Button Command="{Binding ClearListCommand}" Content="{lan:I18n FileEnc.Button_Clear}" />
-                        </StackPanel>
                     </Grid>
-                    <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="6" Margin="16,0,16,4" HorizontalAlignment="Right">
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="6" Margin="12,0,12,4" HorizontalAlignment="Right">
                         <CheckBox IsChecked="{Binding IncludeAllInFolderScan, Mode=TwoWay}"
                                   VerticalAlignment="Center"
                                   Content="{lan:I18n VideoTranscode.CheckBox_IncludeAllInFolder}" />
                     </StackPanel>
-                    <ListBox Grid.Row="2" ItemsSource="{Binding FileItems}" SelectedItem="{Binding SelectedFileItem}" BorderThickness="0" Margin="8,0,8,8">
+                    <ListBox Grid.Row="2" ItemsSource="{Binding FileItems}" SelectedItem="{Binding SelectedFileItem, Mode=TwoWay}" BorderThickness="0" Margin="8,0,8,8">
                         <ListBox.ItemsPanel>
                             <ItemsPanelTemplate>
                                 <VirtualizingStackPanel />
@@ -267,13 +301,34 @@
                                         <SelectableTextBlock Text="{Binding StatusDisplay}" FontSize="11" />
                                         <SelectableTextBlock Text="{Binding ProgressDisplay}" FontSize="11" Opacity="0.8" />
                                     </StackPanel>
-                                    <Button Grid.Column="3" Command="{Binding RemoveCommand}" Padding="6,2" Background="Transparent" BorderThickness="0" ToolTip.Tip="{lan:I18n FileEnc.Tooltip_Remove}" Content="🗑️" />
+                                    <Button Grid.Column="3" Command="{Binding RemoveCommand}" IsEnabled="{Binding !$parent[UserControl].((vm:VideoTranscodeViewModel)DataContext).IsBusy}" Padding="6,2" Background="Transparent" BorderThickness="0" ToolTip.Tip="{lan:I18n FileEnc.Tooltip_Remove}" Content="🗑️" />
                                 </Grid>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
                     </ListBox>
                 </Grid>
             </Border>
+            </Grid>
         </Grid>
+        </ScrollViewer>
+        <Border Grid.Row="2" Classes="ToolCard" Padding="12" Margin="0,12,0,0">
+            <Grid x:Name="FooterGrid" RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="*,12,Auto">
+                <Grid ColumnDefinitions="Auto,8,*,8,Auto,8,Auto">
+                    <TextBlock Text="{lan:I18n VideoTranscode.Label_OutputDir}" VerticalAlignment="Center" FontSize="12" />
+                    <TextBox Grid.Column="2" IsEnabled="{Binding !IsBusy}" Text="{Binding OutputFolder, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" PlaceholderText="{lan:I18n VideoTranscode.Placeholder_OutputDir}" ToolTip.Tip="{lan:I18n VideoTranscode.Hint_OutputDirEmpty}" />
+                    <Button Grid.Column="4" Command="{Binding PickOutputFolderCommand}" Content="{lan:I18n Common.Button_Select}" />
+                    <Button Grid.Column="6" Command="{Binding OpenOutputFolderCommand}" Content="{lan:I18n FileEnc.Button_Open}" />
+                </Grid>
+                <StackPanel x:Name="ActionPanel" Grid.Column="2" Orientation="Horizontal" Spacing="6">
+                    <Button Command="{Binding StartTranscodeCommand}" Classes="Primary" Content="{lan:I18n VideoTranscode.Button_Start}" />
+                    <Button Command="{Binding TogglePauseCommand}" IsVisible="{Binding IsBusy}" Content="{Binding PauseResumeLabel}" />
+                    <Button Command="{Binding StopTranscodeCommand}" IsVisible="{Binding IsBusy}" Content="{lan:I18n Common.Button_Stop}" />
+                </StackPanel>
+                <Grid x:Name="FooterProgress" Grid.Row="1" Grid.ColumnSpan="3" ColumnDefinitions="*,12,Auto" IsVisible="{Binding IsBusy}" Margin="0,8,0,0">
+                    <ProgressBar Value="{Binding ConversionProgress}" Minimum="0" Maximum="1" Height="5" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="2" Text="{Binding BatchProgressText}" FontSize="11" Opacity="0.8" />
+                </Grid>
+            </Grid>
+        </Border>
     </Grid>
 </UserControl>

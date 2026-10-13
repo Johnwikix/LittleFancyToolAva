@@ -9,13 +9,14 @@ namespace FfmpegSmokeTest;
 /// （MP4 5×5、MKV 7×7、MOV 4×4、AVI 2×4、GIF）逐一转码并用进程内探测自校验，
 /// 另覆盖 10bit/422 透传、两通、滤镜链、profile/level 与硬件编码尝试。
 /// </summary>
-internal static class Program
+internal static partial class Program
 {
     private static int _runCount;
     private static int _failures;
     private static int _skips;
     private static readonly List<string> _failedNames = [];
 
+    [STAThread]
     private static int Main(string[] args)
     {
         string workDir = args.Length > 0 ? args[0] : Path.Combine(Path.GetTempPath(), "fancytool-smoke");
@@ -39,6 +40,9 @@ internal static class Program
             return 1;
         }
         Console.WriteLine($"load OK: {ffmpegSvc.VersionInfo} v={ffmpegSvc.AvailableVideoEncoders.Count} a={ffmpegSvc.AvailableAudioEncoders.Count}");
+
+        if (args.Contains("--editing-ui")) return RunEditingUi(svc, sample, workDir);
+        if (args.Contains("--editing-only")) return RunEditingCases(svc, sample, workDir);
 
         // 2. 全矩阵（与 ViewModel FilterVideoCodecsForContainer/FilterAudioCodecsForContainer 一致）
         (VideoContainer C, VideoCodec[] V, AudioCodec[] A)[] matrix =
