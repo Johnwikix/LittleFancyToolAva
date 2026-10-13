@@ -13,6 +13,12 @@ public enum SuperResolutionModel
 
 public interface ISuperResolutionService : IDisposable
 {
+    /// <summary>Gets the actual inference device after the most recent successful model run.</summary>
+    VideoSrDevice? InferenceDevice { get; }
+    /// <summary>Reports the actual inference accelerator, including fallback information.</summary>
+    event Action<VideoSrDevice>? DeviceChanged;
+    /// <summary>Gets or sets whether image enhancement should prefer the Intel NPU.</summary>
+    bool PreferNpu { get; set; }
     IReadOnlyList<string> AvailableModels { get; }
 
     bool IsModelAvailable(SuperResolutionModel model);

@@ -1,5 +1,6 @@
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
+using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 
 namespace FancyToolAva.Services;
@@ -12,6 +13,7 @@ public sealed class ModelDownloadException : Exception
 
 public sealed class ModelDownloadService
 {
+    private static readonly ConcurrentDictionary<string, SemaphoreSlim> FileGates = new(StringComparer.OrdinalIgnoreCase);
     private readonly HttpClient _http;
     private readonly ILogger<ModelDownloadService> _logger;
     private static readonly TimeSpan PerFileTimeout = TimeSpan.FromMinutes(15);
@@ -42,6 +44,8 @@ public sealed class ModelDownloadService
             ct.ThrowIfCancellationRequested();
             var entry = entries[i];
             string finalPath = Path.Combine(targetDirectory, entry.FileName);
+            var gate = FileGates.GetOrAdd(Path.GetFullPath(finalPath), static _ => new SemaphoreSlim(1));
+            await gate.WaitAsync(ct).ConfigureAwait(false);
             try
             {
                 await EnsureOneAsync(entry, finalPath, progress, ct).ConfigureAwait(false);
@@ -57,6 +61,7 @@ public sealed class ModelDownloadService
                 progress?.Report(new ModelDownloadProgress(
                     entry.FileName, ModelDownloadStage.Failed, 0, null, ex.Message));
             }
+            finally { gate.Release(); }
         }
 
         if (failures.Count > 0)

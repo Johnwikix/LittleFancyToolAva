@@ -67,6 +67,10 @@
                                                Text="{lan:I18n ImageConvert.Hint_ModelMissing}" />
                                 </Grid>
                                 <StackPanel IsVisible="{Binding IsSuperResolutionEnabled}" Spacing="6">
+                                    <CheckBox IsChecked="{Binding PreferSrNpu, Mode=TwoWay}" IsEnabled="{Binding !IsBusy}">
+                                        <TextBlock Text="{lan:I18n ImageConvert.Option_PreferNpu}" TextWrapping="Wrap" />
+                                    </CheckBox>
+                                    <TextBlock Text="{Binding SrDeviceText}" FontSize="11" Opacity="0.8" TextWrapping="Wrap" />
                                     <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">
                                         <TextBlock Grid.Column="0" Text="{lan:I18n ImageConvert.Label_SrModel}" VerticalAlignment="Center" />
                                         <ComboBox Grid.Column="2" Width="220"

@@ -23,9 +23,20 @@ public sealed class SuperResolutionService : ISuperResolutionService
     private readonly Dictionary<SuperResolutionModel, (string Name, TensorElementType Type)[]> _extraInputs = new();
     private readonly Dictionary<SuperResolutionModel, bool> _sessionUsesDml = new();
     private readonly object _lock = new();
+    private readonly object _inferenceGate = new();
+    private readonly Dictionary<(SuperResolutionModel Model, int Window), NpuSrTileModel> _npuSessions = new();
+    private readonly Dictionary<(SuperResolutionModel Model, int Window), string> _npuFailures = new();
+
+    /// <inheritdoc />
+    public VideoSrDevice? InferenceDevice { get; private set; }
+    /// <inheritdoc />
+    public event Action<VideoSrDevice>? DeviceChanged;
+    /// <inheritdoc />
+    public bool PreferNpu { get => _preferences.UseSuperResolutionNpu; set => _preferences.UseSuperResolutionNpu = value; }
     private bool _disposed;
     private bool _dmlDisabled;
     private bool _dmlAvailable;
+    private string _dmlDeviceName = "GPU · DirectML";
 
     // Memory/speed tiers: padded window sizes (MinMemory, Memory, Balanced, Quality).
     private static readonly int[] WindowSizes = [192, 288, 384, 576];
@@ -261,11 +272,56 @@ public sealed class SuperResolutionService : ISuperResolutionService
 
     private SKBitmap RunModelTile(SuperResolutionModel model, SKImage tile, CancellationToken ct)
     {
-        InferenceSession session = GetOrCreateSession(model);
+        lock (_inferenceGate) return RunModelTileSerial(model, tile, ct);
+    }
+
+    private SKBitmap RunModelTileSerial(SuperResolutionModel model, SKImage tile, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        string? npuFailure = null;
+        if (PreferNpu && Environment.GetEnvironmentVariable("SR_FORCE_CPU") != "1")
+        {
+            var key = (model, tile.Width);
+            if (!_npuFailures.TryGetValue(key, out npuFailure))
+            {
+                try
+                {
+                    if (!_npuSessions.TryGetValue(key, out var npu))
+                    {
+                        npu = new NpuSrTileModel(Path.Combine(_modelsDirectory, GetFileName(model)), ct, tile.Width);
+                        _npuSessions.Add(key, npu);
+                    }
+                    var result = RunNpuTile(npu, tile, ct);
+                    ReportDevice(new VideoSrDevice("NPU · Intel AI Boost", true));
+                    return result;
+                }
+                catch (OperationCanceledException) { throw; }
+                catch (Exception ex)
+                {
+                    npuFailure = ex.Message;
+                    _npuFailures[key] = npuFailure;
+                    if (_npuSessions.Remove(key, out var failed)) failed.Dispose();
+                    _logger.LogWarning(ex, "Image SR NPU unavailable for {Model}; trying GPU", model);
+                }
+            }
+        }
+        InferenceSession session;
+        try { session = GetOrCreateSession(model); }
+        catch (OnnxRuntimeException) when (WantDml())
+        {
+            _dmlDisabled = true;
+            _dmlAvailable = false;
+            session = GetOrCreateSession(model);
+            npuFailure ??= "DirectML initialization failed";
+        }
         try
         {
-            return RunModelTileCore(session, model, tile, ct);
+            var result = RunModelTileCore(session, model, tile, ct);
+            ReportDevice(new VideoSrDevice(_sessionUsesDml.GetValueOrDefault(model) ? _dmlDeviceName : "CPU",
+                _sessionUsesDml.GetValueOrDefault(model), npuFailure));
+            return result;
         }
+        catch (OnnxRuntimeException) when (ct.IsCancellationRequested) { throw new OperationCanceledException(ct); }
         catch (OnnxRuntimeException) when (_dmlAvailable)
         {
             _logger.LogWarning("DirectML execution failed on model {Model}; dropping all DML sessions and falling back to CPU EP.", model);
@@ -280,8 +336,39 @@ public sealed class SuperResolutionService : ISuperResolutionService
                 _dmlDisabled = true;
             }
             session = GetOrCreateSession(model);
-            return RunModelTileCore(session, model, tile, ct);
+            var result = RunModelTileCore(session, model, tile, ct);
+            ReportDevice(new VideoSrDevice("CPU", false, "DirectML inference failed"));
+            return result;
         }
+    }
+
+    private void ReportDevice(VideoSrDevice device)
+    {
+        if (device == InferenceDevice) return;
+        InferenceDevice = device;
+        _uiContext.Post(_ => DeviceChanged?.Invoke(device), null);
+    }
+
+    private static SKBitmap RunNpuTile(NpuSrTileModel npu, SKImage tile, CancellationToken ct)
+    {
+        using var inputBitmap = SKBitmap.FromImage(tile);
+        int window = tile.Width;
+        var tensor = new DenseTensor<float>(new[] { 1, 3, window, window });
+        FillRgbTensor(inputBitmap, tensor, window, window);
+        var input = tensor.Buffer.ToArray();
+        var output = new float[input.Length * 16];
+        npu.Infer(input, output, ct);
+        var result = new SKBitmap(new SKImageInfo(window * 4, window * 4, SKColorType.Bgra8888, SKAlphaType.Premul));
+        var pixels = result.GetPixelSpan();
+        int channel = window * window * 16;
+        for (int i = 0; i < channel; i++)
+        {
+            pixels[i * 4] = (byte)Math.Clamp((int)(output[channel * 2 + i] * 255f), 0, 255);
+            pixels[i * 4 + 1] = (byte)Math.Clamp((int)(output[channel + i] * 255f), 0, 255);
+            pixels[i * 4 + 2] = (byte)Math.Clamp((int)(output[i] * 255f), 0, 255);
+            pixels[i * 4 + 3] = 255;
+        }
+        return result;
     }
 
     private SKBitmap RunModelTileCore(InferenceSession session, SuperResolutionModel model, SKImage tile, CancellationToken ct)
@@ -315,7 +402,9 @@ public sealed class SuperResolutionService : ISuperResolutionService
             }
 
             using var runOptions = new RunOptions();
+            using var registration = ct.Register(() => runOptions.Terminate = true);
             using var outputs = session.Run(runOptions, inputs, new[] { outputName });
+            ct.ThrowIfCancellationRequested();
             var outputValue = outputs[0];
 
             var outputShape = outputValue.GetTensorTypeAndShape().Shape;
@@ -577,7 +666,7 @@ public sealed class SuperResolutionService : ISuperResolutionService
 
             string fileName = GetFileName(model);
             string path = Path.Combine(_modelsDirectory, fileName);
-            var sessionOptions = BuildSessionOptions();
+            using var sessionOptions = BuildSessionOptions();
 
             var session = new InferenceSession(path, sessionOptions);
             var inputMeta = session.InputMetadata.First();
@@ -611,14 +700,16 @@ public sealed class SuperResolutionService : ISuperResolutionService
         // skipped when disabled at runtime (failure fallback) or via user settings.
         // DirectML is Windows-only; on Linux we go straight to the CPU EP rather
         // than probing the provider every session.
-        var options = new SessionOptions();
+        var options = new SessionOptions { EnableMemoryPattern = false, ExecutionMode = ExecutionMode.ORT_SEQUENTIAL };
 
         bool dmlRequested = WantDml() && OperatingSystem.IsWindows();
         if (dmlRequested)
         {
             try
             {
-                options.AppendExecutionProvider_DML(0);
+                var adapter = VideoSrGpuSelector.Select();
+                options.AppendExecutionProvider_DML(adapter.Index);
+                _dmlDeviceName = "GPU · " + adapter.Name;
                 _dmlAvailable = true;
                 _logger.LogInformation("Super-resolution: DirectML execution provider enabled.");
             }
@@ -665,6 +756,14 @@ public sealed class SuperResolutionService : ISuperResolutionService
 
     public void ReleaseSessions()
     {
+        lock (_inferenceGate)
+        {
+            ReleaseSessionsCore();
+        }
+    }
+
+    private void ReleaseSessionsCore()
+    {
         lock (_lock)
         {
             if (_disposed) return;
@@ -679,6 +778,9 @@ public sealed class SuperResolutionService : ISuperResolutionService
             _outputElementTypes.Clear();
             _extraInputs.Clear();
             _sessionUsesDml.Clear();
+            foreach (var session in _npuSessions.Values) session.Dispose();
+            _npuSessions.Clear();
+            _npuFailures.Clear();
             _logger.LogInformation("Super-resolution sessions released.");
         }
     }
@@ -687,9 +789,9 @@ public sealed class SuperResolutionService : ISuperResolutionService
     {
         try { _warmupCts?.Cancel(); } catch { }
         _warmupCts?.Dispose();
-        ReleaseSessions();
-        lock (_lock)
+        lock (_inferenceGate)
         {
+            ReleaseSessionsCore();
             _disposed = true;
         }
     }

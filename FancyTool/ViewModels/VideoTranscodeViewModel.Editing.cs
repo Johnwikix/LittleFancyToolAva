@@ -169,6 +169,7 @@ public partial class VideoTranscodeViewModel
         ResetTrimCommand.NotifyCanExecuteChanged();
         PreviewStartCommand.NotifyCanExecuteChanged();
         PreviewEndCommand.NotifyCanExecuteChanged();
+        RefreshSrState();
     }
 
     private bool CanPreviewBoundary() => CanEditTrim;

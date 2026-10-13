@@ -2,6 +2,16 @@ namespace FancyToolAva.Models.ViewStates;
 
 public class VideoTranscodeViewState
 {
+    /// <summary>Gets or sets whether video super-resolution is enabled.</summary>
+    public bool IsVideoSrEnabled { get; set; }
+    /// <summary>Gets or sets the selected video enhancement model.</summary>
+    public int VideoSrModelIndex { get; set; }
+    /// <summary>Gets or sets the selected enhancement scale.</summary>
+    public int VideoSrScaleIndex { get; set; }
+    /// <summary>Gets or sets the preferred accelerator.</summary>
+    public int VideoSrBackendIndex { get; set; }
+    /// <summary>Gets or sets whether CPU fallback is allowed.</summary>
+    public bool VideoSrAllowCpuFallback { get; set; } = true;
     public string? OutputFolder { get; set; }
     public int ContainerIndex { get; set; }
     public int VideoCodecIndex { get; set; }

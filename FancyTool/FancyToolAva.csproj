@@ -26,6 +26,12 @@
   <ItemGroup Condition="'$(RuntimeIdentifier)' == 'linux-x64'">
     <None Include="Libraries\FFmpeg\linux-x64\*.so.*" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Link="%(Filename)%(Extension)" LinuxFileMode="755" />
   </ItemGroup>
+  <ItemGroup Condition="'$(RuntimeIdentifier)' == 'win-x64' or ('$(RuntimeIdentifier)' == '' and $([MSBuild]::IsOSPlatform('windows')))">
+    <None Include="Libraries\OpenVINO\win-x64\*.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Link="OpenVINO\%(Filename)%(Extension)" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Libraries\OpenVINO\LICENSE;Libraries\OpenVINO\*-programs.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Link="Licenses\OpenVINO\%(Filename)%(Extension)" />
+  </ItemGroup>
   <ItemGroup>
     <None Include="Libraries\FFmpeg\LICENSE.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Link="Licenses\FFmpeg.txt" />
   </ItemGroup>

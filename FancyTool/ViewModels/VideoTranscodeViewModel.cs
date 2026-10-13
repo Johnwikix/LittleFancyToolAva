@@ -771,7 +771,8 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
         INotificationService notificationService,
         IViewStateService viewStateService,
         AppPreferences preferences,
-        ILogger<VideoTranscodeViewModel>? logger = null)
+        ILogger<VideoTranscodeViewModel>? logger = null,
+        IVideoSuperResolutionService? videoSrService = null)
     {
         _videoService = videoService;
         _ffmpegService = ffmpegService;
@@ -779,6 +780,12 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
         _notificationService = notificationService;
         _viewStateService = viewStateService;
         _preferences = preferences;
+        _videoSrService = videoSrService;
+        if (videoSrService != null)
+        {
+            videoSrService.DownloadProgressChanged += OnSrDownloadChanged;
+            videoSrService.DeviceChanged += OnSrDeviceChanged;
+        }
         _loggerField = logger ?? LoggerFactory.Create(b => { }).CreateLogger<VideoTranscodeViewModel>();
         _viewStateService.Register(this);
         FileItems.CollectionChanged += OnFileItemsChanged;
@@ -809,6 +816,9 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
             OnPropertyChanged(nameof(PreviewModeText));
             OnPropertyChanged(nameof(PreviewStatusText));
             OnPropertyChanged(nameof(PreviewFileName));
+            OnPropertyChanged(nameof(VideoSrModelLabels));
+            OnPropertyChanged(nameof(VideoSrBackendLabels));
+            RefreshSrState();
             foreach (var item in FileItems) item.RefreshLocalization();
             // Re-validate to regenerate LastError in new language
             _ = _ffmpegService.ValidateAsync();
@@ -939,7 +949,12 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
         GifStatsMode = SelectedGifStats ?? (GifStatsIndex == 0 ? "diff" : "single"),
         AudioGainDb = AudioGainDb,
         SelectedPresetIndex = HandbrakePresetIndex,
-        IncludeAllInFolderScan = IncludeAllInFolderScan
+        IncludeAllInFolderScan = IncludeAllInFolderScan,
+        IsVideoSrEnabled = IsVideoSrEnabled,
+        VideoSrModelIndex = VideoSrModelIndex,
+        VideoSrScaleIndex = VideoSrScaleIndex,
+        VideoSrBackendIndex = VideoSrBackendIndex,
+        VideoSrAllowCpuFallback = VideoSrAllowCpuFallback
     };
 
     void IViewState.RestoreState(object state)
@@ -950,6 +965,11 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
             try
             {
                 OutputFolder = s.OutputFolder;
+                IsVideoSrEnabled = s.IsVideoSrEnabled;
+                VideoSrModelIndex = s.VideoSrModelIndex;
+                VideoSrScaleIndex = s.VideoSrScaleIndex;
+                VideoSrBackendIndex = s.VideoSrBackendIndex;
+                VideoSrAllowCpuFallback = s.VideoSrAllowCpuFallback;
                 // 容器：优先 SelectedItem，有交集保留，无则首项，兼容旧索引；WebM 已移除，旧状态回落至 MP4
                 if (!string.IsNullOrEmpty(s.SelectedContainer))
                 {
@@ -1305,7 +1325,7 @@ private async Task AddPathsAsync(IEnumerable<string> paths)
         }).ConfigureAwait(false);
 
         // 软件编码器（x264/x265 等）内部已多线程，批级并行取小值避免过度订阅
-        int dop = Math.Clamp(Environment.ProcessorCount / 4, 1, 4);
+        int dop = options.SuperResolutionEnabled ? 1 : Math.Clamp(Environment.ProcessorCount / 4, 1, 4);
         await Parallel.ForEachAsync(plan, new ParallelOptions { MaxDegreeOfParallelism = dop }, async (entry, _) =>
         {
             var (item, outputPath) = entry;
@@ -1419,6 +1439,11 @@ private async Task AddPathsAsync(IEnumerable<string> paths)
 
         return new VideoTranscodeOptions
         {
+            SuperResolutionEnabled = IsVideoSrEnabled,
+            SuperResolutionModel = VideoModels[VideoSrModelIndex],
+            SuperResolutionScale = VideoSrScaleIndex == 0 ? 2 : 4,
+            SuperResolutionBackend = (VideoSrBackend)VideoSrBackendIndex,
+            SuperResolutionAllowCpuFallback = VideoSrAllowCpuFallback,
             Container = container,
             VideoCodec = vCodec,
             AudioCodec = aCodec,
@@ -1611,11 +1636,17 @@ private async Task AddPathsAsync(IEnumerable<string> paths)
         try { I18nManager.Instance.CultureChanged -= OnCultureChanged; } catch { }
         _cts?.Cancel();
         _cts?.Dispose();
+        _srInstallCts?.Cancel();
         _previewCts?.Cancel();
         _previewCts?.Dispose();
         FileItems.CollectionChanged -= OnFileItemsChanged;
         if (SelectedFileItem != null) SelectedFileItem.PropertyChanged -= OnSelectedItemChanged;
         ReplacePreview(null);
+        if (_videoSrService != null)
+        {
+            _videoSrService.DownloadProgressChanged -= OnSrDownloadChanged;
+            _videoSrService.DeviceChanged -= OnSrDeviceChanged;
+        }
         _viewStateService.Unregister(this);
     }
 }

@@ -19,6 +19,16 @@ public partial class ImageConvertViewModel : ViewModelBase, IViewState, IFileIte
 
     private readonly IImageConversionService _imageConversionService;
     private readonly ISuperResolutionService _superResolutionService;
+
+    /// <summary>Gets or sets whether image super-resolution prefers Intel NPU inference.</summary>
+    public bool PreferSrNpu
+    {
+        get => _superResolutionService.PreferNpu;
+        set { if (IsBusy) return; _superResolutionService.PreferNpu = value; SrDeviceText = string.Empty; OnPropertyChanged(); }
+    }
+
+    /// <summary>Gets the actual image super-resolution device and any hardware fallback notice.</summary>
+    public string SrDeviceText { get => field; private set => SetProperty(ref field, value); } = string.Empty;
     private readonly IFileDialogService _fileDialogService;
     private readonly INotificationService _notificationService;
     private readonly IViewStateService _viewStateService;
@@ -247,6 +257,8 @@ public partial class ImageConvertViewModel : ViewModelBase, IViewState, IFileIte
         AvailableSrModelLabels.Add(LocalizationRegistry.Get("ImageConvert.SrModel_SpanClearRealityV1"));
         _superResolutionService.DownloadProgressChanged += OnDownloadProgressChanged;
         _superResolutionService.IsDownloadingChanged += OnIsDownloadingChanged;
+        _superResolutionService.DeviceChanged += device => Dispatcher.UIThread.Post(() =>
+            SrDeviceText = device.Name + (device.FallbackReason != null ? " · " + LocalizationRegistry.Get("VideoTranscode.Sr_Fallback") : string.Empty));
         UpdateStatusText();
     }
 

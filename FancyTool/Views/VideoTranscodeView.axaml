@@ -222,6 +222,26 @@
                                 </StackPanel>
                             </TabItem>
                         </TabControl>
+                        <StackPanel Spacing="8">
+                            <CheckBox IsChecked="{Binding IsVideoSrEnabled, Mode=TwoWay}" IsEnabled="{Binding !IsBusy}" Content="{lan:I18n VideoTranscode.Sr_Enable}" />
+                            <StackPanel IsVisible="{Binding IsVideoSrEnabled}" Spacing="8">
+                                <StackPanel IsEnabled="{Binding !IsBusy}" Spacing="8">
+                                    <ComboBox ItemsSource="{Binding VideoSrModelLabels}" SelectedIndex="{Binding VideoSrModelIndex, Mode=TwoWay}" HorizontalAlignment="Stretch" />
+                                    <Grid ColumnDefinitions="*,8,*">
+                                        <ComboBox ItemsSource="{Binding VideoSrScaleLabels}" SelectedIndex="{Binding VideoSrScaleIndex, Mode=TwoWay}" HorizontalAlignment="Stretch" />
+                                        <ComboBox Grid.Column="2" ItemsSource="{Binding VideoSrBackendLabels}" SelectedIndex="{Binding VideoSrBackendIndex, Mode=TwoWay}" HorizontalAlignment="Stretch" />
+                                    </Grid>
+                                    <CheckBox IsChecked="{Binding VideoSrAllowCpuFallback, Mode=TwoWay}">
+                                        <TextBlock Text="{lan:I18n VideoTranscode.Sr_AllowCpu}" TextWrapping="Wrap" />
+                                    </CheckBox>
+                                </StackPanel>
+                                <TextBlock Text="{lan:I18n VideoTranscode.Sr_Hint}" FontSize="11" Opacity="0.7" TextWrapping="Wrap" />
+                                <Button Command="{Binding InstallVideoSrModelCommand}" Content="{Binding SrInstallLabel}" HorizontalAlignment="Stretch" />
+                                <ProgressBar IsVisible="{Binding IsSrInstalling}" Value="{Binding SrDownloadProgress}" Minimum="0" Maximum="1" Height="5" />
+                                <TextBlock Text="{Binding SrDownloadText}" FontSize="11" Opacity="0.75" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding VideoSrDeviceText}" FontSize="11" FontWeight="SemiBold" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </StackPanel>
                     </StackPanel>
                 </Border>
             </ScrollViewer>
@@ -324,9 +344,10 @@
                     <Button Command="{Binding TogglePauseCommand}" IsVisible="{Binding IsBusy}" Content="{Binding PauseResumeLabel}" />
                     <Button Command="{Binding StopTranscodeCommand}" IsVisible="{Binding IsBusy}" Content="{lan:I18n Common.Button_Stop}" />
                 </StackPanel>
-                <Grid x:Name="FooterProgress" Grid.Row="1" Grid.ColumnSpan="3" ColumnDefinitions="*,12,Auto" IsVisible="{Binding IsBusy}" Margin="0,8,0,0">
+                <Grid x:Name="FooterProgress" Grid.Row="1" Grid.ColumnSpan="3" RowDefinitions="Auto,Auto" ColumnDefinitions="*,12,Auto" IsVisible="{Binding IsBusy}" Margin="0,8,0,0">
                     <ProgressBar Value="{Binding ConversionProgress}" Minimum="0" Maximum="1" Height="5" VerticalAlignment="Center" />
                     <TextBlock Grid.Column="2" Text="{Binding BatchProgressText}" FontSize="11" Opacity="0.8" />
+                    <TextBlock Grid.Row="1" Grid.ColumnSpan="3" IsVisible="{Binding IsVideoSrEnabled}" Text="{Binding VideoSrDeviceText}" FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0" />
                 </Grid>
             </Grid>
         </Border>

@@ -884,6 +884,9 @@ internal static class Program
 
     private sealed class FakeSuperResolution : ISuperResolutionService
     {
+        public VideoSrDevice? InferenceDevice => null;
+        public bool PreferNpu { get; set; }
+        public event Action<VideoSrDevice>? DeviceChanged { add { } remove { } }
         public IReadOnlyList<string> AvailableModels => [];
         public bool IsModelAvailable(SuperResolutionModel model) => false;
         public Task<SkiaSharp.SKBitmap> UpscaleAsync(SkiaSharp.SKBitmap source, SuperResolutionModel model,

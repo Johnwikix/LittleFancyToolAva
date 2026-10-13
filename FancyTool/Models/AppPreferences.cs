@@ -111,6 +111,9 @@ namespace FancyToolAva.Models
             set => SetProperty(ref _useSuperResolutionDml, value);
         }
 
+        /// <summary>Gets or sets whether image enhancement prefers Intel NPU inference before GPU inference.</summary>
+        public bool UseSuperResolutionNpu { get => field; set => SetProperty(ref field, value); }
+
         public int SuperResolutionTileSizeIndex
         {
             get => field;

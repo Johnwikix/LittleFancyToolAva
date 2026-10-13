@@ -16,13 +16,19 @@ namespace FfmpegSmokeTest;
 
 internal static partial class Program
 {
-    private static int RunEditingUi(VideoTranscodeService service, string source, string workDir)
+    private static int RunEditingUi(VideoTranscodeService service, string source, string workDir, bool srOptions = false)
     {
         try
         {
             AppBuilder.Configure<App>().UsePlatformDetect().WithInterFont().SetupWithoutStarting();
             Application.Current!.RequestedThemeVariant = ThemeVariant.Light;
             var vm = ((App)Application.Current!).TryGetService<VideoTranscodeViewModel>()!;
+            if (srOptions)
+            {
+                vm.IsVideoSrEnabled = true;
+                vm.VideoSrBackendIndex = (int)VideoSrBackend.PreferNpu;
+                vm.VideoSrAllowCpuFallback = false;
+            }
             var view = new VideoTranscodeView { DataContext = vm, Background = Brushes.WhiteSmoke };
             var window = new Window { Width = 1100, Height = 760, Content = view, Title = "Video editing smoke test" };
             window.Show();
@@ -37,7 +43,7 @@ internal static partial class Program
             var slider = view.GetVisualDescendants().OfType<FARangeSlider>().Single();
             if (Math.Abs(slider.RangeStart - 0.4) > 0.001 || Math.Abs(slider.RangeEnd - 1.4) > 0.001)
                 throw new InvalidOperationException("Range slider bindings did not update");
-            Render(window, view, Path.Combine(workDir, "editing-wide.png"));
+            Render(window, view, Path.Combine(workDir, srOptions ? "sr-wide.png" : "editing-wide.png"));
 
             vm.FileItems.Add(second);
             vm.SelectedFileItem = second;
@@ -62,7 +68,7 @@ internal static partial class Program
             window.Width = 650;
             PumpUntil(() => view.FindControl<Grid>("BodyGrid")!.ColumnDefinitions.Count == 1);
             PumpUntil(() => vm.HasPreview && !vm.IsPreviewLoading);
-            Render(window, view, Path.Combine(workDir, "editing-narrow.png"));
+            Render(window, view, Path.Combine(workDir, srOptions ? "sr-narrow.png" : "editing-narrow.png"));
             vm.IsBusy = true;
             double start = vm.TrimStartSeconds;
             vm.TrimStartSeconds = 0.7;
@@ -84,12 +90,27 @@ internal static partial class Program
                 .Select(path => service.ProbeAsync(path).GetAwaiter().GetResult()!.DurationMs).Order().ToArray();
             if (durations.Length != 2 || Math.Abs(durations[0] - 600) > 120 || Math.Abs(durations[1] - 1000) > 120)
                 throw new InvalidOperationException("Batch command did not preserve per-file trim ranges");
+            if (srOptions && !vm.VideoSrDeviceText.StartsWith("NPU")) throw new InvalidOperationException("Video UI failed to report actual NPU use");
             vm.SelectedFileItem = first;
             vm.FileItems.Remove(first);
             if (!ReferenceEquals(vm.SelectedFileItem, second)) throw new InvalidOperationException("Removing selected file did not move selection");
             vm.FileItems.Clear();
             if (vm.SelectedFileItem != null || vm.HasPreview || vm.CanEditTrim) throw new InvalidOperationException("Clearing files retained the editor");
             vm.Dispose();
+            if (srOptions)
+            {
+                var imageVm = ((App)Application.Current!).TryGetService<ImageConvertViewModel>()!;
+                imageVm.IsSuperResolutionEnabled = true;
+                imageVm.PreferSrNpu = true;
+                var imageView = new ImageConvertView { DataContext = imageVm, Background = Brushes.WhiteSmoke };
+                window.Width = 1100;
+                window.Content = imageView;
+                PumpUntil(() => imageView.Bounds.Width > 1000 && !imageVm.IsSuperResolutionDownloading);
+                window.UpdateLayout();
+                using var image = new RenderTargetBitmap(new PixelSize((int)imageView.Bounds.Width, (int)imageView.Bounds.Height), new Vector(96, 96));
+                image.Render(imageView);
+                image.Save(Path.Combine(workDir, "image-npu-ui.png"));
+            }
             window.Close();
             Console.WriteLine("Editing UI: range bindings, per-file batch transcode, boundary constraints, reset, busy state, removal, wide/narrow renders OK");
             return 0;
