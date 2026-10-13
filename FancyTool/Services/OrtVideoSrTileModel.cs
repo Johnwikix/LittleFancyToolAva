@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
+using System.Numerics.Tensors;
 
 namespace FancyToolAva.Services;
 
@@ -13,31 +14,28 @@ internal sealed class OrtVideoSrTileModel : IVideoSrTileModel
     private readonly string[] _outputNames;
     private readonly float[]? _floatInput;
     private readonly Half[]? _halfInput;
+    private readonly int _window;
+    private readonly int _nativeScale;
+    internal VideoSrDevice Device { get; }
 
-    public OrtVideoSrTileModel(string path, int? gpuIndex)
+    internal OrtVideoSrTileModel(string path, VideoSrBackend backend, int window, CancellationToken ct, int nativeScale = 4)
     {
-        using var options = new SessionOptions
-        {
-            EnableMemoryPattern = false,
-            ExecutionMode = ExecutionMode.ORT_SEQUENTIAL,
-            EnableCpuMemArena = false,
-            GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL
-        };
-        if (gpuIndex.HasValue) options.AppendExecutionProvider_DML(gpuIndex.Value);
-        else options.AppendExecutionProvider_CPU(0);
-        _session = new InferenceSession(path, options);
+        _window = window;
+        _nativeScale = nativeScale;
+        _session = WindowsMlAccelerator.CreateSession(path, backend, window, ct, out var device);
+        Device = device;
         try
         {
             var imageInput = _session.InputMetadata.First(kv => kv.Value.Dimensions.Length == 4);
-            var shape = new long[] { 1, 3, VideoFrameUpscaler.Window, VideoFrameUpscaler.Window };
+            var shape = new long[] { 1, 3, window, window };
             if (imageInput.Value.ElementDataType == TensorElementType.Float16)
             {
-                _halfInput = new Half[3 * VideoFrameUpscaler.Window * VideoFrameUpscaler.Window];
+                _halfInput = new Half[3 * window * window];
                 _inputs.Add(imageInput.Key, MakeHalf(_halfInput, shape));
             }
             else if (imageInput.Value.ElementDataType == TensorElementType.Float)
             {
-                _floatInput = new float[3 * VideoFrameUpscaler.Window * VideoFrameUpscaler.Window];
+                _floatInput = new float[3 * window * window];
                 _inputs.Add(imageInput.Key, OrtValue.CreateTensorValueFromMemory(_floatInput, shape));
             }
             else throw new NotSupportedException("Unsupported model input precision");
@@ -63,7 +61,7 @@ internal sealed class OrtVideoSrTileModel : IVideoSrTileModel
     public void Infer(float[] input, float[] output, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
-        if (_halfInput != null) for (int i = 0; i < input.Length; i++) _halfInput[i] = (Half)input[i];
+        if (_halfInput != null) TensorPrimitives.ConvertToHalf(input, _halfInput);
         else input.CopyTo(_floatInput!, 0);
         using var options = new RunOptions();
         using var registration = ct.Register(() => options.Terminate = true);
@@ -72,12 +70,11 @@ internal sealed class OrtVideoSrTileModel : IVideoSrTileModel
             using var results = _session.Run(options, _inputs, _outputNames);
             var value = results[0];
             var shape = value.GetTensorTypeAndShape();
-            if (!shape.Shape.SequenceEqual(new long[] { 1, 3, VideoFrameUpscaler.Window * 4, VideoFrameUpscaler.Window * 4 }))
+            if (!shape.Shape.SequenceEqual(new long[] { 1, 3, _window * _nativeScale, _window * _nativeScale }))
                 throw new InvalidOperationException("Unexpected super-resolution output shape");
             if (shape.ElementDataType == TensorElementType.Float16)
             {
-                var values = value.GetTensorDataAsSpan<Float16>();
-                for (int i = 0; i < output.Length; i++) output[i] = values[i].ToFloat();
+                TensorPrimitives.ConvertToSingle(MemoryMarshal.Cast<Float16, Half>(value.GetTensorDataAsSpan<Float16>()), output);
             }
             else value.GetTensorDataAsSpan<float>().CopyTo(output);
         }

@@ -156,7 +156,7 @@ pwsh -File .\publish-win.ps1
 pwsh -File .\publish-win.ps1 -Configuration Debug -Output .\out\debug
 ```
 
-产物默认位于 `bin\Release\net10.0\win-x64\publish\win-x64\`，直接运行 `FancyToolAva.exe` 即可。
+产物默认位于 `bin\Release\net10.0-windows10.0.19041.0\win-x64\publish\win-x64\`，直接运行 `FancyToolAva.exe` 即可。
 
 ### 调试运行
 

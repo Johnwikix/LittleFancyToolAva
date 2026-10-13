@@ -1,6 +1,7 @@
 namespace FancyToolAva.Services;
 
-public sealed record ModelManifestEntry(string FileName, string SourceUrl, string MirrorUrl, string Sha256);
+/// <summary>Describes a pinned downloadable model and its native output scale.</summary>
+public sealed record ModelManifestEntry(string FileName, string SourceUrl, string MirrorUrl, string Sha256, int NativeScale = 4);
 
 public static class ModelManifest
 {
@@ -31,5 +32,10 @@ public static class ModelManifest
             "https://huggingface.co/Kim2091/ClearRealityV1/resolve/main/ONNX/fp16/4x-ClearRealityV1-fp16-opset17.onnx",
             "https://hf-mirror.com/Kim2091/ClearRealityV1/resolve/main/ONNX/fp16/4x-ClearRealityV1-fp16-opset17.onnx",
             "5D710126F970A66166553C9D69A6E04ECAA5AF60A343B9D7B1736B407E84961A"),
+        new ModelManifestEntry(
+            "2xLiveActionV1_SPAN.onnx",
+            "https://raw.githubusercontent.com/jcj83429/upscaling/9332e7d5b07747ff347e5abdc43f8144364de9f7/2xLiveActionV1_SPAN/2xLiveActionV1_SPAN_490000.onnx",
+            "https://raw.githubusercontent.com/jcj83429/upscaling/9332e7d5b07747ff347e5abdc43f8144364de9f7/2xLiveActionV1_SPAN/2xLiveActionV1_SPAN_490000.onnx",
+            "BFA72F3C6347076AED140D0836CEE30C27EA434C047BEEAF9466469483836ECC", 2),
     };
 }

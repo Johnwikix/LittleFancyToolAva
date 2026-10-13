@@ -148,7 +148,7 @@ public sealed class VideoTranscodeOptions
     /// <summary>Gets or sets whether decoded video frames are enhanced before output scaling and encoding.</summary>
     public bool SuperResolutionEnabled { get; set; }
     /// <summary>Gets or sets the neural model used for frame enhancement.</summary>
-    public Services.SuperResolutionModel SuperResolutionModel { get; set; } = Services.SuperResolutionModel.RealEsrganGeneralX4V3;
+    public Services.SuperResolutionModel SuperResolutionModel { get; set; } = Services.SuperResolutionModel.SpanClearRealityV1;
     /// <summary>Gets or sets the enhancement scale, either two or four.</summary>
     public int SuperResolutionScale { get; set; } = 2;
     /// <summary>Gets or sets the preferred inference accelerator.</summary>

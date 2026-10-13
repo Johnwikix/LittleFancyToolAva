@@ -149,7 +149,7 @@ Optional parameters:
 pwsh -File .\publish-win.ps1 -Configuration Debug -Output .\out\debug
 ```
 
-Output is placed at `bin\Release\net10.0\win-x64\publish\win-x64\`. Launch `FancyToolAva.exe` to start the app.
+Output is placed at `bin\Release\net10.0-windows10.0.19041.0\win-x64\publish\win-x64\`. Launch `FancyToolAva.exe` to start the app.
 
 ### Debug Run
 

@@ -19,7 +19,9 @@ $ErrorActionPreference = "Stop"
 $root = $PSScriptRoot
 $csproj = Join-Path $root "FancyToolAva.csproj"
 
-dotnet restore $csproj -r linux-x64 | Out-Null
+# Set the RID as a global property so restore selects the platform-neutral TFM,
+# matching CreateDeb when cross-publishing from a Windows host.
+dotnet restore $csproj -p:RuntimeIdentifier=linux-x64 | Out-Null
 if ($LASTEXITCODE -ne 0) { throw "dotnet restore failed" }
 
 dotnet msbuild $csproj /t:CreateDeb `

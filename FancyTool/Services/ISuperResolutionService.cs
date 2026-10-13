@@ -8,7 +8,9 @@ public enum SuperResolutionModel
     RealEsrganX4PlusAnime = 1,
     RealEsrganGeneralX4V3 = 2,
     UltraSharpX4 = 3,
-    SpanClearRealityV1 = 4
+    SpanClearRealityV1 = 4,
+    /// <summary>Uses the native 2× live-action SPAN model under its noncommercial license.</summary>
+    LiveActionSpanX2 = 5
 }
 
 public interface ISuperResolutionService : IDisposable
@@ -17,7 +19,7 @@ public interface ISuperResolutionService : IDisposable
     VideoSrDevice? InferenceDevice { get; }
     /// <summary>Reports the actual inference accelerator, including fallback information.</summary>
     event Action<VideoSrDevice>? DeviceChanged;
-    /// <summary>Gets or sets whether image enhancement should prefer the Intel NPU.</summary>
+    /// <summary>Gets or sets whether image enhancement should prefer a Windows ML NPU provider.</summary>
     bool PreferNpu { get; set; }
     IReadOnlyList<string> AvailableModels { get; }
 
@@ -31,6 +33,9 @@ public interface ISuperResolutionService : IDisposable
         CancellationToken ct = default);
 
     void ReleaseSessions();
+
+    /// <summary>Installs compatible hardware providers through the Windows ML catalog.</summary>
+    Task InstallAccelerationAsync(CancellationToken ct = default);
 
     // ── Model download state (consumed by the UI) ─────────────────────────
     Task WarmupTask { get; }

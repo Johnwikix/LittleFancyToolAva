@@ -114,7 +114,7 @@
     <ProjectReference Include="..\FancyTool\FancyToolAva.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="$(MSBuildThisFileDirectory)..\FancyTool\bin\$(Configuration)\net10.0\win-x64\publish\**\*.*" Exclude="$(MSBuildThisFileDirectory)..\FancyTool\bin\$(Configuration)\net10.0\win-x64\publish\**\*.pdb;$(MSBuildThisFileDirectory)..\FancyTool\bin\$(Configuration)\net10.0\win-x64\publish\**\*.pdb.xml">
+    <Content Include="$(MSBuildThisFileDirectory)..\FancyTool\bin\$(Configuration)\net10.0-windows10.0.19041.0\win-x64\publish\**\*.*" Exclude="$(MSBuildThisFileDirectory)..\FancyTool\bin\$(Configuration)\net10.0-windows10.0.19041.0\win-x64\publish\**\*.pdb;$(MSBuildThisFileDirectory)..\FancyTool\bin\$(Configuration)\net10.0-windows10.0.19041.0\win-x64\publish\**\*.pdb.xml">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>

@@ -892,6 +892,7 @@ internal static class Program
         public Task<SkiaSharp.SKBitmap> UpscaleAsync(SkiaSharp.SKBitmap source, SuperResolutionModel model,
             int targetScale, IProgress<double>? progress = null, CancellationToken ct = default) => throw new InvalidOperationException("unused");
         public void ReleaseSessions() { }
+        public Task InstallAccelerationAsync(CancellationToken ct = default) => Task.CompletedTask;
         public Task WarmupTask => Task.CompletedTask;
         public bool IsDownloading => false;
         public string? LastDownloadError => null;

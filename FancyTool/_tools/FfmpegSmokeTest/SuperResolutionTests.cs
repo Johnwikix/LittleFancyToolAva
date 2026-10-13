@@ -18,7 +18,7 @@ internal static partial class Program
         var service = new VideoTranscodeService(NullLogger<VideoTranscodeService>.Instance, sr);
         sr.DeviceChanged += device => Console.WriteLine($"  actual device: {device.Name}, fallback: {device.FallbackReason ?? "none"}");
         var clock = Stopwatch.StartNew();
-        RunExtra("DirectML GPU video 2x, audio and trim", () =>
+        RunExtra("Windows ML GPU video 2x, audio and trim", () =>
         {
             string output = Path.Combine(workDir, "sr-gpu.mp4");
             service.TranscodeAsync(source, output, new VideoTranscodeOptions
@@ -68,6 +68,26 @@ internal static partial class Program
             Console.WriteLine($"  image device: {imageSr.InferenceDevice.Name}");
         });
         Console.WriteLine($"Image NPU test elapsed: {clock.Elapsed.TotalSeconds:F2}s");
+        RunExtra("native 2x SPAN image alpha and video", () =>
+        {
+            using var image = new SuperResolutionService(NullLogger<SuperResolutionService>.Instance, new AppPreferences { SuperResolutionTileSizeIndex = 0 }, downloader);
+            image.WarmupTask.GetAwaiter().GetResult();
+            using var input = new SKBitmap(new SKImageInfo(31, 23, SKColorType.Bgra8888, SKAlphaType.Premul));
+            input.Erase(new SKColor(90, 130, 170, 128));
+            using var output = image.UpscaleAsync(input, SuperResolutionModel.LiveActionSpanX2, 2).GetAwaiter().GetResult();
+            if (output.Width != 62 || output.Height != 46 || output.GetPixel(30, 20).Alpha is < 120 or > 136)
+                throw new InvalidOperationException("Native 2x image size or alpha incorrect");
+            string videoOutput = Path.Combine(workDir, "sr-native2x.mp4");
+            service.TranscodeAsync(source, videoOutput, new VideoTranscodeOptions
+            {
+                SuperResolutionEnabled = true, SuperResolutionModel = SuperResolutionModel.LiveActionSpanX2,
+                SuperResolutionBackend = VideoSrBackend.Gpu, SuperResolutionAllowCpuFallback = false,
+                TrimStartSeconds = 0.4, TrimEndSeconds = 0.6, Preset = PresetLevel.Ultrafast
+            }).GetAwaiter().GetResult();
+            var probe = service.ProbeAsync(videoOutput).GetAwaiter().GetResult()!;
+            if (probe.Width != 320 || probe.Height != 240 || !probe.HasAudio || Math.Abs(probe.Fps - 10) > 0.01)
+                throw new InvalidOperationException("Native 2x video output incorrect");
+        });
         RunExtra("GPU fps preprocessing and output scaling", () =>
         {
             string output = Path.Combine(workDir, "sr-filtered.mp4");

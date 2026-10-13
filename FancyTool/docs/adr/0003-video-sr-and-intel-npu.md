@@ -1,5 +1,7 @@
 # Video super-resolution and Intel NPU inference
 
+The acceleration and model-selection sections below are superseded by [ADR 0004](0004-windows-ml-and-efficient-sr.md). The directly bundled OpenVINO runtime has been removed; Windows ML now owns GPU/NPU providers.
+
 Video enhancement uses the same pinned ONNX model files and SHA-256 installer as image enhancement. The default is `realesr-general-x4v3_fp16`: Real-ESRGAN's lightweight general-scene model. Anime 6B and x4plus remain optional quality choices. This is frame-by-frame restoration, not a recurrent temporal model, so it does not promise temporal consistency or new source detail. The neural input/output is SDR BGRA/RGB at 8-bit precision; it is not an HDR-preserving path.
 
 The pipeline is time trim → crop/deinterlace/denoise/FPS → fixed-shape tiled inference → output scaling/pixel conversion → encoding/muxing. Audio follows the existing sample-accurate trim path. The inference stage holds only the current decoded and enhanced frame; FFmpeg's filters and codecs keep their own buffers, including the existing GIF palette buffering. A 192×192 padded inference window, 32-pixel overlap, serial enhanced-video scheduling, and a maximum of 8192 pixels per dimension / 33,554,432 total output pixels bound inference memory. Both encoding passes reuse one inference session.

@@ -1,4 +1,4 @@
-﻿using System.Runtime.InteropServices;
+using System.Runtime.InteropServices;
 using FancyToolAva.Models;
 using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
@@ -22,9 +22,12 @@ public sealed class SuperResolutionService : ISuperResolutionService
     private readonly Dictionary<SuperResolutionModel, TensorElementType> _outputElementTypes = new();
     private readonly Dictionary<SuperResolutionModel, (string Name, TensorElementType Type)[]> _extraInputs = new();
     private readonly Dictionary<SuperResolutionModel, bool> _sessionUsesDml = new();
+    private readonly Dictionary<SuperResolutionModel, int> _sessionWindows = new();
     private readonly object _lock = new();
     private readonly object _inferenceGate = new();
-    private readonly Dictionary<(SuperResolutionModel Model, int Window), NpuSrTileModel> _npuSessions = new();
+    private readonly Dictionary<(SuperResolutionModel Model, int Window), IVideoSrTileModel> _npuSessions = new();
+    private readonly Dictionary<(SuperResolutionModel Model, int Window), VideoSrDevice> _npuDevices = new();
+    private readonly Dictionary<(SuperResolutionModel Model, int Window, VideoSrBackend Backend), VideoFrameUpscaler> _frameSessions = new();
     private readonly Dictionary<(SuperResolutionModel Model, int Window), string> _npuFailures = new();
 
     /// <inheritdoc />
@@ -41,7 +44,6 @@ public sealed class SuperResolutionService : ISuperResolutionService
     // Memory/speed tiers: padded window sizes (MinMemory, Memory, Balanced, Quality).
     private static readonly int[] WindowSizes = [192, 288, 384, 576];
     private const int TilePad = 32;
-    private const int ModelScale = 4;
 
     private readonly AppPreferences _preferences;
     private Task? _warmupTask;
@@ -127,7 +129,8 @@ public sealed class SuperResolutionService : ISuperResolutionService
         "RealESRGAN_x4plus_anime",
         "realesr-general-x4v3_fp16",
         "4x-UltraSharp_fp16",
-        "4x-ClearRealityV1_fp16"
+        "4x-ClearRealityV1_fp16",
+        "2xLiveActionV1_SPAN"
     };
 
     public bool IsModelAvailable(SuperResolutionModel model)
@@ -148,6 +151,8 @@ public sealed class SuperResolutionService : ISuperResolutionService
 
         if (targetScale != 2 && targetScale != 4)
             throw new ArgumentOutOfRangeException(nameof(targetScale), "Target scale must be 2x or 4x.");
+        int modelScale = ModelManifest.RealEsrgan[(int)model].NativeScale;
+        if (targetScale > modelScale) throw new ArgumentOutOfRangeException(nameof(targetScale), "This model supports 2× output only");
 
         if (!IsModelAvailable(model))
         {
@@ -171,6 +176,43 @@ public sealed class SuperResolutionService : ISuperResolutionService
         // a run: every tile uses the same shape, so ORT/DML reuse their compiled graph.
         int windowSize = WindowSizes[Math.Clamp(_preferences.SuperResolutionTileSizeIndex, 0, WindowSizes.Length - 1)];
         int tileSize = windowSize - TilePad * 2;
+
+        if (source.ColorType == SKColorType.Bgra8888 && source.AlphaType == SKAlphaType.Opaque
+            && outW <= VideoFrameUpscaler.MaxDimension && outH <= VideoFrameUpscaler.MaxDimension && (long)outW * outH <= VideoFrameUpscaler.MaxPixels)
+        {
+            lock (_inferenceGate)
+            {
+                ThrowIfDisposed();
+                var backends = Environment.GetEnvironmentVariable("SR_FORCE_CPU") == "1"
+                    ? new[] { VideoSrBackend.Cpu }
+                    : PreferNpu ? WantDml() ? new[] { VideoSrBackend.PreferNpu, VideoSrBackend.Gpu, VideoSrBackend.Cpu } : new[] { VideoSrBackend.PreferNpu, VideoSrBackend.Cpu }
+                    : WantDml() ? new[] { VideoSrBackend.Gpu, VideoSrBackend.Cpu } : new[] { VideoSrBackend.Cpu };
+                string? failure = null;
+                foreach (var backend in backends)
+                {
+                    try
+                    {
+                        var key = (model, windowSize, backend);
+                        if (!_frameSessions.TryGetValue(key, out var session))
+                        {
+                            var tile = SrTileFactory.Create(Path.Combine(_modelsDirectory, GetFileName(model)), backend, windowSize, ct, out var device, modelScale);
+                            session = new VideoFrameUpscaler(tile, device, windowSize, modelScale);
+                            _frameSessions.Add(key, session);
+                        }
+                        var result = session.Upscale(source, targetScale, ct, progress);
+                        ReportDevice(session.Device with { FallbackReason = failure });
+                        return result;
+                    }
+                    catch (Exception ex) when (ex is not OperationCanceledException)
+                    {
+                        failure = ex.Message;
+                        if (_frameSessions.Remove((model, windowSize, backend), out var failed)) failed.Dispose();
+                        if (backend == VideoSrBackend.Cpu) throw;
+                        _logger.LogWarning(ex, "Image SR backend {Backend} failed", backend);
+                    }
+                }
+            }
+        }
 
         progress?.Report(0.05);
 
@@ -219,13 +261,13 @@ public sealed class SuperResolutionService : ISuperResolutionService
 
                     if (hasAlpha)
                     {
-                        var alphaInfo = new SKImageInfo(windowSize * ModelScale, windowSize * ModelScale, SKColorType.Bgra8888, SKAlphaType.Premul);
+                        var alphaInfo = new SKImageInfo(windowSize * modelScale, windowSize * modelScale, SKColorType.Bgra8888, SKAlphaType.Premul);
                         using var alphaTile = new SKBitmap(alphaInfo);
                         UpsampleAlphaChannel(srcBitmap, alphaTile, windowX, windowY, windowSize, windowSize);
                         MergeAlphaIntoRgb(srTile, alphaTile);
                     }
 
-                    if (targetScale == 2)
+                    if (targetScale < modelScale)
                     {
                         using var canvas = new SKCanvas(destBitmap);
                         using var paint = new SKPaint
@@ -236,8 +278,8 @@ public sealed class SuperResolutionService : ISuperResolutionService
                         };
                         canvas.DrawBitmap(
                             srTile,
-                            new SKRect(TilePad * ModelScale, TilePad * ModelScale,
-                                (TilePad + tileW) * ModelScale, (TilePad + tileH) * ModelScale),
+                            new SKRect(TilePad * modelScale, TilePad * modelScale,
+                                (TilePad + tileW) * modelScale, (TilePad + tileH) * modelScale),
                             new SKRect(x * 2, y * 2, (x + tileW) * 2, (y + tileH) * 2),
                             paint);
                     }
@@ -246,12 +288,12 @@ public sealed class SuperResolutionService : ISuperResolutionService
                         PasteTileInterior(
                             destBitmap,
                             srTile,
-                            x * ModelScale,
-                            y * ModelScale,
-                            TilePad * ModelScale,
-                            TilePad * ModelScale,
-                            tileW * ModelScale,
-                            tileH * ModelScale);
+                            x * modelScale,
+                            y * modelScale,
+                            TilePad * modelScale,
+                            TilePad * modelScale,
+                            tileW * modelScale,
+                            tileH * modelScale);
                     }
 
                     tileIndex++;
@@ -288,11 +330,12 @@ public sealed class SuperResolutionService : ISuperResolutionService
                 {
                     if (!_npuSessions.TryGetValue(key, out var npu))
                     {
-                        npu = new NpuSrTileModel(Path.Combine(_modelsDirectory, GetFileName(model)), ct, tile.Width);
+                        npu = SrTileFactory.Create(Path.Combine(_modelsDirectory, GetFileName(model)), VideoSrBackend.PreferNpu, tile.Width, ct, out var npuDevice, ModelManifest.RealEsrgan[(int)model].NativeScale);
                         _npuSessions.Add(key, npu);
+                        _npuDevices[key] = npuDevice;
                     }
-                    var result = RunNpuTile(npu, tile, ct);
-                    ReportDevice(new VideoSrDevice("NPU · Intel AI Boost", true));
+                    var result = RunNpuTile(npu, tile, ct, ModelManifest.RealEsrgan[(int)model].NativeScale);
+                    ReportDevice(_npuDevices[key]);
                     return result;
                 }
                 catch (OperationCanceledException) { throw; }
@@ -349,18 +392,18 @@ public sealed class SuperResolutionService : ISuperResolutionService
         _uiContext.Post(_ => DeviceChanged?.Invoke(device), null);
     }
 
-    private static SKBitmap RunNpuTile(NpuSrTileModel npu, SKImage tile, CancellationToken ct)
+    private static SKBitmap RunNpuTile(IVideoSrTileModel npu, SKImage tile, CancellationToken ct, int scale)
     {
         using var inputBitmap = SKBitmap.FromImage(tile);
         int window = tile.Width;
         var tensor = new DenseTensor<float>(new[] { 1, 3, window, window });
         FillRgbTensor(inputBitmap, tensor, window, window);
         var input = tensor.Buffer.ToArray();
-        var output = new float[input.Length * 16];
+        var output = new float[input.Length * scale * scale];
         npu.Infer(input, output, ct);
-        var result = new SKBitmap(new SKImageInfo(window * 4, window * 4, SKColorType.Bgra8888, SKAlphaType.Premul));
+        var result = new SKBitmap(new SKImageInfo(window * scale, window * scale, SKColorType.Bgra8888, SKAlphaType.Premul));
         var pixels = result.GetPixelSpan();
-        int channel = window * window * 16;
+        int channel = window * window * scale * scale;
         for (int i = 0; i < channel; i++)
         {
             pixels[i * 4] = (byte)Math.Clamp((int)(output[channel * 2 + i] * 255f), 0, 255);
@@ -654,10 +697,11 @@ public sealed class SuperResolutionService : ISuperResolutionService
             ThrowIfDisposed();
 
             bool wantDml = WantDml();
+            int window = WindowSizes[Math.Clamp(_preferences.SuperResolutionTileSizeIndex, 0, WindowSizes.Length - 1)];
             if (_sessions.TryGetValue(model, out var existing))
             {
                 // Rebuild the session when the desired EP changed (user toggled the setting).
-                if (_sessionUsesDml.TryGetValue(model, out var cur) && cur == wantDml)
+                if (_sessionUsesDml.TryGetValue(model, out var cur) && cur == wantDml && _sessionWindows.GetValueOrDefault(model) == window)
                     return existing;
                 _sessions.Remove(model);
                 _sessionUsesDml.Remove(model);
@@ -666,9 +710,9 @@ public sealed class SuperResolutionService : ISuperResolutionService
 
             string fileName = GetFileName(model);
             string path = Path.Combine(_modelsDirectory, fileName);
-            using var sessionOptions = BuildSessionOptions();
-
-            var session = new InferenceSession(path, sessionOptions);
+            var session = WindowsMlAccelerator.CreateSession(path, wantDml ? VideoSrBackend.Gpu : VideoSrBackend.Cpu, window, default, out var selectedDevice);
+            _dmlAvailable = selectedDevice.IsHardware;
+            _dmlDeviceName = selectedDevice.Name;
             var inputMeta = session.InputMetadata.First();
             var outputMeta = session.OutputMetadata.First();
             _inputNames[model] = inputMeta.Key;
@@ -680,6 +724,7 @@ public sealed class SuperResolutionService : ISuperResolutionService
                 .Select(kv => (kv.Key, kv.Value.ElementDataType))
                 .ToArray();
             _sessions[model] = session;
+            _sessionWindows[model] = window;
             _sessionUsesDml[model] = wantDml && _dmlAvailable;
             _logger.LogInformation("Super-resolution session ready: {Model} ({Input} {InType} -> {Output} {OutType})",
                 fileName, _inputNames[model], _inputElementTypes[model], _outputNames[model], _outputElementTypes[model]);
@@ -694,51 +739,6 @@ public sealed class SuperResolutionService : ISuperResolutionService
         return _preferences.UseSuperResolutionDml;
     }
 
-    private SessionOptions BuildSessionOptions()
-    {
-        // Attempt DML per session creation (not only for the first model). DML is
-        // skipped when disabled at runtime (failure fallback) or via user settings.
-        // DirectML is Windows-only; on Linux we go straight to the CPU EP rather
-        // than probing the provider every session.
-        var options = new SessionOptions { EnableMemoryPattern = false, ExecutionMode = ExecutionMode.ORT_SEQUENTIAL };
-
-        bool dmlRequested = WantDml() && OperatingSystem.IsWindows();
-        if (dmlRequested)
-        {
-            try
-            {
-                var adapter = VideoSrGpuSelector.Select();
-                options.AppendExecutionProvider_DML(adapter.Index);
-                _dmlDeviceName = "GPU · " + adapter.Name;
-                _dmlAvailable = true;
-                _logger.LogInformation("Super-resolution: DirectML execution provider enabled.");
-            }
-            catch (Exception ex)
-            {
-                _dmlAvailable = false;
-                _logger.LogWarning(ex, "DirectML unavailable, falling back to CPU EP.");
-            }
-        }
-        else
-        {
-            _dmlAvailable = false;
-            _logger.LogWarning("Super-resolution: GPU acceleration disabled (setting, SR_FORCE_CPU, or non-Windows); using CPU EP.");
-        }
-
-        if (!_dmlAvailable)
-        {
-            options.AppendExecutionProvider_CPU(0);
-        }
-
-        // ORT's CPU memory arena retains its high-water mark for the session lifetime;
-        // on this workload that is multiple GB kept after the first run. Disable it so
-        // each run returns its buffers (per-tile memory stays flat).
-        options.EnableCpuMemArena = false;
-
-        options.GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL;
-        return options;
-    }
-
     private static string GetFileName(SuperResolutionModel model) => model switch
     {
         SuperResolutionModel.RealEsrganX4Plus => "RealESRGAN_x4plus.onnx",
@@ -746,6 +746,7 @@ public sealed class SuperResolutionService : ISuperResolutionService
         SuperResolutionModel.RealEsrganGeneralX4V3 => "realesr-general-x4v3_fp16.onnx",
         SuperResolutionModel.UltraSharpX4 => "4x-UltraSharp_fp16.onnx",
         SuperResolutionModel.SpanClearRealityV1 => "4x-ClearRealityV1_fp16.onnx",
+        SuperResolutionModel.LiveActionSpanX2 => "2xLiveActionV1_SPAN.onnx",
         _ => throw new ArgumentOutOfRangeException(nameof(model))
     };
 
@@ -761,6 +762,11 @@ public sealed class SuperResolutionService : ISuperResolutionService
             ReleaseSessionsCore();
         }
     }
+
+    /// <inheritdoc />
+    public Task InstallAccelerationAsync(CancellationToken ct = default) => WindowsMlAccelerator.InstallAsync(
+        name => _uiContext.Post(_ => DownloadProgressChanged?.Invoke(new ModelDownloadProgress(name, ModelDownloadStage.Connecting, 0, null,
+            LocalizationRegistry.Get("VideoTranscode.Sr_InstallingHardware") + " · " + name)), null), ct);
 
     private void ReleaseSessionsCore()
     {
@@ -778,8 +784,12 @@ public sealed class SuperResolutionService : ISuperResolutionService
             _outputElementTypes.Clear();
             _extraInputs.Clear();
             _sessionUsesDml.Clear();
+            _sessionWindows.Clear();
+            foreach (var session in _frameSessions.Values) session.Dispose();
+            _frameSessions.Clear();
             foreach (var session in _npuSessions.Values) session.Dispose();
             _npuSessions.Clear();
+            _npuDevices.Clear();
             _npuFailures.Clear();
             _logger.LogInformation("Super-resolution sessions released.");
         }

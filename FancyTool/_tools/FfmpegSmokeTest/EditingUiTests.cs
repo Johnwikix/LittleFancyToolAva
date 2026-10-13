@@ -26,6 +26,9 @@ internal static partial class Program
             if (srOptions)
             {
                 vm.IsVideoSrEnabled = true;
+                vm.VideoSrModelIndex = 1;
+                if (vm.VideoSrScaleLabels.Length != 1 || vm.VideoSrScaleIndex != 0) throw new InvalidOperationException("Native 2x video scale choice incorrect");
+                vm.VideoSrModelIndex = 0;
                 vm.VideoSrBackendIndex = (int)VideoSrBackend.PreferNpu;
                 vm.VideoSrAllowCpuFallback = false;
             }
@@ -101,6 +104,9 @@ internal static partial class Program
             {
                 var imageVm = ((App)Application.Current!).TryGetService<ImageConvertViewModel>()!;
                 imageVm.IsSuperResolutionEnabled = true;
+                imageVm.SelectedSrModelIndex = (int)SuperResolutionModel.LiveActionSpanX2;
+                if (imageVm.AvailableSrScaleLabels.Count != 1 || imageVm.SelectedSrScaleIndex != 0) throw new InvalidOperationException("Native 2x image scale choice incorrect");
+                imageVm.SelectedSrModelIndex = (int)SuperResolutionModel.SpanClearRealityV1;
                 imageVm.PreferSrNpu = true;
                 var imageView = new ImageConvertView { DataContext = imageVm, Background = Brushes.WhiteSmoke };
                 window.Width = 1100;

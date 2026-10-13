@@ -1422,7 +1422,7 @@ private async Task AddPathsAsync(IEnumerable<string> paths)
             : string.Empty;
     }
 
-    private bool CanStartTranscode() => !IsBusy && FileItems.Count > 0 && _ffmpegService.IsAvailable;
+    private bool CanStartTranscode() => !IsBusy && !IsSrInstalling && FileItems.Count > 0 && _ffmpegService.IsAvailable;
 
     private VideoTranscodeOptions BuildOptions()
     {

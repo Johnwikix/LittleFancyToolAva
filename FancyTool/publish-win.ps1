@@ -1,4 +1,4 @@
-﻿# Publish Windows x64 Release (self-contained managed; NativeAOT disabled - FFmpeg.AutoGen uses reflection-based dynamic bindings)
+# Publish Windows x64 Release (self-contained managed; NativeAOT disabled - FFmpeg.AutoGen uses reflection-based dynamic bindings)
 param(
     [string]$Configuration = "Release",
     [string]$Output
@@ -10,7 +10,7 @@ $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $publishArgs = @(
     "publish", "$root\FancyToolAva.csproj",
     "-c", $Configuration,
-    "-f", "net10.0",
+    "-f", "net10.0-windows10.0.19041.0",
     "-r", "win-x64",
     "-p:PublishSelfContained=true"
 )

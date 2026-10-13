@@ -8,7 +8,7 @@ public partial class VideoTranscodeViewModel
 {
     private readonly IVideoSuperResolutionService? _videoSrService;
     private CancellationTokenSource? _srInstallCts;
-    private static readonly SuperResolutionModel[] VideoModels = [SuperResolutionModel.RealEsrganGeneralX4V3, SuperResolutionModel.RealEsrganX4PlusAnime, SuperResolutionModel.RealEsrganX4Plus];
+    private static readonly SuperResolutionModel[] VideoModels = [SuperResolutionModel.SpanClearRealityV1, SuperResolutionModel.LiveActionSpanX2, SuperResolutionModel.RealEsrganGeneralX4V3, SuperResolutionModel.RealEsrganX4PlusAnime, SuperResolutionModel.RealEsrganX4Plus];
 
     /// <summary>Gets or sets whether video frames are enhanced with a neural model.</summary>
     public bool IsVideoSrEnabled
@@ -17,15 +17,15 @@ public partial class VideoTranscodeViewModel
         set { if (IsBusy) return; if (SetProperty(ref field, value)) RefreshSrState(); }
     }
     /// <summary>Gets the localized video model choices.</summary>
-    public string[] VideoSrModelLabels => [LocalizationRegistry.Get("VideoTranscode.Sr_ModelFast"), LocalizationRegistry.Get("VideoTranscode.Sr_ModelAnime"), LocalizationRegistry.Get("VideoTranscode.Sr_ModelQuality")];
+    public string[] VideoSrModelLabels => [LocalizationRegistry.Get("VideoTranscode.Sr_ModelSpan"), LocalizationRegistry.Get("ImageConvert.SrModel_LiveActionSpanX2"), LocalizationRegistry.Get("VideoTranscode.Sr_ModelFast"), LocalizationRegistry.Get("VideoTranscode.Sr_ModelAnime"), LocalizationRegistry.Get("VideoTranscode.Sr_ModelQuality")];
     /// <summary>Gets the localized accelerator preferences.</summary>
     public string[] VideoSrBackendLabels => [LocalizationRegistry.Get("VideoTranscode.Sr_BackendAuto"), LocalizationRegistry.Get("VideoTranscode.Sr_BackendNpu"), LocalizationRegistry.Get("VideoTranscode.Sr_BackendGpu"), "CPU"];
     /// <summary>Gets the available enhancement scales.</summary>
-    public string[] VideoSrScaleLabels { get; } = ["2×", "4×"];
+    public string[] VideoSrScaleLabels => VideoModels[VideoSrModelIndex] == SuperResolutionModel.LiveActionSpanX2 ? ["2×"] : ["2×", "4×"];
     /// <summary>Gets or sets the selected neural model index.</summary>
-    public int VideoSrModelIndex { get => field; set { if (IsBusy || value < 0) return; if (SetProperty(ref field, Math.Clamp(value, 0, 2))) RefreshSrState(); } }
+    public int VideoSrModelIndex { get => field; set { if (IsBusy || value < 0) return; if (SetProperty(ref field, Math.Clamp(value, 0, VideoModels.Length - 1))) { if (VideoModels[field] == SuperResolutionModel.LiveActionSpanX2) VideoSrScaleIndex = 0; OnPropertyChanged(nameof(VideoSrScaleLabels)); RefreshSrState(); } } }
     /// <summary>Gets or sets the enhancement scale index.</summary>
-    public int VideoSrScaleIndex { get => field; set { if (!IsBusy && value >= 0) SetProperty(ref field, Math.Clamp(value, 0, 1)); } }
+    public int VideoSrScaleIndex { get => field; set { if (!IsBusy && value >= 0) SetProperty(ref field, Math.Clamp(value, 0, VideoModels[VideoSrModelIndex] == SuperResolutionModel.LiveActionSpanX2 ? 0 : 1)); } }
     /// <summary>Gets or sets the hardware preference index.</summary>
     public int VideoSrBackendIndex { get => field; set { if (!IsBusy && value >= 0) SetProperty(ref field, Math.Clamp(value, 0, 3)); } }
     /// <summary>Gets or sets whether software inference is allowed after hardware failure.</summary>
@@ -34,6 +34,8 @@ public partial class VideoTranscodeViewModel
     public string VideoSrDeviceText { get => field; private set => SetProperty(ref field, value); } = string.Empty;
     /// <summary>Gets whether the selected model is being installed.</summary>
     public bool IsSrInstalling { get => field; private set { if (SetProperty(ref field, value)) RefreshSrState(); } }
+    /// <summary>Gets whether compatible hardware providers are being installed.</summary>
+    public bool IsSrHardwareInstalling { get => field; private set => SetProperty(ref field, value); }
     /// <summary>Gets the normalized download progress.</summary>
     public double SrDownloadProgress { get => field; private set => SetProperty(ref field, value); }
     /// <summary>Gets the installation status message.</summary>
@@ -48,6 +50,8 @@ public partial class VideoTranscodeViewModel
         OnPropertyChanged(nameof(IsVideoSrModelReady));
         OnPropertyChanged(nameof(SrInstallLabel));
         InstallVideoSrModelCommand.NotifyCanExecuteChanged();
+        InstallVideoSrAccelerationCommand.NotifyCanExecuteChanged();
+        StartTranscodeCommand.NotifyCanExecuteChanged();
     }
     private bool CanInstallVideoSr() => !IsBusy && !IsSrInstalling && _videoSrService != null;
 
@@ -62,10 +66,30 @@ public partial class VideoTranscodeViewModel
             await _videoSrService.EnsureModelAsync(VideoModels[VideoSrModelIndex], cancellation.Token);
             SrDownloadText = LocalizationRegistry.Get("VideoTranscode.Sr_ModelReady");
         }
-        catch (OperationCanceledException) when (_isDisposed) { }
+        catch (OperationCanceledException) { SrDownloadText = LocalizationRegistry.Get("VideoTranscode.Sr_InstallCanceled"); }
         catch (Exception ex) { SrDownloadText = ex.Message; _notificationService.ShowError(ex.Message); }
         finally { _srInstallCts = null; if (!_isDisposed) IsSrInstalling = false; }
     }
+
+    [RelayCommand(CanExecute = nameof(CanInstallVideoSr))]
+    private async Task InstallVideoSrAcceleration()
+    {
+        if (_videoSrService == null) return;
+        IsSrHardwareInstalling = IsSrInstalling = true;
+        using var cancellation = _srInstallCts = new CancellationTokenSource(TimeSpan.FromMinutes(15));
+        try
+        {
+            SrDownloadText = LocalizationRegistry.Get("VideoTranscode.Sr_InstallingHardware");
+            await _videoSrService.InstallAccelerationAsync(cancellation.Token);
+            SrDownloadText = LocalizationRegistry.Get("VideoTranscode.Sr_HardwareReady");
+        }
+        catch (OperationCanceledException) { SrDownloadText = LocalizationRegistry.Get("VideoTranscode.Sr_InstallCanceled"); }
+        catch (Exception ex) { SrDownloadText = ex.Message; if (!_isDisposed) _notificationService.ShowError(ex.Message); }
+        finally { _srInstallCts = null; if (!_isDisposed) { IsSrInstalling = false; IsSrHardwareInstalling = false; } }
+    }
+
+    [RelayCommand]
+    private void CancelSrInstallation() => _srInstallCts?.Cancel();
 
     private void OnSrDownloadChanged(ModelDownloadProgress progress) => Dispatcher.UIThread.Post(() =>
     {

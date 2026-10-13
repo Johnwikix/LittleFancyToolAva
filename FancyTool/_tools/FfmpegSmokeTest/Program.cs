@@ -41,6 +41,7 @@ internal static partial class Program
         }
         Console.WriteLine($"load OK: {ffmpegSvc.VersionInfo} v={ffmpegSvc.AvailableVideoEncoders.Count} a={ffmpegSvc.AvailableAudioEncoders.Count}");
 
+        if (args.Contains("--sr-benchmark")) return RunSrBenchmark(workDir);
         if (args.Contains("--editing-ui")) return RunEditingUi(svc, sample, workDir, args.Contains("--sr-ui"));
         if (args.Contains("--sr-only")) return RunSuperResolutionCases(sample, workDir);
         if (args.Contains("--editing-only")) return RunEditingCases(svc, sample, workDir);

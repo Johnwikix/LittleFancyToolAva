@@ -8,6 +8,7 @@
     <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">win-x64</RuntimeIdentifier>
     <NoWarn>$(NoWarn);CS8600;CS8602;CS8604</NoWarn>
   </PropertyGroup>
+  <Import Project="../../WindowsInference.props" />
   <ItemGroup>
     <ProjectReference Include="..\..\FancyToolAva.csproj" />
   </ItemGroup>

@@ -6,11 +6,11 @@ namespace FancyToolAva.Services;
 /// <summary>Specifies the preferred video super-resolution inference backend.</summary>
 public enum VideoSrBackend
 {
-    /// <summary>Prefers the fastest available GPU, then the Intel NPU.</summary>
+    /// <summary>Prefers a vendor GPU provider or DirectML, then an available NPU.</summary>
     Auto,
-    /// <summary>Prefers the Intel NPU, then an available GPU.</summary>
+    /// <summary>Prefers an available Windows ML NPU provider, then an available GPU.</summary>
     PreferNpu,
-    /// <summary>Uses DirectML GPU inference.</summary>
+    /// <summary>Uses a vendor GPU provider, with DirectML hardware fallback.</summary>
     Gpu,
     /// <summary>Uses software inference.</summary>
     Cpu
@@ -43,6 +43,8 @@ public interface IVideoSuperResolutionService
     bool IsModelAvailable(SuperResolutionModel model);
     /// <summary>Downloads and validates the selected model using the image model installer.</summary>
     Task EnsureModelAsync(SuperResolutionModel model, CancellationToken ct = default);
+    /// <summary>Installs compatible GPU/NPU providers through the Windows ML catalog.</summary>
+    Task InstallAccelerationAsync(CancellationToken ct = default);
     /// <summary>Creates a serial inference session for the selected model and hardware preference.</summary>
     Task<IVideoFrameUpscaler> CreateSessionAsync(VideoTranscodeOptions options, CancellationToken ct = default);
 }
