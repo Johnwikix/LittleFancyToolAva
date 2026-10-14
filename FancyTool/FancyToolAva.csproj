@@ -11,9 +11,7 @@
     <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == '' AND $([MSBuild]::IsOSPlatform('windows'))">win-x64</RuntimeIdentifier>
     <ApplicationIcon>Assets\storeIcon.ico</ApplicationIcon>
     <NoWarn>$(NoWarn);NU1701;CS8767;CS8625;CS8602;CS8600;CS8604;CS0618</NoWarn>
-    <!-- NativeAOT 与 FFmpeg.AutoGen 的反射式动态绑定不兼容（DllImport 改为运行时代理），
-         进程内 FFmpeg 方案启用后关闭 AOT，走自包含托管发布 -->
-<PublishAot>false</PublishAot>
+    <PublishAot>true</PublishAot>
     <VersionPrefix>1.1.0.0</VersionPrefix>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
