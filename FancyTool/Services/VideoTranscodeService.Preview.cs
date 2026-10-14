@@ -131,6 +131,11 @@ public sealed unsafe partial class VideoTranscodeService
         private readonly int[] _sourceStride = new int[8];
         private readonly byte*[] _target = new byte*[4];
         private readonly int[] _targetStride = new int[4];
+        private AVFilterGraph* _hdrGraph;
+        private AVFilterContext* _hdrSource;
+        private AVFilterContext* _hdrSink;
+        private AVFrame* _hdrFrame;
+        private (int Width, int Height, int Format, VideoColor Color) _hdrInput;
 
         public void Report(AVFrame* frame, double position, IProgress<VideoPreviewFrame>? preview)
         {
@@ -144,6 +149,7 @@ public sealed unsafe partial class VideoTranscodeService
 
         public VideoPreviewFrame Convert(AVFrame* frame, double position)
         {
+            if (ReadColor(frame).IsHdr) frame = ToneMapPreview(frame);
             double aspect = frame->sample_aspect_ratio.num > 0 && frame->sample_aspect_ratio.den > 0
                 ? ffmpeg.av_q2d(frame->sample_aspect_ratio) : 1;
             double displayWidth = frame->width * aspect;
@@ -171,8 +177,52 @@ public sealed unsafe partial class VideoTranscodeService
 
         public void Dispose()
         {
+            ReleaseHdrPreview();
             if (_scale != null) ffmpeg.sws_freeContext(_scale);
             _scale = null;
+        }
+
+        private AVFrame* ToneMapPreview(AVFrame* frame)
+        {
+            var color = ReadColor(frame);
+            var input = (frame->width, frame->height, frame->format, color);
+            if (_hdrGraph == null || input != _hdrInput)
+            {
+                ReleaseHdrPreview();
+                _hdrGraph = ffmpeg.avfilter_graph_alloc();
+                _hdrFrame = ffmpeg.av_frame_alloc();
+                if (_hdrGraph == null || _hdrFrame == null) throw new OutOfMemoryException();
+                var decoder = new AVCodecContext
+                {
+                    width = frame->width, height = frame->height, pix_fmt = (AVPixelFormat)frame->format,
+                    sample_aspect_ratio = frame->sample_aspect_ratio
+                };
+                var stream = new AVStream { time_base = new AVRational { num = 1, den = 90000 } };
+                _hdrSource = CreateBufferSource(_hdrGraph, &decoder, &stream);
+                _hdrSink = CreateBufferSink(_hdrGraph);
+                AVBufferRef* unused = null;
+                if (!BindGraphAndConfigure(_hdrGraph, _hdrSource, _hdrSink,
+                    BuildColorFilters(color, VideoColor.SdrRgb) + ",format=bgra", false, "", &unused))
+                    throw new InvalidOperationException("Cannot tone-map HDR preview");
+                _hdrInput = input;
+            }
+            ffmpeg.av_frame_unref(_hdrFrame);
+            int ret = ffmpeg.av_buffersrc_add_frame_flags(_hdrSource, frame, (int)AvBuffersrcFlag.AV_BUFFERSRC_FLAG_KEEP_REF);
+            if (ret < 0) throw FFmpegNative.CreateException(ret, "Cannot submit HDR preview");
+            ret = ffmpeg.av_buffersink_get_frame(_hdrSink, _hdrFrame);
+            if (ret < 0) throw FFmpegNative.CreateException(ret, "Cannot read HDR preview");
+            return _hdrFrame;
+        }
+
+        private void ReleaseHdrPreview()
+        {
+            var frame = _hdrFrame;
+            ffmpeg.av_frame_free(&frame);
+            _hdrFrame = null;
+            var graph = _hdrGraph;
+            ffmpeg.avfilter_graph_free(&graph);
+            _hdrGraph = null;
+            _hdrSource = _hdrSink = null;
         }
     }
 }

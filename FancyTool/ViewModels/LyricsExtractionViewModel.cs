@@ -27,6 +27,15 @@ public partial class LyricsExtractionViewModel : ViewModelBase, IDisposable
         { ".mp3", ".wav", ".flac", ".ogg", ".oga", ".m4a", ".m4b", ".aac", ".opus", ".wma", ".aiff", ".aif", ".ape", ".dsf", ".dff", ".wv", ".mpc", ".tta", ".tak", ".amr", ".mka", ".caf", ".ac3", ".dts", ".mp2", ".mp4", ".mkv", ".mov", ".webm" };
     public RangeObservableCollection<LyricsTaskItem> Tasks { get; } = [];
     public LyricsOptions Options { get; private set; } = new();
+    public string ModelsDirectory
+    {
+        get => LyricsExtractionService.ModelDirectory(Options);
+        set
+        {
+            Options.ModelDirectory = value ?? string.Empty;
+            OnPropertyChanged();
+        }
+    }
     public string[] LanguageLabels => LyricsExtractionService.Languages.Select(x => x == "Auto" ? L("Lyrics.Language_Auto") : x switch
         { "Chinese" => "中文", "English" => "English", "Japanese" => "日本語", "Korean" => "한국어", "French" => "Français", "Spanish" => "Español", "Russian" => "Русский", "German" => "Deutsch", "Portuguese" => "Português", _ => x }).ToArray();
     public string[] PerformanceLabels => [L("Lyrics.Profile_Saving"), L("Lyrics.Profile_Auto"), L("Lyrics.Profile_Precision")];
@@ -66,7 +75,7 @@ public partial class LyricsExtractionViewModel : ViewModelBase, IDisposable
         _extraction = extraction; _models = models; _dialogs = dialogs; _logger = logger;
         string data = Environment.GetEnvironmentVariable("FANCYTOOL_LYRICS_DATA") ?? Path.Combine(AppPaths.DataDirectory, "Lyrics");
         Directory.CreateDirectory(data); _statePath = Path.Combine(data, "queue.json");
-        Options.OutputDirectory = Path.Combine(data, "Output"); Options.ModelDirectory = LyricsModelService.DefaultDirectory;
+        Options.OutputDirectory = Path.Combine(data, "Output");
         try
         {
             if (File.Exists(_statePath))
@@ -75,6 +84,9 @@ public partial class LyricsExtractionViewModel : ViewModelBase, IDisposable
                 if (state != null)
                 {
                     Options = state.Options;
+                    // Older queues persisted the default path as an explicit override.
+                    // Keep defaults following model management; preserve custom folders.
+                    if (IsDefaultModelsDirectory(Options.ModelDirectory)) Options.ModelDirectory = string.Empty;
                     foreach (var item in state.Tasks.Where(t => File.Exists(t.SourceFile))) Tasks.Add(new(item.SourceFile, item.RootFolder)
                     { Status = item.Status == LyricsTaskStatus.Processing ? LyricsTaskStatus.Pending : item.Status, Error = item.Error, ResultPath = item.ResultPath, Stage = L("Lyrics.Status_" + (item.Status == LyricsTaskStatus.Processing ? LyricsTaskStatus.Pending : item.Status)) });
                 }
@@ -82,6 +94,18 @@ public partial class LyricsExtractionViewModel : ViewModelBase, IDisposable
         }
         catch (Exception ex) { _logger.LogWarning(ex, "Lyrics queue recovery failed"); StatusMessage = L("Lyrics.Error_QueueRecovery"); }
         I18nManager.Instance.CultureChanged += OnCultureChanged;
+    }
+    private static bool IsDefaultModelsDirectory(string directory)
+    {
+        if (string.IsNullOrWhiteSpace(directory)) return true;
+        try
+        {
+            var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+            string normalized = Path.TrimEndingDirectorySeparator(Path.GetFullPath(directory));
+            return normalized.Equals(AppPaths.ResolveModelsDirectory(LyricsModelService.DefaultDirectory), comparison)
+                || normalized.Equals(Path.Combine(AppPaths.DefaultModelsDirectory, "Qwen3Lyrics"), comparison);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException) { return false; }
     }
     private void OnCultureChanged(object? sender, EventArgs e)
     {
@@ -146,7 +170,7 @@ public partial class LyricsExtractionViewModel : ViewModelBase, IDisposable
     [RelayCommand(CanExecute = nameof(CanIdle))]
     private async Task RemoveAsync() { if (SelectedTask != null) Tasks.Remove(SelectedTask); SelectedTask = Tasks.FirstOrDefault(); OnPropertyChanged(nameof(QueueSummary)); await SaveAsync(); }
     [RelayCommand] private async Task PickOutputAsync() { string? folder = await _dialogs.PickFolderAsync(L("Lyrics.Label_Output")); if (folder != null) { Options.OutputDirectory = folder; OnPropertyChanged(nameof(Options)); await SaveAsync(); } }
-    [RelayCommand] private async Task PickModelsAsync() { string? folder = await _dialogs.PickFolderAsync(L("Lyrics.Label_Models")); if (folder != null) { Options.ModelDirectory = folder; OnPropertyChanged(nameof(Options)); await SaveAsync(); } }
+    [RelayCommand] private async Task PickModelsAsync() { string? folder = await _dialogs.PickFolderAsync(L("Lyrics.Label_Models")); if (folder != null) { ModelsDirectory = folder; await SaveAsync(); } }
     [RelayCommand] private void OpenOutput() { if (Directory.Exists(Options.OutputDirectory)) _dialogs.OpenInExplorer(Options.OutputDirectory); }
     private bool CanListen() => SelectedTask != null;
     [RelayCommand(CanExecute = nameof(CanListen))] private void Listen() { if (SelectedTask != null) try { Process.Start(new ProcessStartInfo(SelectedTask.SourceFile) { UseShellExecute = true }); } catch (Exception ex) { ShowError(ex); } }

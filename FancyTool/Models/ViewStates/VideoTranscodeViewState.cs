@@ -2,6 +2,7 @@ namespace FancyToolAva.Models.ViewStates;
 
 public class VideoTranscodeViewState
 {
+    public int HdrOutputIndex { get; set; }
     /// <summary>Gets or sets whether video super-resolution is enabled.</summary>
     public bool IsVideoSrEnabled { get; set; }
     /// <summary>Gets or sets the selected video enhancement model.</summary>

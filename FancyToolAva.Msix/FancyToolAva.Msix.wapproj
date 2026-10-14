@@ -111,14 +111,15 @@
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.7705" PrivateAssets="all" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\FancyTool\FancyToolAva.csproj" />
+    <ProjectReference Include="..\FancyTool\FancyToolAva.csproj">
+      <AdditionalProperties>FancyToolMsixBuild=true</AdditionalProperties>
+    </ProjectReference>
   </ItemGroup>
-  <ItemGroup>
-    <Content Include="$(MSBuildThisFileDirectory)..\FancyTool\bin\$(Configuration)\net10.0-windows10.0.19041.0\win-x64\publish\**\*.*" Exclude="$(MSBuildThisFileDirectory)..\FancyTool\bin\$(Configuration)\net10.0-windows10.0.19041.0\win-x64\publish\**\*.pdb;$(MSBuildThisFileDirectory)..\FancyTool\bin\$(Configuration)\net10.0-windows10.0.19041.0\win-x64\publish\**\*.pdb.xml">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-  </ItemGroup>
-  <Target Name="PublishAotApp" BeforeTargets="BeforeBuild">
-    <Exec Command="dotnet publish &quot;$(MSBuildThisFileDirectory)..\FancyTool\FancyToolAva.csproj&quot; -c $(Configuration) -r win-x64 -p:PublishAot=true -p:SelfContained=true" Condition="'$(Configuration)' == 'Release' AND '$(Platform)' == 'x64'" />
+  <!-- Restore before DesktopBridge queries deployable content from the isolated app.
+       Use a separate evaluation so the publish build loads the new NuGet imports. -->
+  <Target Name="RestoreMsixProjectReferences" BeforeTargets="SetProjectReferenceProperties"
+          Condition="'$(DesignTimeBuild)' != 'true'">
+    <MSBuild Projects="@(ProjectReference)" Targets="Restore"
+             Properties="Configuration=$(Configuration);Platform=$(Platform);RuntimeIdentifier=win-x64;SelfContained=true;MSBuildIsRestoring=true" />
   </Target>
 </Project>

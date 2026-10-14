@@ -1,0 +1,9 @@
+<Project>
+  <!-- MSIX publishes project references with different global properties from the
+       solution build. Keep their outputs separate, including transitive references. -->
+  <PropertyGroup Condition="'$(FancyToolMsixBuild)' == 'true'">
+    <BaseIntermediateOutputPath>obj\msix\</BaseIntermediateOutputPath>
+    <BaseOutputPath>bin\msix\</BaseOutputPath>
+    <DefaultItemExcludes>$(DefaultItemExcludes);obj\**;bin\**</DefaultItemExcludes>
+  </PropertyGroup>
+</Project>

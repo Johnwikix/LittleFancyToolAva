@@ -736,7 +736,7 @@ public sealed class SuperResolutionService : ISuperResolutionService
     {
         if (_dmlDisabled) return false;
         if (Environment.GetEnvironmentVariable("SR_FORCE_CPU") == "1") return false;
-        return _preferences.UseSuperResolutionDml;
+        return OperatingSystem.IsWindows();
     }
 
     private static string GetFileName(SuperResolutionModel model) => model switch

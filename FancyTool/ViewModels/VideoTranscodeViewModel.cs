@@ -45,6 +45,17 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
 
     public RangeObservableCollection<VideoFileItem> FileItems { get; } = [];
 
+    public IReadOnlyList<LocalizedOption> HdrOutputOptions { get; } = [new LocalizedOption("VideoTranscode.Hdr_SameAsSource"),
+        new LocalizedOption("VideoTranscode.Hdr_ForceHdr"), new LocalizedOption("VideoTranscode.Hdr_ForceSdr")];
+    public int HdrOutputIndex
+    {
+        get;
+        set
+        {
+            if (!IsBusy && value >= 0 && SetProperty(ref field, Math.Clamp(value, 0, 2))) ResetPresetToCustom();
+        }
+    }
+
     // 探测队列闸门：上千文件若不限流并发开 FFmpeg 探测，线程池与磁盘会被打满
     private readonly SemaphoreSlim _probeGate = new(Math.Clamp(Environment.ProcessorCount / 2, 2, 4));
 
@@ -816,8 +827,10 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
             OnPropertyChanged(nameof(PreviewModeText));
             OnPropertyChanged(nameof(PreviewStatusText));
             OnPropertyChanged(nameof(PreviewFileName));
-            OnPropertyChanged(nameof(VideoSrModelLabels));
-            OnPropertyChanged(nameof(VideoSrBackendLabels));
+            foreach (var option in VideoSrModelLabels) option.Refresh();
+            foreach (var option in VideoSrBackendLabels) option.Refresh();
+            foreach (var option in HdrOutputOptions) option.Refresh();
+            OnPropertyChanged(nameof(HdrOutputIndex));
             RefreshSrState();
             foreach (var item in FileItems) item.RefreshLocalization();
             // Re-validate to regenerate LastError in new language
@@ -904,6 +917,7 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
 
     object IViewState.CaptureState() => new VideoTranscodeViewState
     {
+        HdrOutputIndex = HdrOutputIndex,
         OutputFolder = OutputFolder,
         ContainerIndex = ContainerIndex,
         VideoCodecIndex = VideoCodecIndex,
@@ -964,6 +978,7 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
             _suppressPresetReset = true;
             try
             {
+                HdrOutputIndex = s.HdrOutputIndex;
                 OutputFolder = s.OutputFolder;
                 IsVideoSrEnabled = s.IsVideoSrEnabled;
                 VideoSrModelIndex = s.VideoSrModelIndex;
@@ -1439,6 +1454,7 @@ private async Task AddPathsAsync(IEnumerable<string> paths)
 
         return new VideoTranscodeOptions
         {
+            HdrOutput = container == VideoContainer.Gif ? VideoHdrOutput.ForceSdr : (VideoHdrOutput)HdrOutputIndex,
             SuperResolutionEnabled = IsVideoSrEnabled,
             SuperResolutionModel = VideoModels[VideoSrModelIndex],
             SuperResolutionScale = VideoSrScaleIndex == 0 ? 2 : 4,

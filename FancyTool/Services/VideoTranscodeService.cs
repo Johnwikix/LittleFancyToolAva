@@ -77,6 +77,8 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
             string vCodec = "", aCodec = "";
             string? pixFmt = null;
             bool hasVideo = false, hasAudio = false;
+            string colorPrimaries = "", colorTransfer = "", colorSpace = "", colorRange = "";
+            int bitDepth = 0;
 
             for (uint i = 0; i < fmt->nb_streams; i++)
             {
@@ -88,6 +90,10 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
                     vCodec = ffmpeg.avcodec_get_name(par->codec_id);
                     width = par->width;
                     height = par->height;
+                    colorPrimaries = ffmpeg.av_color_primaries_name(par->color_primaries) ?? "";
+                    colorTransfer = ffmpeg.av_color_transfer_name(par->color_trc) ?? "";
+                    colorSpace = ffmpeg.av_color_space_name(par->color_space) ?? "";
+                    colorRange = ffmpeg.av_color_range_name(par->color_range) ?? "";
                     AVRational fr = s->avg_frame_rate;
                     if (fr.num <= 0 || fr.den <= 0) fr = s->r_frame_rate;
                     if (fr.num > 0 && fr.den > 0) fps = ffmpeg.av_q2d(fr);
@@ -95,6 +101,8 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
                     {
                         string? n = ffmpeg.av_get_pix_fmt_name((AVPixelFormat)par->format);
                         if (!string.IsNullOrEmpty(n)) pixFmt = n;
+                        var descriptor = ffmpeg.av_pix_fmt_desc_get((AVPixelFormat)par->format);
+                        if (descriptor != null) bitDepth = descriptor->comp[0].depth;
                     }
                 }
                 else if (par->codec_type == AVMediaType.AVMEDIA_TYPE_AUDIO && !hasAudio)
@@ -104,7 +112,11 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
                 }
             }
 
-            var probe = new VideoProbeInfo(input, durationMs, width, height, fps, vCodec, aCodec, container, bitRate, hasAudio, hasVideo);
+            var probe = new VideoProbeInfo(input, durationMs, width, height, fps, vCodec, aCodec, container, bitRate, hasAudio, hasVideo)
+            {
+                PixelFormat = pixFmt ?? "", BitDepth = bitDepth, ColorPrimaries = colorPrimaries,
+                ColorTransfer = colorTransfer, ColorSpace = colorSpace, ColorRange = colorRange
+            };
             return new SourceInfo(probe, pixFmt);
         }
         finally
@@ -250,6 +262,8 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
 
             vDec = OpenDecoder(vInStream);
             vDec->pkt_timebase = vInStream->time_base;
+            var sourceColor = ReadColor(vDec);
+            var outputColor = ResolveOutputColor(o, sourceColor);
             if (aIdx >= 0)
             {
                 aDec = OpenDecoder(inFmt->streams[aIdx]);
@@ -276,7 +290,8 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
                 throw new InvalidOperationException(LocalizationRegistry.Get("VideoTranscode.Msg_EncoderUnavailable", encoderName));
             string? targetPixFmt = null;
             if (o.Container != VideoContainer.Gif && !IsVaapiBackend(o.HardwareBackend))
-                targetPixFmt = AlignTargetPixFmt(vCodecPtr, o, sourcePixFmt);
+                targetPixFmt = AlignTargetPixFmt(vCodecPtr, o, sourcePixFmt, outputColor.IsHdr);
+            else if (IsVaapiBackend(o.HardwareBackend) && outputColor.IsHdr) targetPixFmt = "p010le";
 
             // ── 3b. 视频滤镜图（缓冲源参数来自解码器上下文）──
             graph = ffmpeg.avfilter_graph_alloc();
@@ -299,7 +314,8 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
                 outputFilters.Denoise = DenoiseMode.None;
                 outputFilters.FpsMode = FpsMode.SameAsSource;
             }
-            string filterDesc = BuildFilterDescription(outputFilters, targetPixFmt);
+            string filterDesc = BuildFilterDescription(outputFilters, targetPixFmt,
+                BuildColorFilters(upscaler != null ? VideoColor.SdrRgb : sourceColor, outputColor));
             if (!BindGraphAndConfigure(graph, srcCtx, sinkCtx, filterDesc,
                     IsVaapiBackend(o.HardwareBackend), "/dev/dri/renderD128", &hwDevice))
                 throw new InvalidOperationException($"滤镜图初始化失败: {filterDesc}");
@@ -311,7 +327,7 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
                 hwFrames = ffmpeg.av_hwframe_ctx_alloc(hwDevice);
                 AVHWFramesContext* fc = (AVHWFramesContext*)hwFrames->data;
                 fc->format = (AVPixelFormat)sinkLink->format;
-                fc->sw_format = AVPixelFormat.AV_PIX_FMT_NV12;
+                fc->sw_format = outputColor.IsHdr ? AVPixelFormat.AV_PIX_FMT_P010LE : AVPixelFormat.AV_PIX_FMT_NV12;
                 fc->width = sinkLink->w;
                 fc->height = sinkLink->h;
                 if (ffmpeg.av_hwframe_ctx_init(hwFrames) < 0)
@@ -321,7 +337,8 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
             // ── 4. 视频编码器 ──
             vEnc = ffmpeg.avcodec_alloc_context3(vCodecPtr);
             ConfigureVideoEncoder(vEnc, o, pass, passLogFile,
-                sinkCtx->inputs[0], hwDevice != null ? hwFrames : null, ofmt, sourceFps, targetPixFmt);
+                sinkCtx->inputs[0], hwDevice != null ? hwFrames : null, ofmt, sourceFps, targetPixFmt, outputColor.IsHdr);
+            SetEncoderColor(vEnc, vInStream->codecpar, outputColor, outputColor.IsHdr && (!sourceColor.IsHdr || upscaler != null));
             ret = ffmpeg.avcodec_open2(vEnc, vCodecPtr, null);
             if (ret < 0) throw FFmpegNative.CreateException(ret, $"视频编码器打开失败 ({encoderName})");
 
@@ -546,6 +563,7 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
         AVRational sinkTb = sinkCtx->inputs[0]->time_base;
         while (ffmpeg.av_buffersink_get_frame(sinkCtx, filtFrame) >= 0)
         {
+            SetFrameColor(filtFrame, vEnc);
             filtFrame->pts = ffmpeg.av_rescale_q(filtFrame->pts, sinkTb, vEnc->time_base);
             if (filtFrame->duration > 0) filtFrame->duration = ffmpeg.av_rescale_q(filtFrame->duration, sinkTb, vEnc->time_base);
             int ret = ffmpeg.avcodec_send_frame(vEnc, filtFrame);
@@ -679,7 +697,7 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
 
     private static void ConfigureVideoEncoder(AVCodecContext* enc, VideoTranscodeOptions o,
         int pass, string? passLogFile, AVFilterLink* sinkLink, AVBufferRef* hwFrames, AVFormatContext* ofmt,
-        double sourceFps, string? targetPixFmt)
+        double sourceFps, string? targetPixFmt, bool hdr = false)
     {
         string encoderName = MapVideoEncoderName(o);
         bool vaapi = IsVaapiBackend(o.HardwareBackend);
@@ -726,7 +744,14 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
             ApplyBitrateMode(enc, o, encoderName);
 
         ApplyEncoderPreset(enc, o, encoderName);
-        if (!string.IsNullOrEmpty(o.Profile)) TrySetOpt(enc->priv_data, "profile", o.Profile);
+        string profile = o.Profile;
+        if (hdr && string.IsNullOrEmpty(profile))
+        {
+            if (encoderName.Contains("hevc", StringComparison.Ordinal) || encoderName == "libx265") profile = "main10";
+            else if (encoderName == "libx264") profile = "high10";
+            else if (encoderName == "libvpx-vp9") profile = "2";
+        }
+        if (!string.IsNullOrEmpty(profile)) TrySetOpt(enc->priv_data, "profile", profile);
         if (!string.IsNullOrEmpty(o.Level))
         {
             if (!TrySetOpt(enc->priv_data, "level", o.Level))
@@ -1216,9 +1241,9 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
     /// 目标像素格式对齐编码器支持表：444 透传目标在 mpeg4/SVT-AV1/VP8 或显式 baseline/main/high
     /// profile 下不可用，逐级回落（想要格式 → yuv420p → 支持表首项）。
     /// </summary>
-    private static string? AlignTargetPixFmt(AVCodec* codec, VideoTranscodeOptions o, string? sourcePixFmt)
+    private static string? AlignTargetPixFmt(AVCodec* codec, VideoTranscodeOptions o, string? sourcePixFmt, bool hdr = false)
     {
-        string? want = PickTargetPixFmt(o, sourcePixFmt);
+        string? want = hdr ? o.HardwareBackend == HardwareBackend.Software ? "yuv420p10le" : "p010le" : PickTargetPixFmt(o, sourcePixFmt);
         if (want == null) return null;
         AVPixelFormat wantFmt = ffmpeg.av_get_pix_fmt(want);
 
@@ -1241,6 +1266,13 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
             && !prof.Contains("422", StringComparison.OrdinalIgnoreCase)
             && !prof.Contains("444", StringComparison.OrdinalIgnoreCase)
             && !prof.Contains("10", StringComparison.Ordinal);
+        if (hdr)
+        {
+            // HDR must never fall through to the existing 8-bit compatibility fallback.
+            if (!hasWant || (restrict420 && o.VideoCodec is VideoCodec.H264 or VideoCodec.H265))
+                throw new InvalidOperationException(LocalizationRegistry.Get("VideoTranscode.Msg_HdrCodecUnsupported"));
+            return want;
+        }
         if (restrict420 && has420) return "yuv420p";
 
         if (hasWant) return want;
@@ -1251,13 +1283,14 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
 
     // ══════════════════════════════ 滤镜串（与旧 CLI 参数构造等价）══════════════════════════════
 
-    private static string BuildFilterDescription(VideoTranscodeOptions o, string? targetPixFmt)
+    private static string BuildFilterDescription(VideoTranscodeOptions o, string? targetPixFmt, string? colorFilters = null)
     {
         if (o.Container == VideoContainer.Gif)
         {
             string fps = (o.GifFps > 0 ? o.GifFps : 15).ToString(System.Globalization.CultureInfo.InvariantCulture);
             string width = (o.GifWidth > 0 ? o.GifWidth : 480).ToString(System.Globalization.CultureInfo.InvariantCulture);
             var parts = new List<string> { $"fps={fps}", $"scale={width}:-1:flags=lanczos" };
+            if (!string.IsNullOrEmpty(colorFilters)) parts.Insert(0, colorFilters);
             if (o.CropEnabled) parts.Add($"crop=iw-{o.CropLeft + o.CropRight}:ih-{o.CropTop + o.CropBottom}:{o.CropLeft}:{o.CropTop}");
             if (o.Deinterlace != DeinterlaceMode.None) parts.Add(o.Deinterlace == DeinterlaceMode.Bwdif ? "bwdif" : "yadif");
             if (o.Denoise != DenoiseMode.None) parts.Add(GetDenoiseFilter(o.Denoise));
@@ -1275,6 +1308,7 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
         }
 
         var filters = new List<string>();
+        if (!string.IsNullOrEmpty(colorFilters)) filters.Add(colorFilters);
         if (o.CropEnabled)
             filters.Add($"crop=iw-{o.CropLeft + o.CropRight}:ih-{o.CropTop + o.CropBottom}:{o.CropLeft}:{o.CropTop}");
         if (o.Deinterlace != DeinterlaceMode.None)
@@ -1288,7 +1322,7 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
 
         if (IsVaapiBackend(o.HardwareBackend))
         {
-            filters.Add("format=nv12");
+            filters.Add($"format={targetPixFmt ?? "nv12"}");
             filters.Add("hwupload");
         }
         else

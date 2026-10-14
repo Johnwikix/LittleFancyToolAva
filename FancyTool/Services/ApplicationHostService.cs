@@ -50,6 +50,17 @@ namespace FancyToolAva.Services
             {
                 _logger.LogError(ex, "Unexpected error loading preferences");
             }
+
+            try
+            {
+                AppPaths.InitializeModelsDirectory(_appObserveModel.Preferences.ModelStorageDirectory);
+            }
+            catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+            {
+                _logger.LogWarning(ex, "Invalid model directory, using the default");
+                _appObserveModel.Preferences.ModelStorageDirectory = string.Empty;
+                AppPaths.InitializeModelsDirectory(null);
+            }
         }
 
         public void LoadViewStates()

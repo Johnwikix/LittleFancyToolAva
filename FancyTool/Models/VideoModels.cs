@@ -126,6 +126,13 @@ public enum GifDither
     Sierpinski = 3
 }
 
+public enum VideoHdrOutput
+{
+    SameAsSource = 0,
+    ForceHdr = 1,
+    ForceSdr = 2
+}
+
 public sealed record VideoProbeInfo(
     string FilePath,
     long DurationMs,
@@ -140,11 +147,19 @@ public sealed record VideoProbeInfo(
     bool HasVideo
 )
 {
-    public string Display => HasVideo ? $"{Width}x{Height} {Fps:0.##}fps {VideoCodec} / {AudioCodec} {DurationMs / 1000.0:0.0}s" : "No video stream";
+    public string PixelFormat { get; init; } = string.Empty;
+    public int BitDepth { get; init; }
+    public string ColorPrimaries { get; init; } = string.Empty;
+    public string ColorTransfer { get; init; } = string.Empty;
+    public string ColorSpace { get; init; } = string.Empty;
+    public string ColorRange { get; init; } = string.Empty;
+    public bool IsHdr => ColorTransfer is "smpte2084" or "arib-std-b67";
+    public string Display => HasVideo ? $"{Width}x{Height} {Fps:0.##}fps {VideoCodec} / {AudioCodec} {DurationMs / 1000.0:0.0}s{(IsHdr ? " · HDR" : "")}" : "No video stream";
 }
 
 public sealed class VideoTranscodeOptions
 {
+    public VideoHdrOutput HdrOutput { get; set; }
     /// <summary>Gets or sets whether decoded video frames are enhanced before output scaling and encoding.</summary>
     public bool SuperResolutionEnabled { get; set; }
     /// <summary>Gets or sets the neural model used for frame enhancement.</summary>

@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:FancyToolAva.ViewModels"
+             xmlns:models="using:FancyToolAva.Models"
              xmlns:helpers="using:FancyToolAva.Helpers"
              xmlns:lan="clr-namespace:Lang.Avalonia.MarkupExtensions;assembly=Lang.Avalonia"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -123,29 +124,49 @@
                 </StackPanel>
             </Border>
 
+            <TextBlock Classes="GroupHeader" Text="{Binding GroupModels}" />
+
+            <Border Classes="ToolCard">
+                <StackPanel Classes="ToolCardContent">
+                    <TextBlock FontWeight="SemiBold" Text="{Binding LabelModelsDirectory}" />
+                    <TextBlock Classes="Caption" Text="{Binding CaptionModelsDirectory}" TextWrapping="Wrap" />
+                    <TextBox IsReadOnly="True" Text="{Binding ModelsDirectory, Mode=OneWay}" TextWrapping="Wrap"
+                             AutomationProperties.Name="{Binding LabelModelsDirectory}"
+                             AutomationProperties.AutomationId="SettingsModelsDirectory" />
+                    <WrapPanel>
+                        <Button Content="{Binding ButtonSelectModelsDirectory}" Command="{Binding PickModelsDirectoryCommand}"
+                                Margin="0,0,8,4" AutomationProperties.AutomationId="SettingsSelectModelsDirectory" />
+                        <Button Content="{Binding ButtonOpenModelsDirectory}" Command="{Binding OpenModelsDirectoryCommand}"
+                                Margin="0,0,8,4" AutomationProperties.AutomationId="SettingsOpenModelsDirectory" />
+                        <Button Content="{Binding ButtonResetModelsDirectory}" Command="{Binding ResetModelsDirectoryCommand}"
+                                Margin="0,0,0,4" AutomationProperties.AutomationId="SettingsResetModelsDirectory" />
+                    </WrapPanel>
+                    <TextBlock IsVisible="{Binding HasModelStorageError}" Text="{Binding ModelStorageError}" TextWrapping="Wrap"
+                               Foreground="{DynamicResource SystemFillColorCriticalBrush}"
+                               AutomationProperties.AutomationId="SettingsModelsDirectoryError" />
+                </StackPanel>
+            </Border>
+
             <TextBlock Classes="GroupHeader" Text="{Binding GroupImage}" />
 
             <Border Classes="ToolCard">
                 <StackPanel Classes="ToolCardContent">
-                    <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,4">
-                        <StackPanel Grid.Column="0">
-                            <TextBlock FontWeight="SemiBold" Text="{Binding LabelSrGpu}" />
-                            <TextBlock Classes="Caption" Text="{Binding CaptionSrGpu}" />
-                        </StackPanel>
-                        <CheckBox Grid.Column="2" VerticalAlignment="Center"
-                                  IsEnabled="{Binding CanUseSuperResolutionGpu}"
-                                  IsChecked="{Binding App.Preferences.UseSuperResolutionDml, Mode=TwoWay}" />
-                    </Grid>
-                    <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,8,0,4">
-                        <StackPanel Grid.Column="0">
+                    <Grid ColumnDefinitions="*,Auto" Margin="0,4">
+                        <StackPanel Grid.Column="0" Margin="0,0,16,0">
                             <TextBlock FontWeight="SemiBold" Text="{Binding LabelSrTileSize}" />
-                            <TextBlock Classes="Caption" Text="{Binding CaptionSrTileSize}" />
+                            <TextBlock Classes="Caption" Text="{Binding CaptionSrTileSize}" TextWrapping="Wrap" />
                         </StackPanel>
-                        <ComboBox Grid.Column="2"
+                        <ComboBox Grid.Column="1"
                                   Width="200" VerticalAlignment="Center"
-                                  IsEnabled="{Binding CanSelectSrTileSize}"
+                                  AutomationProperties.AutomationId="SettingsSrTileSize"
                                   ItemsSource="{Binding SrTileOptions}"
-                                  SelectedIndex="{Binding App.Preferences.SuperResolutionTileSizeIndex, Mode=TwoWay}" />
+                                  SelectedIndex="{Binding SelectedSrTileSizeIndex, Mode=TwoWay}">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="models:LocalizedOption">
+                                    <TextBlock Text="{Binding Label}" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
                     </Grid>
                 </StackPanel>
             </Border>

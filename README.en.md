@@ -70,6 +70,12 @@
 - 🖼️ **Image → Base64**: convert an image into a Base64 string
 - 🖼️ **Image Convert**: batch image format conversion (jpg / png / bmp / webp / tiff / dds / jxl / heic / ico, powered by SkiaSharp)
 
+### Video transcoding
+
+The Quality tab contains AI video enhancement and HDR output controls. Choose Same as Source, Force HDR or Force SDR. Force HDR expands SDR through BT.2446 inverse tone mapping to a 1000-nit target with 10-bit PQ / BT.2020 output. Force SDR tone-maps HDR to BT.709. Same as Source retains SDR, PQ or HLG; GIF is always SDR. Incompatible eight-bit encoders or profiles report an error.
+
+The existing enhancement models process SDR images. HDR inputs are tone-mapped before enhancement and converted back according to the output selection. Inverse tone mapping can expand highlights but cannot guarantee recovery of detail already lost in SDR. See the [design record](FancyTool/docs/adr/0005-model-storage-and-hdr-output.md) for algorithms and model storage behavior.
+
 ### Lyrics and subtitles
 
 Open **Audio/Video → Lyrics & subtitles** for recursive folder scanning, drag and drop, batch processing, pause, cancellation, retries and queue recovery. Recognition uses Qwen3-ASR 1.7B; word timing uses Qwen3-ForcedAligner 0.6B. Both reuse ONNX Runtime and bundled FFmpeg without Python. Chinese, English, Japanese, Korean, French, Spanish, Russian, German and Portuguese have recognition and word alignment; Italian and Cantonese also have alignment. Other recognition languages retain chunk timing.
@@ -78,7 +84,7 @@ INT4 with Windows DirectML GPU acceleration is the default for both recognition 
 
 Exports include LRC, ELRC, KRC, QRC, YRC, SRT, VTT, ASS, TXT and JSON, plus an editable `.fancylyrics.json` project. Every generated format is readable UTF-8 text: KRC keeps word timing tags without the vendor compression/encryption wrapper, and QRC uses compatible plaintext XML. Valid embedded synchronized lyrics and matching sidecars can be reused; untimed tags fall back to recognition. Leaving the output directory empty writes lyric/subtitle sidecars next to each source audio. Results support text editing, realignment and a global time offset. Singing, accompaniment and overlapping vocals can affect timing; zero-duration words are flagged for review.
 
-Models use pinned revisions and SHA-256 checks, then run offline. Advanced settings allow changing the model folder. New extraction results receive a numeric suffix when an output already exists. Queue recovery restarts interrupted files and preserves completed projects. The copied Lyricify helper retains its System.Text.Json source-generation changes; licensing is recorded in `FancyTool/External/NOTICE-Lyrics.txt`. The application's existing FFmpeg dynamic bindings continue to require managed publishing rather than NativeAOT.
+Settings → Model Management chooses the storage root for image/video upscaling and default lyrics models, with open-folder and restore-default actions. Changes apply after restart; existing models can be copied manually to the new folder. Default lyrics models use its `Qwen3Lyrics` subfolder; explicit overrides in lyrics advanced settings remain available. Models use pinned revisions and SHA-256 checks, then run offline. New extraction results receive a numeric suffix when an output already exists. Queue recovery restarts interrupted files and preserves completed projects. The copied Lyricify helper retains its System.Text.Json source-generation changes; licensing is recorded in `FancyTool/External/NOTICE-Lyrics.txt`. The application's existing FFmpeg dynamic bindings continue to require managed publishing rather than NativeAOT.
 
 `FancyTool/_tools/LyricsSmokeTest` contains format and inference checks. `FANCYTOOL_DATA_DIRECTORY`, `FANCYTOOL_LYRICS_MODELS` and `FANCYTOOL_LYRICS_DATA` allow isolated application data, model caches and queues. QA artifacts remain under the ignored `.qa/lyrics` folder. Network lyric sources are test-only comparison oracles and never replace Qwen3-ASR output; run `network .qa/lyrics/network D:\music\MP3\song.mp3` to compare Lyricify Helper's Netease and QQ Music results.
 

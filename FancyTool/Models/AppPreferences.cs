@@ -103,16 +103,15 @@ namespace FancyToolAva.Models
             set => SetProperty(ref _language, string.IsNullOrWhiteSpace(value) ? "en-US" : value);
         }
 
-        private bool _useSuperResolutionDml = true;
-
-        public bool UseSuperResolutionDml
+        /// <summary>Empty uses the default model directory; changes take effect on restart.</summary>
+        public string ModelStorageDirectory
         {
-            get => _useSuperResolutionDml;
-            set => SetProperty(ref _useSuperResolutionDml, value);
-        }
+            get;
+            set => SetProperty(ref field, value?.Trim() ?? string.Empty);
+        } = string.Empty;
 
         /// <summary>Gets or sets whether image enhancement prefers Windows ML NPU inference before GPU inference.</summary>
-        public bool UseSuperResolutionNpu { get => field; set => SetProperty(ref field, value); }
+        public bool UseSuperResolutionNpu { get => field; set => SetProperty(ref field, value); } = true;
 
         public int SuperResolutionTileSizeIndex
         {

@@ -40,7 +40,8 @@ public sealed unsafe partial class VideoTranscodeService
                 pre.ScaleMode = ScaleMode.None;
                 if (options.Container == VideoContainer.Gif) { pre.FpsMode = FpsMode.Fixed; pre.FpsValue = options.GifFps; }
                 AVBufferRef* unused = null;
-                if (!BindGraphAndConfigure(_graph, _source, _sink, BuildFilterDescription(pre, "bgra"), false, "", &unused))
+                if (!BindGraphAndConfigure(_graph, _source, _sink,
+                    BuildFilterDescription(pre, "bgra", BuildColorFilters(ReadColor(decoder), VideoColor.SdrRgb)), false, "", &unused))
                     throw new InvalidOperationException("Super-resolution preprocessing failed");
                 VideoFrameUpscaler.ValidateSize(OutputFormat->w, OutputFormat->h, _scale);
             }

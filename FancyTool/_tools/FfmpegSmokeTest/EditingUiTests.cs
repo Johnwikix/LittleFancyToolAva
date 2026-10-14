@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Automation;
 using Avalonia.Media.Imaging;
 using Avalonia.Media;
 using Avalonia.Styling;
@@ -7,10 +8,13 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using FancyToolAva;
 using FancyToolAva.Models;
+using FancyToolAva.Models.ViewStates;
 using FancyToolAva.Services;
 using FancyToolAva.ViewModels;
 using FancyToolAva.Views;
 using FluentAvalonia.UI.Controls;
+using Lang.Avalonia;
+using System.Globalization;
 
 namespace FfmpegSmokeTest;
 
@@ -35,6 +39,42 @@ internal static partial class Program
             var view = new VideoTranscodeView { DataContext = vm, Background = Brushes.WhiteSmoke };
             var window = new Window { Width = 1100, Height = 760, Content = view, Title = "Video editing smoke test" };
             window.Show();
+            var tabs = view.FindControl<TabControl>("ParamTabs")!;
+            tabs.SelectedIndex = 2;
+            vm.IsVideoSrEnabled = true;
+            PumpUntil(() => view.GetVisualDescendants().OfType<Control>().Any(c => AutomationProperties.GetAutomationId(c) == "VideoSuperResolutionOptions"));
+            var srOptionsPanel = view.GetVisualDescendants().OfType<Control>().Single(c => AutomationProperties.GetAutomationId(c) == "VideoSuperResolutionOptions");
+            var hdrSelector = view.GetVisualDescendants().OfType<ComboBox>().Single(c => AutomationProperties.GetAutomationId(c) == "VideoHdrOutput");
+            var srModelSelector = view.GetVisualDescendants().OfType<ComboBox>().Single(c => AutomationProperties.GetAutomationId(c) == "VideoSrModel");
+            var srScaleSelector = view.GetVisualDescendants().OfType<ComboBox>().Single(c => AutomationProperties.GetAutomationId(c) == "VideoSrScale");
+            var srBackendSelector = view.GetVisualDescendants().OfType<ComboBox>().Single(c => AutomationProperties.GetAutomationId(c) == "VideoSrBackend");
+            vm.VideoSrModelIndex = 1;
+            if (srScaleSelector.SelectedIndex != 0 || srScaleSelector.ItemCount != 1) throw new InvalidOperationException("Native 2x scale selection cleared");
+            vm.VideoSrModelIndex = 0;
+            if (srScaleSelector.SelectedIndex != 0) throw new InvalidOperationException("Model change cleared scale selection");
+            vm.HdrOutputIndex = 1;
+            var saved = ((IViewState)vm).CaptureState();
+            vm.HdrOutputIndex = 0;
+            ((IViewState)vm).RestoreState(saved);
+            if (vm.HdrOutputIndex != 1 || hdrSelector.SelectedIndex != 1) throw new InvalidOperationException("HDR selection was not persisted");
+            foreach (var culture in new[] { "en-US", "zh-CN" })
+            {
+                I18nManager.Instance.Culture = new CultureInfo(culture);
+                string expected = culture == "en-US" ? "Force HDR" : "强制 HDR";
+                PumpUntil(() => vm.HdrOutputOptions[1].Label == expected);
+                if (vm.HdrOutputIndex != 1 || hdrSelector.SelectedIndex != 1)
+                    throw new InvalidOperationException("Changing language cleared HDR selection");
+                if (srModelSelector.SelectedIndex != vm.VideoSrModelIndex || srBackendSelector.SelectedIndex != vm.VideoSrBackendIndex)
+                    throw new InvalidOperationException("Changing language cleared super-resolution selection");
+            }
+            Render(window, view, Path.Combine(workDir, "quality-options.png"));
+            srOptionsPanel.BringIntoView();
+            Dispatcher.UIThread.RunJobs();
+            Render(window, view, Path.Combine(workDir, "quality-super-resolution.png"));
+            tabs.SelectedIndex = 0;
+            PumpUntil(() => TopLevel.GetTopLevel(srOptionsPanel) == null || !srOptionsPanel.IsEffectivelyVisible);
+            if (!srOptions) vm.IsVideoSrEnabled = false;
+            vm.HdrOutputIndex = 0;
             var info = service.ProbeAsync(source).GetAwaiter().GetResult()!;
             var first = new VideoFileItem(source) { ProbeInfo = info };
             var second = new VideoFileItem(source) { ProbeInfo = info with { DurationMs = 1000 } };

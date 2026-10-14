@@ -1,5 +1,6 @@
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.Input;
+using FancyToolAva.Models;
 using FancyToolAva.Services;
 
 namespace FancyToolAva.ViewModels;
@@ -17,13 +18,32 @@ public partial class VideoTranscodeViewModel
         set { if (IsBusy) return; if (SetProperty(ref field, value)) RefreshSrState(); }
     }
     /// <summary>Gets the localized video model choices.</summary>
-    public string[] VideoSrModelLabels => [LocalizationRegistry.Get("VideoTranscode.Sr_ModelSpan"), LocalizationRegistry.Get("ImageConvert.SrModel_LiveActionSpanX2"), LocalizationRegistry.Get("VideoTranscode.Sr_ModelFast"), LocalizationRegistry.Get("VideoTranscode.Sr_ModelAnime"), LocalizationRegistry.Get("VideoTranscode.Sr_ModelQuality")];
+    public IReadOnlyList<LocalizedOption> VideoSrModelLabels { get; } = [new("VideoTranscode.Sr_ModelSpan"),
+        new("ImageConvert.SrModel_LiveActionSpanX2"), new("VideoTranscode.Sr_ModelFast"),
+        new("VideoTranscode.Sr_ModelAnime"), new("VideoTranscode.Sr_ModelQuality")];
     /// <summary>Gets the localized accelerator preferences.</summary>
-    public string[] VideoSrBackendLabels => [LocalizationRegistry.Get("VideoTranscode.Sr_BackendAuto"), LocalizationRegistry.Get("VideoTranscode.Sr_BackendNpu"), LocalizationRegistry.Get("VideoTranscode.Sr_BackendGpu"), "CPU"];
+    public IReadOnlyList<LocalizedOption> VideoSrBackendLabels { get; } = [new("VideoTranscode.Sr_BackendAuto"),
+        new("VideoTranscode.Sr_BackendNpu"), new("VideoTranscode.Sr_BackendGpu"), new("VideoTranscode.Sr_BackendCpu")];
+    private static readonly string[] VideoSrScales = ["2×", "4×"];
+    private static readonly string[] VideoSrNativeScales = ["2×"];
     /// <summary>Gets the available enhancement scales.</summary>
-    public string[] VideoSrScaleLabels => VideoModels[VideoSrModelIndex] == SuperResolutionModel.LiveActionSpanX2 ? ["2×"] : ["2×", "4×"];
+    public string[] VideoSrScaleLabels => VideoModels[VideoSrModelIndex] == SuperResolutionModel.LiveActionSpanX2 ? VideoSrNativeScales : VideoSrScales;
     /// <summary>Gets or sets the selected neural model index.</summary>
-    public int VideoSrModelIndex { get => field; set { if (IsBusy || value < 0) return; if (SetProperty(ref field, Math.Clamp(value, 0, VideoModels.Length - 1))) { if (VideoModels[field] == SuperResolutionModel.LiveActionSpanX2) VideoSrScaleIndex = 0; OnPropertyChanged(nameof(VideoSrScaleLabels)); RefreshSrState(); } } }
+    public int VideoSrModelIndex
+    {
+        get => field;
+        set
+        {
+            if (IsBusy || value < 0) return;
+            if (SetProperty(ref field, Math.Clamp(value, 0, VideoModels.Length - 1)))
+            {
+                if (VideoModels[field] == SuperResolutionModel.LiveActionSpanX2) VideoSrScaleIndex = 0;
+                OnPropertyChanged(nameof(VideoSrScaleLabels));
+                OnPropertyChanged(nameof(VideoSrScaleIndex));
+                RefreshSrState();
+            }
+        }
+    }
     /// <summary>Gets or sets the enhancement scale index.</summary>
     public int VideoSrScaleIndex { get => field; set { if (!IsBusy && value >= 0) SetProperty(ref field, Math.Clamp(value, 0, VideoModels[VideoSrModelIndex] == SuperResolutionModel.LiveActionSpanX2 ? 0 : 1)); } }
     /// <summary>Gets or sets the hardware preference index.</summary>

@@ -13,6 +13,7 @@ namespace FancyToolAva.ViewModels
     {
         private readonly AppObserveModel _app;
         private readonly IFileDialogService _fileDialogService;
+        private readonly FileService _fileService;
 
         public AppObserveModel App => _app;
 
@@ -38,8 +39,22 @@ namespace FancyToolAva.ViewModels
         public string CaptionLanguage => LocalizationStrings.Current["Settings.Caption_Language"];
         public string GroupNetwork => LocalizationStrings.Current["Settings.Group_Network"];
         public string GroupImage => LocalizationStrings.Current["Settings.Group_Image"];
-        public string LabelSrGpu => LocalizationStrings.Current["Settings.Label_SrGpu"];
-        public string CaptionSrGpu => LocalizationStrings.Current["Settings.Caption_SrGpu"];
+        public string GroupModels => LocalizationStrings.Current["Settings.Group_Models"];
+        public string LabelModelsDirectory => LocalizationStrings.Current["Settings.Label_ModelsDirectory"];
+        public string CaptionModelsDirectory => LocalizationStrings.Current["Settings.Caption_ModelsDirectory"];
+        public string ButtonSelectModelsDirectory => LocalizationStrings.Current["Settings.Button_SelectModelsDirectory"];
+        public string ButtonOpenModelsDirectory => LocalizationStrings.Current["Settings.Button_OpenModelsDirectory"];
+        public string ButtonResetModelsDirectory => LocalizationStrings.Current["Settings.Button_ResetModelsDirectory"];
+        public string ModelsDirectory => AppPaths.ResolveModelsDirectory(App.Preferences.ModelStorageDirectory);
+        public bool HasModelStorageError => !string.IsNullOrEmpty(ModelStorageError);
+        public string ModelStorageError
+        {
+            get;
+            private set
+            {
+                if (SetProperty(ref field, value)) OnPropertyChanged(nameof(HasModelStorageError));
+            }
+        } = string.Empty;
         public string LabelSrTileSize => LocalizationStrings.Current["Settings.Label_SrTileSize"];
         public string CaptionSrTileSize => LocalizationStrings.Current["Settings.Caption_SrTileSize"];
         public string SrTileMinMemory => LocalizationStrings.Current["Settings.SrTile_MinMemory"];
@@ -47,16 +62,15 @@ namespace FancyToolAva.ViewModels
         public string SrTileBalanced => LocalizationStrings.Current["Settings.SrTile_Balanced"];
         public string SrTileQuality => LocalizationStrings.Current["Settings.SrTile_Quality"];
 
-        private IReadOnlyList<string> _srTileOptions = [];
+        private readonly LocalizedOption[] _srTileOptions = [new("Settings.SrTile_MinMemory"),
+            new("Settings.SrTile_Memory"), new("Settings.SrTile_Balanced"), new("Settings.SrTile_Quality")];
 
-        public IReadOnlyList<string> SrTileOptions => _srTileOptions;
-
-        // DirectML is Windows-only; on other platforms the GPU controls are
-        // disabled rather than clearing the user's toggle value.
-        public bool CanUseSuperResolutionGpu => OperatingSystem.IsWindows();
-
-        public bool CanSelectSrTileSize =>
-            CanUseSuperResolutionGpu && App.Preferences.UseSuperResolutionDml;
+        public IReadOnlyList<LocalizedOption> SrTileOptions => _srTileOptions;
+        public int SelectedSrTileSizeIndex
+        {
+            get => App.Preferences.SuperResolutionTileSizeIndex;
+            set { if (value >= 0) App.Preferences.SuperResolutionTileSizeIndex = value; }
+        }
 
         // Mica / 亚克力等系统背景依赖 Windows DWM，其它平台上整个选项禁用
         public bool CanUseBackdrop => OperatingSystem.IsWindows();
@@ -92,10 +106,11 @@ namespace FancyToolAva.ViewModels
             }
         }
 
-        public SettingsViewModel(AppObserveModel app, IFileDialogService fileDialogService)
+        public SettingsViewModel(AppObserveModel app, IFileDialogService fileDialogService, FileService fileService)
         {
             _app = app;
             _fileDialogService = fileDialogService;
+            _fileService = fileService;
             _app.Preferences.PropertyChanged += OnPreferencesPropertyChanged;
             var currentCulture = I18nManager.Instance.Culture?.Name ?? "en-US";
             SelectedLanguage = AvailableLanguages.FirstOrDefault(l => l.Culture == currentCulture)
@@ -106,10 +121,15 @@ namespace FancyToolAva.ViewModels
 
         private void OnPreferencesPropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
-            if (e.PropertyName == nameof(AppPreferences.UseSuperResolutionDml))
-                OnPropertyChanged(nameof(CanSelectSrTileSize));
+            if (e.PropertyName == nameof(AppPreferences.ModelStorageDirectory))
+            {
+                OnPropertyChanged(nameof(ModelsDirectory));
+                ResetModelsDirectoryCommand.NotifyCanExecuteChanged();
+            }
             if (e.PropertyName == nameof(AppPreferences.BackdropIndex))
                 OnPropertyChanged(nameof(CanCustomizeAcrylic));
+            if (e.PropertyName == nameof(AppPreferences.SuperResolutionTileSizeIndex))
+                OnPropertyChanged(nameof(SelectedSrTileSizeIndex));
         }
 
         public void RefreshBackdropOptions()
@@ -142,13 +162,67 @@ namespace FancyToolAva.ViewModels
 
         public void RefreshSrTileOptions()
         {
-            _srTileOptions = [SrTileMinMemory, SrTileMemory, SrTileBalanced, SrTileQuality];
-            OnPropertyChanged(nameof(SrTileOptions));
+            foreach (var option in _srTileOptions) option.Refresh();
+            OnPropertyChanged(nameof(SelectedSrTileSizeIndex));
             OnPropertyChanged(nameof(SrTileMinMemory));
             OnPropertyChanged(nameof(SrTileMemory));
             OnPropertyChanged(nameof(SrTileBalanced));
             OnPropertyChanged(nameof(SrTileQuality));
         }
+
+        [RelayCommand]
+        private async Task PickModelsDirectory()
+        {
+            try
+            {
+                string? folder = await _fileDialogService.PickFolderAsync(LabelModelsDirectory);
+                if (folder != null) SaveModelsDirectory(folder);
+            }
+            catch (Exception ex) { ShowModelStorageError(ex); }
+        }
+
+        private bool CanResetModelsDirectory() => !string.IsNullOrEmpty(App.Preferences.ModelStorageDirectory);
+
+        [RelayCommand(CanExecute = nameof(CanResetModelsDirectory))]
+        private void ResetModelsDirectory()
+        {
+            try { SaveModelsDirectory(string.Empty); }
+            catch (Exception ex) { ShowModelStorageError(ex); }
+        }
+
+        private void SaveModelsDirectory(string directory)
+        {
+            string path = AppPaths.ResolveModelsDirectory(directory);
+            Directory.CreateDirectory(path);
+            // Verify download access without changing any existing files.
+            using (var probe = new FileStream(Path.Combine(path, ".fancytool-write-" + Guid.NewGuid().ToString("N")),
+                       FileMode.CreateNew, FileAccess.Write, FileShare.None, 1, FileOptions.DeleteOnClose)) { }
+
+            string previous = App.Preferences.ModelStorageDirectory;
+            App.Preferences.ModelStorageDirectory = string.IsNullOrWhiteSpace(directory) ? string.Empty : path;
+            try { _fileService.SaveState(_app); }
+            catch
+            {
+                App.Preferences.ModelStorageDirectory = previous;
+                throw;
+            }
+            ModelStorageError = string.Empty;
+        }
+
+        [RelayCommand]
+        private void OpenModelsDirectory()
+        {
+            try
+            {
+                Directory.CreateDirectory(ModelsDirectory);
+                _fileDialogService.OpenInExplorer(ModelsDirectory);
+                ModelStorageError = string.Empty;
+            }
+            catch (Exception ex) { ShowModelStorageError(ex); }
+        }
+
+        private void ShowModelStorageError(Exception ex) => ModelStorageError =
+            LocalizationStrings.Current["Settings.Msg_ModelsDirectoryError"] + " " + ex.Message;
 
         [RelayCommand]
         private void OpenLogFolder()
@@ -194,8 +268,12 @@ namespace FancyToolAva.ViewModels
             OnPropertyChanged(nameof(LabelConnectionTimeout));
             OnPropertyChanged(nameof(CaptionConnectionTimeout));
             OnPropertyChanged(nameof(GroupImage));
-            OnPropertyChanged(nameof(LabelSrGpu));
-            OnPropertyChanged(nameof(CaptionSrGpu));
+            OnPropertyChanged(nameof(GroupModels));
+            OnPropertyChanged(nameof(LabelModelsDirectory));
+            OnPropertyChanged(nameof(CaptionModelsDirectory));
+            OnPropertyChanged(nameof(ButtonSelectModelsDirectory));
+            OnPropertyChanged(nameof(ButtonOpenModelsDirectory));
+            OnPropertyChanged(nameof(ButtonResetModelsDirectory));
             OnPropertyChanged(nameof(LabelSrTileSize));
             OnPropertyChanged(nameof(CaptionSrTileSize));
             RefreshSrTileOptions();

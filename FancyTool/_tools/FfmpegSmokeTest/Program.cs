@@ -28,6 +28,7 @@ internal static partial class Program
         string sample10bit = Path.Combine(workDir, "sample10bit.mkv");
         string sample422 = Path.Combine(workDir, "sample422.mkv");
         Directory.CreateDirectory(workDir);
+        if (args.Contains("--settings-only")) return RunSettingsCases(workDir, args.Contains("--inspect"));
         WriteTestAvi(sample, width: 160, height: 120, fps: 10, seconds: 2);
         Console.WriteLine($"sample avi: {new FileInfo(sample).Length} bytes; 10bit={File.Exists(sample10bit)} 422={File.Exists(sample422)}");
 
@@ -40,6 +41,9 @@ internal static partial class Program
             return 1;
         }
         Console.WriteLine($"load OK: {ffmpegSvc.VersionInfo} v={ffmpegSvc.AvailableVideoEncoders.Count} a={ffmpegSvc.AvailableAudioEncoders.Count}");
+
+        if (args.Contains("--hdr-capabilities")) return RunHdrCapabilities();
+        if (args.Contains("--hdr-only")) return RunHdrCases(svc, workDir);
 
         if (args.Contains("--sr-benchmark")) return RunSrBenchmark(workDir);
         if (args.Contains("--editing-ui")) return RunEditingUi(svc, sample, workDir, args.Contains("--sr-ui"));
@@ -281,7 +285,7 @@ internal static partial class Program
     };
 
     /// <summary>直写最小 AVI（BGR24 rawvideo + PCM16 单声道正弦），供烟测自包含生成输入。</summary>
-    private static void WriteTestAvi(string path, int width, int height, int fps, double seconds)
+    private static void WriteTestAvi(string path, int width, int height, int fps, double seconds, bool whitePatch = false)
     {
         int frames = (int)(fps * seconds);
         int sampleRate = 44100;
@@ -309,6 +313,7 @@ internal static partial class Program
                     buf[off] = inBox ? (byte)255 : b;
                     buf[off + 1] = inBox ? (byte)200 : g;
                     buf[off + 2] = inBox ? (byte)0 : r;
+                    if (whitePatch && x < width / 3 && y < height / 3) buf[off] = buf[off + 1] = buf[off + 2] = 255;
                 }
             }
             frameData[f] = buf;
