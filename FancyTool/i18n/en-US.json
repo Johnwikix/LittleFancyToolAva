@@ -617,13 +617,6 @@
   },
   "AudioTranscode": {
     "Dsp_InputHint": "DSP: mono/stereo 44.1/48 kHz PCM.",
-    "Sr_InputHint": "AudioSR: mono/stereo PCM from 8 to 48 kHz.",
-    "Label_UpsamplingBackend": "Upsampling backend",
-    "Sr_Acceleration": "Hardware acceleration",
-    "Sr_Steps": "Inference steps",
-    "Sr_Hint": "AudioSR requires about 2.7 GB of models and is intended for offline processing. Native restoration is 48 kHz; higher output rates are resampled. Models download on first use or can be installed below.",
-    "Sr_LoadingGraph": "Loading AudioSR: {0}",
-    "Sr_Processing": "AudioSR inference: {0}/{1} steps",
     "Label_UpsamplingMultiplier": "Target multiplier",
     "Option_SpectralEnhancement": "Enable upsampling",
     "Hint_SpectralEnhancement": "Lossless output only. 1× also restores high frequencies; the multiplier sets the rate, up to 192 kHz.",

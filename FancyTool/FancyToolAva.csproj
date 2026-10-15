@@ -19,9 +19,6 @@
   <Import Project="WindowsInference.props" />
   <ItemGroup>
     <InternalsVisibleTo Include="FfmpegSmokeTest" />
-    <InternalsVisibleTo Include="AudioSrSmokeTest" />
-    <None Include="Libraries/AudioSR/NOTICE.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Link="Licenses/AudioSR-NOTICE.md" />
-    <None Include="Libraries/AudioSR/*.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Link="Licenses/%(Filename)%(Extension)" />
     <None Include="Libraries/InterpolationModels/LICENSE.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Link="Licenses/RIFE.txt" />
     <None Include="Libraries/InterpolationModels/NOTICE.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Link="Licenses/RIFE-NOTICE.md" />
   </ItemGroup>

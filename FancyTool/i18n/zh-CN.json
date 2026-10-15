@@ -615,13 +615,6 @@
   },
   "AudioTranscode": {
     "Dsp_InputHint": "DSP：44.1/48 kHz 单/双声道 PCM。",
-    "Sr_InputHint": "AudioSR：8–48 kHz 单/双声道 PCM。",
-    "Label_UpsamplingBackend": "升频后端",
-    "Sr_Acceleration": "硬件加速",
-    "Sr_Steps": "推理步数",
-    "Sr_Hint": "AudioSR 模型约 2.7 GB，适合离线处理。原生重建至 48 kHz；更高目标采样率由重采样完成。首次使用自动下载，也可提前安装。",
-    "Sr_LoadingGraph": "正在加载 AudioSR：{0}",
-    "Sr_Processing": "AudioSR 推理：{0}/{1} 步",
     "Label_UpsamplingMultiplier": "目标倍率",
     "Option_SpectralEnhancement": "启用升频",
     "Hint_SpectralEnhancement": "仅无损输出可用；1× 也补全高频，倍率决定采样率，最高 192 kHz。",

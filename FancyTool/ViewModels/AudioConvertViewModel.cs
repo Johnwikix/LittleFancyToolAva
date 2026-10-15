@@ -88,7 +88,6 @@ public partial class AudioConvertViewModel : ViewModelBase, IViewState, IAudioFi
             {
                 OnPropertyChanged(nameof(IsLosslessFormat));
                 OnPropertyChanged(nameof(IsUpsamplingActive));
-                OnPropertyChanged(nameof(IsAudioSrActive));
                 OnPropertyChanged(nameof(IsBitDepthRelevant));
             }
         }
@@ -157,7 +156,6 @@ public partial class AudioConvertViewModel : ViewModelBase, IViewState, IAudioFi
         {
             if (!SetProperty(ref field, value)) return;
             OnPropertyChanged(nameof(IsUpsamplingActive));
-            OnPropertyChanged(nameof(IsAudioSrActive));
         }
     }
     /// <summary>Gets the available target-rate multipliers.</summary>
@@ -178,19 +176,6 @@ public partial class AudioConvertViewModel : ViewModelBase, IViewState, IAudioFi
         get => UpsamplingMultiplier switch { 1 => 0, 4 => 2, _ => 1 };
         set { if (value is >= 0 and <= 2) UpsamplingMultiplier = value == 0 ? 1 : value == 1 ? 2 : 4; }
     }
-    /// <summary>Gets or sets the backend selected by saved or future backend-specific settings.</summary>
-    public string UpsamplingBackendId
-    {
-        get => field;
-        set
-        {
-            if (!SetProperty(ref field, string.IsNullOrWhiteSpace(value) ? AudioEnhancement.AudioUpsamplingBackendRegistry.DefaultBackendId : value)) return;
-            OnPropertyChanged(nameof(UpsamplingBackendIndex));
-            OnPropertyChanged(nameof(IsAudioSrSelected));
-            OnPropertyChanged(nameof(UpsamplingInputHint));
-            OnPropertyChanged(nameof(IsAudioSrActive));
-        }
-    } = AudioEnhancement.AudioUpsamplingBackendRegistry.DefaultBackendId;
     public bool CopyMetadata { get => field; set => SetProperty(ref field, value); } = true;
 
     public bool IsFfmpegAvailable => _ffmpegService.IsAvailable;
@@ -234,9 +219,8 @@ public partial class AudioConvertViewModel : ViewModelBase, IViewState, IAudioFi
         IFileDialogService fileDialogService,
         INotificationService notificationService,
         IViewStateService viewStateService,
-        ILogger<AudioConvertViewModel>? logger = null, AudioSrModelService? audioSrModels = null)
+        ILogger<AudioConvertViewModel>? logger = null)
     {
-        InitializeAudioSr(audioSrModels);
         _convertService = convertService;
         _ffmpegService = ffmpegService;
         _fileDialogService = fileDialogService;
@@ -256,9 +240,6 @@ public partial class AudioConvertViewModel : ViewModelBase, IViewState, IAudioFi
             UpdateStatusText();
             OnPropertyChanged(nameof(PauseResumeLabel));
             RefreshBatchProgressText();
-            foreach (var option in AudioSrAccelerationLabels) option.Refresh();
-            OnPropertyChanged(nameof(AudioSrInstallLabel));
-            OnPropertyChanged(nameof(UpsamplingInputHint));
             foreach (var item in FileItems) item.RefreshLocalization();
         });
     }
@@ -277,7 +258,6 @@ public partial class AudioConvertViewModel : ViewModelBase, IViewState, IAudioFi
             StartConvertCommand.NotifyCanExecuteChanged();
             TogglePauseCommand.NotifyCanExecuteChanged();
             StopConvertCommand.NotifyCanExecuteChanged();
-            RefreshAudioSrState();
         }
     }
 
@@ -412,12 +392,12 @@ public partial class AudioConvertViewModel : ViewModelBase, IViewState, IAudioFi
 
     private bool CanOpenOutputFolder() => !IsBusy && !string.IsNullOrEmpty(OutputFolder) && Directory.Exists(OutputFolder!);
 
-    private bool CanStartConvert() => !IsBusy && !IsAudioSrInstalling && FileItems.Count > 0 && _ffmpegService.IsAvailable;
+    private bool CanStartConvert() => !IsBusy && FileItems.Count > 0 && _ffmpegService.IsAvailable;
 
     [RelayCommand(CanExecute = nameof(CanStartConvert))]
     private async Task StartConvert()
     {
-        if (IsBusy || IsAudioSrInstalling) return;
+        if (IsBusy) return;
         if (!_ffmpegService.IsAvailable)
         {
             Dispatcher.UIThread.Post(() => _notificationService.ShowError(LocalizationRegistry.Get("VideoTranscode.Msg_FfmpegNotAvailable")));
@@ -456,8 +436,6 @@ public partial class AudioConvertViewModel : ViewModelBase, IViewState, IAudioFi
             CopyMetadata = CopyMetadata,
             EnableSpectralEnhancement = EnableSpectralEnhancement,
             UpsamplingMultiplier = UpsamplingMultiplier,
-            UpsamplingBackendId = UpsamplingBackendId,
-            UpsamplingInference = new((VideoSrBackend)AudioSrAccelerationIndex, AudioSrAllowCpuFallback, AudioSrSteps),
         };
         string targetExt = AudioConvertService.GetExtension(options.Format);
         _logger.LogInformation("批量音频转换开始：{Count} 个文件，格式 {Format}，输出目录 {Dir}",
@@ -487,9 +465,7 @@ public partial class AudioConvertViewModel : ViewModelBase, IViewState, IAudioFi
         }).ConfigureAwait(false);
 
         // 单条音频管线基本单线程，并行度取逻辑核数（封顶 8 已足够吃满 IO+编码）
-        int dop = options.EnableSpectralEnhancement && AudioConvertService.IsLosslessOutput(options.Format)
-            && options.UpsamplingBackendId == AudioEnhancement.AudioSrUpsamplingBackend.BackendId
-            ? 1 : Math.Clamp(Environment.ProcessorCount, 1, 8);
+        int dop = Math.Clamp(Environment.ProcessorCount, 1, 8);
         await Parallel.ForEachAsync(plan, new ParallelOptions { MaxDegreeOfParallelism = dop }, async (entry, _) =>
         {
             var (item, outputPath) = entry;
@@ -583,10 +559,6 @@ public partial class AudioConvertViewModel : ViewModelBase, IViewState, IAudioFi
         CopyMetadata = CopyMetadata,
         EnableSpectralEnhancement = EnableSpectralEnhancement,
         UpsamplingMultiplier = UpsamplingMultiplier,
-        UpsamplingBackendId = UpsamplingBackendId,
-        AudioSrAccelerationIndex = AudioSrAccelerationIndex,
-        AudioSrAllowCpuFallback = AudioSrAllowCpuFallback,
-        AudioSrSteps = AudioSrSteps,
         IncludeAllInFolderScan = IncludeAllInFolderScan,
     };
 
@@ -609,10 +581,6 @@ public partial class AudioConvertViewModel : ViewModelBase, IViewState, IAudioFi
             CopyMetadata = s.CopyMetadata;
             EnableSpectralEnhancement = s.EnableSpectralEnhancement;
             UpsamplingMultiplier = s.UpsamplingMultiplier;
-            UpsamplingBackendId = string.IsNullOrWhiteSpace(s.UpsamplingBackendId) ? AudioEnhancement.AudioUpsamplingBackendRegistry.DefaultBackendId : s.UpsamplingBackendId;
-            AudioSrAccelerationIndex = Math.Clamp(s.AudioSrAccelerationIndex, 0, 3);
-            AudioSrAllowCpuFallback = s.AudioSrAllowCpuFallback;
-            AudioSrSteps = s.AudioSrSteps;
             IncludeAllInFolderScan = s.IncludeAllInFolderScan;
         }
         catch (Exception ex)
@@ -625,7 +593,6 @@ public partial class AudioConvertViewModel : ViewModelBase, IViewState, IAudioFi
     {
         if (_isDisposed) return;
         _isDisposed = true;
-        DisposeAudioSr();
         try { I18nManager.Instance.CultureChanged -= OnCultureChanged; } catch { }
         _cts?.Cancel();
         _cts?.Dispose();

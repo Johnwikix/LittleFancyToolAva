@@ -62,8 +62,6 @@ public sealed class AudioConvertOptions
     public int UpsamplingMultiplier { get; set; } = 2;
     /// <summary>Gets or sets the registered backend used when upsampling is enabled.</summary>
     public string UpsamplingBackendId { get; set; } = AudioUpsamplingBackendRegistry.DefaultBackendId;
-    /// <summary>Gets or sets optional neural inference preferences; DSP ignores them.</summary>
-    public AudioUpsamplingInferenceOptions UpsamplingInference { get; set; } = new();
     public double GainDb { get; set; }
     /// <summary>把源的标签/封面（ATL 读取）内联写入输出（wav/aiff 不写）。</summary>
     public bool CopyMetadata { get; set; } = true;

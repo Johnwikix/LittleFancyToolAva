@@ -112,7 +112,7 @@ internal static class WindowsMlAccelerator
             EnableMemoryPattern = false, ExecutionMode = ExecutionMode.ORT_SEQUENTIAL,
             EnableCpuMemArena = false, GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL
         };
-        // Audio uses latent/mel dimensions; video retains its original width/height overrides.
+        // Specialize the named dimensions required by this graph.
         foreach (var dimension in dimensions) options.AddFreeDimensionOverrideByName(dimension.Key, dimension.Value);
         return options;
     }

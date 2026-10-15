@@ -564,20 +564,20 @@ internal static class Program
             Check(vm.UpsamplingMultiplierIndex==2&&vm.UpsamplingMultiplier==4,"selection not restored");
             vm.UpsamplingMultiplierIndex=-1;
             Check(vm.UpsamplingMultiplier==4,"transient selection cleared multiplier");
-            vm.UpsamplingBackendIndex=1;
-            vm.AudioSrAccelerationIndex=3;
-            vm.AudioSrAllowCpuFallback=false;
-            vm.AudioSrSteps=20;
-            Check(vm.IsAudioSrSelected&&vm.IsAudioSrActive,"AudioSR selector not effective");
-            var neuralState=(FancyToolAva.Models.ViewStates.AudioConvertViewState)((FancyToolAva.Models.ViewStates.IViewState)vm).CaptureState();
-            vm.UpsamplingBackendIndex=0;vm.AudioSrSteps=100;
-            ((FancyToolAva.Models.ViewStates.IViewState)vm).RestoreState(neuralState);
-            Check(vm.UpsamplingBackendIndex==1&&vm.AudioSrAccelerationIndex==3&&!vm.AudioSrAllowCpuFallback&&vm.AudioSrSteps==20,"neural state not restored");
+            // Retired backend fields in existing settings must not prevent DSP conversion.
+            var legacyState=System.Text.Json.JsonSerializer.Deserialize<FancyToolAva.Models.ViewStates.AudioConvertViewState>("""
+                {"SelectedFormat":"WAV","EnableSpectralEnhancement":true,"UpsamplingMultiplier":4,
+                 "UpsamplingBackendId":"audiosr-onnx","AudioSrAccelerationIndex":3,
+                 "AudioSrAllowCpuFallback":false,"AudioSrSteps":20}
+                """)!;
+            ((FancyToolAva.Models.ViewStates.IViewState)vm).RestoreState(legacyState);
+            Check(vm.IsUpsamplingActive&&vm.UpsamplingMultiplier==4,"legacy settings lost DSP preference or multiplier");
+            string savedState=System.Text.Json.JsonSerializer.Serialize(((FancyToolAva.Models.ViewStates.IViewState)vm).CaptureState());
+            Check(!savedState.Contains("AudioSr")&&!savedState.Contains("UpsamplingBackendId"),"retired backend settings persisted again");
             vm.SelectedFormat="MP3";
-            Check(!vm.IsAudioSrActive&&vm.IsAudioSrSelected,"lossy output did not disable neural inference or erased backend");
+            Check(!vm.IsUpsamplingActive&&vm.EnableSpectralEnhancement,"lossy output did not disable DSP or erased preference");
             vm.SelectedFormat="WAV";
-            Check(vm.IsAudioSrActive,"lossless output did not restore neural preference");
-            vm.UpsamplingBackendIndex=0;
+            Check(vm.IsUpsamplingActive,"lossless output did not restore DSP preference");
             string input=Path.Combine(workDir,"vm-upsampling.wav");
             WriteSineWav(input,44100,2,0.2);
             vm.AddDroppedPaths([input]);

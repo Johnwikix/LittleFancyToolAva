@@ -286,7 +286,7 @@ public sealed unsafe partial class AudioConvertService : IAudioConvertService
                 WriteAttachedPic(ofmtCtx, picStream, metadata!.CoverBytes!);
 
             // 第一级重采样：解码格式 → 编码格式（DSD 需增益且目标为整型时先到 float，由第二级 gainSwr 施加增益）
-            if (enhance) upsampler = backend!.Create(new AudioUpsamplingRequest(sourceInfo, outRate, o.UpsamplingInference), ct);
+            if (enhance) upsampler = backend!.Create(new AudioUpsamplingRequest(sourceInfo, outRate), ct);
             bool gainNeedsFloatStage = applyGain && !IsFloatFormat(encFmt);
             AVSampleFormat primaryFmt = enhance ? AVSampleFormat.AV_SAMPLE_FMT_DBL
                 : gainNeedsFloatStage ? AVSampleFormat.AV_SAMPLE_FMT_FLT : encFmt;

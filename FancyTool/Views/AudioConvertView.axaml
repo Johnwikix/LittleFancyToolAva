@@ -79,38 +79,13 @@
                         <StackPanel Classes="FormRow">
                             <CheckBox IsEnabled="{Binding IsLosslessFormat}" IsChecked="{Binding EnableSpectralEnhancement, Mode=TwoWay}"
                                       Content="{lan:I18n AudioTranscode.Option_SpectralEnhancement}" />
-                            <TextBlock Text="{lan:I18n AudioTranscode.Label_UpsamplingBackend}" Classes="FieldLabel" />
-                            <ComboBox HorizontalAlignment="Stretch" IsEnabled="{Binding IsUpsamplingActive}"
-                                      ItemsSource="{Binding UpsamplingBackendLabels}" SelectedIndex="{Binding UpsamplingBackendIndex, Mode=TwoWay}" />
                             <TextBlock Text="{lan:I18n AudioTranscode.Label_UpsamplingMultiplier}" Classes="FieldLabel" />
                             <ComboBox HorizontalAlignment="Stretch" IsEnabled="{Binding IsUpsamplingActive}"
                                       ItemsSource="{Binding UpsamplingMultiplierLabels}"
                                       SelectedIndex="{Binding UpsamplingMultiplierIndex, Mode=TwoWay}" />
-                            <TextBlock Text="{Binding UpsamplingInputHint}" FontSize="11" Opacity="0.6" TextWrapping="Wrap" />
+                            <TextBlock Text="{lan:I18n AudioTranscode.Dsp_InputHint}" FontSize="11" Opacity="0.6" TextWrapping="Wrap" />
                             <TextBlock Text="{lan:I18n AudioTranscode.Hint_SpectralEnhancement}"
                                        FontSize="11" Opacity="0.6" TextWrapping="Wrap" />
-                        </StackPanel>
-
-                        <StackPanel Classes="FormRow" IsVisible="{Binding IsAudioSrSelected}" Spacing="8">
-                            <TextBlock Text="{lan:I18n AudioTranscode.Sr_Hint}" FontSize="11" Opacity="0.7" TextWrapping="Wrap" />
-                            <StackPanel IsEnabled="{Binding IsAudioSrActive}" Spacing="8">
-                                <TextBlock Text="{lan:I18n AudioTranscode.Sr_Acceleration}" Classes="FieldLabel" />
-                                <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding AudioSrAccelerationLabels}"
-                                          SelectedIndex="{Binding AudioSrAccelerationIndex, Mode=TwoWay}">
-                                    <ComboBox.ItemTemplate><DataTemplate x:DataType="models:LocalizedOption"><TextBlock Text="{Binding Label}" /></DataTemplate></ComboBox.ItemTemplate>
-                                </ComboBox>
-                                <CheckBox Content="{lan:I18n VideoTranscode.Sr_AllowCpu}" IsChecked="{Binding AudioSrAllowCpuFallback}" />
-                                <TextBlock Text="{lan:I18n AudioTranscode.Sr_Steps}" Classes="FieldLabel" />
-                                <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding AudioSrStepChoices}" SelectedItem="{Binding AudioSrSteps, Mode=TwoWay}" />
-                            </StackPanel>
-                            <WrapPanel Orientation="Horizontal">
-                                <Button Content="{Binding AudioSrInstallLabel}" Command="{Binding InstallAudioSrModelCommand}" Margin="0,0,8,8" />
-                                <Button Content="{lan:I18n VideoTranscode.Sr_InstallHardware}" Command="{Binding InstallAudioSrAccelerationCommand}" Margin="0,0,0,8" />
-                                <Button Content="{lan:I18n VideoTranscode.Sr_CancelInstall}" Command="{Binding CancelAudioSrInstallationCommand}" IsVisible="{Binding IsAudioSrInstalling}" />
-                            </WrapPanel>
-                            <ProgressBar Value="{Binding AudioSrDownloadProgress}" Maximum="1" IsVisible="{Binding IsAudioSrInstalling}" />
-                            <TextBlock Text="{Binding AudioSrStatusText}" FontSize="11" TextWrapping="Wrap" />
-                            <TextBlock Text="{Binding AudioSrDeviceText}" FontSize="11" Opacity="0.7" TextWrapping="Wrap" />
                         </StackPanel>
 
                         <!-- 元数据 -->
