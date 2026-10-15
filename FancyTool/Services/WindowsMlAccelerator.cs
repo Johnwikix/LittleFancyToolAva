@@ -5,7 +5,7 @@ using Microsoft.Windows.AI.MachineLearning;
 
 namespace FancyToolAva.Services;
 
-/// <summary>Shares Windows ML provider discovery and explicit GPU/NPU selection between images and videos.</summary>
+/// <summary>Shares Windows ML provider discovery and explicit GPU/NPU selection between images, video and audio.</summary>
 internal static class WindowsMlAccelerator
 {
 #if WINDOWS
@@ -34,6 +34,11 @@ internal static class WindowsMlAccelerator
     /// <summary>Creates a session specialized for one rectangular video frame size.</summary>
     internal static InferenceSession CreateSession(string path, VideoSrBackend backend, int width, int height,
         CancellationToken ct, out VideoSrDevice device, bool requireHardware = false)
+        => CreateTensorSession(path, backend, VideoDimensions(width, height), ct, out device, requireHardware);
+
+    /// <summary>Creates an inference session for explicit named tensor dimensions, independently of media type.</summary>
+    internal static InferenceSession CreateTensorSession(string path, VideoSrBackend backend,
+        IReadOnlyDictionary<string, long> dimensions, CancellationToken ct, out VideoSrDevice device, bool requireHardware = false)
     {
 #if WINDOWS
         Registration.Value.WaitAsync(ct).GetAwaiter().GetResult();
@@ -50,7 +55,7 @@ internal static class WindowsMlAccelerator
                 ct.ThrowIfCancellationRequested();
                 try
                 {
-                    using var options = CreateOptions(width, height);
+                    using var options = CreateOptions(dimensions);
                     // OpenVINO reads this flag for its own compile-time CPU fallback too.
                     // Let the application perform and report hardware fallback explicitly.
                     options.AddSessionConfigEntry("session.disable_cpu_ep_fallback", "1");
@@ -70,8 +75,8 @@ internal static class WindowsMlAccelerator
         if (backend == VideoSrBackend.PreferNpu)
             throw new PlatformNotSupportedException("Windows ML NPU provider unavailable. " + string.Join("; ", failures));
 #endif
-        if (backend != VideoSrBackend.Cpu) return CreateDirectMlSession(path, width, height, ct, out device, requireHardware);
-        using var fallbackOptions = CreateOptions(width, height);
+        if (backend != VideoSrBackend.Cpu) return CreateDirectMlTensorSession(path, dimensions, ct, out device, requireHardware);
+        using var fallbackOptions = CreateOptions(dimensions);
         fallbackOptions.AppendExecutionProvider_CPU(0);
         device = new VideoSrDevice("CPU", false);
         return new InferenceSession(path, fallbackOptions);
@@ -80,9 +85,14 @@ internal static class WindowsMlAccelerator
     /// <summary>Creates the common DirectML GPU path used when vendor providers are unavailable.</summary>
     internal static InferenceSession CreateDirectMlSession(string path, int width, int height, CancellationToken ct,
         out VideoSrDevice device, bool requireHardware = false)
+        => CreateDirectMlTensorSession(path, VideoDimensions(width, height), ct, out device, requireHardware);
+
+    /// <summary>Creates a DirectML session for non-image tensor shapes.</summary>
+    internal static InferenceSession CreateDirectMlTensorSession(string path, IReadOnlyDictionary<string, long> dimensions,
+        CancellationToken ct, out VideoSrDevice device, bool requireHardware = false)
     {
         ct.ThrowIfCancellationRequested();
-        using var options = CreateOptions(width, height);
+        using var options = CreateOptions(dimensions);
         if (requireHardware) options.AddSessionConfigEntry("session.disable_cpu_ep_fallback", "1");
         var gpu = VideoSrGpuSelector.Select();
         options.AppendExecutionProvider_DML(gpu.Index);
@@ -90,20 +100,20 @@ internal static class WindowsMlAccelerator
         return new InferenceSession(path, options);
     }
 
-    private static SessionOptions CreateOptions(int width, int height)
+    private static IReadOnlyDictionary<string, long> VideoDimensions(int width, int height) => new Dictionary<string, long>
+    {
+        ["batch_size"] = 1, ["batch"] = 1, ["height"] = height, ["width"] = width, ["in_height"] = height, ["in_width"] = width
+    };
+
+    private static SessionOptions CreateOptions(IReadOnlyDictionary<string, long> dimensions)
     {
         var options = new SessionOptions
         {
             EnableMemoryPattern = false, ExecutionMode = ExecutionMode.ORT_SEQUENTIAL,
             EnableCpuMemArena = false, GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL
         };
-        // Static shapes allow provider compilation and reuse instead of re-specializing every tile.
-        options.AddFreeDimensionOverrideByName("batch_size", 1);
-        options.AddFreeDimensionOverrideByName("batch", 1);
-        options.AddFreeDimensionOverrideByName("height", height);
-        options.AddFreeDimensionOverrideByName("width", width);
-        options.AddFreeDimensionOverrideByName("in_height", height);
-        options.AddFreeDimensionOverrideByName("in_width", width);
+        // Audio uses latent/mel dimensions; video retains its original width/height overrides.
+        foreach (var dimension in dimensions) options.AddFreeDimensionOverrideByName(dimension.Key, dimension.Value);
         return options;
     }
 

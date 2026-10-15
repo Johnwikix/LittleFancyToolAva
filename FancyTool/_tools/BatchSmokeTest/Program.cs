@@ -542,8 +542,8 @@ internal static class Program
             var service=new AudioConvertService(NullLogger<AudioConvertService>.Instance);
             using var vm=new AudioConvertViewModel(service,new FakeFfmpeg(),new FakeDialogs(),new FakeNotifs(),new FakeViewState());
             vm.EnableSpectralEnhancement=true;
-            var changed=new HashSet<string>();
-            vm.PropertyChanged+=(_,e)=>{if(e.PropertyName is {} name)changed.Add(name);};
+            var changed=new System.Collections.Concurrent.ConcurrentDictionary<string,byte>();
+            vm.PropertyChanged+=(_,e)=>{if(e.PropertyName is {} name)changed.TryAdd(name,0);};
             foreach(string format in vm.FormatLabels)
             {
                 vm.SelectedFormat=format;
@@ -551,7 +551,7 @@ internal static class Program
                 Check(vm.EnableSpectralEnhancement,"switching format erased saved preference");
             }
             vm.SelectedFormat="WAV";
-            Check(changed.Contains(nameof(vm.IsUpsamplingActive)),"format switch did not notify active state");
+            Check(changed.ContainsKey(nameof(vm.IsUpsamplingActive)),"format switch did not notify active state");
             vm.EnableSpectralEnhancement=false;
             Check(!vm.IsUpsamplingActive,"disabled preference remained active");
             vm.EnableSpectralEnhancement=true;
@@ -564,6 +564,20 @@ internal static class Program
             Check(vm.UpsamplingMultiplierIndex==2&&vm.UpsamplingMultiplier==4,"selection not restored");
             vm.UpsamplingMultiplierIndex=-1;
             Check(vm.UpsamplingMultiplier==4,"transient selection cleared multiplier");
+            vm.UpsamplingBackendIndex=1;
+            vm.AudioSrAccelerationIndex=3;
+            vm.AudioSrAllowCpuFallback=false;
+            vm.AudioSrSteps=20;
+            Check(vm.IsAudioSrSelected&&vm.IsAudioSrActive,"AudioSR selector not effective");
+            var neuralState=(FancyToolAva.Models.ViewStates.AudioConvertViewState)((FancyToolAva.Models.ViewStates.IViewState)vm).CaptureState();
+            vm.UpsamplingBackendIndex=0;vm.AudioSrSteps=100;
+            ((FancyToolAva.Models.ViewStates.IViewState)vm).RestoreState(neuralState);
+            Check(vm.UpsamplingBackendIndex==1&&vm.AudioSrAccelerationIndex==3&&!vm.AudioSrAllowCpuFallback&&vm.AudioSrSteps==20,"neural state not restored");
+            vm.SelectedFormat="MP3";
+            Check(!vm.IsAudioSrActive&&vm.IsAudioSrSelected,"lossy output did not disable neural inference or erased backend");
+            vm.SelectedFormat="WAV";
+            Check(vm.IsAudioSrActive,"lossless output did not restore neural preference");
+            vm.UpsamplingBackendIndex=0;
             string input=Path.Combine(workDir,"vm-upsampling.wav");
             WriteSineWav(input,44100,2,0.2);
             vm.AddDroppedPaths([input]);

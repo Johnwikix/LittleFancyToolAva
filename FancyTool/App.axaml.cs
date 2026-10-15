@@ -181,6 +181,8 @@ namespace FancyToolAva
             services.AddSingleton<IFfmpegService, FfmpegService>();
             services.AddSingleton<IVideoTranscodeService, VideoTranscodeService>();
             services.AddSingleton<AudioEnhancement.IAudioUpsamplingBackend, AudioEnhancement.ManagedDspUpsamplingBackend>();
+            services.AddSingleton<AudioSrModelService>();
+            services.AddSingleton<AudioEnhancement.IAudioUpsamplingBackend, AudioEnhancement.AudioSrUpsamplingBackend>();
             services.AddSingleton<AudioEnhancement.AudioUpsamplingBackendRegistry>();
             services.AddSingleton<IAudioConvertService, AudioConvertService>();
             services.AddSingleton<Services.Lyrics.PcmAudioDecoder>();

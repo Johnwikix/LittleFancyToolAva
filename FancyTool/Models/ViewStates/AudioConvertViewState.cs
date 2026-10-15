@@ -14,6 +14,12 @@ public class AudioConvertViewState
     public int UpsamplingMultiplier { get; set; } = 2;
     /// <summary>Gets or sets the backend identifier without loading a backend on restore.</summary>
     public string UpsamplingBackendId { get; set; } = AudioEnhancement.AudioUpsamplingBackendRegistry.DefaultBackendId;
+    /// <summary>Gets or sets the shared inference hardware preference.</summary>
+    public int AudioSrAccelerationIndex { get; set; }
+    /// <summary>Gets or sets whether CPU fallback is allowed for AudioSR graphs.</summary>
+    public bool AudioSrAllowCpuFallback { get; set; } = true;
+    /// <summary>Gets or sets the AudioSR diffusion iteration count.</summary>
+    public int AudioSrSteps { get; set; } = 50;
     public double GainDb { get; set; }
     public bool CopyMetadata { get; set; } = true;
     public bool IncludeAllInFolderScan { get; set; }
