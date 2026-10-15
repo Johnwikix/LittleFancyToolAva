@@ -280,7 +280,7 @@
                         </Grid>
                         <Border Grid.Row="1" Background="#11151B" CornerRadius="6" ClipToBounds="True">
                             <Grid>
-                                <Image Source="{Binding PreviewBitmap}" Stretch="Uniform" />
+                                <Image x:Name="PreviewImage" Source="{Binding PreviewBitmap}" Stretch="Uniform" />
                                 <TextBlock Text="{Binding PreviewStatusText}" IsVisible="{Binding !HasPreview}" Foreground="#BCC4D0" TextWrapping="Wrap" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="20" />
                                 <Border Background="#B0000000" CornerRadius="4" Padding="8,3" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="8">
                                     <TextBlock Text="{Binding PreviewPositionText}" Foreground="White" FontFamily="monospace" FontSize="11" />

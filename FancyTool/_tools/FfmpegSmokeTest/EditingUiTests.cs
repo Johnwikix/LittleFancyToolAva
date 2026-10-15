@@ -118,6 +118,8 @@ internal static partial class Program
             if (slider.IsEnabled || vm.TrimStartSeconds != start) throw new InvalidOperationException("Trim was editable during conversion");
             vm.IsBusy = false;
 
+            CheckLivePreviewUi(vm, first, second);
+
             // Exercise the real batch command with independent ranges and shared encoding settings.
             vm.SelectedFileItem = second;
             vm.TrimStartSeconds = 0.2;

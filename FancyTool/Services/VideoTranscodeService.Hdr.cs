@@ -82,6 +82,10 @@ public sealed unsafe partial class VideoTranscodeService
         {
             filters.Add($"zscale={source.InputParameters}:{target.OutputParameters}:npl=1000:d=error_diffusion");
         }
+        // zscale only supports planar RGB. A packed BGRA sink alone may negotiate
+        // a YUV intermediate, which is incompatible with the RGB output matrix.
+        if (target.Matrix == AVColorSpace.AVCOL_SPC_RGB && source != target)
+            filters.Add("format=gbrpf32le");
         filters.Add(target.FrameParameters);
         return string.Join(',', filters);
     }

@@ -17,6 +17,9 @@
   </PropertyGroup>
 
   <Import Project="WindowsInference.props" />
+  <ItemGroup>
+    <InternalsVisibleTo Include="FfmpegSmokeTest" />
+  </ItemGroup>
 
   <!-- FFmpeg 9.0 GPL shared 库（进程内经 FFmpeg.AutoGen 调用，随应用分发，用户无需下载）：
        仅 avformat/avcodec/avutil/avfilter/swscale/swresample 六库，来源与 SHA-256 见 Libraries\FFmpeg\BUILD_INFO.md -->

@@ -15,16 +15,15 @@ namespace FancyToolAva.Services
         public static string DefaultModelsDirectory => Path.Combine(DataDirectory, "Models");
 
         private static string? _modelsDirectory;
-        public static string ModelsDirectory => _modelsDirectory ?? DefaultModelsDirectory;
+        public static string ModelsDirectory => Volatile.Read(ref _modelsDirectory) ?? DefaultModelsDirectory;
 
         public static string ResolveModelsDirectory(string? directory) => string.IsNullOrWhiteSpace(directory)
             ? DefaultModelsDirectory
             : Path.TrimEndingDirectorySeparator(Path.GetFullPath(directory.Trim()));
 
-        // Capture the root at startup. Downloads and inference sessions keep using
-        // the same directory until restart, even when settings are changed mid-batch.
+        // Settings publishes a new root only after migration and persistence succeed.
         public static void InitializeModelsDirectory(string? directory) =>
-            _modelsDirectory = ResolveModelsDirectory(directory);
+            Volatile.Write(ref _modelsDirectory, ResolveModelsDirectory(directory));
 
         // Where the previous version of the app stored its config (next to the
         // binary). We check this once on first launch under the new layout and

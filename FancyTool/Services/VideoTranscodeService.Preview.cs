@@ -122,11 +122,15 @@ public sealed unsafe partial class VideoTranscodeService
         => input->start_time != ffmpeg.AV_NOPTS_VALUE ? input->start_time / (double)ffmpeg.AV_TIME_BASE
             : video->start_time != ffmpeg.AV_NOPTS_VALUE ? video->start_time * ffmpeg.av_q2d(video->time_base) : 0;
 
-    /// <summary>Reuses the scaling context and limits progress previews to two small frames per second.</summary>
+    /// <summary>Reuses scaling and pixel buffers while delivering at most sixty live previews per second.</summary>
     private sealed class PreviewConverter : IDisposable
     {
         private SwsContext* _scale;
         private long _lastReport;
+        private byte[]? _pixels;
+        private AVFrame* _lastFrame;
+        private double _lastPosition;
+        private bool _pendingFinal;
         private readonly byte*[] _source = new byte*[8];
         private readonly int[] _sourceStride = new int[8];
         private readonly byte*[] _target = new byte*[4];
@@ -139,27 +143,50 @@ public sealed unsafe partial class VideoTranscodeService
 
         public void Report(AVFrame* frame, double position, IProgress<VideoPreviewFrame>? preview)
         {
-            if (preview == null) return;
+            if (preview == null || preview is IVideoPreviewSink { WantsFrame: false }) return;
+            _lastFrame = _lastFrame == null ? ffmpeg.av_frame_alloc() : _lastFrame;
+            if (_lastFrame == null) return;
+            ffmpeg.av_frame_unref(_lastFrame);
+            if (ffmpeg.av_frame_ref(_lastFrame, frame) < 0) return;
+            _lastPosition = position;
+            _pendingFinal = true;
             long now = Stopwatch.GetTimestamp();
-            if (_lastReport != 0 && now - _lastReport < Stopwatch.Frequency / 2) return;
+            if (_lastReport != 0 && now - _lastReport < Stopwatch.Frequency / 60) return;
             _lastReport = now;
             // Preview failures must not abort a successful conversion.
-            try { preview.Report(Convert(frame, position)); } catch { }
+            Publish(frame, position, preview);
         }
 
-        public VideoPreviewFrame Convert(AVFrame* frame, double position)
+        public void Flush(IProgress<VideoPreviewFrame>? preview)
+        {
+            if (_pendingFinal && _lastFrame != null && preview != null && preview is not IVideoPreviewSink { WantsFrame: false })
+                Publish(_lastFrame, _lastPosition, preview);
+        }
+
+        private void Publish(AVFrame* frame, double position, IProgress<VideoPreviewFrame> preview)
+        {
+            try
+            {
+                if (preview is IVideoPreviewSink sink)
+                {
+                    var converted = Convert(frame, position, reusable: true);
+                    sink.Publish(converted.Pixels, converted.Width, converted.Height, position);
+                }
+                else preview.Report(Convert(frame, position));
+                _pendingFinal = false;
+            }
+            catch { /* Preview failures never abort encoding. */ }
+        }
+
+        public VideoPreviewFrame Convert(AVFrame* frame, double position, bool reusable = false)
         {
             if (ReadColor(frame).IsHdr) frame = ToneMapPreview(frame);
-            double aspect = frame->sample_aspect_ratio.num > 0 && frame->sample_aspect_ratio.den > 0
-                ? ffmpeg.av_q2d(frame->sample_aspect_ratio) : 1;
-            double displayWidth = frame->width * aspect;
-            double ratio = Math.Min(1, Math.Min(640 / displayWidth, 360.0 / frame->height));
-            int width = Math.Max(1, (int)Math.Round(displayWidth * ratio));
-            int height = Math.Max(1, (int)Math.Round(frame->height * ratio));
+            var (width, height) = PreviewSize(frame);
             _scale = ffmpeg.sws_getCachedContext(_scale, frame->width, frame->height, (AVPixelFormat)frame->format,
                 width, height, AVPixelFormat.AV_PIX_FMT_BGRA, (int)SwsFlags.SWS_FAST_BILINEAR, null, null, null);
             if (_scale == null) throw new InvalidOperationException("Cannot scale preview frame");
-            byte[] pixels = new byte[checked(width * height * 4)];
+            int length = checked(width * height * 4);
+            byte[] pixels = reusable ? _pixels?.Length == length ? _pixels : _pixels = new byte[length] : new byte[length];
             for (uint i = 0; i < 8; i++)
             {
                 _source[i] = frame->data[i];
@@ -175,9 +202,24 @@ public sealed unsafe partial class VideoTranscodeService
             return new VideoPreviewFrame(pixels, width, height, position);
         }
 
+        private static (int Width, int Height) PreviewSize(AVFrame* frame)
+        {
+            double aspect = frame->sample_aspect_ratio.num > 0 && frame->sample_aspect_ratio.den > 0
+                ? ffmpeg.av_q2d(frame->sample_aspect_ratio) : 1;
+            double displayWidth = frame->width * aspect;
+            double ratio = Math.Min(1, Math.Min(640 / displayWidth, 360.0 / frame->height));
+            int width = Math.Max(1, (int)Math.Round(displayWidth * ratio));
+            int height = Math.Max(1, (int)Math.Round(frame->height * ratio));
+            return (width, height);
+        }
+
         public void Dispose()
         {
             ReleaseHdrPreview();
+            var frame = _lastFrame;
+            ffmpeg.av_frame_free(&frame);
+            _lastFrame = null;
+            _pixels = null;
             if (_scale != null) ffmpeg.sws_freeContext(_scale);
             _scale = null;
         }
@@ -201,8 +243,9 @@ public sealed unsafe partial class VideoTranscodeService
                 _hdrSource = CreateBufferSource(_hdrGraph, &decoder, &stream);
                 _hdrSink = CreateBufferSink(_hdrGraph);
                 AVBufferRef* unused = null;
+                var (width, height) = PreviewSize(frame);
                 if (!BindGraphAndConfigure(_hdrGraph, _hdrSource, _hdrSink,
-                    BuildColorFilters(color, VideoColor.SdrRgb) + ",format=bgra", false, "", &unused))
+                    $"scale={width}:{height}:flags=fast_bilinear,setsar=1," + BuildColorFilters(color, VideoColor.SdrRgb) + ",format=bgra", false, "", &unused))
                     throw new InvalidOperationException("Cannot tone-map HDR preview");
                 _hdrInput = input;
             }

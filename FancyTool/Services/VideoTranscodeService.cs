@@ -447,6 +447,7 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
             }
 
             ffmpeg.av_write_trailer(ofmt);
+            previewConverter.Flush(preview);
         }
         finally
         {

@@ -1,6 +1,5 @@
 using System.Collections.Specialized;
 using System.ComponentModel;
-using System.Runtime.InteropServices;
 using Avalonia;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
@@ -18,6 +17,13 @@ public partial class VideoTranscodeViewModel
     private CancellationTokenSource? _previewCts;
     private bool _refreshingEditor;
     private string? _previewError;
+    private ProgressPreviewTarget? _progressPreviewTarget;
+    private bool _previewVisible;
+
+    private sealed record ProgressPreviewTarget(VideoFileItem Item, VideoPreviewBuffer Buffer);
+
+    /// <summary>Signals that pixels in the reusable preview bitmap have changed.</summary>
+    internal event Action? PreviewFrameUpdated;
 
     /// <summary>Gets the decoded image for the selected source position.</summary>
     public WriteableBitmap? PreviewBitmap { get => field; private set => SetProperty(ref field, value); }
@@ -136,6 +142,8 @@ public partial class VideoTranscodeViewModel
     private void RefreshEditor()
     {
         _previewCts?.Cancel();
+        Interlocked.Exchange(ref _progressPreviewTarget, SelectedFileItem is { } selected
+            ? new ProgressPreviewTarget(selected, new VideoPreviewBuffer()) : null)?.Buffer.Dispose();
         _previewError = null;
         ReplacePreview(null);
         IsPreviewLoading = false;
@@ -158,7 +166,7 @@ public partial class VideoTranscodeViewModel
         finally { _refreshingEditor = false; }
         RefreshEditingAvailability();
         PreviewPositionSeconds = TrimStartSeconds;
-        if (SelectedFileItem?.ProbeInfo?.HasVideo == true) RequestPreview(TrimStartSeconds);
+        if (SelectedFileItem?.ProbeInfo?.HasVideo == true && (!IsBusy || SelectedFileItem.Status != FileStatus.Converting)) RequestPreview(TrimStartSeconds);
     }
 
     private void RefreshEditingAvailability()
@@ -237,18 +245,25 @@ public partial class VideoTranscodeViewModel
         }
     }
 
-    private void ApplyPreview(VideoPreviewFrame frame)
+    private void ApplyPreview(VideoPreviewFrame frame) => ApplyPreview(frame.Pixels, frame.Width, frame.Height, frame.PositionSeconds);
+
+    private unsafe void ApplyPreview(ReadOnlySpan<byte> pixels, int width, int height, double position)
     {
-        var bitmap = new WriteableBitmap(new PixelSize(frame.Width, frame.Height), new Vector(96, 96), PixelFormat.Bgra8888, AlphaFormat.Opaque);
+        var bitmap = PreviewBitmap;
+        bool replaced = bitmap == null || bitmap.PixelSize.Width != width || bitmap.PixelSize.Height != height;
+        if (replaced) bitmap = new WriteableBitmap(new PixelSize(width, height), new Vector(96, 96), PixelFormat.Bgra8888, AlphaFormat.Opaque);
         using (var buffer = bitmap.Lock())
         {
-            for (int row = 0; row < frame.Height; row++)
-                Marshal.Copy(frame.Pixels, row * frame.Width * 4, buffer.Address + row * buffer.RowBytes, frame.Width * 4);
+            int stride = checked(width * 4);
+            if (buffer.RowBytes == stride) pixels[..(stride * height)].CopyTo(new Span<byte>((void*)buffer.Address, stride * height));
+            else for (int row = 0; row < height; row++)
+                pixels.Slice(row * stride, stride).CopyTo(new Span<byte>((void*)(buffer.Address + row * buffer.RowBytes), stride));
         }
-        ReplacePreview(bitmap);
-        PreviewPositionSeconds = frame.PositionSeconds;
+        if (replaced) ReplacePreview(bitmap);
+        PreviewPositionSeconds = position;
         _previewError = null;
         IsPreviewLoading = false;
+        PreviewFrameUpdated?.Invoke();
     }
 
     private void ReplacePreview(WriteableBitmap? bitmap)
@@ -259,13 +274,32 @@ public partial class VideoTranscodeViewModel
         old?.Dispose();
     }
 
-    private IProgress<VideoPreviewFrame> CreateProgressPreview(VideoFileItem item) => new InlineProgress<VideoPreviewFrame>(frame =>
-        Dispatcher.UIThread.Post(() =>
+    internal void SetPreviewVisible(bool visible) => Volatile.Write(ref _previewVisible, visible);
+
+    internal void RenderLatestPreview()
+    {
+        var target = Volatile.Read(ref _progressPreviewTarget);
+        using var frame = target?.Buffer.TakeLatest();
+        if (frame == null || _isDisposed || !ReferenceEquals(target?.Item, SelectedFileItem)) return;
+        _previewCts?.Cancel();
+        ApplyPreview(frame.Pixels, frame.Width, frame.Height, frame.PositionSeconds);
+    }
+
+    internal IProgress<VideoPreviewFrame> CreateProgressPreview(VideoFileItem item) => new ProgressPreviewSink(this, item);
+
+    private sealed class ProgressPreviewSink(VideoTranscodeViewModel owner, VideoFileItem item) : IVideoPreviewSink
+    {
+        public bool WantsFrame => !owner._isDisposed && Volatile.Read(ref owner._previewVisible)
+            && ReferenceEquals(Volatile.Read(ref owner._progressPreviewTarget)?.Item, item);
+
+        public void Publish(ReadOnlySpan<byte> pixels, int width, int height, double positionSeconds)
         {
-            if (_isDisposed || !IsBusy || !ReferenceEquals(item, SelectedFileItem)) return;
-            _previewCts?.Cancel();
-            ApplyPreview(frame);
-        }));
+            var target = Volatile.Read(ref owner._progressPreviewTarget);
+            if (WantsFrame && ReferenceEquals(target?.Item, item)) target.Buffer.Publish(pixels, width, height, positionSeconds);
+        }
+
+        public void Report(VideoPreviewFrame frame) => Publish(frame.Pixels, frame.Width, frame.Height, frame.PositionSeconds);
+    }
 
     private sealed class InlineProgress<T>(Action<T> report) : IProgress<T>
     {

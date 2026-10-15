@@ -68,6 +68,57 @@ internal static partial class Program
             Console.WriteLine($"  image device: {imageSr.InferenceDevice.Name}");
         });
         Console.WriteLine($"Image NPU test elapsed: {clock.Elapsed.TotalSeconds:F2}s");
+        RunExtra("live model directory migration and image session invalidation", () =>
+        {
+            string original = AppPaths.ModelsDirectory;
+            const SuperResolutionModel model = SuperResolutionModel.RealEsrganGeneralX4V3;
+            string name = VideoSuperResolutionService.GetModel(model).FileName;
+            string staged = Path.GetFullPath(Path.Combine(workDir, "migration-source"));
+            string moved = Path.GetFullPath(Path.Combine(workDir, "migration-target"));
+            Directory.CreateDirectory(staged);
+            Directory.CreateDirectory(moved);
+            using var image = new SuperResolutionService(NullLogger<SuperResolutionService>.Instance,
+                new AppPreferences { SuperResolutionTileSizeIndex = 0 }, downloader);
+            image.WarmupTask.GetAwaiter().GetResult();
+            using var opaque = new SKBitmap(new SKImageInfo(16, 12, SKColorType.Bgra8888, SKAlphaType.Opaque));
+            using var alpha = new SKBitmap(new SKImageInfo(16, 12, SKColorType.Bgra8888, SKAlphaType.Premul));
+            opaque.Erase(SKColors.SteelBlue);
+            alpha.Erase(new SKColor(40, 100, 160, 128));
+            foreach (var input in new[] { opaque, alpha })
+                using (image.UpscaleAsync(input, model, 2).GetAwaiter().GetResult()) { }
+            File.Copy(Path.Combine(original, name), Path.Combine(staged, name), true);
+            try
+            {
+                AppPaths.InitializeModelsDirectory(moved);
+                if (image.IsModelAvailable(model) || sr.IsModelAvailable(model))
+                    throw new InvalidOperationException("Existing services still inspected the old model root");
+                File.WriteAllText(Path.Combine(moved, name), "invalid model: must not reuse the old session");
+                foreach (var input in new[] { opaque, alpha })
+                {
+                    bool rejected = false;
+                    try { using var result = image.UpscaleAsync(input, model, 2).GetAwaiter().GetResult(); }
+                    catch (Microsoft.ML.OnnxRuntime.OnnxRuntimeException) { rejected = true; }
+                    if (!rejected) throw new InvalidOperationException("Image inference reused a session from the old directory");
+                }
+                File.Delete(Path.Combine(moved, name));
+                using (ModelStorage.Acquire(CancellationToken.None))
+                {
+                    var files = ModelStorage.PrepareMigration(staged, moved);
+                    ModelStorage.RemoveOriginals(files);
+                }
+                if (File.Exists(Path.Combine(staged, name))) throw new InvalidOperationException("Verified model was not moved");
+                sr.EnsureModelAsync(model).GetAwaiter().GetResult();
+                foreach (var input in new[] { opaque, alpha })
+                    using (var result = image.UpscaleAsync(input, model, 2).GetAwaiter().GetResult())
+                        if (result.Width != 32 || result.Height != 24) throw new InvalidOperationException("Image conversion failed after migration");
+                service.TranscodeAsync(source, Path.Combine(workDir, "sr-after-migration.mp4"), new VideoTranscodeOptions
+                {
+                    SuperResolutionEnabled = true, SuperResolutionModel = model, SuperResolutionBackend = VideoSrBackend.PreferNpu,
+                    SuperResolutionAllowCpuFallback = false, TrimEndSeconds = 0.2, Preset = PresetLevel.Ultrafast
+                }).GetAwaiter().GetResult();
+            }
+            finally { AppPaths.InitializeModelsDirectory(original); }
+        });
         RunExtra("native 2x SPAN image alpha and video", () =>
         {
             using var image = new SuperResolutionService(NullLogger<SuperResolutionService>.Instance, new AppPreferences { SuperResolutionTileSizeIndex = 0 }, downloader);
@@ -87,6 +138,21 @@ internal static partial class Program
             var probe = service.ProbeAsync(videoOutput).GetAwaiter().GetResult()!;
             if (probe.Width != 320 || probe.Height != 240 || !probe.HasAudio || Math.Abs(probe.Fps - 10) > 0.01)
                 throw new InvalidOperationException("Native 2x video output incorrect");
+        });
+        RunExtra("compressed YUV source super-resolution preprocessing", () =>
+        {
+            string input = Path.Combine(workDir, "sr-compressed-source.mp4");
+            service.TranscodeAsync(source, input, new VideoTranscodeOptions { Preset = PresetLevel.Ultrafast, TrimEndSeconds = 0.5 }).GetAwaiter().GetResult();
+            foreach (var mode in new[] { VideoHdrOutput.SameAsSource, VideoHdrOutput.ForceSdr, VideoHdrOutput.ForceHdr })
+            {
+                string output = Path.Combine(workDir, $"sr-compressed-{mode}.mp4");
+                service.TranscodeAsync(input, output, new VideoTranscodeOptions
+                {
+                    SuperResolutionEnabled = true, SuperResolutionBackend = VideoSrBackend.Gpu,
+                    SuperResolutionAllowCpuFallback = false, HdrOutput = mode, TrimEndSeconds = 0.2, Preset = PresetLevel.Ultrafast
+                }).GetAwaiter().GetResult();
+                if (service.ProbeAsync(output).GetAwaiter().GetResult()!.Width != 320) throw new InvalidOperationException("Compressed SR output missing");
+            }
         });
         RunExtra("GPU fps preprocessing and output scaling", () =>
         {

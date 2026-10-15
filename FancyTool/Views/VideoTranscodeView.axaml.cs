@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Platform.Storage;
+using Avalonia.Threading;
 using FancyToolAva.ViewModels;
 
 namespace FancyToolAva.Views;
@@ -9,11 +10,15 @@ public partial class VideoTranscodeView : UserControl
 {
     private VideoTranscodeViewModel? _vm;
     private Avalonia.Controls.TabControl? _tabs;
+    private readonly DispatcherTimer _previewTimer;
 
     public VideoTranscodeView()
     {
         InitializeComponent();
+        _previewTimer = new DispatcherTimer(DispatcherPriority.Render) { Interval = TimeSpan.FromSeconds(1.0 / 60) };
+        _previewTimer.Tick += (_, _) => _vm?.RenderLatestPreview();
         Loaded += OnLoaded;
+        Unloaded += OnUnloaded;
         DataContextChanged += OnDataContextChanged;
     }
 
@@ -42,21 +47,67 @@ public partial class VideoTranscodeView : UserControl
 
     private void OnLoaded(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
+        BindViewModel();
+        _vm?.SetPreviewVisible(true);
+        UpdatePreviewTimer();
         _tabs ??= this.FindControl<Avalonia.Controls.TabControl>("ParamTabs");
         SyncTabForContainer();
     }
 
     private void OnDataContextChanged(object? sender, EventArgs e)
     {
-        if (_vm != null) _vm.PropertyChanged -= OnVmPropertyChanged;
-        _vm = DataContext as VideoTranscodeViewModel;
-        if (_vm != null) _vm.PropertyChanged += OnVmPropertyChanged;
+        BindViewModel();
+        _vm?.SetPreviewVisible(IsLoaded);
+        UpdatePreviewTimer();
         _tabs ??= this.FindControl<Avalonia.Controls.TabControl>("ParamTabs");
         SyncTabForContainer();
     }
 
+    private void BindViewModel()
+    {
+        if (_vm != null)
+        {
+            _vm.PropertyChanged -= OnVmPropertyChanged;
+            _vm.PreviewFrameUpdated -= OnPreviewFrameUpdated;
+            _vm.SetPreviewVisible(false);
+        }
+        _vm = DataContext as VideoTranscodeViewModel;
+        if (_vm != null)
+        {
+            _vm.PropertyChanged += OnVmPropertyChanged;
+            _vm.PreviewFrameUpdated += OnPreviewFrameUpdated;
+        }
+    }
+
+    private void OnUnloaded(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        _previewTimer.Stop();
+        if (_vm == null) return;
+        _vm.SetPreviewVisible(false);
+        _vm.PropertyChanged -= OnVmPropertyChanged;
+        _vm.PreviewFrameUpdated -= OnPreviewFrameUpdated;
+        _vm = null;
+    }
+
+    private void OnPreviewFrameUpdated() => this.FindControl<Image>("PreviewImage")?.InvalidateVisual();
+
+    private void UpdatePreviewTimer()
+    {
+        if (IsLoaded && _vm?.IsBusy == true) _previewTimer.Start();
+        else
+        {
+            _vm?.RenderLatestPreview();
+            _previewTimer.Stop();
+        }
+    }
+
     private void OnVmPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == nameof(VideoTranscodeViewModel.IsBusy))
+        {
+            if (Dispatcher.UIThread.CheckAccess()) UpdatePreviewTimer();
+            else Dispatcher.UIThread.Post(UpdatePreviewTimer);
+        }
         if (e.PropertyName == nameof(VideoTranscodeViewModel.SelectedContainer) || e.PropertyName == nameof(VideoTranscodeViewModel.IsGifMode))
             Avalonia.Threading.Dispatcher.UIThread.Post(SyncTabForContainer);
     }

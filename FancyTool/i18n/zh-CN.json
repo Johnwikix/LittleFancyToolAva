@@ -114,7 +114,7 @@
     "Group_Image": "图像处理",
     "Group_Models": "模型管理",
     "Label_ModelsDirectory": "默认模型存储位置",
-    "Caption_ModelsDirectory": "用于图像、视频超分和默认歌词模型。更改后重启应用生效，已有模型不会自动搬迁。",
+    "Caption_ModelsDirectory": "用于图像、视频超分和默认歌词模型。更改目录时自动迁移已有模型，校验完成后立即生效。",
     "Button_SelectModelsDirectory": "选择目录",
     "Button_OpenModelsDirectory": "打开目录",
     "Button_ResetModelsDirectory": "恢复默认",

@@ -141,6 +141,7 @@
                         <Button Content="{Binding ButtonResetModelsDirectory}" Command="{Binding ResetModelsDirectoryCommand}"
                                 Margin="0,0,0,4" AutomationProperties.AutomationId="SettingsResetModelsDirectory" />
                     </WrapPanel>
+                    <ProgressBar IsVisible="{Binding IsMovingModels}" IsIndeterminate="True" Height="3" />
                     <TextBlock IsVisible="{Binding HasModelStorageError}" Text="{Binding ModelStorageError}" TextWrapping="Wrap"
                                Foreground="{DynamicResource SystemFillColorCriticalBrush}"
                                AutomationProperties.AutomationId="SettingsModelsDirectoryError" />

@@ -46,6 +46,17 @@ namespace FancyToolAva.ViewModels
         public string ButtonOpenModelsDirectory => LocalizationStrings.Current["Settings.Button_OpenModelsDirectory"];
         public string ButtonResetModelsDirectory => LocalizationStrings.Current["Settings.Button_ResetModelsDirectory"];
         public string ModelsDirectory => AppPaths.ResolveModelsDirectory(App.Preferences.ModelStorageDirectory);
+        /// <summary>Gets whether model files are being verified and moved to a new folder.</summary>
+        public bool IsMovingModels
+        {
+            get;
+            private set
+            {
+                if (!SetProperty(ref field, value)) return;
+                PickModelsDirectoryCommand.NotifyCanExecuteChanged();
+                ResetModelsDirectoryCommand.NotifyCanExecuteChanged();
+            }
+        }
         public bool HasModelStorageError => !string.IsNullOrEmpty(ModelStorageError);
         public string ModelStorageError
         {
@@ -170,43 +181,50 @@ namespace FancyToolAva.ViewModels
             OnPropertyChanged(nameof(SrTileQuality));
         }
 
-        [RelayCommand]
+        private bool CanPickModelsDirectory() => !IsMovingModels;
+
+        [RelayCommand(CanExecute = nameof(CanPickModelsDirectory))]
         private async Task PickModelsDirectory()
         {
             try
             {
                 string? folder = await _fileDialogService.PickFolderAsync(LabelModelsDirectory);
-                if (folder != null) SaveModelsDirectory(folder);
+                if (folder != null) await SaveModelsDirectory(folder);
             }
             catch (Exception ex) { ShowModelStorageError(ex); }
         }
 
-        private bool CanResetModelsDirectory() => !string.IsNullOrEmpty(App.Preferences.ModelStorageDirectory);
+        private bool CanResetModelsDirectory() => !IsMovingModels && !string.IsNullOrEmpty(App.Preferences.ModelStorageDirectory);
 
         [RelayCommand(CanExecute = nameof(CanResetModelsDirectory))]
-        private void ResetModelsDirectory()
+        private async Task ResetModelsDirectory()
         {
-            try { SaveModelsDirectory(string.Empty); }
+            try { await SaveModelsDirectory(string.Empty); }
             catch (Exception ex) { ShowModelStorageError(ex); }
         }
 
-        private void SaveModelsDirectory(string directory)
+        private async Task SaveModelsDirectory(string directory)
         {
-            string path = AppPaths.ResolveModelsDirectory(directory);
-            Directory.CreateDirectory(path);
-            // Verify download access without changing any existing files.
-            using (var probe = new FileStream(Path.Combine(path, ".fancytool-write-" + Guid.NewGuid().ToString("N")),
-                       FileMode.CreateNew, FileAccess.Write, FileShare.None, 1, FileOptions.DeleteOnClose)) { }
-
-            string previous = App.Preferences.ModelStorageDirectory;
-            App.Preferences.ModelStorageDirectory = string.IsNullOrWhiteSpace(directory) ? string.Empty : path;
-            try { _fileService.SaveState(_app); }
-            catch
-            {
-                App.Preferences.ModelStorageDirectory = previous;
-                throw;
-            }
+            IsMovingModels = true;
             ModelStorageError = string.Empty;
+            try
+            {
+                using var access = await ModelStorage.AcquireAsync();
+                string path = AppPaths.ResolveModelsDirectory(directory);
+                string source = AppPaths.ModelsDirectory;
+                var copied = await Task.Run(() => ModelStorage.PrepareMigration(source, path));
+                string previous = App.Preferences.ModelStorageDirectory;
+                App.Preferences.ModelStorageDirectory = string.IsNullOrWhiteSpace(directory) ? string.Empty : path;
+                try { _fileService.SaveState(_app); }
+                catch
+                {
+                    App.Preferences.ModelStorageDirectory = previous;
+                    throw;
+                }
+                AppPaths.InitializeModelsDirectory(path);
+                await Task.Run(() => ModelStorage.RemoveOriginals(copied));
+            }
+            finally { IsMovingModels = false; }
         }
 
         [RelayCommand]

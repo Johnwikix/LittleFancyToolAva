@@ -9,6 +9,7 @@ internal static partial class Program
     private static int RunEditingCases(VideoTranscodeService service, string source, string workDir)
     {
         ffmpeg.av_log_set_level(ffmpeg.AV_LOG_ERROR);
+        RunPreviewCases(service, workDir);
         RunExtra("preview positions and pixels", () =>
         {
             var first = service.GetPreviewAsync(source, 0.4).GetAwaiter().GetResult()!;

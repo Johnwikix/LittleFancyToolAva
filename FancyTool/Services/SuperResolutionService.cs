@@ -14,7 +14,8 @@ public sealed class SuperResolutionService : ISuperResolutionService
     private readonly ILogger<SuperResolutionService> _logger;
     private readonly ModelDownloadService _downloader;
     private readonly SynchronizationContext _uiContext;
-    private readonly string _modelsDirectory;
+    private string _modelsDirectory => AppPaths.ModelsDirectory;
+    private string? _sessionDirectory;
     private readonly Dictionary<SuperResolutionModel, InferenceSession> _sessions = new();
     private readonly Dictionary<SuperResolutionModel, string> _inputNames = new();
     private readonly Dictionary<SuperResolutionModel, string> _outputNames = new();
@@ -80,7 +81,6 @@ public sealed class SuperResolutionService : ISuperResolutionService
         _preferences = preferences;
         _downloader = downloader;
         _uiContext = SynchronizationContext.Current ?? new SynchronizationContext();
-        _modelsDirectory = AppPaths.ModelsDirectory;
         _warmupTask = StartWarmupAsync();
     }
 
@@ -97,7 +97,7 @@ public sealed class SuperResolutionService : ISuperResolutionService
             _warmupCts = new CancellationTokenSource();
             var progress = new Progress<ModelDownloadProgress>(OnDownloadProgress);
             await _downloader
-                .EnsureModelsAsync(ModelManifest.RealEsrgan, _modelsDirectory, progress, _warmupCts.Token)
+                .UseModelsAsync(ModelManifest.RealEsrgan, () => AppPaths.ModelsDirectory, _ => true, progress, _warmupCts.Token)
                 .ConfigureAwait(false);
             _lastDownloadError = null;
             _logger.LogInformation("All super-resolution models are ready in {Dir}", _modelsDirectory);
@@ -182,6 +182,8 @@ public sealed class SuperResolutionService : ISuperResolutionService
         {
             lock (_inferenceGate)
             {
+                using var storage = ModelStorage.Acquire(ct);
+                RefreshSessionDirectory();
                 ThrowIfDisposed();
                 var backends = Environment.GetEnvironmentVariable("SR_FORCE_CPU") == "1"
                     ? new[] { VideoSrBackend.Cpu }
@@ -319,6 +321,8 @@ public sealed class SuperResolutionService : ISuperResolutionService
 
     private SKBitmap RunModelTileSerial(SuperResolutionModel model, SKImage tile, CancellationToken ct)
     {
+        using var storage = ModelStorage.Acquire(ct);
+        RefreshSessionDirectory();
         ct.ThrowIfCancellationRequested();
         string? npuFailure = null;
         if (PreferNpu && Environment.GetEnvironmentVariable("SR_FORCE_CPU") != "1")
@@ -767,6 +771,14 @@ public sealed class SuperResolutionService : ISuperResolutionService
     public Task InstallAccelerationAsync(CancellationToken ct = default) => WindowsMlAccelerator.InstallAsync(
         name => _uiContext.Post(_ => DownloadProgressChanged?.Invoke(new ModelDownloadProgress(name, ModelDownloadStage.Connecting, 0, null,
             LocalizationRegistry.Get("VideoTranscode.Sr_InstallingHardware") + " · " + name)), null), ct);
+
+    private void RefreshSessionDirectory()
+    {
+        string directory = AppPaths.ModelsDirectory;
+        if (string.Equals(directory, _sessionDirectory, ModelStorage.PathComparison)) return;
+        ReleaseSessionsCore();
+        _sessionDirectory = directory;
+    }
 
     private void ReleaseSessionsCore()
     {

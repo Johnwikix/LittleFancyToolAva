@@ -18,7 +18,7 @@ public sealed class VideoSuperResolutionService(ModelDownloadService downloader,
 
     /// <inheritdoc />
     public Task EnsureModelAsync(SuperResolutionModel model, CancellationToken ct = default)
-        => Task.Run(() => downloader.EnsureModelsAsync([GetModel(model)], AppPaths.ModelsDirectory,
+        => Task.Run(() => downloader.UseModelsAsync([GetModel(model)], () => AppPaths.ModelsDirectory, _ => true,
             new Progress<ModelDownloadProgress>(p => DownloadProgressChanged?.Invoke(p)), ct), ct);
 
     /// <inheritdoc />
@@ -30,10 +30,10 @@ public sealed class VideoSuperResolutionService(ModelDownloadService downloader,
     {
         if (options.SuperResolutionScale is not (2 or 4)) throw new ArgumentOutOfRangeException(nameof(options));
         if (options.SuperResolutionScale > GetModel(options.SuperResolutionModel).NativeScale) throw new ArgumentOutOfRangeException(nameof(options), "This model supports 2× output only");
-        await EnsureModelAsync(options.SuperResolutionModel, ct).ConfigureAwait(false);
-        return await Task.Run<IVideoFrameUpscaler>(() =>
+        return await Task.Run(() => downloader.UseModelsAsync<IVideoFrameUpscaler>([GetModel(options.SuperResolutionModel)],
+            () => AppPaths.ModelsDirectory, directory =>
         {
-            string path = Path.Combine(AppPaths.ModelsDirectory, GetModel(options.SuperResolutionModel).FileName);
+            string path = Path.Combine(directory, GetModel(options.SuperResolutionModel).FileName);
             int nativeScale = GetModel(options.SuperResolutionModel).NativeScale;
             int window = new[] { 192, 288, 384, 576 }[Math.Clamp(preferences?.SuperResolutionTileSizeIndex ?? 2, 0, 3)];
             var backends = options.SuperResolutionBackend switch
@@ -64,6 +64,6 @@ public sealed class VideoSuperResolutionService(ModelDownloadService downloader,
             var cpu = new OrtVideoSrTileModel(path, VideoSrBackend.Cpu, window, ct, nativeScale);
             DeviceChanged?.Invoke(fallback);
             return new VideoFrameUpscaler(cpu, fallback, window, nativeScale);
-        }, ct).ConfigureAwait(false);
+        }, new Progress<ModelDownloadProgress>(p => DownloadProgressChanged?.Invoke(p)), ct), ct).ConfigureAwait(false);
     }
 }

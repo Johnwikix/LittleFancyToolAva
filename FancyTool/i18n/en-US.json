@@ -116,7 +116,7 @@
     "Group_Image": "Image Processing",
     "Group_Models": "Model Management",
     "Label_ModelsDirectory": "Default Model Storage Location",
-    "Caption_ModelsDirectory": "Used for image and video upscaling and default lyrics models. Restart to apply changes. Existing models are not moved automatically.",
+    "Caption_ModelsDirectory": "Used for image and video upscaling and default lyrics models. Existing models are moved and verified before the new folder takes effect immediately.",
     "Button_SelectModelsDirectory": "Choose Folder",
     "Button_OpenModelsDirectory": "Open Folder",
     "Button_ResetModelsDirectory": "Restore Default",

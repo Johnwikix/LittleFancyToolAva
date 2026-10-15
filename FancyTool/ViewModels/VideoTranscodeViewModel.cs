@@ -1655,6 +1655,7 @@ private async Task AddPathsAsync(IEnumerable<string> paths)
         _srInstallCts?.Cancel();
         _previewCts?.Cancel();
         _previewCts?.Dispose();
+        Interlocked.Exchange(ref _progressPreviewTarget, null)?.Buffer.Dispose();
         FileItems.CollectionChanged -= OnFileItemsChanged;
         if (SelectedFileItem != null) SelectedFileItem.PropertyChanged -= OnSelectedItemChanged;
         ReplacePreview(null);

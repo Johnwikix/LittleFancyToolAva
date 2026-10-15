@@ -36,6 +36,24 @@ public sealed class ModelDownloadService
         IProgress<ModelDownloadProgress>? progress = null,
         CancellationToken ct = default)
     {
+        using var access = await ModelStorage.AcquireAsync(ct).ConfigureAwait(false);
+        await EnsureModelsCoreAsync(entries, targetDirectory, progress, ct).ConfigureAwait(false);
+    }
+
+    // Resolve the managed root after acquiring access, and retain it through native
+    // session creation so validation and inference always open the same files.
+    internal async Task<T> UseModelsAsync<T>(IReadOnlyList<ModelManifestEntry> entries,
+        Func<string> directory, Func<string, T> use, IProgress<ModelDownloadProgress>? progress, CancellationToken ct)
+    {
+        using var access = await ModelStorage.AcquireAsync(ct).ConfigureAwait(false);
+        string root = directory();
+        await EnsureModelsCoreAsync(entries, root, progress, ct).ConfigureAwait(false);
+        return use(root);
+    }
+
+    private async Task EnsureModelsCoreAsync(IReadOnlyList<ModelManifestEntry> entries,
+        string targetDirectory, IProgress<ModelDownloadProgress>? progress, CancellationToken ct)
+    {
         Directory.CreateDirectory(targetDirectory);
 
         var failures = new List<string>();

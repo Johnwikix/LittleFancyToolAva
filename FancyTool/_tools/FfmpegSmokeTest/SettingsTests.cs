@@ -41,38 +41,70 @@ internal static partial class Program
             var dialogs = new SettingsTestDialogs { Folder = custom };
             var vm = new SettingsViewModel(app, dialogs, files);
             void Check(bool value, string message) { if (!value) throw new InvalidOperationException(message); }
+            void Complete(Task task) { PumpUntil(() => task.IsCompleted); task.GetAwaiter().GetResult(); }
             Check(app.Preferences.UseSuperResolutionNpu, "NPU acceleration should default on for legacy settings");
             Check(AppPaths.ModelsDirectory == AppPaths.DefaultModelsDirectory, "Default model root changed");
             Directory.CreateDirectory(AppPaths.ModelsDirectory);
             string oldModel = Path.Combine(AppPaths.ModelsDirectory, "existing-model.marker");
             File.WriteAllText(oldModel, "keep");
-            vm.PickModelsDirectoryCommand.ExecuteAsync(null).GetAwaiter().GetResult();
+            Directory.CreateDirectory(custom);
+            File.WriteAllText(Path.Combine(custom, "existing-model.marker"), "keep");
+            string partial = oldModel + ".partial";
+            File.WriteAllText(partial, "unfinished download");
+            Directory.CreateDirectory(Path.Combine(AppPaths.ModelsDirectory, "Qwen3Lyrics", "asr"));
+            File.WriteAllText(Path.Combine(AppPaths.ModelsDirectory, "Qwen3Lyrics", "asr", "model.marker"), "nested");
+            Complete(vm.PickModelsDirectoryCommand.ExecuteAsync(null));
             Check(app.Preferences.ModelStorageDirectory == custom && vm.ModelsDirectory == custom, "Folder selection did not update settings");
             Check(files.LoadState()!.Preferences!.ModelStorageDirectory == custom, "Folder selection was not persisted immediately");
-            Check(AppPaths.ModelsDirectory == AppPaths.DefaultModelsDirectory, "Active model directory changed before restart");
-            Check(File.Exists(oldModel) && !File.Exists(Path.Combine(custom, "existing-model.marker")), "Existing models were moved");
+            Check(AppPaths.ModelsDirectory == custom, "Active model directory did not change immediately");
+            Check(!File.Exists(oldModel) && File.ReadAllText(Path.Combine(custom, "existing-model.marker")) == "keep", "Existing models were not migrated");
+            Check(File.Exists(partial) && !File.Exists(Path.Combine(custom, "existing-model.marker.partial")), "An unfinished model download was migrated");
+            Check(File.ReadAllText(Path.Combine(custom, "Qwen3Lyrics", "asr", "model.marker")) == "nested", "Nested model files were not migrated");
             vm.OpenModelsDirectoryCommand.Execute(null);
             Check(dialogs.Opened == custom, "Open folder used the wrong directory");
             dialogs.Folder = null;
-            vm.PickModelsDirectoryCommand.ExecuteAsync(null).GetAwaiter().GetResult();
+            Complete(vm.PickModelsDirectoryCommand.ExecuteAsync(null));
             Check(app.Preferences.ModelStorageDirectory == custom, "Canceled picker changed preferences");
             string blocked = Path.Combine(workDir, "not-a-folder");
             File.WriteAllText(blocked, "file");
             dialogs.Folder = Path.Combine(blocked, "child");
-            vm.PickModelsDirectoryCommand.ExecuteAsync(null).GetAwaiter().GetResult();
+            Complete(vm.PickModelsDirectoryCommand.ExecuteAsync(null));
             Check(vm.HasModelStorageError && files.LoadState()!.Preferences!.ModelStorageDirectory == custom, "Invalid directory was accepted");
             if (OperatingSystem.IsWindows())
             {
                 dialogs.Folder = Path.Combine(workDir, "save-failure");
                 using (var held = new FileStream(preferenceFile, FileMode.Open, FileAccess.Read, FileShare.Read))
                 {
-                    vm.PickModelsDirectoryCommand.ExecuteAsync(null).GetAwaiter().GetResult();
+                    Complete(vm.PickModelsDirectoryCommand.ExecuteAsync(null));
                     Check(vm.HasModelStorageError && app.Preferences.ModelStorageDirectory == custom, "Failed save did not roll back preferences");
+                    Check(AppPaths.ModelsDirectory == custom && File.Exists(Path.Combine(custom, "existing-model.marker")), "Failed save removed the active models");
                 }
             }
             dialogs.Folder = custom;
-            vm.PickModelsDirectoryCommand.ExecuteAsync(null).GetAwaiter().GetResult();
+            Complete(vm.PickModelsDirectoryCommand.ExecuteAsync(null));
             Check(!vm.HasModelStorageError, "Successful retry did not clear the error");
+            string conflict = Path.GetFullPath(Path.Combine(workDir, "conflicting-models"));
+            Directory.CreateDirectory(conflict);
+            File.WriteAllText(Path.Combine(conflict, "existing-model.marker"), "different");
+            dialogs.Folder = conflict;
+            Complete(vm.PickModelsDirectoryCommand.ExecuteAsync(null));
+            Check(vm.HasModelStorageError && AppPaths.ModelsDirectory == custom
+                && File.ReadAllText(Path.Combine(conflict, "existing-model.marker")) == "different", "Migration overwrote a conflicting model or changed the active root");
+            dialogs.Folder = Path.Combine(custom, "nested-root");
+            Complete(vm.PickModelsDirectoryCommand.ExecuteAsync(null));
+            Check(vm.HasModelStorageError && AppPaths.ModelsDirectory == custom, "Overlapping model folders were accepted");
+            // Migration waits for model installation/session creation to finish.
+            string synchronized = Path.GetFullPath(Path.Combine(workDir, "synchronized-models"));
+            dialogs.Folder = synchronized;
+            using (ModelStorage.Acquire(CancellationToken.None))
+            {
+                var pending = vm.PickModelsDirectoryCommand.ExecuteAsync(null);
+                Check(vm.IsMovingModels && !pending.IsCompleted && !vm.ResetModelsDirectoryCommand.CanExecute(null), "Migration did not wait for active model access");
+            }
+            PumpUntil(() => !vm.IsMovingModels);
+            Check(AppPaths.ModelsDirectory == synchronized, "Waiting migration did not complete");
+            dialogs.Folder = custom;
+            Complete(vm.PickModelsDirectoryCommand.ExecuteAsync(null));
             host.LoadState(); // Simulate the next launch before constructing model consumers.
             Check(AppPaths.ModelsDirectory == custom, "Saved custom directory was not applied at startup");
             Check(LyricsModelService.DefaultDirectory == Path.Combine(custom, "Qwen3Lyrics"), "Default lyrics models ignored model management");
@@ -97,8 +129,9 @@ internal static partial class Program
             Check(video.IsModelAvailable(SuperResolutionModel.SpanClearRealityV1), "Video models ignored the custom root");
             // Bind a fresh settings VM to the preferences instance loaded on restart.
             vm = new SettingsViewModel(app, dialogs, files);
-            vm.ResetModelsDirectoryCommand.Execute(null);
+            Complete(vm.ResetModelsDirectoryCommand.ExecuteAsync(null));
             Check(files.LoadState()!.Preferences!.ModelStorageDirectory == string.Empty, "Restore default was not persisted");
+            Check(!File.Exists(marker) && video.IsModelAvailable(SuperResolutionModel.SpanClearRealityV1), "Reset did not migrate video models or update the existing service");
             host.LoadState();
             Check(AppPaths.ModelsDirectory == AppPaths.DefaultModelsDirectory, "Default root did not return after restart");
             Check(!Directory.EnumerateFiles(custom, ".fancytool-write-*").Any(), "Write probes were left behind");
@@ -143,7 +176,7 @@ internal static partial class Program
                 Dispatcher.UIThread.MainLoop(done.Token);
             }
             else window.Close();
-            Console.WriteLine("Settings OK: persistence, restart, defaults, legacy acceleration, cancellation, invalid path, save rollback, shared roots, bilingual bindings and light/dark layouts");
+            Console.WriteLine("Settings OK: verified migration, immediate shared roots, nested files, conflicts, access synchronization, save rollback, reset, restart, cancellation, bilingual bindings and light/dark layouts");
             return 0;
         }
         catch (Exception ex) { Console.WriteLine("Settings FAIL: " + ex); return 1; }
