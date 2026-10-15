@@ -13,7 +13,7 @@ namespace FancyToolAva.Services;
 ///   flac/alac : ≥24bit 或 DSD → 24bit，否则 16bit；
 ///   mp3/aac/ogg/opus/wma/ac3/mp2 : 有损，按 BitrateKbps 编码（vorbis 映射质量档）。
 /// </summary>
-public sealed unsafe class AudioConvertService : IAudioConvertService
+public sealed unsafe partial class AudioConvertService : IAudioConvertService
 {
     private readonly ILogger<AudioConvertService> _logger;
 
@@ -141,6 +141,7 @@ public sealed unsafe class AudioConvertService : IAudioConvertService
         AVFrame* swrFrame = ffmpeg.av_frame_alloc();
         AVFrame* gainFrame = ffmpeg.av_frame_alloc();
         FrameFeeder? feeder = null;
+        EnhancementFeeder? enhancement = null;
 
         try
         {
@@ -178,10 +179,14 @@ public sealed unsafe class AudioConvertService : IAudioConvertService
 
             int depth = DetectBitDepth(decCtx, isDsd);
             int inRate = decCtx->sample_rate != 0 ? decCtx->sample_rate : 48000;
-            int outRate = o.SampleRateHz > 0 ? o.SampleRateHz : inRate;
+            bool enhance = o.EnableSpectralEnhancement && !isDsd && inRate is 44100 or 48000
+                && decCtx->ch_layout.nb_channels is 1 or 2;
+            if (o.EnableSpectralEnhancement && !enhance)
+                _logger.LogInformation("频谱增强不适用于此输入，使用常规转码: {Rate} Hz / {Channels} ch", inRate, decCtx->ch_layout.nb_channels);
+            int outRate = o.SampleRateHz > 0 ? o.SampleRateHz : enhance ? inRate * 2 : inRate;
             if (isDsd && o.SampleRateHz == 0) outRate = DsdDefaultRate;
 
-            SelectEncoder(o, depth, isDsd, ref outRate,
+            SelectEncoder(o, enhance && o.BitDepth == AudioBitDepthMode.Auto ? Math.Max(24, depth) : depth, isDsd, ref outRate,
                 out string muxerName, out AVCodecID encCodecId, out AVSampleFormat encFmt, out int flacBps);
 
             ffmpeg.avformat_alloc_output_context2(&ofmtCtx, null, muxerName, outputPath);
@@ -213,6 +218,8 @@ public sealed unsafe class AudioConvertService : IAudioConvertService
             ffmpeg.av_channel_layout_default(&encCtx->ch_layout, srcChannels);
             SelectEncoderChannelLayout(encCtx, encoder);
             // 采样率对齐编码器支持表（lame 最高 48k、libopus 五档），避免高采样率直接失败
+            // This encoder does not advertise a supported-rate table but rejects rates above 48 kHz.
+            if (enhance && encCodecId == AVCodecID.AV_CODEC_ID_WMAV2) outRate = Math.Min(outRate, 48000);
             outRate = SnapRateToEncoder(encCtx, encoder, outRate);
             encCtx->sample_rate = outRate;
             if (flacBps > 0) encCtx->bits_per_raw_sample = flacBps;
@@ -266,9 +273,11 @@ public sealed unsafe class AudioConvertService : IAudioConvertService
 
             // 第一级重采样：解码格式 → 编码格式（DSD 需增益且目标为整型时先到 float，由第二级 gainSwr 施加增益）
             bool gainNeedsFloatStage = applyGain && !IsFloatFormat(encFmt);
-            AVSampleFormat primaryFmt = gainNeedsFloatStage ? AVSampleFormat.AV_SAMPLE_FMT_FLT : encFmt;
+            AVSampleFormat primaryFmt = enhance ? AVSampleFormat.AV_SAMPLE_FMT_S32
+                : gainNeedsFloatStage ? AVSampleFormat.AV_SAMPLE_FMT_FLT : encFmt;
+            int processingRate = enhance ? inRate : outRate;
 
-            ffmpeg.swr_alloc_set_opts2(&swr, &encCtx->ch_layout, primaryFmt, outRate,
+            ffmpeg.swr_alloc_set_opts2(&swr, &encCtx->ch_layout, primaryFmt, processingRate,
                 &decCtx->ch_layout, decCtx->sample_fmt, decCtx->sample_rate, 0, null);
             if (swr == null) throw new InvalidOperationException("swresample 创建失败");
             if (ffmpeg.swr_init(swr) < 0) throw new InvalidOperationException("swresample 初始化失败");
@@ -294,7 +303,7 @@ public sealed unsafe class AudioConvertService : IAudioConvertService
                 _logger.LogInformation("输入参数中途变化 {OldFmt}/{OldRate}Hz/{OldNb}ch → {NewFmt}/{NewRate}Hz/{NewNb}ch，重建重采样器: {Input}",
                     swrInFmt, swrInRate, swrInNbCh, (AVSampleFormat)f->format, f->sample_rate, f->ch_layout.nb_channels, inputPath);
                 SwrContext* fresh = null;
-                ffmpeg.swr_alloc_set_opts2(&fresh, &encoderCtx->ch_layout, primaryFmt, outRate,
+                ffmpeg.swr_alloc_set_opts2(&fresh, &encoderCtx->ch_layout, primaryFmt, processingRate,
                     &f->ch_layout, (AVSampleFormat)f->format, f->sample_rate, 0, null);
                 if (fresh == null || ffmpeg.swr_init(fresh) < 0)
                     throw new InvalidOperationException("重采样器按新输入参数重建失败");
@@ -317,6 +326,14 @@ public sealed unsafe class AudioConvertService : IAudioConvertService
             }
 
             feeder = new FrameFeeder(encCtx, ofmtCtx, outStream, pkt);
+            if (enhance)
+            {
+                int sourceKbps = (int)Math.Clamp(inStream->codecpar->bit_rate / 1000, 0, 1020);
+                if (sourceKbps == 0) sourceKbps = 192;
+                enhancement = new EnhancementFeeder(inRate, outRate >= inRate * 4 ? 4 : 2,
+                    IsLossless(decCtx->codec_id) ? 16 : 4, sourceKbps, depth,
+                    encCtx, feeder, gainSwr, gainFrame, applyGain, gainLinear);
+            }
             double totalSeconds = inFmt->duration > 0 ? inFmt->duration / (double)ffmpeg.AV_TIME_BASE : 0;
             long samplesWritten = 0;
             double lastReported = -1;
@@ -331,10 +348,10 @@ public sealed unsafe class AudioConvertService : IAudioConvertService
                     {
                         if (!SwrMatchesFrame(decFrame)) RebuildSwr(ref swr, encCtx, decFrame);
                         ConvertFrame(decFrame, swr, gainSwr, gainFrame, swrFrame,
-                            applyGain, gainLinear, primaryFmt, encFmt, outRate, &encCtx->ch_layout,
-                            feeder, ref samplesWritten);
+                            applyGain, gainLinear, primaryFmt, encFmt, processingRate, &encCtx->ch_layout,
+                            feeder, ref samplesWritten, enhancement);
                         ffmpeg.av_frame_unref(decFrame);
-                        ReportProgress(progress, totalSeconds, samplesWritten, outRate, ref lastReported);
+                        ReportProgress(progress, totalSeconds, samplesWritten, processingRate, ref lastReported);
                     }
                 }
                 ffmpeg.av_packet_unref(pkt);
@@ -348,16 +365,17 @@ public sealed unsafe class AudioConvertService : IAudioConvertService
             {
                 if (!SwrMatchesFrame(decFrame)) RebuildSwr(ref swr, encCtx, decFrame);
                 ConvertFrame(decFrame, swr, gainSwr, gainFrame, swrFrame,
-                    applyGain, gainLinear, primaryFmt, encFmt, outRate, &encCtx->ch_layout,
-                    feeder, ref samplesWritten);
+                    applyGain, gainLinear, primaryFmt, encFmt, processingRate, &encCtx->ch_layout,
+                    feeder, ref samplesWritten, enhancement);
                 ffmpeg.av_frame_unref(decFrame);
             }
 
             // 冲洗两级 swresample 的延迟缓冲
             FlushSwr(swr, gainSwr, gainFrame, swrFrame,
-                applyGain, gainLinear, primaryFmt, encFmt, outRate, &encCtx->ch_layout,
-                feeder, ref samplesWritten);
+                applyGain, gainLinear, primaryFmt, encFmt, processingRate, &encCtx->ch_layout,
+                feeder, ref samplesWritten, enhancement);
 
+            enhancement?.Finish();
             feeder.Flush();
 
             // 冲洗编码器并写出剩余包
@@ -374,6 +392,7 @@ public sealed unsafe class AudioConvertService : IAudioConvertService
         }
         finally
         {
+            enhancement?.Dispose();
             feeder?.Dispose();
             ffmpeg.av_frame_free(&gainFrame);
             ffmpeg.av_frame_free(&swrFrame);
@@ -664,7 +683,7 @@ public sealed unsafe class AudioConvertService : IAudioConvertService
 
     private static void ConvertFrame(AVFrame* decFrame, SwrContext* swr, SwrContext* gainSwr, AVFrame* gainFrame,
         AVFrame* swrFrame, bool applyGain, double gainLinear, AVSampleFormat primaryFmt, AVSampleFormat encFmt,
-        int outRate, AVChannelLayout* outLayout, FrameFeeder feeder, ref long samplesWritten)
+        int outRate, AVChannelLayout* outLayout, FrameFeeder feeder, ref long samplesWritten, EnhancementFeeder? enhancement = null)
     {
         PrepareFrame(swrFrame, primaryFmt, outRate, outLayout);
         int ret = ffmpeg.swr_convert_frame(swr, swrFrame, decFrame);
@@ -672,6 +691,7 @@ public sealed unsafe class AudioConvertService : IAudioConvertService
         if (swrFrame->nb_samples == 0) return;
 
         samplesWritten += swrFrame->nb_samples;
+        if (enhancement is not null) { enhancement.Push(swrFrame); return; }
 
         if (gainSwr != null)
         {
@@ -690,7 +710,7 @@ public sealed unsafe class AudioConvertService : IAudioConvertService
 
     private static void FlushSwr(SwrContext* swr, SwrContext* gainSwr, AVFrame* gainFrame, AVFrame* swrFrame,
         bool applyGain, double gainLinear, AVSampleFormat primaryFmt, AVSampleFormat encFmt,
-        int outRate, AVChannelLayout* outLayout, FrameFeeder feeder, ref long samplesWritten)
+        int outRate, AVChannelLayout* outLayout, FrameFeeder feeder, ref long samplesWritten, EnhancementFeeder? enhancement = null)
     {
         while (true)
         {
@@ -699,6 +719,7 @@ public sealed unsafe class AudioConvertService : IAudioConvertService
             if (ret < 0 || swrFrame->nb_samples == 0) break;
 
             samplesWritten += swrFrame->nb_samples;
+            if (enhancement is not null) { enhancement.Push(swrFrame); continue; }
             if (gainSwr != null)
             {
                 ApplyGain(swrFrame, gainLinear);

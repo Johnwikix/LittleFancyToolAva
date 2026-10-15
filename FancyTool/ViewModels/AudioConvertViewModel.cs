@@ -146,6 +146,8 @@ public partial class AudioConvertViewModel : ViewModelBase, IViewState, IAudioFi
 
     // ── 增益 / 元数据 ──
     public double GainDb { get => field; set => SetProperty(ref field, Math.Clamp(value, -30, 30)); } = 0;
+    /// <summary>Gets or sets a value indicating whether spectral enhancement is enabled.</summary>
+    public bool EnableSpectralEnhancement { get => field; set => SetProperty(ref field, value); }
     public bool CopyMetadata { get => field; set => SetProperty(ref field, value); } = true;
 
     public bool IsFfmpegAvailable => _ffmpegService.IsAvailable;
@@ -403,6 +405,7 @@ public partial class AudioConvertViewModel : ViewModelBase, IViewState, IAudioFi
             SampleRateHz = SampleRateHz,
             GainDb = GainDb,
             CopyMetadata = CopyMetadata,
+            EnableSpectralEnhancement = EnableSpectralEnhancement,
         };
         string targetExt = AudioConvertService.GetExtension(options.Format);
         _logger.LogInformation("批量音频转换开始：{Count} 个文件，格式 {Format}，输出目录 {Dir}",
@@ -524,6 +527,7 @@ public partial class AudioConvertViewModel : ViewModelBase, IViewState, IAudioFi
         BitrateKbps = BitrateKbps,
         GainDb = GainDb,
         CopyMetadata = CopyMetadata,
+        EnableSpectralEnhancement = EnableSpectralEnhancement,
         IncludeAllInFolderScan = IncludeAllInFolderScan,
     };
 
@@ -544,6 +548,7 @@ public partial class AudioConvertViewModel : ViewModelBase, IViewState, IAudioFi
             BitrateKbps = Math.Clamp(s.BitrateKbps, 16, 1000);
             GainDb = Math.Clamp(s.GainDb, -30, 30);
             CopyMetadata = s.CopyMetadata;
+            EnableSpectralEnhancement = s.EnableSpectralEnhancement;
             IncludeAllInFolderScan = s.IncludeAllInFolderScan;
         }
         catch (Exception ex)

@@ -69,6 +69,7 @@
     <AvaloniaResource Include="Assets\**" />
     <AvaloniaResource Include="Resources\**" />
     <EmbeddedResource Include="Resources\LyricsModels\*.json" />
+    <EmbeddedResource Include="AudioEnhancement/Coefficients/Assets/filters.bin" LogicalName="FancyToolAva.AudioEnhancement.Coefficients.filters.bin" />
   </ItemGroup>
 
   <ItemGroup>

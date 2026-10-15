@@ -55,6 +55,8 @@ public sealed class AudioConvertOptions
     public AudioBitDepthMode BitDepth { get; set; } = AudioBitDepthMode.Auto;
     /// <summary>0 = 跟随源（编码器支持表内自动对齐）。</summary>
     public int SampleRateHz { get; set; }
+    /// <summary>Gets or sets a value indicating whether spectral enhancement is enabled.</summary>
+    public bool EnableSpectralEnhancement { get; set; }
     public double GainDb { get; set; }
     /// <summary>把源的标签/封面（ATL 读取）内联写入输出（wav/aiff 不写）。</summary>
     public bool CopyMetadata { get; set; } = true;

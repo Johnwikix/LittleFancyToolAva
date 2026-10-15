@@ -614,6 +614,8 @@
     "Sr_CancelInstall": "取消安装"
   },
   "AudioTranscode": {
+    "Option_SpectralEnhancement": "启用频谱增强",
+    "Hint_SpectralEnhancement": "适用于 44.1/48 kHz 单声道与双声道音频。自动采样率使用 2 倍升频，无损 Auto 位深至少 24 位；输出受编码器限制。其他输入使用常规转码。",
     "Title": "音频转码",
     "Subtitle": "批量音频转换（内置 FFmpeg 进程内调用，标签/封面跟随写入）",
     "Label_Format": "输出格式",
