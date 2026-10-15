@@ -29,6 +29,11 @@ internal static class WindowsMlAccelerator
 
     /// <summary>Creates a fixed-shape session using an installed vendor provider, with DirectML GPU fallback.</summary>
     internal static InferenceSession CreateSession(string path, VideoSrBackend backend, int window, CancellationToken ct, out VideoSrDevice device)
+        => CreateSession(path, backend, window, window, ct, out device);
+
+    /// <summary>Creates a session specialized for one rectangular video frame size.</summary>
+    internal static InferenceSession CreateSession(string path, VideoSrBackend backend, int width, int height,
+        CancellationToken ct, out VideoSrDevice device, bool requireHardware = false)
     {
 #if WINDOWS
         Registration.Value.WaitAsync(ct).GetAwaiter().GetResult();
@@ -45,11 +50,16 @@ internal static class WindowsMlAccelerator
                 ct.ThrowIfCancellationRequested();
                 try
                 {
-                    using var options = CreateOptions(window);
+                    using var options = CreateOptions(width, height);
                     // OpenVINO reads this flag for its own compile-time CPU fallback too.
                     // Let the application perform and report hardware fallback explicitly.
                     options.AddSessionConfigEntry("session.disable_cpu_ep_fallback", "1");
-                    options.AppendExecutionProvider(env, [candidate], new Dictionary<string, string>());
+                    // RIFE's FP32 interchange graph can use Intel GPU FP16 compute
+                    // without rewriting its weights or changing its tensor contract.
+                    var providerOptions = requireHardware && kind == OrtHardwareDeviceType.GPU && candidate.EpName == "OpenVINOExecutionProvider"
+                        ? new Dictionary<string, string> { ["load_config"] = "{\"GPU\":{\"INFERENCE_PRECISION_HINT\":\"f16\"}}" }
+                        : new Dictionary<string, string>();
+                    options.AppendExecutionProvider(env, [candidate], providerOptions);
                     var session = new InferenceSession(path, options);
                     device = new VideoSrDevice($"{kind} · Windows ML / {candidate.EpName.Replace("ExecutionProvider", "")}", true);
                     return session;
@@ -60,22 +70,27 @@ internal static class WindowsMlAccelerator
         if (backend == VideoSrBackend.PreferNpu)
             throw new PlatformNotSupportedException("Windows ML NPU provider unavailable. " + string.Join("; ", failures));
 #endif
-        using var fallbackOptions = CreateOptions(window);
-        if (backend == VideoSrBackend.Cpu)
-        {
-            fallbackOptions.AppendExecutionProvider_CPU(0);
-            device = new VideoSrDevice("CPU", false);
-        }
-        else
-        {
-            var gpu = VideoSrGpuSelector.Select();
-            fallbackOptions.AppendExecutionProvider_DML(gpu.Index);
-            device = new VideoSrDevice("GPU · " + gpu.Name + " / Windows ML DirectML", true);
-        }
+        if (backend != VideoSrBackend.Cpu) return CreateDirectMlSession(path, width, height, ct, out device, requireHardware);
+        using var fallbackOptions = CreateOptions(width, height);
+        fallbackOptions.AppendExecutionProvider_CPU(0);
+        device = new VideoSrDevice("CPU", false);
         return new InferenceSession(path, fallbackOptions);
     }
 
-    private static SessionOptions CreateOptions(int window)
+    /// <summary>Creates the common DirectML GPU path used when vendor providers are unavailable.</summary>
+    internal static InferenceSession CreateDirectMlSession(string path, int width, int height, CancellationToken ct,
+        out VideoSrDevice device, bool requireHardware = false)
+    {
+        ct.ThrowIfCancellationRequested();
+        using var options = CreateOptions(width, height);
+        if (requireHardware) options.AddSessionConfigEntry("session.disable_cpu_ep_fallback", "1");
+        var gpu = VideoSrGpuSelector.Select();
+        options.AppendExecutionProvider_DML(gpu.Index);
+        device = new VideoSrDevice("GPU · " + gpu.Name + " / Windows ML DirectML", true);
+        return new InferenceSession(path, options);
+    }
+
+    private static SessionOptions CreateOptions(int width, int height)
     {
         var options = new SessionOptions
         {
@@ -85,10 +100,10 @@ internal static class WindowsMlAccelerator
         // Static shapes allow provider compilation and reuse instead of re-specializing every tile.
         options.AddFreeDimensionOverrideByName("batch_size", 1);
         options.AddFreeDimensionOverrideByName("batch", 1);
-        options.AddFreeDimensionOverrideByName("height", window);
-        options.AddFreeDimensionOverrideByName("width", window);
-        options.AddFreeDimensionOverrideByName("in_height", window);
-        options.AddFreeDimensionOverrideByName("in_width", window);
+        options.AddFreeDimensionOverrideByName("height", height);
+        options.AddFreeDimensionOverrideByName("width", width);
+        options.AddFreeDimensionOverrideByName("in_height", height);
+        options.AddFreeDimensionOverrideByName("in_width", width);
         return options;
     }
 

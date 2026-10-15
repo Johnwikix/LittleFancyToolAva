@@ -20,7 +20,7 @@ namespace FfmpegSmokeTest;
 
 internal static partial class Program
 {
-    private static int RunEditingUi(VideoTranscodeService service, string source, string workDir, bool srOptions = false)
+    private static int RunEditingUi(VideoTranscodeService service, string source, string workDir, bool srOptions = false, bool interpolationOptions = false)
     {
         try
         {
@@ -75,6 +75,39 @@ internal static partial class Program
             PumpUntil(() => TopLevel.GetTopLevel(srOptionsPanel) == null || !srOptionsPanel.IsEffectivelyVisible);
             if (!srOptions) vm.IsVideoSrEnabled = false;
             vm.HdrOutputIndex = 0;
+            if (interpolationOptions)
+            {
+                tabs.SelectedIndex = 3;
+                vm.InterpolationModeIndex = 1;
+                vm.InterpolationModelIndex = 1;
+                vm.InterpolationRateIndex = 2;
+                vm.InterpolationBackendIndex = (int)VideoSrBackend.Gpu;
+                vm.IsVideoSrEnabled = true;
+                vm.InterpolationOrderIndex = 2;
+                vm.FpsValue = 60000d / 1001;
+                PumpUntil(() => view.GetVisualDescendants().OfType<ComboBox>().Any(c => AutomationProperties.GetAutomationId(c) == "VideoInterpolationMode"));
+                var mode = view.GetVisualDescendants().OfType<ComboBox>().Single(c => AutomationProperties.GetAutomationId(c) == "VideoInterpolationMode");
+                var model = view.GetVisualDescendants().OfType<ComboBox>().Single(c => AutomationProperties.GetAutomationId(c) == "VideoInterpolationModel");
+                var rate = view.GetVisualDescendants().OfType<ComboBox>().Single(c => AutomationProperties.GetAutomationId(c) == "VideoInterpolationRate");
+                var target = view.GetVisualDescendants().OfType<NumericUpDown>().Single(c => AutomationProperties.GetAutomationId(c) == "VideoInterpolationFps");
+                var order = view.GetVisualDescendants().OfType<ComboBox>().Single(c => AutomationProperties.GetAutomationId(c) == "VideoInterpolationOrder");
+                var state = ((IViewState)vm).CaptureState();
+                vm.InterpolationModeIndex = 0; vm.InterpolationModelIndex = 0; vm.InterpolationRateIndex = 0;
+                ((IViewState)vm).RestoreState(state);
+                foreach (string culture in new[] { "en-US", "zh-CN" })
+                {
+                    I18nManager.Instance.Culture = new CultureInfo(culture);
+                    PumpUntil(() => vm.InterpolationModes[0].Label == (culture == "en-US" ? "Off" : "关闭插帧"));
+                    if (mode.SelectedIndex != 1 || model.SelectedIndex != 1 || rate.SelectedIndex != 2
+                        || order.SelectedIndex != 2 || !order.IsVisible || !target.IsVisible || Math.Abs(vm.FpsValue - 60000d / 1001) > .0001)
+                        throw new InvalidOperationException("Interpolation state, bindings, or localization changed the target rate");
+                }
+                mode.BringIntoView();
+                PumpUntil(() => true);
+                Render(window, view, Path.Combine(workDir, "interpolation-wide.png"));
+                vm.InterpolationRateIndex = 0;
+                if (!srOptions) vm.IsVideoSrEnabled = false;
+            }
             var info = service.ProbeAsync(source).GetAwaiter().GetResult()!;
             var first = new VideoFileItem(source) { ProbeInfo = info };
             var second = new VideoFileItem(source) { ProbeInfo = info with { DurationMs = 1000 } };
@@ -136,6 +169,9 @@ internal static partial class Program
             if (durations.Length != 2 || Math.Abs(durations[0] - 600) > 120 || Math.Abs(durations[1] - 1000) > 120)
                 throw new InvalidOperationException("Batch command did not preserve per-file trim ranges");
             if (srOptions && !vm.VideoSrDeviceText.StartsWith("NPU")) throw new InvalidOperationException("Video UI failed to report actual NPU use");
+            if (interpolationOptions && !vm.InterpolationDeviceText.StartsWith("GPU")) throw new InvalidOperationException("Interpolation UI failed to report actual GPU use");
+            if (interpolationOptions && Directory.GetFiles(vm.OutputFolder, "*.mp4").Any(p => Math.Abs(service.ProbeAsync(p).GetAwaiter().GetResult()!.Fps - 20) > .001))
+                throw new InvalidOperationException("UI batch did not interpolate to the selected rate");
             vm.SelectedFileItem = first;
             vm.FileItems.Remove(first);
             if (!ReferenceEquals(vm.SelectedFileItem, second)) throw new InvalidOperationException("Removing selected file did not move selection");

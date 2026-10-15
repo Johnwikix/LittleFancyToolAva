@@ -25,7 +25,7 @@ public sealed unsafe partial class VideoTranscodeService
 
         public AVFilterLink* OutputFormat => _sink->inputs[0];
 
-        public VideoSrPipeline(AVCodecContext* decoder, AVStream* stream, VideoTranscodeOptions options, IVideoFrameUpscaler upscaler)
+        public VideoSrPipeline(AVCodecContext* decoder, AVStream* stream, VideoTranscodeOptions options, IVideoFrameUpscaler upscaler, bool preprocessed = false)
         {
             _upscaler = upscaler;
             _scale = options.SuperResolutionScale;
@@ -38,7 +38,12 @@ public sealed unsafe partial class VideoTranscodeService
                 pre.Container = VideoContainer.Mp4;
                 pre.HardwareBackend = HardwareBackend.Software;
                 pre.ScaleMode = ScaleMode.None;
-                if (options.Container == VideoContainer.Gif) { pre.FpsMode = FpsMode.Fixed; pre.FpsValue = options.GifFps; }
+                if (options.InterpolationMode != VideoInterpolationMode.None)
+                {
+                    pre.FpsMode = FpsMode.SameAsSource;
+                    if (preprocessed) { pre.CropEnabled = false; pre.Deinterlace = DeinterlaceMode.None; pre.Denoise = DenoiseMode.None; }
+                }
+                else if (options.Container == VideoContainer.Gif) { pre.FpsMode = FpsMode.Fixed; pre.FpsValue = options.GifFps; }
                 AVBufferRef* unused = null;
                 if (!BindGraphAndConfigure(_graph, _source, _sink,
                     BuildFilterDescription(pre, "bgra", BuildColorFilters(ReadColor(decoder), VideoColor.SdrRgb)), false, "", &unused))
@@ -119,9 +124,13 @@ public sealed unsafe partial class VideoTranscodeService
 
     private static void DrainEnhancedFrames(VideoSrPipeline pipeline, CancellationToken ct,
         AVFilterContext* source, AVFilterContext* sink, AVFrame* filterFrame, AVCodecContext* encoder,
-        AVFormatContext* output, AVStream* stream, AVPacket* packet, double total, IProgress<double>? progress)
+        AVFormatContext* output, AVStream* stream, AVPacket* packet, double total, IProgress<double>? progress,
+        PreviewConverter? previewConverter = null, IProgress<VideoPreviewFrame>? preview = null, double trimStart = 0)
     {
         while (pipeline.Receive(ct, out var frame))
+        {
+            previewConverter?.Report(frame, trimStart + frame->pts * ffmpeg.av_q2d(pipeline.OutputFormat->time_base), preview);
             PushVideoFrame(source, sink, frame, filterFrame, encoder, output, stream, packet, total, progress);
+        }
     }
 }

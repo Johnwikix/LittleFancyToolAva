@@ -159,6 +159,20 @@ public sealed record VideoProbeInfo(
 
 public sealed class VideoTranscodeOptions
 {
+    /// <summary>Gets or sets how intermediate frames are generated.</summary>
+    public Services.VideoInterpolationMode InterpolationMode { get; set; }
+    /// <summary>Gets or sets the RIFE model used for interpolation.</summary>
+    public Services.VideoInterpolationModel InterpolationModel { get; set; }
+    /// <summary>Gets or sets the order used when interpolation and super-resolution are combined.</summary>
+    public Services.VideoFrameProcessingOrder FrameProcessingOrder { get; set; }
+    /// <summary>Gets or sets the source frame rate multiplier, two or four, or zero to use FpsValue.</summary>
+    public int InterpolationMultiplier { get; set; } = 2;
+    /// <summary>Gets or sets the preferred interpolation accelerator.</summary>
+    public Services.VideoSrBackend InterpolationBackend { get; set; }
+    /// <summary>Gets or sets whether software inference is permitted after hardware failure.</summary>
+    public bool InterpolationAllowCpuFallback { get; set; }
+    /// <summary>Gets or sets whether scene changes hold the previous frame instead of synthesizing motion.</summary>
+    public bool InterpolationSceneDetection { get; set; } = true;
     public VideoHdrOutput HdrOutput { get; set; }
     /// <summary>Gets or sets whether decoded video frames are enhanced before output scaling and encoding.</summary>
     public bool SuperResolutionEnabled { get; set; }

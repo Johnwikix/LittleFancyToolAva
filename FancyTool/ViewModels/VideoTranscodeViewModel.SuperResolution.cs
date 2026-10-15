@@ -67,6 +67,7 @@ public partial class VideoTranscodeViewModel
 
     private void RefreshSrState()
     {
+        OnPropertyChanged(nameof(ShowInterpolationOrder));
         OnPropertyChanged(nameof(IsVideoSrModelReady));
         OnPropertyChanged(nameof(SrInstallLabel));
         InstallVideoSrModelCommand.NotifyCanExecuteChanged();

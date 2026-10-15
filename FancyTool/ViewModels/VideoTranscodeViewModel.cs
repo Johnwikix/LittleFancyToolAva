@@ -113,6 +113,8 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
             if (SetProperty(ref field, value))
             {
                 OnPropertyChanged(nameof(IsGifMode));
+                OnPropertyChanged(nameof(ShowInterpolationRate));
+                OnPropertyChanged(nameof(ShowInterpolationFps));
                 OnPropertyChanged(nameof(ShowTwoPass));
                 // 先更新源再定选，避免 SelectedItem 在旧 ItemsSource 上被 TwoWay 回推 null
                 OnPropertyChanged(nameof(FilteredVideoCodecs));
@@ -783,7 +785,8 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
         IViewStateService viewStateService,
         AppPreferences preferences,
         ILogger<VideoTranscodeViewModel>? logger = null,
-        IVideoSuperResolutionService? videoSrService = null)
+        IVideoSuperResolutionService? videoSrService = null,
+        IVideoInterpolationService? interpolationService = null)
     {
         _videoService = videoService;
         _ffmpegService = ffmpegService;
@@ -792,6 +795,12 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
         _viewStateService = viewStateService;
         _preferences = preferences;
         _videoSrService = videoSrService;
+        _interpolationService = interpolationService;
+        if (interpolationService != null)
+        {
+            interpolationService.DownloadProgressChanged += OnInterpolationDownload;
+            interpolationService.DeviceChanged += OnInterpolationDevice;
+        }
         if (videoSrService != null)
         {
             videoSrService.DownloadProgressChanged += OnSrDownloadChanged;
@@ -830,6 +839,8 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
             foreach (var option in VideoSrModelLabels) option.Refresh();
             foreach (var option in VideoSrBackendLabels) option.Refresh();
             foreach (var option in HdrOutputOptions) option.Refresh();
+            foreach (var option in InterpolationModes.Concat(InterpolationModels).Concat(InterpolationRates).Concat(InterpolationOrders)) option.Refresh();
+            RefreshInterpolationState();
             OnPropertyChanged(nameof(HdrOutputIndex));
             RefreshSrState();
             foreach (var item in FileItems) item.RefreshLocalization();
@@ -918,6 +929,13 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
     object IViewState.CaptureState() => new VideoTranscodeViewState
     {
         HdrOutputIndex = HdrOutputIndex,
+        InterpolationModeIndex = InterpolationModeIndex,
+        InterpolationModelIndex = InterpolationModelIndex,
+        InterpolationOrderIndex = InterpolationOrderIndex,
+        InterpolationRateIndex = InterpolationRateIndex,
+        InterpolationBackendIndex = InterpolationBackendIndex,
+        InterpolationAllowCpuFallback = InterpolationAllowCpuFallback,
+        InterpolationSceneDetection = InterpolationSceneDetection,
         OutputFolder = OutputFolder,
         ContainerIndex = ContainerIndex,
         VideoCodecIndex = VideoCodecIndex,
@@ -979,6 +997,13 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
             try
             {
                 HdrOutputIndex = s.HdrOutputIndex;
+                InterpolationModeIndex = s.InterpolationModeIndex;
+                InterpolationModelIndex = s.InterpolationModelIndex;
+                InterpolationOrderIndex = s.InterpolationOrderIndex;
+                InterpolationRateIndex = s.InterpolationRateIndex;
+                InterpolationBackendIndex = s.InterpolationBackendIndex;
+                InterpolationAllowCpuFallback = s.InterpolationAllowCpuFallback;
+                InterpolationSceneDetection = s.InterpolationSceneDetection;
                 OutputFolder = s.OutputFolder;
                 IsVideoSrEnabled = s.IsVideoSrEnabled;
                 VideoSrModelIndex = s.VideoSrModelIndex;
@@ -1437,7 +1462,7 @@ private async Task AddPathsAsync(IEnumerable<string> paths)
             : string.Empty;
     }
 
-    private bool CanStartTranscode() => !IsBusy && !IsSrInstalling && FileItems.Count > 0 && _ffmpegService.IsAvailable;
+    private bool CanStartTranscode() => !IsBusy && !IsSrInstalling && !IsInterpolationInstalling && FileItems.Count > 0 && _ffmpegService.IsAvailable;
 
     private VideoTranscodeOptions BuildOptions()
     {
@@ -1460,6 +1485,13 @@ private async Task AddPathsAsync(IEnumerable<string> paths)
             SuperResolutionScale = VideoSrScaleIndex == 0 ? 2 : 4,
             SuperResolutionBackend = (VideoSrBackend)VideoSrBackendIndex,
             SuperResolutionAllowCpuFallback = VideoSrAllowCpuFallback,
+            InterpolationMode = (VideoInterpolationMode)InterpolationModeIndex,
+            InterpolationModel = (VideoInterpolationModel)InterpolationModelIndex,
+            FrameProcessingOrder = (VideoFrameProcessingOrder)InterpolationOrderIndex,
+            InterpolationMultiplier = InterpolationRateIndex switch { 0 => 2, 1 => 4, _ => 0 },
+            InterpolationBackend = (VideoSrBackend)InterpolationBackendIndex,
+            InterpolationAllowCpuFallback = InterpolationAllowCpuFallback,
+            InterpolationSceneDetection = InterpolationSceneDetection,
             Container = container,
             VideoCodec = vCodec,
             AudioCodec = aCodec,
@@ -1653,6 +1685,12 @@ private async Task AddPathsAsync(IEnumerable<string> paths)
         _cts?.Cancel();
         _cts?.Dispose();
         _srInstallCts?.Cancel();
+        _interpolationInstallCts?.Cancel();
+        if (_interpolationService != null)
+        {
+            _interpolationService.DownloadProgressChanged -= OnInterpolationDownload;
+            _interpolationService.DeviceChanged -= OnInterpolationDevice;
+        }
         _previewCts?.Cancel();
         _previewCts?.Dispose();
         Interlocked.Exchange(ref _progressPreviewTarget, null)?.Buffer.Dispose();

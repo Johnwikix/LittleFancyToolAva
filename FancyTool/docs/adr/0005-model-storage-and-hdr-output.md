@@ -2,10 +2,13 @@
 
 Settings owns the default model root. `ModelStorageDirectory` is saved immediately;
 `ApplicationHostService.LoadState` resolves it before constructing model consumers.
-The active root is captured for the lifetime of the process, so changing settings
-cannot redirect an in-flight download or invalidate an inference session. Changing
-the directory requires restart. Existing models are never moved or deleted.
-Image and video models share this root; default lyrics models use `Qwen3Lyrics`.
+Settings copies and hashes existing files before saving and publishing a new root.
+Model installation and session creation share a storage gate with migration, so
+verification and inference open the same directory. A successful change takes effect
+immediately, removes verified originals when they are not held open, and invalidates
+cached image sessions before their next use. Conflicts or failed saves retain the
+previous root and its models. Image/video enhancement and video interpolation share
+this root; interpolation uses `Interpolation`, and default lyrics use `Qwen3Lyrics`.
 Old lyrics queues that stored the default path explicitly follow the new root.
 Explicit lyrics overrides and `FANCYTOOL_LYRICS_MODELS` remain supported.
 

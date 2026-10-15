@@ -2,6 +2,20 @@ namespace FancyToolAva.Models.ViewStates;
 
 public class VideoTranscodeViewState
 {
+    /// <summary>Gets or sets the interpolation method index.</summary>
+    public int InterpolationModeIndex { get; set; }
+    /// <summary>Gets or sets the selected RIFE model index.</summary>
+    public int InterpolationModelIndex { get; set; }
+    /// <summary>Gets or sets the combined frame processing order.</summary>
+    public int InterpolationOrderIndex { get; set; }
+    /// <summary>Gets or sets the multiplier or custom frame rate mode.</summary>
+    public int InterpolationRateIndex { get; set; }
+    /// <summary>Gets or sets the interpolation accelerator preference.</summary>
+    public int InterpolationBackendIndex { get; set; }
+    /// <summary>Gets or sets whether software interpolation fallback is allowed.</summary>
+    public bool InterpolationAllowCpuFallback { get; set; }
+    /// <summary>Gets or sets whether scene cuts suppress generated motion.</summary>
+    public bool InterpolationSceneDetection { get; set; } = true;
     public int HdrOutputIndex { get; set; }
     /// <summary>Gets or sets whether video super-resolution is enabled.</summary>
     public bool IsVideoSrEnabled { get; set; }

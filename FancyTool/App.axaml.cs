@@ -171,6 +171,7 @@ namespace FancyToolAva
             services.AddSingleton<IFolderCompareService, FolderCompareService>();
             services.AddHttpClient<ModelDownloadService>();
             services.AddSingleton<IVideoSuperResolutionService, VideoSuperResolutionService>();
+            services.AddSingleton<IVideoInterpolationService, VideoInterpolationService>();
             services.AddSingleton<ISuperResolutionService>(sp => new SuperResolutionService(
                 sp.GetRequiredService<ILogger<SuperResolutionService>>(),
                 sp.GetRequiredService<AppPreferences>(),

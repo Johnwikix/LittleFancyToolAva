@@ -214,12 +214,52 @@
                                         </Grid>
                                     </StackPanel>
 
-                                    <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">
-                                        <TextBlock Grid.Column="0" Text="{lan:I18n VideoTranscode.Label_Fps}" VerticalAlignment="Center" />
-                                        <ComboBox Grid.Column="2" Width="150" ItemsSource="{Binding FpsModeLabels}" SelectedItem="{Binding SelectedFpsMode, Mode=TwoWay}" />
-                                    </Grid>
-                                    <StackPanel IsVisible="{Binding IsFpsActive}">
-                                        <NumericUpDown Minimum="1" Maximum="120" Value="{Binding FpsValue}" Increment="1" />
+                                    <Border Background="{DynamicResource CardBackgroundFillColorSecondaryBrush}" CornerRadius="6" Padding="10" AutomationProperties.AutomationId="VideoInterpolationOptions">
+                                    <StackPanel Spacing="8">
+                                        <TextBlock Text="{lan:I18n VideoTranscode.Interp_Title}" FontWeight="SemiBold" />
+                                        <ComboBox ItemsSource="{Binding InterpolationModes}" SelectedIndex="{Binding InterpolationModeIndex, Mode=TwoWay}" IsEnabled="{Binding !IsBusy}" HorizontalAlignment="Stretch" AutomationProperties.AutomationId="VideoInterpolationMode">
+                                            <ComboBox.ItemTemplate><DataTemplate x:DataType="models:LocalizedOption"><TextBlock Text="{Binding Label}" /></DataTemplate></ComboBox.ItemTemplate>
+                                        </ComboBox>
+                                        <StackPanel IsVisible="{Binding IsInterpolationEnabled}" Spacing="8">
+                                            <StackPanel IsEnabled="{Binding !IsBusy}" Spacing="8">
+                                                <ComboBox IsVisible="{Binding ShowInterpolationRate}" ItemsSource="{Binding InterpolationRates}" SelectedIndex="{Binding InterpolationRateIndex, Mode=TwoWay}" HorizontalAlignment="Stretch" AutomationProperties.AutomationId="VideoInterpolationRate">
+                                                    <ComboBox.ItemTemplate><DataTemplate x:DataType="models:LocalizedOption"><TextBlock Text="{Binding Label}" /></DataTemplate></ComboBox.ItemTemplate>
+                                                </ComboBox>
+                                                <NumericUpDown IsVisible="{Binding ShowInterpolationFps}" Minimum="1" Maximum="120" Value="{Binding FpsValue, Mode=TwoWay}" Increment="0.01" FormatString="0.###" AutomationProperties.AutomationId="VideoInterpolationFps" />
+                                                <StackPanel IsVisible="{Binding IsAiInterpolation}" Spacing="8">
+                                                    <ComboBox ItemsSource="{Binding InterpolationModels}" SelectedIndex="{Binding InterpolationModelIndex, Mode=TwoWay}" HorizontalAlignment="Stretch" AutomationProperties.AutomationId="VideoInterpolationModel">
+                                                        <ComboBox.ItemTemplate><DataTemplate x:DataType="models:LocalizedOption"><TextBlock Text="{Binding Label}" /></DataTemplate></ComboBox.ItemTemplate>
+                                                    </ComboBox>
+                                                    <ComboBox ItemsSource="{Binding VideoSrBackendLabels}" SelectedIndex="{Binding InterpolationBackendIndex, Mode=TwoWay}" HorizontalAlignment="Stretch" AutomationProperties.AutomationId="VideoInterpolationBackend">
+                                                        <ComboBox.ItemTemplate><DataTemplate x:DataType="models:LocalizedOption"><TextBlock Text="{Binding Label}" /></DataTemplate></ComboBox.ItemTemplate>
+                                                    </ComboBox>
+                                                    <CheckBox IsChecked="{Binding InterpolationAllowCpuFallback, Mode=TwoWay}"><TextBlock Text="{lan:I18n VideoTranscode.Sr_AllowCpu}" TextWrapping="Wrap" /></CheckBox>
+                                                </StackPanel>
+                                                <CheckBox IsChecked="{Binding InterpolationSceneDetection, Mode=TwoWay}" Content="{lan:I18n VideoTranscode.Interp_SceneDetection}" />
+                                                <ComboBox IsVisible="{Binding ShowInterpolationOrder}" ItemsSource="{Binding InterpolationOrders}" SelectedIndex="{Binding InterpolationOrderIndex, Mode=TwoWay}" HorizontalAlignment="Stretch" AutomationProperties.AutomationId="VideoInterpolationOrder">
+                                                    <ComboBox.ItemTemplate><DataTemplate x:DataType="models:LocalizedOption"><TextBlock Text="{Binding Label}" TextWrapping="Wrap" /></DataTemplate></ComboBox.ItemTemplate>
+                                                </ComboBox>
+                                            </StackPanel>
+                                            <TextBlock Text="{lan:I18n VideoTranscode.Interp_Hint}" FontSize="11" Opacity="0.75" TextWrapping="Wrap" />
+                                            <TextBlock IsVisible="{Binding IsGifMode}" Text="{lan:I18n VideoTranscode.Interp_GifHint}" FontSize="11" Opacity="0.75" TextWrapping="Wrap" />
+                                            <StackPanel IsVisible="{Binding IsAiInterpolation}" Spacing="8">
+                                                <Button Command="{Binding InstallInterpolationModelCommand}" Content="{Binding InterpolationInstallLabel}" HorizontalAlignment="Stretch" />
+                                                <Button Command="{Binding InstallInterpolationAccelerationCommand}" HorizontalAlignment="Stretch"><TextBlock Text="{lan:I18n VideoTranscode.Sr_InstallHardware}" TextWrapping="Wrap" /></Button>
+                                                <ProgressBar IsVisible="{Binding IsInterpolationInstalling}" IsIndeterminate="{Binding IsInterpolationHardwareInstalling}" Value="{Binding InterpolationDownloadProgress}" Minimum="0" Maximum="1" Height="5" />
+                                                <Button IsVisible="{Binding IsInterpolationInstalling}" Command="{Binding CancelInterpolationInstallationCommand}" Content="{lan:I18n VideoTranscode.Sr_CancelInstall}" />
+                                                <TextBlock Text="{Binding InterpolationDownloadText}" FontSize="11" Opacity="0.75" TextWrapping="Wrap" />
+                                                <TextBlock Text="{Binding InterpolationDeviceText}" FontSize="11" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </StackPanel>
+                                    </Border>
+
+                                    <StackPanel IsVisible="{Binding ShowOrdinaryFps}" Spacing="8" IsEnabled="{Binding !IsBusy}">
+                                        <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">
+                                            <TextBlock Grid.Column="0" Text="{lan:I18n VideoTranscode.Label_Fps}" VerticalAlignment="Center" />
+                                            <ComboBox Grid.Column="2" Width="150" ItemsSource="{Binding FpsModeLabels}" SelectedItem="{Binding SelectedFpsMode, Mode=TwoWay}" />
+                                        </Grid>
+                                        <NumericUpDown IsVisible="{Binding IsFpsActive}" Minimum="1" Maximum="120" Value="{Binding FpsValue}" Increment="0.01" />
                                     </StackPanel>
 
                                     <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">

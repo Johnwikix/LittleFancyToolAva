@@ -178,6 +178,7 @@ public partial class VideoTranscodeViewModel
         PreviewStartCommand.NotifyCanExecuteChanged();
         PreviewEndCommand.NotifyCanExecuteChanged();
         RefreshSrState();
+        RefreshInterpolationState();
     }
 
     private bool CanPreviewBoundary() => CanEditTrim;

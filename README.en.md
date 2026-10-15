@@ -72,6 +72,8 @@
 
 ### Video transcoding
 
+The Filters tab offers RIFE AI interpolation and model-free CPU motion compensation, with 2×, 4×, or a custom target frame rate. Playback duration and audio sync are preserved, with scene-cut protection enabled by default. RIFE 4.25 Lite (default) and 4.25 use Windows ML GPU/NPU providers with DirectML GPU fallback. Models download on demand into the shared model directory's `Interpolation` subfolder and support verification and directory migration. GIF uses the rate in GIF options; HDR sources require an explicit Force SDR selection. The combined processing order is automatic or can be selected manually. When upscaling is disabled, output downscaling runs before interpolation to reduce processing cost. NPU compilation may take longer for large frames; GPU is recommended for speed.
+
 The Quality tab contains AI video enhancement and HDR output controls. Choose Same as Source, Force HDR or Force SDR. Force HDR expands SDR through BT.2446 inverse tone mapping to a 1000-nit target with 10-bit PQ / BT.2020 output. Force SDR tone-maps HDR to BT.709. Same as Source retains SDR, PQ or HLG; GIF is always SDR. Incompatible eight-bit encoders or profiles report an error.
 
 The existing enhancement models process SDR images. HDR inputs are tone-mapped before enhancement and converted back according to the output selection. Inverse tone mapping can expand highlights but cannot guarantee recovery of detail already lost in SDR. See the [design record](FancyTool/docs/adr/0005-model-storage-and-hdr-output.md) for algorithms and model storage behavior.

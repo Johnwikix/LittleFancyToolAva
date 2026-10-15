@@ -16,16 +16,19 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
 {
     private readonly ILogger<VideoTranscodeService> _logger;
     private readonly IVideoSuperResolutionService? _superResolution;
+    private readonly IVideoInterpolationService? _interpolation;
 
     private const int ProbeTimeoutSec = 15;
     private static readonly int[] OpusRates = [8000, 12000, 16000, 24000, 48000];
     // AVERROR(EAGAIN)：EAGAIN 在 Windows(FFmpeg 兼容层) 与 POSIX 均为 11，AutoGen 未导出常量
     private const int ErrEagain = -11;
 
-    public VideoTranscodeService(ILogger<VideoTranscodeService> logger, IVideoSuperResolutionService? superResolution = null)
+    public VideoTranscodeService(ILogger<VideoTranscodeService> logger, IVideoSuperResolutionService? superResolution = null,
+        IVideoInterpolationService? interpolation = null)
     {
         _logger = logger;
         _superResolution = superResolution;
+        _interpolation = interpolation;
     }
 
     // ══════════════════════════════ 探测 ══════════════════════════════
@@ -150,6 +153,7 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
             var src = ProbeInternal(inputPath);
             long durationMs = src.Probe.DurationMs;
             ValidateTrim(options, durationMs);
+            ValidateInterpolation(options, src.Probe);
             using var upscaler = options.SuperResolutionEnabled
                 ? (_superResolution ?? throw new InvalidOperationException("Video super-resolution service unavailable"))
                     .CreateSessionAsync(options, ct).GetAwaiter().GetResult() : null;
@@ -239,6 +243,8 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
         bool outputOpened = false;
         using var previewConverter = new PreviewConverter();
         VideoSrPipeline? srPipeline = null;
+        VideoInterpolationPipeline? interpolationPipeline = null;
+        bool upscaleFirst = false;
 
         try
         {
@@ -295,27 +301,52 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
 
             // ── 3b. 视频滤镜图（缓冲源参数来自解码器上下文）──
             graph = ffmpeg.avfilter_graph_alloc();
-            if (upscaler != null)
+            upscaleFirst = upscaler != null && UpscaleBeforeInterpolation(o, vDec);
+            if (upscaleFirst)
             {
-                srPipeline = new VideoSrPipeline(vDec, vInStream, o, upscaler);
+                srPipeline = new VideoSrPipeline(vDec, vInStream, o, upscaler!);
+                var format = srPipeline.OutputFormat;
+                var decoded = ProcessedDecoder(format->w * o.SuperResolutionScale, format->h * o.SuperResolutionScale, format->sample_aspect_ratio);
+                var decodedStream = new AVStream { time_base = format->time_base, avg_frame_rate = vInStream->avg_frame_rate };
+                interpolationPipeline = new VideoInterpolationPipeline(&decoded, &decodedStream, o, sourceFps, durationMs, _interpolation, ct, true);
+            }
+            else if (o.InterpolationMode != VideoInterpolationMode.None)
+                interpolationPipeline = new VideoInterpolationPipeline(vDec, vInStream, o, sourceFps, durationMs, _interpolation, ct);
+            if (upscaler != null && !upscaleFirst)
+            {
+                if (interpolationPipeline != null)
+                {
+                    var decoded = ProcessedDecoder(interpolationPipeline.Width, interpolationPipeline.Height, interpolationPipeline.Aspect);
+                    var decodedStream = new AVStream { time_base = interpolationPipeline.TimeBase,
+                        avg_frame_rate = new AVRational { num = interpolationPipeline.TimeBase.den, den = interpolationPipeline.TimeBase.num } };
+                    srPipeline = new VideoSrPipeline(&decoded, &decodedStream, o, upscaler, true);
+                }
+                else srPipeline = new VideoSrPipeline(vDec, vInStream, o, upscaler);
+            }
+            if (srPipeline != null && !upscaleFirst)
+            {
                 var format = srPipeline.OutputFormat;
                 srcCtx = CreateBufferSource(graph, vDec, vInStream, format->w * o.SuperResolutionScale,
                     format->h * o.SuperResolutionScale, AVPixelFormat.AV_PIX_FMT_BGRA, format->time_base, format->sample_aspect_ratio);
             }
+            else if (interpolationPipeline != null)
+                srcCtx = CreateBufferSource(graph, vDec, vInStream, interpolationPipeline.Width, interpolationPipeline.Height,
+                    AVPixelFormat.AV_PIX_FMT_BGRA, interpolationPipeline.TimeBase, interpolationPipeline.Aspect);
             else srcCtx = CreateBufferSource(graph, vDec, vInStream);
             sinkCtx = CreateBufferSink(graph);
 
             var outputFilters = o;
-            if (upscaler != null)
+            if (upscaler != null || interpolationPipeline != null)
             {
                 outputFilters = o.WithTrim(0, null);
                 outputFilters.CropEnabled = false;
                 outputFilters.Deinterlace = DeinterlaceMode.None;
                 outputFilters.Denoise = DenoiseMode.None;
                 outputFilters.FpsMode = FpsMode.SameAsSource;
+                if (interpolationPipeline?.ScaleApplied == true) outputFilters.ScaleMode = ScaleMode.None;
             }
             string filterDesc = BuildFilterDescription(outputFilters, targetPixFmt,
-                BuildColorFilters(upscaler != null ? VideoColor.SdrRgb : sourceColor, outputColor));
+                BuildColorFilters(upscaler != null || interpolationPipeline != null ? VideoColor.SdrRgb : sourceColor, outputColor));
             if (!BindGraphAndConfigure(graph, srcCtx, sinkCtx, filterDesc,
                     IsVaapiBackend(o.HardwareBackend), "/dev/dri/renderD128", &hwDevice))
                 throw new InvalidOperationException($"滤镜图初始化失败: {filterDesc}");
@@ -393,13 +424,13 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
                     if (ret == ErrEagain)
                     {
                         // 解码器输出满：先排空再重送一次（数据包不得丢弃）
-                        ProcessVideoFrames(vDec, decFrame, filtFrame, srcCtx, sinkCtx, vEnc, ofmt, vOutStream, encPkt, totalSec, progress, ref nextPts, frameStep, vInStream->time_base, timeline, previewConverter, preview, srPipeline, ct);
+                        ProcessVideoFrames(vDec, decFrame, filtFrame, srcCtx, sinkCtx, vEnc, ofmt, vOutStream, encPkt, totalSec, progress, ref nextPts, frameStep, vInStream->time_base, timeline, previewConverter, preview, srPipeline, interpolationPipeline, upscaleFirst, ct);
                         ret = ffmpeg.avcodec_send_packet(vDec, pkt);
                     }
                     if (ret < 0 && ret != ErrEagain && ret != ffmpeg.AVERROR_EOF)
                         throw FFmpegNative.CreateException(ret, "视频解码失败");
                     ffmpeg.av_packet_unref(pkt);
-                    ProcessVideoFrames(vDec, decFrame, filtFrame, srcCtx, sinkCtx, vEnc, ofmt, vOutStream, encPkt, totalSec, progress, ref nextPts, frameStep, vInStream->time_base, timeline, previewConverter, preview, srPipeline, ct);
+                    ProcessVideoFrames(vDec, decFrame, filtFrame, srcCtx, sinkCtx, vEnc, ofmt, vOutStream, encPkt, totalSec, progress, ref nextPts, frameStep, vInStream->time_base, timeline, previewConverter, preview, srPipeline, interpolationPipeline, upscaleFirst, ct);
                 }
                 else if (aDec != null && pkt->stream_index == aIdx)
                 {
@@ -424,11 +455,24 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
 
             // ── 8. 冲洗：解码器 → 滤镜图 → 音频 → 编码器 ──
             ffmpeg.avcodec_send_packet(vDec, null);
-            ProcessVideoFrames(vDec, decFrame, filtFrame, srcCtx, sinkCtx, vEnc, ofmt, vOutStream, encPkt, totalSec, progress, ref nextPts, frameStep, vInStream->time_base, timeline, previewConverter, preview, srPipeline, ct);
-            if (srPipeline != null)
+            ProcessVideoFrames(vDec, decFrame, filtFrame, srcCtx, sinkCtx, vEnc, ofmt, vOutStream, encPkt, totalSec, progress, ref nextPts, frameStep, vInStream->time_base, timeline, previewConverter, preview, srPipeline, interpolationPipeline, upscaleFirst, ct);
+            if (upscaleFirst)
+            {
+                srPipeline!.Send(null);
+                DrainEnhancedBeforeInterpolation(srPipeline, interpolationPipeline!, ct, srcCtx, sinkCtx, filtFrame, vEnc, ofmt,
+                    vOutStream, encPkt, totalSec, progress, previewConverter, preview, o.TrimStartSeconds);
+            }
+            if (interpolationPipeline != null)
+            {
+                interpolationPipeline.Send(null);
+                DrainInterpolatedFrames(interpolationPipeline, upscaleFirst ? null : srPipeline, ct, srcCtx, sinkCtx, filtFrame, vEnc, ofmt, vOutStream,
+                    encPkt, totalSec, progress, previewConverter, preview, o.TrimStartSeconds);
+            }
+            if (srPipeline != null && !upscaleFirst)
             {
                 srPipeline.Send(null);
-                DrainEnhancedFrames(srPipeline, ct, srcCtx, sinkCtx, filtFrame, vEnc, ofmt, vOutStream, encPkt, totalSec, progress);
+                DrainEnhancedFrames(srPipeline, ct, srcCtx, sinkCtx, filtFrame, vEnc, ofmt, vOutStream, encPkt, totalSec, progress,
+                    interpolationPipeline != null ? previewConverter : null, preview, o.TrimStartSeconds);
             }
 
             ffmpeg.av_buffersrc_add_frame(srcCtx, null); // 通知 EOF，滤镜图内部冲刷
@@ -453,6 +497,7 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
         {
             audioFeeder?.Dispose();
             srPipeline?.Dispose();
+            interpolationPipeline?.Dispose();
             ffmpeg.av_frame_free(&swrFrame);
             ffmpeg.av_frame_free(&filtFrame);
             ffmpeg.av_frame_free(&decFrame);
@@ -514,7 +559,7 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
         AVFormatContext* ofmt, AVStream* stream, AVPacket* pkt,
         double totalSec, IProgress<double>? progress, ref long nextPts, long frameStep, AVRational inputTimeBase,
         TrimTimeline timeline, PreviewConverter previewConverter, IProgress<VideoPreviewFrame>? preview,
-        VideoSrPipeline? srPipeline, CancellationToken ct)
+        VideoSrPipeline? srPipeline, VideoInterpolationPipeline? interpolationPipeline, bool upscaleFirst, CancellationToken ct)
     {
         while (ffmpeg.avcodec_receive_frame(vDec, decFrame) >= 0)
         {
@@ -531,13 +576,29 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
             }
             if (timeline.KeepVideo(decFrame, inputTimeBase, out double position))
             {
-                previewConverter.Report(decFrame, position, preview);
-                if (srPipeline != null)
+                if (upscaleFirst)
                 {
+                    srPipeline!.Send(decFrame);
+                    DrainEnhancedBeforeInterpolation(srPipeline, interpolationPipeline!, ct, srcCtx, sinkCtx, filtFrame, vEnc, ofmt,
+                        stream, pkt, totalSec, progress, previewConverter, preview, timeline.Start);
+                }
+                else if (interpolationPipeline != null)
+                {
+                    interpolationPipeline.Send(decFrame);
+                    DrainInterpolatedFrames(interpolationPipeline, srPipeline, ct, srcCtx, sinkCtx, filtFrame, vEnc, ofmt,
+                        stream, pkt, totalSec, progress, previewConverter, preview, timeline.Start);
+                }
+                else if (srPipeline != null)
+                {
+                    previewConverter.Report(decFrame, position, preview);
                     srPipeline.Send(decFrame);
                     DrainEnhancedFrames(srPipeline, ct, srcCtx, sinkCtx, filtFrame, vEnc, ofmt, stream, pkt, totalSec, progress);
                 }
-                else PushVideoFrame(srcCtx, sinkCtx, decFrame, filtFrame, vEnc, ofmt, stream, pkt, totalSec, progress);
+                else
+                {
+                    previewConverter.Report(decFrame, position, preview);
+                    PushVideoFrame(srcCtx, sinkCtx, decFrame, filtFrame, vEnc, ofmt, stream, pkt, totalSec, progress);
+                }
             }
             ffmpeg.av_frame_unref(decFrame);
         }
@@ -711,13 +772,17 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
             enc->sample_aspect_ratio = new AVRational { num = 1, den = 1 };
 
         double fps;
-        if (o.Container == VideoContainer.Gif)
+        if (o.InterpolationMode != VideoInterpolationMode.None)
+            fps = InterpolationRate(o, sourceFps);
+        else if (o.Container == VideoContainer.Gif)
             fps = o.GifFps > 0 ? o.GifFps : 15;
         else if (o.FpsMode != FpsMode.SameAsSource)
             fps = o.FpsValue;
         else
             fps = sourceFps > 0 ? sourceFps : 30;
-        enc->framerate = ffmpeg.av_d2q(fps, 4096);
+        int ratePrecision = o.InterpolationMode == VideoInterpolationMode.None ? 4096
+            : encoderName == "mpeg4" ? 65535 : 1_001_000;
+        enc->framerate = ffmpeg.av_d2q(fps, ratePrecision);
         enc->time_base = new AVRational { num = enc->framerate.den, den = enc->framerate.num };
 
         if (vaapi)

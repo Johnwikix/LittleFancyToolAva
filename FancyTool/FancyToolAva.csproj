@@ -19,6 +19,8 @@
   <Import Project="WindowsInference.props" />
   <ItemGroup>
     <InternalsVisibleTo Include="FfmpegSmokeTest" />
+    <None Include="Libraries/InterpolationModels/LICENSE.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Link="Licenses/RIFE.txt" />
+    <None Include="Libraries/InterpolationModels/NOTICE.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Link="Licenses/RIFE-NOTICE.md" />
   </ItemGroup>
 
   <!-- FFmpeg 9.0 GPL shared 库（进程内经 FFmpeg.AutoGen 调用，随应用分发，用户无需下载）：
