@@ -10,7 +10,9 @@ public enum SuperResolutionModel
     UltraSharpX4 = 3,
     SpanClearRealityV1 = 4,
     /// <summary>Uses the native 2× live-action SPAN model under its noncommercial license.</summary>
-    LiveActionSpanX2 = 5
+    LiveActionSpanX2 = 5,
+    /// <summary>Video-only bidirectional temporal super-resolution over five adjacent frames.</summary>
+    NanoVsr644K = 6
 }
 
 public interface ISuperResolutionService : IDisposable

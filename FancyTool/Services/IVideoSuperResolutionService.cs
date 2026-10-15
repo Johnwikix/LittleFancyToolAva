@@ -32,6 +32,13 @@ public interface IVideoFrameUpscaler : IDisposable
     SKBitmap Upscale(SKBitmap source, int scale, CancellationToken ct);
 }
 
+/// <summary>Processes bounded temporal windows, retaining one output for every source frame.</summary>
+internal interface IVideoFrameSequenceUpscaler : IVideoFrameUpscaler
+{
+    int TemporalWindow { get; }
+    SKBitmap[] UpscaleSequence(IReadOnlyList<SKBitmap> source, int scale, CancellationToken ct);
+}
+
 /// <summary>Installs shared image/video models and creates hardware-preferred video inference sessions.</summary>
 public interface IVideoSuperResolutionService
 {

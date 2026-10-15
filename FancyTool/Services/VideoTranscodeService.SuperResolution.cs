@@ -6,7 +6,7 @@ namespace FancyToolAva.Services;
 
 public sealed unsafe partial class VideoTranscodeService
 {
-    /// <summary>Runs preprocessing before inference, holding only one decoded and one enhanced frame.</summary>
+    /// <summary>Runs preprocessing and bounded single-frame or temporal-window inference.</summary>
     private sealed class VideoSrPipeline : IDisposable
     {
         private AVFilterGraph* _graph;
@@ -22,6 +22,9 @@ public sealed unsafe partial class VideoTranscodeService
         private SKBitmap? _bitmap;
         private readonly IVideoFrameUpscaler _upscaler;
         private readonly int _scale;
+        private readonly List<SKBitmap> _pending = [];
+        private readonly List<(long Pts, long Duration, AVRational Aspect)> _timestamps = [];
+        private readonly Queue<(SKBitmap Bitmap, long Pts, long Duration, AVRational Aspect)> _ready = new();
 
         public AVFilterLink* OutputFormat => _sink->inputs[0];
 
@@ -62,51 +65,108 @@ public sealed unsafe partial class VideoTranscodeService
         public bool Receive(CancellationToken ct, out AVFrame* frame)
         {
             ct.ThrowIfCancellationRequested();
+            if (_upscaler is IVideoFrameSequenceUpscaler sequence) return ReceiveTemporal(sequence, ct, out frame);
             int ret = ffmpeg.av_buffersink_get_frame(_sink, _input);
             if (ret == ErrEagain || ret == ffmpeg.AVERROR_EOF) { frame = null; return false; }
             if (ret < 0) throw FFmpegNative.CreateException(ret, "Super-resolution preprocessing failed");
             try
             {
-                if (_bitmap == null || _bitmap.Width != _input->width || _bitmap.Height != _input->height)
-                {
-                    _bitmap?.Dispose();
-                    _bitmap = new SKBitmap(new SKImageInfo(_input->width, _input->height, SKColorType.Bgra8888, SKAlphaType.Opaque));
-                }
-                _converter = ffmpeg.sws_getCachedContext(_converter, _input->width, _input->height, (AVPixelFormat)_input->format,
-                    _bitmap.Width, _bitmap.Height, AVPixelFormat.AV_PIX_FMT_BGRA, (int)SwsFlags.SWS_BILINEAR, null, null, null);
-                if (_converter == null) throw new OutOfMemoryException();
-                for (uint i = 0; i < 8; i++) { _sourceData[i] = _input->data[i]; _sourceStride[i] = _input->linesize[i]; }
-                _targetData[0] = (byte*)_bitmap.GetPixels();
-                _targetStride[0] = _bitmap.RowBytes;
-                ret = ffmpeg.sws_scale(_converter, _sourceData, _sourceStride, 0, _input->height, _targetData, _targetStride);
-                if (ret < 0) throw FFmpegNative.CreateException(ret, "Super-resolution pixel conversion failed");
-                using var enhanced = _upscaler.Upscale(_bitmap, _scale, ct);
-                if (_output->width != enhanced.Width || _output->height != enhanced.Height)
-                {
-                    ffmpeg.av_frame_unref(_output);
-                    _output->width = enhanced.Width;
-                    _output->height = enhanced.Height;
-                    _output->format = (int)AVPixelFormat.AV_PIX_FMT_BGRA;
-                    ret = ffmpeg.av_frame_get_buffer(_output, 32);
-                    if (ret < 0) throw FFmpegNative.CreateException(ret, "Super-resolution frame allocation failed");
-                }
-                ret = ffmpeg.av_frame_make_writable(_output);
-                if (ret < 0) throw FFmpegNative.CreateException(ret, "Super-resolution frame allocation failed");
-                int bytes = enhanced.Width * 4;
-                for (int row = 0; row < enhanced.Height; row++)
-                    Buffer.MemoryCopy((byte*)enhanced.GetPixels() + row * enhanced.RowBytes, _output->data[0] + row * _output->linesize[0], bytes, bytes);
-                _output->pts = _input->pts;
-                _output->duration = _input->duration;
-                _output->time_base = OutputFormat->time_base;
-                _output->sample_aspect_ratio = _input->sample_aspect_ratio;
+                using var enhanced = _upscaler.Upscale(ConvertInput(), _scale, ct);
+                WriteOutput(enhanced, _input->pts, _input->duration, _input->sample_aspect_ratio);
                 frame = _output;
                 return true;
             }
             finally { ffmpeg.av_frame_unref(_input); }
         }
 
+        private SKBitmap ConvertInput()
+        {
+            if (_bitmap == null || _bitmap.Width != _input->width || _bitmap.Height != _input->height)
+            {
+                _bitmap?.Dispose();
+                _bitmap = new SKBitmap(new SKImageInfo(_input->width, _input->height, SKColorType.Bgra8888, SKAlphaType.Opaque));
+            }
+            _converter = ffmpeg.sws_getCachedContext(_converter, _input->width, _input->height, (AVPixelFormat)_input->format,
+                _bitmap.Width, _bitmap.Height, AVPixelFormat.AV_PIX_FMT_BGRA, (int)SwsFlags.SWS_BILINEAR, null, null, null);
+            if (_converter == null) throw new OutOfMemoryException();
+            for (uint i = 0; i < 8; i++) { _sourceData[i] = _input->data[i]; _sourceStride[i] = _input->linesize[i]; }
+            _targetData[0] = (byte*)_bitmap.GetPixels();
+            _targetStride[0] = _bitmap.RowBytes;
+            int ret = ffmpeg.sws_scale(_converter, _sourceData, _sourceStride, 0, _input->height, _targetData, _targetStride);
+            if (ret < 0) throw FFmpegNative.CreateException(ret, "Super-resolution pixel conversion failed");
+            return _bitmap;
+        }
+
+        private void WriteOutput(SKBitmap enhanced, long pts, long duration, AVRational aspect)
+        {
+            if (_output->width != enhanced.Width || _output->height != enhanced.Height)
+            {
+                ffmpeg.av_frame_unref(_output);
+                _output->width = enhanced.Width;
+                _output->height = enhanced.Height;
+                _output->format = (int)AVPixelFormat.AV_PIX_FMT_BGRA;
+                int allocation = ffmpeg.av_frame_get_buffer(_output, 32);
+                if (allocation < 0) throw FFmpegNative.CreateException(allocation, "Super-resolution frame allocation failed");
+            }
+            int ret = ffmpeg.av_frame_make_writable(_output);
+            if (ret < 0) throw FFmpegNative.CreateException(ret, "Super-resolution frame allocation failed");
+            int bytes = enhanced.Width * 4;
+            for (int row = 0; row < enhanced.Height; row++)
+                Buffer.MemoryCopy((byte*)enhanced.GetPixels() + row * enhanced.RowBytes,
+                    _output->data[0] + row * _output->linesize[0], bytes, bytes);
+            _output->pts = pts;
+            _output->duration = duration;
+            _output->time_base = OutputFormat->time_base;
+            _output->sample_aspect_ratio = aspect;
+        }
+
+        private bool ReceiveTemporal(IVideoFrameSequenceUpscaler sequence, CancellationToken ct, out AVFrame* frame)
+        {
+            frame = null;
+            if (_ready.Count == 0)
+            {
+                while (_pending.Count < sequence.TemporalWindow)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    int ret = ffmpeg.av_buffersink_get_frame(_sink, _input);
+                    if (ret == ErrEagain) return false;
+                    if (ret == ffmpeg.AVERROR_EOF) break;
+                    if (ret < 0) throw FFmpegNative.CreateException(ret, "Super-resolution preprocessing failed");
+                    try
+                    {
+                        _pending.Add(ConvertInput().Copy() ?? throw new OutOfMemoryException());
+                        _timestamps.Add((_input->pts, _input->duration, _input->sample_aspect_ratio));
+                    }
+                    finally { ffmpeg.av_frame_unref(_input); }
+                }
+                if (_pending.Count == 0) return false;
+                try
+                {
+                    var enhanced = sequence.UpscaleSequence(_pending, _scale, ct);
+                    for (int i = 0; i < enhanced.Length; i++)
+                    {
+                        var timestamp = _timestamps[i];
+                        _ready.Enqueue((enhanced[i], timestamp.Pts, timestamp.Duration, timestamp.Aspect));
+                    }
+                }
+                finally
+                {
+                    foreach (var pending in _pending) pending.Dispose();
+                    _pending.Clear();
+                    _timestamps.Clear();
+                }
+            }
+            var next = _ready.Dequeue();
+            using (next.Bitmap) WriteOutput(next.Bitmap, next.Pts, next.Duration, next.Aspect);
+            frame = _output;
+            return true;
+        }
+
         public void Dispose()
         {
+            foreach (var pending in _pending) pending.Dispose();
+            _pending.Clear();
+            while (_ready.TryDequeue(out var ready)) ready.Bitmap.Dispose();
             _bitmap?.Dispose();
             _bitmap = null;
             var output = _output;

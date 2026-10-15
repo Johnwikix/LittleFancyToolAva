@@ -9,7 +9,7 @@ namespace FfmpegSmokeTest;
 
 internal static partial class Program
 {
-    private static int RunSuperResolutionCases(string source, string workDir)
+    private static int RunSuperResolutionCases(string source, string workDir, bool testNpu = true)
     {
         ffmpeg.av_log_set_level(ffmpeg.AV_LOG_ERROR);
         using var http = new HttpClient();
@@ -35,7 +35,7 @@ internal static partial class Program
         });
         Console.WriteLine($"GPU test elapsed: {clock.Elapsed.TotalSeconds:F2}s");
         clock.Restart();
-        RunExtra("Intel NPU video, crop and 4x", () =>
+        if (testNpu) RunExtra("Intel NPU video, crop and 4x", () =>
         {
             var actual = new List<VideoSrDevice>();
             sr.DeviceChanged += actual.Add;
@@ -54,7 +54,7 @@ internal static partial class Program
         });
         Console.WriteLine($"NPU test elapsed: {clock.Elapsed.TotalSeconds:F2}s");
         clock.Restart();
-        RunExtra("image NPU inference and transparency", () =>
+        if (testNpu) RunExtra("image NPU inference and transparency", () =>
         {
             var preferences = new AppPreferences { UseSuperResolutionNpu = true, SuperResolutionTileSizeIndex = 0 };
             using var imageSr = new SuperResolutionService(NullLogger<SuperResolutionService>.Instance, preferences, downloader);

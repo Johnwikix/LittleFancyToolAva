@@ -100,6 +100,27 @@ public sealed class ModelDownloadService
             return;
         }
 
+        if (entry.BundledRelativePath is { } relativePath)
+        {
+            string bundled = Path.Combine(AppContext.BaseDirectory, relativePath);
+            if (!MatchesSha256(bundled, entry.Sha256))
+                throw new ModelDownloadException($"Bundled model missing or corrupt: {entry.FileName}");
+            string temporary = finalPath + ".partial";
+            try
+            {
+                progress?.Report(new ModelDownloadProgress(entry.FileName, ModelDownloadStage.Verifying, 0, null));
+                using (var input = File.OpenRead(bundled))
+                using (var output = File.Create(temporary))
+                    await input.CopyToAsync(output, ct).ConfigureAwait(false);
+                if (!MatchesSha256(temporary, entry.Sha256)) throw new ModelDownloadException($"Model copy verification failed: {entry.FileName}");
+                ct.ThrowIfCancellationRequested();
+                File.Move(temporary, finalPath, overwrite: true);
+                progress?.Report(new ModelDownloadProgress(entry.FileName, ModelDownloadStage.Done, new FileInfo(finalPath).Length, null));
+                return;
+            }
+            finally { TryDelete(temporary); }
+        }
+
         var urls = ResolveUrls(entry);
 
         Exception? lastError = null;

@@ -11,5 +11,6 @@
   <Import Project="../../WindowsInference.props" />
   <ItemGroup>
     <ProjectReference Include="..\..\FancyToolAva.csproj" />
+    <None Include="../NanoVsrExport/Reference/*" Link="NanoVsrReference/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

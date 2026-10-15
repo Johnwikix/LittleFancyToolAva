@@ -9,7 +9,7 @@ public partial class VideoTranscodeViewModel
 {
     private readonly IVideoSuperResolutionService? _videoSrService;
     private CancellationTokenSource? _srInstallCts;
-    private static readonly SuperResolutionModel[] VideoModels = [SuperResolutionModel.SpanClearRealityV1, SuperResolutionModel.LiveActionSpanX2, SuperResolutionModel.RealEsrganGeneralX4V3, SuperResolutionModel.RealEsrganX4PlusAnime, SuperResolutionModel.RealEsrganX4Plus];
+    private static readonly SuperResolutionModel[] VideoModels = [SuperResolutionModel.SpanClearRealityV1, SuperResolutionModel.LiveActionSpanX2, SuperResolutionModel.RealEsrganGeneralX4V3, SuperResolutionModel.RealEsrganX4PlusAnime, SuperResolutionModel.RealEsrganX4Plus, SuperResolutionModel.NanoVsr644K];
 
     /// <summary>Gets or sets whether video frames are enhanced with a neural model.</summary>
     public bool IsVideoSrEnabled
@@ -20,7 +20,7 @@ public partial class VideoTranscodeViewModel
     /// <summary>Gets the localized video model choices.</summary>
     public IReadOnlyList<LocalizedOption> VideoSrModelLabels { get; } = [new("VideoTranscode.Sr_ModelSpan"),
         new("ImageConvert.SrModel_LiveActionSpanX2"), new("VideoTranscode.Sr_ModelFast"),
-        new("VideoTranscode.Sr_ModelAnime"), new("VideoTranscode.Sr_ModelQuality")];
+        new("VideoTranscode.Sr_ModelAnime"), new("VideoTranscode.Sr_ModelQuality"), new("VideoTranscode.Sr_ModelNanoVsr")];
     /// <summary>Gets the localized accelerator preferences.</summary>
     public IReadOnlyList<LocalizedOption> VideoSrBackendLabels { get; } = [new("VideoTranscode.Sr_BackendAuto"),
         new("VideoTranscode.Sr_BackendNpu"), new("VideoTranscode.Sr_BackendGpu"), new("VideoTranscode.Sr_BackendCpu")];

@@ -11,7 +11,8 @@ public sealed class VideoSuperResolutionService(ModelDownloadService downloader,
     /// <inheritdoc />
     public event Action<VideoSrDevice>? DeviceChanged;
 
-    internal static ModelManifestEntry GetModel(SuperResolutionModel model) => ModelManifest.RealEsrgan[(int)model];
+    internal static ModelManifestEntry GetModel(SuperResolutionModel model) => model == SuperResolutionModel.NanoVsr644K
+        ? ModelManifest.NanoVsr : ModelManifest.RealEsrgan[(int)model];
 
     /// <inheritdoc />
     public bool IsModelAvailable(SuperResolutionModel model) => File.Exists(Path.Combine(AppPaths.ModelsDirectory, GetModel(model).FileName));
@@ -49,6 +50,14 @@ public sealed class VideoSuperResolutionService(ModelDownloadService downloader,
                 ct.ThrowIfCancellationRequested();
                 try
                 {
+                    if (options.SuperResolutionModel == SuperResolutionModel.NanoVsr644K)
+                    {
+                        var sequence = new OrtNanoVsrUpscaler(path, backend, Math.Min(window, 192), ct,
+                            failures.Count > 0 ? string.Join("; ", failures) : null);
+                        DeviceChanged?.Invoke(sequence.Device);
+                        logger.LogInformation("NanoVSR inference device: {Device}", sequence.Device.Name);
+                        return sequence;
+                    }
                     var tile = SrTileFactory.Create(path, backend, window, ct, out var selected, nativeScale);
                     var device = selected with { FallbackReason = failures.Count > 0 ? string.Join("; ", failures) : selected.FallbackReason };
                     DeviceChanged?.Invoke(device);
@@ -61,6 +70,12 @@ public sealed class VideoSuperResolutionService(ModelDownloadService downloader,
             if (!options.SuperResolutionAllowCpuFallback)
                 throw new InvalidOperationException(LocalizationRegistry.Get("VideoTranscode.Msg_SrHardwareFailed") + " " + string.Join("; ", failures));
             var fallback = new VideoSrDevice("CPU", false, string.Join("; ", failures));
+            if (options.SuperResolutionModel == SuperResolutionModel.NanoVsr644K)
+            {
+                var sequence = new OrtNanoVsrUpscaler(path, VideoSrBackend.Cpu, Math.Min(window, 192), ct, fallback.FallbackReason);
+                DeviceChanged?.Invoke(fallback);
+                return sequence;
+            }
             var cpu = new OrtVideoSrTileModel(path, VideoSrBackend.Cpu, window, ct, nativeScale);
             DeviceChanged?.Invoke(fallback);
             return new VideoFrameUpscaler(cpu, fallback, window, nativeScale);

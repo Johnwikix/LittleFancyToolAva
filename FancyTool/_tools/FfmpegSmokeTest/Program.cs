@@ -45,11 +45,16 @@ internal static partial class Program
         if (args.Contains("--hdr-capabilities")) return RunHdrCapabilities();
         if (args.Contains("--hdr-only")) return RunHdrCases(svc, workDir);
 
+        if (args.Contains("--sr-diagnostics")) return RunSrDiagnostics(workDir, args.Contains("--install-providers"));
+        if (args.Contains("--real-video-sr")) return RunRealVideoSrCase(workDir, args);
+        if (args.Contains("--sr-phase-benchmark")) return RunSrPhaseBenchmark(workDir);
+        if (args.Contains("--nanovsr-only")) return RunNanoVsrCases(sample, workDir);
+        if (args.Contains("--nanovsr-benchmark")) return RunNanoVsrBenchmark(workDir);
         if (args.Contains("--sr-benchmark")) return RunSrBenchmark(workDir);
         if (args.Contains("--interpolation-benchmark")) return RunInterpolationBenchmark(workDir, args.Contains("--full"));
         if (args.Contains("--interpolation-order-benchmark")) return RunInterpolationOrderBenchmark(workDir);
-        if (args.Contains("--editing-ui")) return RunEditingUi(svc, sample, workDir, args.Contains("--sr-ui"), args.Contains("--interpolation-ui"));
-        if (args.Contains("--sr-only")) return RunSuperResolutionCases(sample, workDir);
+        if (args.Contains("--editing-ui")) return RunEditingUi(svc, sample, workDir, args.Contains("--sr-ui"), args.Contains("--interpolation-ui"), args.Contains("--nano-ui"));
+        if (args.Contains("--sr-only")) return RunSuperResolutionCases(sample, workDir, !args.Contains("--gpu-only"));
         if (args.Contains("--interpolation-only")) return RunInterpolationCases(sample, workDir);
         if (args.Contains("--editing-only")) return RunEditingCases(svc, sample, workDir);
 

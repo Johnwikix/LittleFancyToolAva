@@ -1,4 +1,7 @@
 using SkiaSharp;
+using System.Runtime.InteropServices;
+using System.Runtime.Intrinsics;
+using System.Runtime.Intrinsics.X86;
 
 namespace FancyToolAva.Services;
 
@@ -57,44 +60,107 @@ internal sealed class VideoFrameUpscaler(IVideoSrTileModel model, VideoSrDevice 
         catch { result.Dispose(); throw; }
     }
 
-    private void FillInput(SKBitmap source, int x, int y)
+    private void FillInput(SKBitmap source, int x, int y) => FillInput(source, x, y, window, Pad, _input);
+
+    internal static void FillInput(SKBitmap source, int x, int y, int window, int pad, Span<float> input)
     {
         var pixels = source.GetPixelSpan();
         int channel = window * window;
+        ref byte pixelsStart = ref MemoryMarshal.GetReference(pixels);
+        ref float inputStart = ref MemoryMarshal.GetReference(input);
         for (int row = 0; row < window; row++)
         {
-            int sourceRow = Math.Clamp(y + row - Pad, 0, source.Height - 1) * source.RowBytes;
-            for (int col = 0; col < window; col++)
+            int sourceRow = Math.Clamp(y + row - pad, 0, source.Height - 1) * source.RowBytes;
+            for (int col = 0; col < window;)
             {
-                int index = sourceRow + Math.Clamp(x + col - Pad, 0, source.Width - 1) * 4;
+                int sourceX = x + col - pad;
                 int destination = row * window + col;
-                _input[destination] = pixels[index + 2] / 255f;
-                _input[channel + destination] = pixels[index + 1] / 255f;
-                _input[channel * 2 + destination] = pixels[index] / 255f;
+                if (Sse2.IsSupported && col + 4 <= window && sourceX >= 0 && sourceX + 4 <= source.Width)
+                {
+                    var bgra = Vector128.LoadUnsafe(ref pixelsStart, (nuint)(sourceRow + sourceX * 4)).AsUInt32();
+                    var mask = Vector128.Create(255u);
+                    var red = Sse2.ConvertToVector128Single((Vector128.ShiftRightLogical(bgra, 16) & mask).AsInt32());
+                    var green = Sse2.ConvertToVector128Single((Vector128.ShiftRightLogical(bgra, 8) & mask).AsInt32());
+                    var blue = Sse2.ConvertToVector128Single((bgra & mask).AsInt32());
+                    var divisor = Vector128.Create(255f);
+                    (red / divisor).StoreUnsafe(ref inputStart, (nuint)destination);
+                    (green / divisor).StoreUnsafe(ref inputStart, (nuint)(channel + destination));
+                    (blue / divisor).StoreUnsafe(ref inputStart, (nuint)(channel * 2 + destination));
+                    col += 4;
+                    continue;
+                }
+                int index = sourceRow + Math.Clamp(sourceX, 0, source.Width - 1) * 4;
+                input[destination] = pixels[index + 2] / 255f;
+                input[channel + destination] = pixels[index + 1] / 255f;
+                input[channel * 2 + destination] = pixels[index] / 255f;
+                col++;
             }
         }
     }
 
     private void PasteOutput(SKBitmap destination, int x, int y, int width, int height, int scale)
+        => PasteOutput(destination, x, y, width, height, scale, window, Pad, nativeScale, _output);
+
+    internal static void PasteOutput(SKBitmap destination, int x, int y, int width, int height, int scale,
+        int window, int pad, int nativeScale, ReadOnlySpan<float> output)
     {
         var pixels = destination.GetPixelSpan();
         int outputWindow = window * nativeScale, channel = outputWindow * outputWindow;
         int step = nativeScale / scale;
         for (int row = 0; row < height * scale; row++)
-        for (int col = 0; col < width * scale; col++)
         {
-            int source = (Pad * nativeScale + row * step) * outputWindow + Pad * nativeScale + col * step;
-            int target = (y * scale + row) * destination.RowBytes + (x * scale + col) * 4;
-            for (int c = 0; c < 3; c++)
+            int col = 0;
+            if (Sse41.IsSupported)
             {
-                float value = _output[c * channel + source];
-                if (step == 2)
-                    value = (value + _output[c * channel + source + 1] + _output[c * channel + source + outputWindow]
-                        + _output[c * channel + source + outputWindow + 1]) * 0.25f;
-                pixels[target + 2 - c] = (byte)Math.Clamp((int)MathF.Round(value * 255), 0, 255);
+                ref float sourceStart = ref MemoryMarshal.GetReference(output);
+                ref byte targetStart = ref MemoryMarshal.GetReference(pixels);
+                int sourceRow = (pad * nativeScale + row * step) * outputWindow + pad * nativeScale;
+                int targetRow = (y * scale + row) * destination.RowBytes + x * scale * 4;
+                for (; col + 4 <= width * scale; col += 4)
+                {
+                    int index = sourceRow + col * step;
+                    var red = ReadChannel(ref sourceStart, index, outputWindow, step);
+                    var green = ReadChannel(ref sourceStart, index + channel, outputWindow, step);
+                    var blue = ReadChannel(ref sourceStart, index + channel * 2, outputWindow, step);
+                    var bgra = Vector128.Create(0xff000000u) | blue
+                        | Vector128.ShiftLeft(green, 8) | Vector128.ShiftLeft(red, 16);
+                    bgra.AsByte().StoreUnsafe(ref targetStart, (nuint)(targetRow + col * 4));
+                }
             }
-            pixels[target + 3] = 255;
+            for (; col < width * scale; col++)
+            {
+                int source = (pad * nativeScale + row * step) * outputWindow + pad * nativeScale + col * step;
+                int target = (y * scale + row) * destination.RowBytes + (x * scale + col) * 4;
+                for (int c = 0; c < 3; c++)
+                {
+                    float value = output[c * channel + source];
+                    if (step == 2)
+                        value = (value + output[c * channel + source + 1] + output[c * channel + source + outputWindow]
+                            + output[c * channel + source + outputWindow + 1]) * 0.25f;
+                    pixels[target + 2 - c] = (byte)Math.Clamp((int)MathF.Round(value * 255), 0, 255);
+                }
+                pixels[target + 3] = 255;
+            }
         }
+    }
+
+    // Four BGRA pixels at once; scalar code above remains the portable fallback.
+    private static Vector128<uint> ReadChannel(ref float data, int index, int stride, int step)
+    {
+        var value = Vector128.LoadUnsafe(ref data, (nuint)index);
+        if (step == 2)
+        {
+            // Match the scalar summation order: (a + b + c + d) / 4.
+            var a = Sse.Shuffle(value, Vector128.LoadUnsafe(ref data, (nuint)(index + 4)), 0x88);
+            var b = Sse.Shuffle(value, Vector128.LoadUnsafe(ref data, (nuint)(index + 4)), 0xdd);
+            var lower = Vector128.LoadUnsafe(ref data, (nuint)(index + stride));
+            var lowerNext = Vector128.LoadUnsafe(ref data, (nuint)(index + stride + 4));
+            var c = Sse.Shuffle(lower, lowerNext, 0x88);
+            var d = Sse.Shuffle(lower, lowerNext, 0xdd);
+            value = ((a + b) + c + d) * Vector128.Create(.25f);
+        }
+        value = Sse41.RoundToNearestInteger(Sse.Min(Sse.Max(value * Vector128.Create(255f), Vector128<float>.Zero), Vector128.Create(255f)));
+        return Sse2.ConvertToVector128Int32(value).AsUInt32();
     }
 
     public void Dispose()

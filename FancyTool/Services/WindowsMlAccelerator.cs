@@ -8,6 +8,12 @@ namespace FancyToolAva.Services;
 /// <summary>Shares Windows ML provider discovery and explicit GPU/NPU selection between images, video and audio.</summary>
 internal static class WindowsMlAccelerator
 {
+    // Catalog/EP ABI spelling differs from the older built-in provider's casing.
+    internal static bool IsTensorRtProvider(string name) =>
+        name.Equals("NvTensorRTRTXExecutionProvider", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsVendorProvider(string name) => IsTensorRtProvider(name)
+        || name is "MIGraphXExecutionProvider" or "OpenVINOExecutionProvider" or "VitisAIExecutionProvider" or "QNNExecutionProvider";
 #if WINDOWS
     private static readonly SemaphoreSlim CatalogGate = new(1, 1);
     private static readonly Lazy<Task> Registration = new(() => Task.Run(RegisterInstalledAsync));
@@ -48,8 +54,8 @@ internal static class WindowsMlAccelerator
         if (backend != VideoSrBackend.Cpu)
         {
             // Prefer vendor-optimized providers. DirectML remains available for older AMD/NVIDIA cards.
-            var candidates = env.GetEpDevices().Where(d => d.HardwareDevice.Type == kind && d.EpName is "NvTensorRtRtxExecutionProvider" or "MIGraphXExecutionProvider" or "OpenVINOExecutionProvider" or "VitisAIExecutionProvider" or "QNNExecutionProvider")
-                .OrderBy(d => d.EpName switch { "NvTensorRtRtxExecutionProvider" => 0, "MIGraphXExecutionProvider" => 1, "OpenVINOExecutionProvider" => 2, _ => 3 });
+            var candidates = env.GetEpDevices().Where(d => d.HardwareDevice.Type == kind && IsVendorProvider(d.EpName))
+                .OrderBy(d => IsTensorRtProvider(d.EpName) ? 0 : d.EpName switch { "MIGraphXExecutionProvider" => 1, "OpenVINOExecutionProvider" => 2, _ => 3 });
             foreach (var candidate in candidates)
             {
                 ct.ThrowIfCancellationRequested();
@@ -64,6 +70,13 @@ internal static class WindowsMlAccelerator
                     var providerOptions = requireHardware && kind == OrtHardwareDeviceType.GPU && candidate.EpName == "OpenVINOExecutionProvider"
                         ? new Dictionary<string, string> { ["load_config"] = "{\"GPU\":{\"INFERENCE_PRECISION_HINT\":\"f16\"}}" }
                         : new Dictionary<string, string>();
+                    if (IsTensorRtProvider(candidate.EpName))
+                    {
+                        string cache = Path.Combine(AppPaths.ModelsDirectory, "Cache", "TensorRT-RTX");
+                        Directory.CreateDirectory(cache);
+                        providerOptions["nv_runtime_cache_path"] = cache;
+                        providerOptions["enable_cuda_graph"] = "1";
+                    }
                     options.AppendExecutionProvider(env, [candidate], providerOptions);
                     var session = new InferenceSession(path, options);
                     device = new VideoSrDevice($"{kind} · Windows ML / {candidate.EpName.Replace("ExecutionProvider", "")}", true);
@@ -75,7 +88,14 @@ internal static class WindowsMlAccelerator
         if (backend == VideoSrBackend.PreferNpu)
             throw new PlatformNotSupportedException("Windows ML NPU provider unavailable. " + string.Join("; ", failures));
 #endif
-        if (backend != VideoSrBackend.Cpu) return CreateDirectMlTensorSession(path, dimensions, ct, out device, requireHardware);
+        if (backend != VideoSrBackend.Cpu)
+        {
+            var session = CreateDirectMlTensorSession(path, dimensions, ct, out device, requireHardware);
+#if WINDOWS
+            if (failures.Count > 0) device = device with { FallbackReason = string.Join("; ", failures) };
+#endif
+            return session;
+        }
         using var fallbackOptions = CreateOptions(dimensions);
         fallbackOptions.AppendExecutionProvider_CPU(0);
         device = new VideoSrDevice("CPU", false);
@@ -129,7 +149,7 @@ internal static class WindowsMlAccelerator
             _ = OrtEnv.Instance();
             var catalog = ExecutionProviderCatalog.GetDefault() ?? throw new InvalidOperationException("Windows ML catalog unavailable");
             var providers = catalog.FindAllProviders() ?? throw new InvalidOperationException("Windows ML provider discovery failed");
-            foreach (var provider in providers.Where(p => p.Name is "OpenVINOExecutionProvider" or "NvTensorRtRtxExecutionProvider" or "MIGraphXExecutionProvider" or "VitisAIExecutionProvider" or "QNNExecutionProvider"))
+            foreach (var provider in providers.Where(p => IsVendorProvider(p.Name)))
             {
                 ct.ThrowIfCancellationRequested();
                 progress?.Invoke(provider.Name.Replace("ExecutionProvider", ""));

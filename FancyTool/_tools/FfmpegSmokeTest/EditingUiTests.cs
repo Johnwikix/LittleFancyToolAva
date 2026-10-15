@@ -20,13 +20,20 @@ namespace FfmpegSmokeTest;
 
 internal static partial class Program
 {
-    private static int RunEditingUi(VideoTranscodeService service, string source, string workDir, bool srOptions = false, bool interpolationOptions = false)
+    private static int RunEditingUi(VideoTranscodeService service, string source, string workDir, bool srOptions = false, bool interpolationOptions = false, bool nanoOptions = false)
     {
         try
         {
             AppBuilder.Configure<App>().UsePlatformDetect().WithInterFont().SetupWithoutStarting();
             Application.Current!.RequestedThemeVariant = ThemeVariant.Light;
             var vm = ((App)Application.Current!).TryGetService<VideoTranscodeViewModel>()!;
+            if (nanoOptions)
+            {
+                vm.IsVideoSrEnabled = true;
+                vm.VideoSrModelIndex = 5;
+                vm.VideoSrBackendIndex = (int)VideoSrBackend.Gpu;
+                vm.VideoSrAllowCpuFallback = false;
+            }
             if (srOptions)
             {
                 vm.IsVideoSrEnabled = true;
@@ -52,6 +59,12 @@ internal static partial class Program
             if (srScaleSelector.SelectedIndex != 0 || srScaleSelector.ItemCount != 1) throw new InvalidOperationException("Native 2x scale selection cleared");
             vm.VideoSrModelIndex = 0;
             if (srScaleSelector.SelectedIndex != 0) throw new InvalidOperationException("Model change cleared scale selection");
+            if (nanoOptions)
+            {
+                vm.VideoSrModelIndex = 5;
+                if (srModelSelector.SelectedIndex != 5 || srScaleSelector.ItemCount != 2)
+                    throw new InvalidOperationException("NanoVSR model or scale selection missing");
+            }
             vm.HdrOutputIndex = 1;
             var saved = ((IViewState)vm).CaptureState();
             vm.HdrOutputIndex = 0;
@@ -73,7 +86,7 @@ internal static partial class Program
             Render(window, view, Path.Combine(workDir, "quality-super-resolution.png"));
             tabs.SelectedIndex = 0;
             PumpUntil(() => TopLevel.GetTopLevel(srOptionsPanel) == null || !srOptionsPanel.IsEffectivelyVisible);
-            if (!srOptions) vm.IsVideoSrEnabled = false;
+            if (!srOptions && !nanoOptions) vm.IsVideoSrEnabled = false;
             vm.HdrOutputIndex = 0;
             if (interpolationOptions)
             {
@@ -169,6 +182,7 @@ internal static partial class Program
             if (durations.Length != 2 || Math.Abs(durations[0] - 600) > 120 || Math.Abs(durations[1] - 1000) > 120)
                 throw new InvalidOperationException("Batch command did not preserve per-file trim ranges");
             if (srOptions && !vm.VideoSrDeviceText.StartsWith("NPU")) throw new InvalidOperationException("Video UI failed to report actual NPU use");
+            if (nanoOptions && !vm.VideoSrDeviceText.Contains("NvTensorRTRTX")) throw new InvalidOperationException("Video UI failed to report TensorRT RTX use");
             if (interpolationOptions && !vm.InterpolationDeviceText.StartsWith("GPU")) throw new InvalidOperationException("Interpolation UI failed to report actual GPU use");
             if (interpolationOptions && Directory.GetFiles(vm.OutputFolder, "*.mp4").Any(p => Math.Abs(service.ProbeAsync(p).GetAwaiter().GetResult()!.Fps - 20) > .001))
                 throw new InvalidOperationException("UI batch did not interpolate to the selected rate");
@@ -178,9 +192,11 @@ internal static partial class Program
             vm.FileItems.Clear();
             if (vm.SelectedFileItem != null || vm.HasPreview || vm.CanEditTrim) throw new InvalidOperationException("Clearing files retained the editor");
             vm.Dispose();
-            if (srOptions)
+            if (srOptions || nanoOptions)
             {
                 var imageVm = ((App)Application.Current!).TryGetService<ImageConvertViewModel>()!;
+                if (imageVm.AvailableSuperResolutionModels.Contains(SuperResolutionModel.NanoVsr644K))
+                    throw new InvalidOperationException("Temporal model leaked into image-only model choices");
                 imageVm.IsSuperResolutionEnabled = true;
                 imageVm.SelectedSrModelIndex = (int)SuperResolutionModel.LiveActionSpanX2;
                 if (imageVm.AvailableSrScaleLabels.Count != 1 || imageVm.SelectedSrScaleIndex != 0) throw new InvalidOperationException("Native 2x image scale choice incorrect");

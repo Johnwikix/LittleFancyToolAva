@@ -149,6 +149,7 @@ public sealed class SuperResolutionService : ISuperResolutionService
     {
         ThrowIfDisposed();
 
+        if (model == SuperResolutionModel.NanoVsr644K) throw new NotSupportedException("NanoVSR requires the temporal video pipeline.");
         if (targetScale != 2 && targetScale != 4)
             throw new ArgumentOutOfRangeException(nameof(targetScale), "Target scale must be 2x or 4x.");
         int modelScale = ModelManifest.RealEsrgan[(int)model].NativeScale;
