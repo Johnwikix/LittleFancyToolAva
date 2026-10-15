@@ -616,8 +616,9 @@
     "Sr_CancelInstall": "Cancel installation"
   },
   "AudioTranscode": {
-    "Option_SpectralEnhancement": "Enable spectral enhancement",
-    "Hint_SpectralEnhancement": "For mono/stereo 44.1/48 kHz sources. Automatic rate uses 2× upsampling and lossless Auto uses at least 24 bits, subject to encoder limits. Other inputs use standard conversion.",
+    "Label_UpsamplingMultiplier": "Target multiplier",
+    "Option_SpectralEnhancement": "Enable upsampling",
+    "Hint_SpectralEnhancement": "Lossless output only. 1× also restores high frequencies; the multiplier sets the rate, up to 192 kHz. For mono/stereo 44.1/48 kHz PCM.",
     "Title": "Audio Transcode",
     "Subtitle": "Batch audio conversion (built-in in-process FFmpeg, tags/covers carried over)",
     "Label_Format": "Output Format",

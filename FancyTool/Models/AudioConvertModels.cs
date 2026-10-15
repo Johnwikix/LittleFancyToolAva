@@ -1,3 +1,4 @@
+using FancyToolAva.AudioEnhancement;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -55,8 +56,12 @@ public sealed class AudioConvertOptions
     public AudioBitDepthMode BitDepth { get; set; } = AudioBitDepthMode.Auto;
     /// <summary>0 = 跟随源（编码器支持表内自动对齐）。</summary>
     public int SampleRateHz { get; set; }
-    /// <summary>Gets or sets a value indicating whether spectral enhancement is enabled.</summary>
+    /// <summary>Gets or sets a value indicating whether upsampling is requested for lossless output.</summary>
     public bool EnableSpectralEnhancement { get; set; }
+    /// <summary>Gets or sets the desired output multiplier: 1, 2 or 4. Active upsampling for lossless output overrides SampleRateHz.</summary>
+    public int UpsamplingMultiplier { get; set; } = 2;
+    /// <summary>Gets or sets the registered backend used when upsampling is enabled.</summary>
+    public string UpsamplingBackendId { get; set; } = AudioUpsamplingBackendRegistry.DefaultBackendId;
     public double GainDb { get; set; }
     /// <summary>把源的标签/封面（ATL 读取）内联写入输出（wav/aiff 不写）。</summary>
     public bool CopyMetadata { get; set; } = true;

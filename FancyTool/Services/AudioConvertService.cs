@@ -1,3 +1,4 @@
+using FancyToolAva.AudioEnhancement;
 using FFmpeg.AutoGen;
 using FancyToolAva.Models;
 using Microsoft.Extensions.Logging;
@@ -16,14 +17,20 @@ namespace FancyToolAva.Services;
 public sealed unsafe partial class AudioConvertService : IAudioConvertService
 {
     private readonly ILogger<AudioConvertService> _logger;
+    private readonly AudioUpsamplingBackendRegistry _upsamplingBackends;
+
+    /// <summary>Gets whether the selected output stores lossless PCM and can enable upsampling.</summary>
+    public static bool IsLosslessOutput(AudioConvertFormat format) => format is AudioConvertFormat.Wav
+        or AudioConvertFormat.Aiff or AudioConvertFormat.Flac or AudioConvertFormat.AlacM4a;
 
     private const int FlacCompressionLevel = 8;
     private static readonly int[] OpusRates = [8000, 12000, 16000, 24000, 48000];
     private const int DsdDefaultRate = 176400;
 
-    public AudioConvertService(ILogger<AudioConvertService> logger)
+    public AudioConvertService(ILogger<AudioConvertService> logger, AudioUpsamplingBackendRegistry? upsamplingBackends = null)
     {
         _logger = logger;
+        _upsamplingBackends = upsamplingBackends ?? new AudioUpsamplingBackendRegistry();
     }
 
     /// <summary>随转换内联写入的源元数据（wav/aiff 不写：RIFF/IFF INFO 无 UTF-8 互操作）。</summary>
@@ -142,6 +149,7 @@ public sealed unsafe partial class AudioConvertService : IAudioConvertService
         AVFrame* gainFrame = ffmpeg.av_frame_alloc();
         FrameFeeder? feeder = null;
         EnhancementFeeder? enhancement = null;
+        IAudioUpsamplingProcessor? upsampler = null;
 
         try
         {
@@ -179,11 +187,17 @@ public sealed unsafe partial class AudioConvertService : IAudioConvertService
 
             int depth = DetectBitDepth(decCtx, isDsd);
             int inRate = decCtx->sample_rate != 0 ? decCtx->sample_rate : 48000;
-            bool enhance = o.EnableSpectralEnhancement && !isDsd && inRate is 44100 or 48000
-                && decCtx->ch_layout.nb_channels is 1 or 2;
-            if (o.EnableSpectralEnhancement && !enhance)
-                _logger.LogInformation("频谱增强不适用于此输入，使用常规转码: {Rate} Hz / {Channels} ch", inRate, decCtx->ch_layout.nb_channels);
-            int outRate = o.SampleRateHz > 0 ? o.SampleRateHz : enhance ? inRate * 2 : inRate;
+            int sourceKbps = (int)Math.Clamp(inStream->codecpar->bit_rate / 1000, 0, 1020);
+            if (sourceKbps == 0) sourceKbps = 192;
+            var sourceInfo = new AudioUpsamplingSource(inRate, decCtx->ch_layout.nb_channels, depth,
+                sourceKbps, IsLossless(decCtx->codec_id), isDsd);
+            bool enableUpsampling = o.EnableSpectralEnhancement && IsLosslessOutput(o.Format);
+            var backend = enableUpsampling ? _upsamplingBackends.Get(o.UpsamplingBackendId) : null;
+            bool enhance = backend?.Supports(sourceInfo) == true;
+            if (enableUpsampling && !enhance)
+                _logger.LogInformation("升频后端不支持此输入，使用常规转码: {Rate} Hz / {Channels} ch", inRate, sourceInfo.Channels);
+            int outRate = enhance ? AudioUpsamplingRate.Resolve(inRate, o.UpsamplingMultiplier)
+                : o.SampleRateHz > 0 ? o.SampleRateHz : inRate;
             if (isDsd && o.SampleRateHz == 0) outRate = DsdDefaultRate;
 
             SelectEncoder(o, enhance && o.BitDepth == AudioBitDepthMode.Auto ? Math.Max(24, depth) : depth, isDsd, ref outRate,
@@ -272,10 +286,11 @@ public sealed unsafe partial class AudioConvertService : IAudioConvertService
                 WriteAttachedPic(ofmtCtx, picStream, metadata!.CoverBytes!);
 
             // 第一级重采样：解码格式 → 编码格式（DSD 需增益且目标为整型时先到 float，由第二级 gainSwr 施加增益）
+            if (enhance) upsampler = backend!.Create(new AudioUpsamplingRequest(sourceInfo, outRate), ct);
             bool gainNeedsFloatStage = applyGain && !IsFloatFormat(encFmt);
-            AVSampleFormat primaryFmt = enhance ? AVSampleFormat.AV_SAMPLE_FMT_S32
+            AVSampleFormat primaryFmt = enhance ? AVSampleFormat.AV_SAMPLE_FMT_DBL
                 : gainNeedsFloatStage ? AVSampleFormat.AV_SAMPLE_FMT_FLT : encFmt;
-            int processingRate = enhance ? inRate : outRate;
+            int processingRate = upsampler?.InputSampleRate ?? outRate;
 
             ffmpeg.swr_alloc_set_opts2(&swr, &encCtx->ch_layout, primaryFmt, processingRate,
                 &decCtx->ch_layout, decCtx->sample_fmt, decCtx->sample_rate, 0, null);
@@ -328,11 +343,10 @@ public sealed unsafe partial class AudioConvertService : IAudioConvertService
             feeder = new FrameFeeder(encCtx, ofmtCtx, outStream, pkt);
             if (enhance)
             {
-                int sourceKbps = (int)Math.Clamp(inStream->codecpar->bit_rate / 1000, 0, 1020);
-                if (sourceKbps == 0) sourceKbps = 192;
-                enhancement = new EnhancementFeeder(inRate, outRate >= inRate * 4 ? 4 : 2,
-                    IsLossless(decCtx->codec_id) ? 16 : 4, sourceKbps, depth,
-                    encCtx, feeder, gainSwr, gainFrame, applyGain, gainLinear);
+                var ownedProcessor = upsampler!;
+                upsampler = null; // The feeder owns disposal, including a failed constructor.
+                enhancement = new EnhancementFeeder(ownedProcessor, encCtx, feeder, gainSwr, gainFrame,
+                    applyGain, gainLinear, ct);
             }
             double totalSeconds = inFmt->duration > 0 ? inFmt->duration / (double)ffmpeg.AV_TIME_BASE : 0;
             long samplesWritten = 0;
@@ -392,23 +406,30 @@ public sealed unsafe partial class AudioConvertService : IAudioConvertService
         }
         finally
         {
-            enhancement?.Dispose();
-            feeder?.Dispose();
-            ffmpeg.av_frame_free(&gainFrame);
-            ffmpeg.av_frame_free(&swrFrame);
-            ffmpeg.av_frame_free(&decFrame);
-            ffmpeg.av_packet_free(&pkt);
-            if (swr != null) ffmpeg.swr_free(&swr);
-            if (gainSwr != null) ffmpeg.swr_free(&gainSwr);
-            if (encCtx != null) ffmpeg.avcodec_free_context(&encCtx);
-            if (ofmtCtx != null)
+            try { enhancement?.Dispose(); }
+            finally
             {
-                if (ofmtCtx->pb != null && (ofmtCtx->oformat->flags & ffmpeg.AVFMT_NOFILE) == 0)
-                    ffmpeg.avio_closep(&ofmtCtx->pb);
-                ffmpeg.avformat_free_context(ofmtCtx);
+                try { upsampler?.Dispose(); }
+                finally
+                {
+                    feeder?.Dispose();
+                    ffmpeg.av_frame_free(&gainFrame);
+                    ffmpeg.av_frame_free(&swrFrame);
+                    ffmpeg.av_frame_free(&decFrame);
+                    ffmpeg.av_packet_free(&pkt);
+                    if (swr != null) ffmpeg.swr_free(&swr);
+                    if (gainSwr != null) ffmpeg.swr_free(&gainSwr);
+                    if (encCtx != null) ffmpeg.avcodec_free_context(&encCtx);
+                    if (ofmtCtx != null)
+                    {
+                        if (ofmtCtx->pb != null && (ofmtCtx->oformat->flags & ffmpeg.AVFMT_NOFILE) == 0)
+                            ffmpeg.avio_closep(&ofmtCtx->pb);
+                        ffmpeg.avformat_free_context(ofmtCtx);
+                    }
+                    if (decCtx != null) ffmpeg.avcodec_free_context(&decCtx);
+                    if (inFmt != null) ffmpeg.avformat_close_input(&inFmt);
+                }
             }
-            if (decCtx != null) ffmpeg.avcodec_free_context(&decCtx);
-            if (inFmt != null) ffmpeg.avformat_close_input(&inFmt);
         }
     }
 

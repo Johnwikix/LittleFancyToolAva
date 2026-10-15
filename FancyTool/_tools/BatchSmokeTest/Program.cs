@@ -46,6 +46,7 @@ internal static class Program
         VmAudioPauseResume(audio, workDir);
         VmAudioStop(audio, workDir);
         VmAudioFailureLog(workDir);
+        VmUpsamplingSelection(workDir);
 
         Console.WriteLine($"----\nruns={_runs} failures={_failures}");
         if (_failedNames.Count > 0)
@@ -531,6 +532,51 @@ internal static class Program
                 Check(p != null, "partial output not playable: " + f);
             }
             vm.Dispose();
+        });
+    }
+
+    private static void VmUpsamplingSelection(string workDir)
+    {
+        Run("vm-upsampling-selection-state-and-output",()=>
+        {
+            var service=new AudioConvertService(NullLogger<AudioConvertService>.Instance);
+            using var vm=new AudioConvertViewModel(service,new FakeFfmpeg(),new FakeDialogs(),new FakeNotifs(),new FakeViewState());
+            vm.EnableSpectralEnhancement=true;
+            var changed=new HashSet<string>();
+            vm.PropertyChanged+=(_,e)=>{if(e.PropertyName is {} name)changed.Add(name);};
+            foreach(string format in vm.FormatLabels)
+            {
+                vm.SelectedFormat=format;
+                Check(vm.IsUpsamplingActive==vm.IsLosslessFormat,"upsampling not gated by output format");
+                Check(vm.EnableSpectralEnhancement,"switching format erased saved preference");
+            }
+            vm.SelectedFormat="WAV";
+            Check(changed.Contains(nameof(vm.IsUpsamplingActive)),"format switch did not notify active state");
+            vm.EnableSpectralEnhancement=false;
+            Check(!vm.IsUpsamplingActive,"disabled preference remained active");
+            vm.EnableSpectralEnhancement=true;
+            Check(vm.IsUpsamplingActive,"lossless output did not restore saved preference");
+            vm.UpsamplingMultiplierIndex=2;
+            var state=(FancyToolAva.Models.ViewStates.AudioConvertViewState)((FancyToolAva.Models.ViewStates.IViewState)vm).CaptureState();
+            Check(state.UpsamplingMultiplier==4&&state.EnableSpectralEnhancement,"selector not captured");
+            vm.UpsamplingMultiplierIndex=0;
+            ((FancyToolAva.Models.ViewStates.IViewState)vm).RestoreState(state);
+            Check(vm.UpsamplingMultiplierIndex==2&&vm.UpsamplingMultiplier==4,"selection not restored");
+            vm.UpsamplingMultiplierIndex=-1;
+            Check(vm.UpsamplingMultiplier==4,"transient selection cleared multiplier");
+            string input=Path.Combine(workDir,"vm-upsampling.wav");
+            WriteSineWav(input,44100,2,0.2);
+            vm.AddDroppedPaths([input]);
+            WaitFor(()=>vm.FileItems.Count==1,10000,"audio not added");
+            vm.SelectedFormat="WAV";
+            vm.SelectedSampleRate="48000";
+            vm.OutputFolder=Path.Combine(workDir,"vm-upsampling-out");
+            Directory.CreateDirectory(vm.OutputFolder);
+            vm.StartConvertCommand.NotifyCanExecuteChanged();
+            vm.StartConvertCommand.ExecuteAsync(null).GetAwaiter().GetResult();
+            string output=Directory.GetFiles(vm.OutputFolder,"*.wav").Single();
+            var info=service.ProbeAsync(output).GetAwaiter().GetResult();
+            Check(info?.SampleRate==176400,"VM did not pass 4x target to conversion");
         });
     }
 

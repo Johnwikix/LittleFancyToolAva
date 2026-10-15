@@ -62,7 +62,7 @@
                         <!-- 采样率 -->
                         <StackPanel Classes="FormRow">
                             <TextBlock Classes="FieldLabel" Text="{lan:I18n AudioTranscode.Label_SampleRate}" />
-                            <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding SampleRateLabels}" SelectedItem="{Binding SelectedSampleRate, Mode=TwoWay}" />
+                            <ComboBox HorizontalAlignment="Stretch" IsEnabled="{Binding !IsUpsamplingActive}" ItemsSource="{Binding SampleRateLabels}" SelectedItem="{Binding SelectedSampleRate, Mode=TwoWay}" />
                             <TextBlock Text="{lan:I18n AudioTranscode.Hint_SampleRate}" FontSize="11" Opacity="0.6" TextWrapping="Wrap" />
                         </StackPanel>
 
@@ -77,8 +77,12 @@
                         </StackPanel>
 
                         <StackPanel Classes="FormRow">
-                            <CheckBox IsChecked="{Binding EnableSpectralEnhancement, Mode=TwoWay}"
+                            <CheckBox IsEnabled="{Binding IsLosslessFormat}" IsChecked="{Binding EnableSpectralEnhancement, Mode=TwoWay}"
                                       Content="{lan:I18n AudioTranscode.Option_SpectralEnhancement}" />
+                            <TextBlock Text="{lan:I18n AudioTranscode.Label_UpsamplingMultiplier}" Classes="FieldLabel" />
+                            <ComboBox HorizontalAlignment="Stretch" IsEnabled="{Binding IsUpsamplingActive}"
+                                      ItemsSource="{Binding UpsamplingMultiplierLabels}"
+                                      SelectedIndex="{Binding UpsamplingMultiplierIndex, Mode=TwoWay}" />
                             <TextBlock Text="{lan:I18n AudioTranscode.Hint_SpectralEnhancement}"
                                        FontSize="11" Opacity="0.6" TextWrapping="Wrap" />
                         </StackPanel>

@@ -87,6 +87,7 @@ public partial class AudioConvertViewModel : ViewModelBase, IViewState, IAudioFi
             if (SetProperty(ref field, value))
             {
                 OnPropertyChanged(nameof(IsLosslessFormat));
+                OnPropertyChanged(nameof(IsUpsamplingActive));
                 OnPropertyChanged(nameof(IsBitDepthRelevant));
             }
         }
@@ -100,8 +101,9 @@ public partial class AudioConvertViewModel : ViewModelBase, IViewState, IAudioFi
 
     public AudioConvertFormat FormatEnum => FormatValues[Math.Clamp(FormatLabels.IndexOf(SelectedFormat ?? "MP3"), 0, FormatValues.Length - 1)];
 
-    public bool IsLosslessFormat => FormatEnum is AudioConvertFormat.Flac or AudioConvertFormat.AlacM4a
-        or AudioConvertFormat.Wav or AudioConvertFormat.Aiff;
+    public bool IsLosslessFormat => AudioConvertService.IsLosslessOutput(FormatEnum);
+    /// <summary>Gets whether the saved upsampling preference applies to the currently selected output.</summary>
+    public bool IsUpsamplingActive => EnableSpectralEnhancement && IsLosslessFormat;
     public bool IsBitDepthRelevant => IsLosslessFormat;
 
     // ── 码率（有损） ──
@@ -147,7 +149,31 @@ public partial class AudioConvertViewModel : ViewModelBase, IViewState, IAudioFi
     // ── 增益 / 元数据 ──
     public double GainDb { get => field; set => SetProperty(ref field, Math.Clamp(value, -30, 30)); } = 0;
     /// <summary>Gets or sets a value indicating whether spectral enhancement is enabled.</summary>
-    public bool EnableSpectralEnhancement { get => field; set => SetProperty(ref field, value); }
+    public bool EnableSpectralEnhancement
+    {
+        get => field;
+        set { if (SetProperty(ref field, value)) OnPropertyChanged(nameof(IsUpsamplingActive)); }
+    }
+    /// <summary>Gets the available target-rate multipliers.</summary>
+    public IReadOnlyList<string> UpsamplingMultiplierLabels { get; } = ["1×", "2×", "4×"];
+    /// <summary>Gets or sets the desired output multiplier.</summary>
+    public int UpsamplingMultiplier
+    {
+        get => field;
+        set
+        {
+            if (SetProperty(ref field, value is 1 or 2 or 4 ? value : 2))
+                OnPropertyChanged(nameof(UpsamplingMultiplierIndex));
+        }
+    } = 2;
+    /// <summary>Gets or sets the multiplier selector without accepting transient cleared selections.</summary>
+    public int UpsamplingMultiplierIndex
+    {
+        get => UpsamplingMultiplier switch { 1 => 0, 4 => 2, _ => 1 };
+        set { if (value is >= 0 and <= 2) UpsamplingMultiplier = value == 0 ? 1 : value == 1 ? 2 : 4; }
+    }
+    /// <summary>Gets or sets the backend selected by saved or future backend-specific settings.</summary>
+    public string UpsamplingBackendId { get; set; } = AudioEnhancement.AudioUpsamplingBackendRegistry.DefaultBackendId;
     public bool CopyMetadata { get => field; set => SetProperty(ref field, value); } = true;
 
     public bool IsFfmpegAvailable => _ffmpegService.IsAvailable;
@@ -406,6 +432,8 @@ public partial class AudioConvertViewModel : ViewModelBase, IViewState, IAudioFi
             GainDb = GainDb,
             CopyMetadata = CopyMetadata,
             EnableSpectralEnhancement = EnableSpectralEnhancement,
+            UpsamplingMultiplier = UpsamplingMultiplier,
+            UpsamplingBackendId = UpsamplingBackendId,
         };
         string targetExt = AudioConvertService.GetExtension(options.Format);
         _logger.LogInformation("批量音频转换开始：{Count} 个文件，格式 {Format}，输出目录 {Dir}",
@@ -528,6 +556,8 @@ public partial class AudioConvertViewModel : ViewModelBase, IViewState, IAudioFi
         GainDb = GainDb,
         CopyMetadata = CopyMetadata,
         EnableSpectralEnhancement = EnableSpectralEnhancement,
+        UpsamplingMultiplier = UpsamplingMultiplier,
+        UpsamplingBackendId = UpsamplingBackendId,
         IncludeAllInFolderScan = IncludeAllInFolderScan,
     };
 
@@ -549,6 +579,8 @@ public partial class AudioConvertViewModel : ViewModelBase, IViewState, IAudioFi
             GainDb = Math.Clamp(s.GainDb, -30, 30);
             CopyMetadata = s.CopyMetadata;
             EnableSpectralEnhancement = s.EnableSpectralEnhancement;
+            UpsamplingMultiplier = s.UpsamplingMultiplier;
+            UpsamplingBackendId = string.IsNullOrWhiteSpace(s.UpsamplingBackendId) ? AudioEnhancement.AudioUpsamplingBackendRegistry.DefaultBackendId : s.UpsamplingBackendId;
             IncludeAllInFolderScan = s.IncludeAllInFolderScan;
         }
         catch (Exception ex)

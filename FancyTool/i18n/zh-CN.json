@@ -614,8 +614,9 @@
     "Sr_CancelInstall": "取消安装"
   },
   "AudioTranscode": {
-    "Option_SpectralEnhancement": "启用频谱增强",
-    "Hint_SpectralEnhancement": "适用于 44.1/48 kHz 单声道与双声道音频。自动采样率使用 2 倍升频，无损 Auto 位深至少 24 位；输出受编码器限制。其他输入使用常规转码。",
+    "Label_UpsamplingMultiplier": "目标倍率",
+    "Option_SpectralEnhancement": "启用升频",
+    "Hint_SpectralEnhancement": "仅无损输出可用；1× 也补全高频，倍率决定采样率，最高 192 kHz。适用于 44.1/48 kHz 单/双声道 PCM。",
     "Title": "音频转码",
     "Subtitle": "批量音频转换（内置 FFmpeg 进程内调用，标签/封面跟随写入）",
     "Label_Format": "输出格式",
