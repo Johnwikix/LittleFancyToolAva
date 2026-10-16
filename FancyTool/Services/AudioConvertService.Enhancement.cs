@@ -5,7 +5,7 @@ namespace FancyToolAva.Services;
 
 public sealed unsafe partial class AudioConvertService
 {
-    /// <summary>Bridges normalized PCM to any registered block backend, then converts its native output for the encoder.</summary>
+    /// <summary>将归一化 PCM 桥接到已注册的数据块后端，再将后端输出转换为编码器所需格式。</summary>
     private sealed class EnhancementFeeder : IDisposable
     {
         private readonly IAudioUpsamplingProcessor _processor;
@@ -25,7 +25,7 @@ public sealed unsafe partial class AudioConvertService
         private long _inputFrames, _emitted;
         private bool _finished, _disposed;
 
-        /// <summary>Takes ownership of one processor and its file-local signal state.</summary>
+        /// <summary>接管一个处理器及其当前文件独有的信号状态。</summary>
         public EnhancementFeeder(IAudioUpsamplingProcessor processor, AVCodecContext* encoder, FrameFeeder feeder,
             SwrContext* gainSwr, AVFrame* gainFrame, bool applyGain, double gain, CancellationToken cancellationToken)
         {
