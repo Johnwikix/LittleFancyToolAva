@@ -9,7 +9,8 @@ public partial class VideoTranscodeViewModel
 {
     private readonly IVideoSuperResolutionService? _videoSrService;
     private CancellationTokenSource? _srInstallCts;
-    private static readonly SuperResolutionModel[] VideoModels = [SuperResolutionModel.SpanClearRealityV1, SuperResolutionModel.LiveActionSpanX2, SuperResolutionModel.RealEsrganGeneralX4V3, SuperResolutionModel.RealEsrganX4PlusAnime, SuperResolutionModel.RealEsrganX4Plus, SuperResolutionModel.NanoVsr644K];
+    private static readonly VideoSrModel[] VideoModels = VideoSrModelCatalog.Models.Select(model => model.Model).ToArray();
+    private static readonly VideoSrBackend[] VideoBackends = [VideoSrBackend.Auto];
 
     /// <summary>Gets or sets whether video frames are enhanced with a neural model.</summary>
     public bool IsVideoSrEnabled
@@ -18,16 +19,12 @@ public partial class VideoTranscodeViewModel
         set { if (IsBusy) return; if (SetProperty(ref field, value)) RefreshSrState(); }
     }
     /// <summary>Gets the localized video model choices.</summary>
-    public IReadOnlyList<LocalizedOption> VideoSrModelLabels { get; } = [new("VideoTranscode.Sr_ModelSpan"),
-        new("ImageConvert.SrModel_LiveActionSpanX2"), new("VideoTranscode.Sr_ModelFast"),
-        new("VideoTranscode.Sr_ModelAnime"), new("VideoTranscode.Sr_ModelQuality"), new("VideoTranscode.Sr_ModelNanoVsr")];
+    public IReadOnlyList<LocalizedOption> VideoSrModelLabels { get; } = VideoSrModelCatalog.Models.Select(model => new LocalizedOption(model.LabelKey)).ToArray();
     /// <summary>Gets the localized accelerator preferences.</summary>
-    public IReadOnlyList<LocalizedOption> VideoSrBackendLabels { get; } = [new("VideoTranscode.Sr_BackendAuto"),
-        new("VideoTranscode.Sr_BackendNpu"), new("VideoTranscode.Sr_BackendGpu"), new("VideoTranscode.Sr_BackendCpu")];
+    public IReadOnlyList<LocalizedOption> VideoSrBackendLabels { get; } = [new("VideoTranscode.Sr_AutoGpu")];
     private static readonly string[] VideoSrScales = ["2×", "4×"];
-    private static readonly string[] VideoSrNativeScales = ["2×"];
     /// <summary>Gets the available enhancement scales.</summary>
-    public string[] VideoSrScaleLabels => VideoModels[VideoSrModelIndex] == SuperResolutionModel.LiveActionSpanX2 ? VideoSrNativeScales : VideoSrScales;
+    public string[] VideoSrScaleLabels => VideoSrScales;
     /// <summary>Gets or sets the selected neural model index.</summary>
     public int VideoSrModelIndex
     {
@@ -37,7 +34,11 @@ public partial class VideoTranscodeViewModel
             if (IsBusy || value < 0) return;
             if (SetProperty(ref field, Math.Clamp(value, 0, VideoModels.Length - 1)))
             {
-                if (VideoModels[field] == SuperResolutionModel.LiveActionSpanX2) VideoSrScaleIndex = 0;
+                if (!SupportsVideoSrFp16) VideoSrUseFp16 = false;
+                if (IsVideoSrVendorOnly) VideoSrBackendIndex = 0;
+                OnPropertyChanged(nameof(IsVideoSrVendorOnly));
+                OnPropertyChanged(nameof(SupportsVideoSrFp16));
+                OnPropertyChanged(nameof(IsVideoSrRavu));
                 OnPropertyChanged(nameof(VideoSrScaleLabels));
                 OnPropertyChanged(nameof(VideoSrScaleIndex));
                 RefreshSrState();
@@ -45,11 +46,27 @@ public partial class VideoTranscodeViewModel
         }
     }
     /// <summary>Gets or sets the enhancement scale index.</summary>
-    public int VideoSrScaleIndex { get => field; set { if (!IsBusy && value >= 0) SetProperty(ref field, Math.Clamp(value, 0, VideoModels[VideoSrModelIndex] == SuperResolutionModel.LiveActionSpanX2 ? 0 : 1)); } }
+    public int VideoSrScaleIndex { get => field; set { if (!IsBusy && value >= 0) SetProperty(ref field, Math.Clamp(value, 0, 1)); } }
     /// <summary>Gets or sets the hardware preference index.</summary>
-    public int VideoSrBackendIndex { get => field; set { if (!IsBusy && value >= 0) SetProperty(ref field, Math.Clamp(value, 0, 3)); } }
-    /// <summary>Gets or sets whether software inference is allowed after hardware failure.</summary>
-    public bool VideoSrAllowCpuFallback { get => field; set { if (!IsBusy) SetProperty(ref field, value); } } = true;
+    public int VideoSrBackendIndex
+    {
+        get => field;
+        set
+        {
+            if (IsBusy || value < 0) return;
+            if (!SetProperty(ref field, IsVideoSrVendorOnly ? 0 : Math.Clamp(value, 0, VideoBackends.Length - 1))) return;
+            if (!SupportsVideoSrFp16) VideoSrUseFp16 = false;
+            OnPropertyChanged(nameof(SupportsVideoSrFp16));
+        }
+    }
+    /// <summary>Gets whether the selected model has a validated half-precision graph.</summary>
+    public bool SupportsVideoSrFp16 => VideoSrBackendIndex == 0 && VideoSrModelCatalog.Get(VideoModels[VideoSrModelIndex]).SupportsFp16;
+    /// <summary>Gets whether RAVU requires full-precision DirectML execution.</summary>
+    public bool IsVideoSrRavu => !VideoSrModelCatalog.Get(VideoModels[VideoSrModelIndex]).SupportsFp16;
+    /// <summary>Gets whether the selected model requires a vendor GPU without DirectML fallback.</summary>
+    public bool IsVideoSrVendorOnly => VideoSrModelCatalog.Get(VideoModels[VideoSrModelIndex]).RequiresVendorGpu;
+    /// <summary>Gets or sets whether half-precision GPU acceleration is enabled.</summary>
+    public bool VideoSrUseFp16 { get => field; set { if (!IsBusy) SetProperty(ref field, value && SupportsVideoSrFp16); } } = true;
     /// <summary>Gets the actual inference device once a video conversion starts.</summary>
     public string VideoSrDeviceText { get => field; private set => SetProperty(ref field, value); } = string.Empty;
     /// <summary>Gets whether the selected model is being installed.</summary>

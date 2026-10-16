@@ -3,82 +3,108 @@ using Microsoft.Extensions.Logging;
 
 namespace FancyToolAva.Services;
 
-/// <summary>Shares the image model installer while giving every video a private, serial hardware inference session.</summary>
-public sealed class VideoSuperResolutionService(ModelDownloadService downloader, ILogger<VideoSuperResolutionService> logger, AppPreferences? preferences = null) : IVideoSuperResolutionService
+/// <summary>Installs packaged models and leases reusable GPU-only sessions exclusively to each video.</summary>
+public sealed class VideoSuperResolutionService(ModelDownloadService downloader, ILogger<VideoSuperResolutionService> logger, AppPreferences? preferences = null) : IVideoSuperResolutionService, IDisposable
 {
+    private readonly SemaphoreSlim _sessionGate = new(1, 1);
+    private readonly Dictionary<(string Path, int Window, VideoSrBackend Backend, bool Half), IVideoFrameUpscaler> _sessions = new();
+    private volatile bool _disposed;
     /// <inheritdoc />
     public event Action<ModelDownloadProgress>? DownloadProgressChanged;
     /// <inheritdoc />
     public event Action<VideoSrDevice>? DeviceChanged;
 
-    internal static ModelManifestEntry GetModel(SuperResolutionModel model) => model == SuperResolutionModel.NanoVsr644K
-        ? ModelManifest.NanoVsr : ModelManifest.RealEsrgan[(int)model];
+    /// <inheritdoc />
+    public bool IsModelAvailable(VideoSrModel model) => File.Exists(Path.Combine(AppPaths.ModelsDirectory, "VideoSr", VideoSrModelCatalog.Get(model).FullPrecision.FileName));
 
     /// <inheritdoc />
-    public bool IsModelAvailable(SuperResolutionModel model) => File.Exists(Path.Combine(AppPaths.ModelsDirectory, GetModel(model).FileName));
-
-    /// <inheritdoc />
-    public Task EnsureModelAsync(SuperResolutionModel model, CancellationToken ct = default)
-        => Task.Run(() => downloader.UseModelsAsync([GetModel(model)], () => AppPaths.ModelsDirectory, _ => true,
+    public Task EnsureModelAsync(VideoSrModel model, CancellationToken ct = default)
+    {
+        var definition = VideoSrModelCatalog.Get(model);
+        ModelManifestEntry[] graphs = definition.HalfPrecision is { } half ? [definition.FullPrecision, half] : [definition.FullPrecision];
+        return Task.Run(() => downloader.UseModelsAsync(graphs, () => Path.Combine(AppPaths.ModelsDirectory, "VideoSr"), _ => true,
             new Progress<ModelDownloadProgress>(p => DownloadProgressChanged?.Invoke(p)), ct), ct);
+    }
 
     /// <inheritdoc />
     public Task InstallAccelerationAsync(CancellationToken ct = default) => WindowsMlAccelerator.InstallAsync(
-        name => DownloadProgressChanged?.Invoke(new ModelDownloadProgress(name, ModelDownloadStage.Connecting, 0, null, LocalizationRegistry.Get("VideoTranscode.Sr_InstallingHardware") + " · " + name)), ct);
+        name => DownloadProgressChanged?.Invoke(new ModelDownloadProgress(name, ModelDownloadStage.Connecting, 0, null,
+            LocalizationRegistry.Get("VideoTranscode.Sr_InstallingHardware") + " · " + name)), ct);
 
     /// <inheritdoc />
     public async Task<IVideoFrameUpscaler> CreateSessionAsync(VideoTranscodeOptions options, CancellationToken ct = default)
     {
         if (options.SuperResolutionScale is not (2 or 4)) throw new ArgumentOutOfRangeException(nameof(options));
-        if (options.SuperResolutionScale > GetModel(options.SuperResolutionModel).NativeScale) throw new ArgumentOutOfRangeException(nameof(options), "This model supports 2× output only");
-        return await Task.Run(() => downloader.UseModelsAsync<IVideoFrameUpscaler>([GetModel(options.SuperResolutionModel)],
-            () => AppPaths.ModelsDirectory, directory =>
+        if (options.SuperResolutionBackend is not (VideoSrBackend.Auto or VideoSrBackend.Gpu or VideoSrBackend.DirectMl))
+            throw new NotSupportedException(LocalizationRegistry.Get("VideoTranscode.Sr_GpuRequired"));
+        var definition = VideoSrModelCatalog.Get(options.SuperResolutionModel);
+        var graph = definition.GetGraph(options.SuperResolutionUseFp16);
+        if (!definition.RequiresDirectMl && options.SuperResolutionBackend == VideoSrBackend.DirectMl)
+            throw new NotSupportedException(LocalizationRegistry.Get("VideoTranscode.Sr_VendorGpuRequired"));
+        await _sessionGate.WaitAsync(ct).ConfigureAwait(false);
+        try
         {
-            string path = Path.Combine(directory, GetModel(options.SuperResolutionModel).FileName);
-            int nativeScale = GetModel(options.SuperResolutionModel).NativeScale;
-            int window = new[] { 192, 288, 384, 576 }[Math.Clamp(preferences?.SuperResolutionTileSizeIndex ?? 2, 0, 3)];
-            var backends = options.SuperResolutionBackend switch
-            {
-                VideoSrBackend.PreferNpu => new[] { VideoSrBackend.PreferNpu, VideoSrBackend.Gpu },
-                VideoSrBackend.Gpu => new[] { VideoSrBackend.Gpu },
-                VideoSrBackend.Cpu => new[] { VideoSrBackend.Cpu },
-                _ => new[] { VideoSrBackend.Gpu, VideoSrBackend.PreferNpu }
-            };
-            var failures = new List<string>();
-            foreach (var backend in backends)
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            var session = await downloader.UseModelsAsync<IVideoFrameUpscaler>([graph],
+                () => Path.Combine(AppPaths.ModelsDirectory, "VideoSr"), directory =>
             {
                 ct.ThrowIfCancellationRequested();
+                int window = new[] { 192, 288, 384, 576 }[Math.Clamp(preferences?.SuperResolutionTileSizeIndex ?? 2, 0, 3)];
+                if (definition.RequiresDirectMl) window = Math.Max(window, 384);
+                var backend = definition.RequiresDirectMl ? VideoSrBackend.DirectMl : VideoSrBackend.VendorGpu;
+                var key = (Path.Combine(directory, graph.FileName), window, backend, options.SuperResolutionUseFp16);
+                if (_sessions.TryGetValue(key, out var cached)) return cached;
+                // Bound retained compiled graphs; leases serialize native inference and eviction.
+                if (_sessions.Count >= 10)
+                {
+                    var oldest = _sessions.First();
+                    _sessions.Remove(oldest.Key);
+                    oldest.Value.Dispose();
+                }
+                var tile = new OrtVideoSrTileModel(Path.Combine(directory, graph.FileName), backend, window, ct, 2,
+                    requireHardware: true, useFp16: options.SuperResolutionUseFp16);
                 try
                 {
-                    if (options.SuperResolutionModel == SuperResolutionModel.NanoVsr644K)
-                    {
-                        var sequence = new OrtNanoVsrUpscaler(path, backend, Math.Min(window, 192), ct,
-                            failures.Count > 0 ? string.Join("; ", failures) : null);
-                        DeviceChanged?.Invoke(sequence.Device);
-                        logger.LogInformation("NanoVSR inference device: {Device}", sequence.Device.Name);
-                        return sequence;
-                    }
-                    var tile = SrTileFactory.Create(path, backend, window, ct, out var selected, nativeScale);
-                    var device = selected with { FallbackReason = failures.Count > 0 ? string.Join("; ", failures) : selected.FallbackReason };
-                    DeviceChanged?.Invoke(device);
-                    logger.LogInformation("Video SR inference device: {Device}; fallback: {Fallback}", device.Name, device.FallbackReason);
-                    return new VideoFrameUpscaler(tile, device, window, nativeScale);
+                    var upscaler = new CascadedVideoFrameUpscaler(new VideoFrameUpscaler(tile, tile.Device, window, 2));
+                    _sessions.Add(key, upscaler);
+                    return upscaler;
                 }
-                catch (OperationCanceledException) { throw; }
-                catch (Exception ex) { failures.Add(ex.Message); logger.LogWarning(ex, "Video SR backend {Backend} unavailable", backend); }
-            }
-            if (!options.SuperResolutionAllowCpuFallback)
-                throw new InvalidOperationException(LocalizationRegistry.Get("VideoTranscode.Msg_SrHardwareFailed") + " " + string.Join("; ", failures));
-            var fallback = new VideoSrDevice("CPU", false, string.Join("; ", failures));
-            if (options.SuperResolutionModel == SuperResolutionModel.NanoVsr644K)
-            {
-                var sequence = new OrtNanoVsrUpscaler(path, VideoSrBackend.Cpu, Math.Min(window, 192), ct, fallback.FallbackReason);
-                DeviceChanged?.Invoke(fallback);
-                return sequence;
-            }
-            var cpu = new OrtVideoSrTileModel(path, VideoSrBackend.Cpu, window, ct, nativeScale);
-            DeviceChanged?.Invoke(fallback);
-            return new VideoFrameUpscaler(cpu, fallback, window, nativeScale);
-        }, new Progress<ModelDownloadProgress>(p => DownloadProgressChanged?.Invoke(p)), ct), ct).ConfigureAwait(false);
+                catch { tile.Dispose(); throw; }
+            }, new Progress<ModelDownloadProgress>(p => DownloadProgressChanged?.Invoke(p)), ct).ConfigureAwait(false);
+            ct.ThrowIfCancellationRequested();
+            DeviceChanged?.Invoke(session.Device);
+            logger.LogInformation("Video SR {Model}, FP16={Fp16}, device={Device}", definition.Model, options.SuperResolutionUseFp16, session.Device.Name);
+            return new SessionLease(session, _sessionGate);
+        }
+        catch { _sessionGate.Release(); throw; }
+    }
+
+    /// <summary>Disposes retained GPU sessions after all outstanding video work completes.</summary>
+    public void Dispose()
+    {
+        _sessionGate.Wait();
+        try
+        {
+            if (_disposed) return;
+            _disposed = true;
+            foreach (var session in _sessions.Values) session.Dispose();
+            _sessions.Clear();
+        }
+        finally { _sessionGate.Release(); }
+    }
+
+    private sealed class SessionLease(IVideoFrameUpscaler inner, SemaphoreSlim gate) : IVideoFrameUpscaler
+    {
+        private int _released;
+        /// <inheritdoc />
+        public VideoSrDevice Device => inner.Device;
+        /// <inheritdoc />
+        public SkiaSharp.SKBitmap Upscale(SkiaSharp.SKBitmap source, int scale, CancellationToken ct)
+        {
+            ObjectDisposedException.ThrowIf(Volatile.Read(ref _released) != 0, this);
+            return inner.Upscale(source, scale, ct);
+        }
+        /// <inheritdoc />
+        public void Dispose() { if (Interlocked.Exchange(ref _released, 1) == 0) gate.Release(); }
     }
 }

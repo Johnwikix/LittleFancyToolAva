@@ -76,6 +76,8 @@
 
 “画质”页集中显示 AI 视频超分和 HDR 输出选项。HDR 输出可选“与源一致”“强制 HDR”“强制 SDR”：强制 HDR 将 SDR 经 BT.2446 逆映射转换为 1000 尼特目标的 10 位 PQ / BT.2020；强制 SDR 对 HDR 做亮度映射并输出 BT.709。与源一致保留 SDR、PQ 或 HLG 类型，GIF 始终输出 SDR。不支持 10 位 HDR 的编码器或档次会提示调整设置。
 
+视频超分提供 Anime4K CNN S/M、FSRCNNX s/m 和 RAVU Lite r2/r3 六档，模型随应用分发，可离线安装与校验，存放在模型管理目录的 `VideoSr` 子目录。仅使用 GPU，按模型自动选择已验证的后端，没有 CPU 回退。Anime4K / FSRCNNX 可选 FP16，使用厂商 GPU 加速（Intel 为 OpenVINO）；RAVU r2 使用 DirectML FP32，r3 使用厂商 GPU FP32。缺少兼容组件时可点击安装 GPU 加速。批量视频独占租用并复用已编译会话。2×运行一次，4×运行两次，耗时和内存更高。旧视频模型选择会迁移到 Anime4K S，图片超分仍保留原有模型。模型来源及许可见 [模型说明](FancyTool/Libraries/VideoSr/NOTICE.md)。
+
 现有超分模型处理 SDR 图像；HDR 素材启用超分时先映射为 SDR，再按输出选择转回 HDR。逆映射可扩展高光，但不能保证恢复 SDR 中已经丢失的细节。算法与模型目录说明见 [设计记录](FancyTool/docs/adr/0005-model-storage-and-hdr-output.md)。
 
 ### 歌词与字幕提取

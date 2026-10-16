@@ -6,10 +6,6 @@ public sealed record ModelManifestEntry(string FileName, string SourceUrl, strin
 
 public static class ModelManifest
 {
-    /// <summary>Locally exported, fused five-frame NanoVSR; installed from the application package.</summary>
-    public static ModelManifestEntry NanoVsr { get; } = new("nanovsr_644k_t5_fp16.onnx", "", "", "1F4DF91EF0D7D201309FC7295A19434A4A29603C1EFA8850741D23E9B76AC03A",
-        BundledRelativePath: "Libraries/NanoVSR/nanovsr_644k_t5_fp16.onnx");
-
     public static IReadOnlyList<ModelManifestEntry> RealEsrgan { get; } = new[]
     {
         new ModelManifestEntry(

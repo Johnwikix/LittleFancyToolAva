@@ -243,7 +243,7 @@ public partial class ImageConvertViewModel : ViewModelBase, IViewState, IFileIte
     public List<string> AvailableFilters { get; } = ["Lanczos", "Mitchell", "Catrom", "Cubic", "Triangle", "Box"];
     public List<int> AvailableSizes { get; } = [16, 32, 48, 64, 128, 256];
     public List<SuperResolutionModel> AvailableSuperResolutionModels { get; } = Enum.GetValues<SuperResolutionModel>()
-        .Where(model => model != SuperResolutionModel.NanoVsr644K).ToList();
+        .ToList();
 
     public ImageConvertViewModel(
         IImageConversionService imageConversionService,

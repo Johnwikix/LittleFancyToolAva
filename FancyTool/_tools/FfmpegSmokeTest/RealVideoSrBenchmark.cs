@@ -15,7 +15,7 @@ internal static partial class Program
         string Argument(string key) => args.ElementAtOrDefault(Array.IndexOf(args, key) + 1)
             is { } value && Array.IndexOf(args, key) >= 0 ? value : throw new ArgumentException("Missing " + key);
         string input = Path.GetFullPath(Argument("--input"));
-        var model = Enum.Parse<SuperResolutionModel>(Argument("--model"));
+        var model = Enum.Parse<VideoSrModel>(Argument("--model"));
         string output = Path.Combine(workDir, "output.mp4");
         ffmpeg.av_log_set_level(ffmpeg.AV_LOG_ERROR);
         using var http = new HttpClient();
@@ -32,8 +32,7 @@ internal static partial class Program
         var options = new VideoTranscodeOptions
         {
             SuperResolutionEnabled = true, SuperResolutionModel = model, SuperResolutionScale = 2,
-            SuperResolutionBackend = VideoSrBackend.Gpu, SuperResolutionAllowCpuFallback = false,
-            HardwareBackend = HardwareBackend.Nvidia, VideoCodec = VideoCodec.H264,
+            SuperResolutionBackend = VideoSrBackend.Gpu, HardwareBackend = HardwareBackend.Nvidia, VideoCodec = VideoCodec.H264,
             AudioCodec = AudioCodec.None, RateControl = RateControlMode.Crf, Crf = 18,
             Preset = PresetLevel.Fast, HdrOutput = VideoHdrOutput.ForceSdr
         };
@@ -54,8 +53,8 @@ internal static partial class Program
         {
             model = model.ToString(), input, source.Width, source.Height, source.Fps, source.DurationMs,
             output, outputWidth = result.Width, outputHeight = result.Height, outputFrames,
-            device = measured.Device, tileWindow = model == SuperResolutionModel.NanoVsr644K ? 192 : 384,
-            temporalFrames = model == SuperResolutionModel.NanoVsr644K ? 5 : 1,
+            device = measured.Device, tileWindow = 384,
+            temporalFrames = 1,
             encoder = "h264_nvenc", preset = "p4", constQp = 18, audio = false,
             startUtc, endUtc, elapsedSeconds, endToEndFps = outputFrames / elapsedSeconds,
             sessionSetupMs = measured.SetupMs, inferenceMs = measured.InferenceMs,
@@ -79,8 +78,8 @@ internal static partial class Program
         internal DateTimeOffset SteadyStartUtc, LastInferenceUtc;
         public event Action<ModelDownloadProgress>? DownloadProgressChanged { add => inner.DownloadProgressChanged += value; remove => inner.DownloadProgressChanged -= value; }
         public event Action<VideoSrDevice>? DeviceChanged { add => inner.DeviceChanged += value; remove => inner.DeviceChanged -= value; }
-        public bool IsModelAvailable(SuperResolutionModel model) => inner.IsModelAvailable(model);
-        public Task EnsureModelAsync(SuperResolutionModel model, CancellationToken ct = default) => inner.EnsureModelAsync(model, ct);
+        public bool IsModelAvailable(VideoSrModel model) => inner.IsModelAvailable(model);
+        public Task EnsureModelAsync(VideoSrModel model, CancellationToken ct = default) => inner.EnsureModelAsync(model, ct);
         public Task InstallAccelerationAsync(CancellationToken ct = default) => inner.InstallAccelerationAsync(ct);
         public async Task<IVideoFrameUpscaler> CreateSessionAsync(VideoTranscodeOptions options, CancellationToken ct = default)
         {

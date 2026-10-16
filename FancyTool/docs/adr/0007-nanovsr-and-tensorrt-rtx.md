@@ -1,5 +1,7 @@
 # NanoVSR 时序超分与 TensorRT RTX 修复
 
+> 视频模型部分已被 [轻量 GPU 视频超分](0008-lightweight-gpu-video-sr.md) 替代；本文保留当时的实验记录，NanoVSR 已从当前视频功能与分发包移除。TensorRT RTX 提供程序发现修复继续适用于其他模型。
+
 日期：2026-10-16。
 
 视频超分新增 NanoVSR 644K，沿用 Windows ML / ONNX Runtime，不引入第二套原生推理库。

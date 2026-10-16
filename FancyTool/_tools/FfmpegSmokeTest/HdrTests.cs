@@ -265,8 +265,8 @@ internal static partial class Program
     {
         public event Action<ModelDownloadProgress>? DownloadProgressChanged { add { } remove { } }
         public event Action<VideoSrDevice>? DeviceChanged { add { } remove { } }
-        public bool IsModelAvailable(SuperResolutionModel model) => true;
-        public Task EnsureModelAsync(SuperResolutionModel model, CancellationToken ct = default) => Task.CompletedTask;
+        public bool IsModelAvailable(VideoSrModel model) => true;
+        public Task EnsureModelAsync(VideoSrModel model, CancellationToken ct = default) => Task.CompletedTask;
         public Task InstallAccelerationAsync(CancellationToken ct = default) => Task.CompletedTask;
         public Task<IVideoFrameUpscaler> CreateSessionAsync(VideoTranscodeOptions options, CancellationToken ct = default)
             => Task.FromResult<IVideoFrameUpscaler>(new HdrTestUpscaler());

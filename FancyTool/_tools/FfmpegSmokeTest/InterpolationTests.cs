@@ -108,9 +108,8 @@ internal static partial class Program
             string output = Path.Combine(workDir, $"interpolation-upscaled-{mode}-{order}.mp4");
             var options = Options(mode, .4, .6); options.FrameProcessingOrder = order;
             options.SuperResolutionEnabled = true;
-            options.SuperResolutionModel = SuperResolutionModel.RealEsrganGeneralX4V3;
-            options.SuperResolutionBackend = VideoSrBackend.PreferNpu;
-            options.SuperResolutionAllowCpuFallback = false;
+            options.SuperResolutionModel = VideoSrModel.Anime4KCnnS;
+            options.SuperResolutionBackend = VideoSrBackend.Gpu;
             options.CropEnabled = true; options.CropLeft = options.CropRight = 4;
             options.ScaleMode = ScaleMode.Exact; options.ScaleWidth = 200; options.ScaleHeight = 150;
             service.TranscodeAsync(source, output, options).GetAwaiter().GetResult();

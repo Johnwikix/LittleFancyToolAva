@@ -177,13 +177,13 @@ public sealed class VideoTranscodeOptions
     /// <summary>Gets or sets whether decoded video frames are enhanced before output scaling and encoding.</summary>
     public bool SuperResolutionEnabled { get; set; }
     /// <summary>Gets or sets the neural model used for frame enhancement.</summary>
-    public Services.SuperResolutionModel SuperResolutionModel { get; set; } = Services.SuperResolutionModel.SpanClearRealityV1;
+    public Services.VideoSrModel SuperResolutionModel { get; set; } = Services.VideoSrModel.Anime4KCnnS;
     /// <summary>Gets or sets the enhancement scale, either two or four.</summary>
     public int SuperResolutionScale { get; set; } = 2;
     /// <summary>Gets or sets the preferred inference accelerator.</summary>
     public Services.VideoSrBackend SuperResolutionBackend { get; set; }
-    /// <summary>Gets or sets whether software inference is allowed when both hardware backends fail.</summary>
-    public bool SuperResolutionAllowCpuFallback { get; set; } = true;
+    /// <summary>Gets or sets whether a validated FP16 graph is used for GPU inference.</summary>
+    public bool SuperResolutionUseFp16 { get; set; }
     /// <summary>Gets or sets the inclusive trim start on the source timeline, in seconds.</summary>
     public double TrimStartSeconds { get; set; }
 

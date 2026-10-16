@@ -24,25 +24,21 @@ internal static partial class Program
             for (int i = 0; i < 30; i++) canvas.DrawCircle(i * 23, i * 11, 15, paint);
         }
         var records = new List<object>();
-        foreach (var model in new[] { SuperResolutionModel.LiveActionSpanX2, SuperResolutionModel.RealEsrganGeneralX4V3, SuperResolutionModel.SpanClearRealityV1, SuperResolutionModel.RealEsrganX4Plus })
+        foreach (var model in Enum.GetValues<VideoSrModel>())
         {
             var clock = Stopwatch.StartNew();
             using var session = video.CreateSessionAsync(new VideoTranscodeOptions
             {
                 SuperResolutionModel = model, SuperResolutionBackend = VideoSrBackend.Gpu,
-                SuperResolutionAllowCpuFallback = false
-            }).GetAwaiter().GetResult();
+                }).GetAwaiter().GetResult();
             double setup = clock.Elapsed.TotalMilliseconds;
             Measure("video", model, session.Device.Name, setup, () => session.Upscale(source, 2, default));
-            var preferences = new AppPreferences { UseSuperResolutionNpu = false };
-            using var image = new SuperResolutionService(NullLogger<SuperResolutionService>.Instance, preferences, downloader);
-            image.WarmupTask.GetAwaiter().GetResult();
-            Measure("image", model, "GPU", 0, () => image.UpscaleAsync(source, model, 2).GetAwaiter().GetResult());
+
         }
         File.WriteAllText(Path.Combine(workDir, "sr-benchmark.json"), JsonSerializer.Serialize(records, new JsonSerializerOptions { WriteIndented = true }));
         return 0;
 
-        void Measure(string pipeline, SuperResolutionModel model, string device, double setup, Func<SKBitmap> run)
+        void Measure(string pipeline, VideoSrModel model, string device, double setup, Func<SKBitmap> run)
         {
             var clock = Stopwatch.StartNew();
             using (var cold = run()) cold.GetPixel(0, 0);

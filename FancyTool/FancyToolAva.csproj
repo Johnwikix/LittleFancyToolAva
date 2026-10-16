@@ -19,9 +19,7 @@
   <Import Project="WindowsInference.props" />
   <ItemGroup>
     <InternalsVisibleTo Include="FfmpegSmokeTest" />
-    <None Include="Libraries/NanoVSR/*.onnx" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
-    <None Include="Libraries/NanoVSR/LICENSE.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Link="Licenses/NanoVSR.txt" />
-    <None Include="Libraries/NanoVSR/NOTICE.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Link="Licenses/NanoVSR-NOTICE.md" />
+    <None Include="Libraries/VideoSr/*.onnx;Libraries/VideoSr/models.json;Libraries/VideoSr/NOTICE.md;Libraries/VideoSr/Licenses/*" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <None Include="Libraries/InterpolationModels/LICENSE.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Link="Licenses/RIFE.txt" />
     <None Include="Libraries/InterpolationModels/NOTICE.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Link="Licenses/RIFE-NOTICE.md" />
   </ItemGroup>

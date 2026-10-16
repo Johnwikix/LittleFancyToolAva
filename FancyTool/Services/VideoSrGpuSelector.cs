@@ -19,7 +19,7 @@ internal static unsafe class VideoSrGpuSelector
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate int Enumerate(nint factory, uint index, out nint adapter);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate int Describe(nint adapter, AdapterDescription* description);
 
-    internal static (int Index, string Name) Select()
+    internal static (int Index, string Name, uint VendorId, uint DeviceId) Select()
     {
         if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException("DirectML requires Windows");
         Guid iid = new("770aae78-f26f-4dba-a829-253c83d1b387");
@@ -27,7 +27,7 @@ internal static unsafe class VideoSrGpuSelector
         try
         {
             var enumerate = Marshal.GetDelegateForFunctionPointer<Enumerate>(Marshal.ReadIntPtr(Marshal.ReadIntPtr(factory), 12 * IntPtr.Size));
-            (int Index, string Name)? best = null;
+            (int Index, string Name, uint VendorId, uint DeviceId)? best = null;
             nuint memory = 0;
             for (uint i = 0; enumerate(factory, i, out nint adapter) >= 0; i++)
             {
@@ -38,7 +38,7 @@ internal static unsafe class VideoSrGpuSelector
                     if (describe(adapter, &description) < 0 || (description.Flags & 2) != 0) continue;
                     if (best == null || description.VideoMemory > memory)
                     {
-                        best = ((int)i, new string(description.Description));
+                        best = ((int)i, new string(description.Description), description.Vendor, description.Device);
                         memory = description.VideoMemory;
                     }
                 }

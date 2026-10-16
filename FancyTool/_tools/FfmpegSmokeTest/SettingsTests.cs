@@ -124,9 +124,10 @@ internal static partial class Program
             using var http = new HttpClient();
             var downloader = new ModelDownloadService(http, NullLogger<ModelDownloadService>.Instance);
             var video = new VideoSuperResolutionService(downloader, NullLogger<VideoSuperResolutionService>.Instance);
-            string marker = Path.Combine(custom, "4x-ClearRealityV1_fp16.onnx");
+            string marker = Path.Combine(custom, "VideoSr", VideoSrModelCatalog.Get(VideoSrModel.Anime4KCnnS).FullPrecision.FileName);
+            Directory.CreateDirectory(Path.GetDirectoryName(marker)!);
             File.WriteAllText(marker, "availability marker only");
-            Check(video.IsModelAvailable(SuperResolutionModel.SpanClearRealityV1), "Video models ignored the custom root");
+            Check(video.IsModelAvailable(VideoSrModel.Anime4KCnnS), "Video models ignored the custom root");
             var interpolation = new VideoInterpolationService(downloader, NullLogger<VideoInterpolationService>.Instance);
             string interpolationMarker = Path.Combine(custom, "Interpolation", VideoInterpolationService.GetModel(VideoInterpolationModel.Rife425Lite).FileName);
             Directory.CreateDirectory(Path.GetDirectoryName(interpolationMarker)!);
@@ -136,7 +137,7 @@ internal static partial class Program
             vm = new SettingsViewModel(app, dialogs, files);
             Complete(vm.ResetModelsDirectoryCommand.ExecuteAsync(null));
             Check(files.LoadState()!.Preferences!.ModelStorageDirectory == string.Empty, "Restore default was not persisted");
-            Check(!File.Exists(marker) && video.IsModelAvailable(SuperResolutionModel.SpanClearRealityV1), "Reset did not migrate video models or update the existing service");
+            Check(!File.Exists(marker) && video.IsModelAvailable(VideoSrModel.Anime4KCnnS), "Reset did not migrate video models or update the existing service");
             Check(!File.Exists(interpolationMarker) && interpolation.IsModelAvailable(VideoInterpolationModel.Rife425Lite), "Reset did not migrate interpolation models or update the existing service");
             host.LoadState();
             Check(AppPaths.ModelsDirectory == AppPaths.DefaultModelsDirectory, "Default root did not return after restart");

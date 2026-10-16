@@ -1,4 +1,6 @@
-using System.Diagnostics;
+using System.Security.Cryptography;
+using Avalonia;
+using System.Text.Json;
 using FancyToolAva.Models;
 using FancyToolAva.Services;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -9,194 +11,220 @@ namespace FfmpegSmokeTest;
 
 internal static partial class Program
 {
-    private static int RunSuperResolutionCases(string source, string workDir, bool testNpu = true)
+    private static int RunSuperResolutionWithDispatcher(string source, string workDir, string[] args)
+    {
+        Avalonia.AppBuilder.Configure<Avalonia.Application>().UsePlatformDetect().SetupWithoutStarting();
+        var task = Task.Run(() => RunSuperResolutionCases(source, workDir, args));
+        using var finished = new CancellationTokenSource();
+        var timer = new Avalonia.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(30) };
+        timer.Tick += (_, _) => { if (task.IsCompleted) finished.Cancel(); };
+        timer.Start();
+        Avalonia.Threading.Dispatcher.UIThread.MainLoop(finished.Token);
+        timer.Stop();
+        return task.GetAwaiter().GetResult();
+    }
+
+    private static int RunSuperResolutionCases(string source, string workDir, string[] args)
     {
         ffmpeg.av_log_set_level(ffmpeg.AV_LOG_ERROR);
         using var http = new HttpClient();
         var downloader = new ModelDownloadService(http, NullLogger<ModelDownloadService>.Instance);
-        var sr = new VideoSuperResolutionService(downloader, NullLogger<VideoSuperResolutionService>.Instance);
+        using var sr = new VideoSuperResolutionService(downloader, NullLogger<VideoSuperResolutionService>.Instance,
+            new AppPreferences { SuperResolutionTileSizeIndex = 2 });
         var service = new VideoTranscodeService(NullLogger<VideoTranscodeService>.Instance, sr);
-        sr.DeviceChanged += device => Console.WriteLine($"  actual device: {device.Name}, fallback: {device.FallbackReason ?? "none"}");
-        var clock = Stopwatch.StartNew();
-        RunExtra("Windows ML GPU video 2x, audio and trim", () =>
+        var records = new List<object>();
+        int referenceArgument = Array.IndexOf(args, "--sr-reference-root");
+        string? references = referenceArgument >= 0 ? Path.Combine(Path.GetFullPath(args[referenceArgument + 1]), "references") : null;
+        int modelArgument = Array.IndexOf(args, "--sr-model");
+        int backendArgument = Array.IndexOf(args, "--sr-backend");
+        VideoSrBackend selectedBackend = backendArgument >= 0 ? Enum.Parse<VideoSrBackend>(args[backendArgument + 1]) : VideoSrBackend.Auto;
+        bool? selectedHalf = args.Contains("--sr-fp16") ? true : args.Contains("--sr-fp32") ? false : null;
+        sr.DeviceChanged += device => Console.WriteLine($"DEVICE {device.Name}; fallback={device.FallbackReason}");
+
+        foreach (var model in VideoSrModelCatalog.Models)
         {
-            string output = Path.Combine(workDir, "sr-gpu.mp4");
-            service.TranscodeAsync(source, output, new VideoTranscodeOptions
+            if (modelArgument >= 0 && model.Model != Enum.Parse<VideoSrModel>(args[modelArgument + 1])) continue;
+            sr.EnsureModelAsync(model.Model).GetAwaiter().GetResult();
+            foreach (bool half in model.SupportsFp16 ? new[] { false, true } : new[] { false })
+            foreach (var backend in new[] { selectedBackend })
             {
-                SuperResolutionEnabled = true, SuperResolutionBackend = VideoSrBackend.Gpu,
-                SuperResolutionAllowCpuFallback = false, TrimStartSeconds = 0.4, TrimEndSeconds = 0.7, Preset = PresetLevel.Ultrafast
-            }).GetAwaiter().GetResult();
-            var probe = service.ProbeAsync(output).GetAwaiter().GetResult()!;
-            if (probe.Width != 320 || probe.Height != 240 || !probe.HasAudio || Math.Abs(probe.DurationMs - 300) > 100 || Math.Abs(probe.Fps - 10) > 0.01)
-                throw new InvalidOperationException($"Wrong enhanced clip metadata: {probe}");
-            var before = service.GetPreviewAsync(source, 0.4).GetAwaiter().GetResult()!;
-            var after = service.GetPreviewAsync(output, 0).GetAwaiter().GetResult()!;
-            if (after.Width <= before.Width || after.Pixels.Distinct().Count() < 20) throw new InvalidOperationException("Enhanced output frame missing");
-        });
-        Console.WriteLine($"GPU test elapsed: {clock.Elapsed.TotalSeconds:F2}s");
-        clock.Restart();
-        if (testNpu) RunExtra("Intel NPU video, crop and 4x", () =>
-        {
-            var actual = new List<VideoSrDevice>();
-            sr.DeviceChanged += actual.Add;
-            string output = Path.Combine(workDir, "sr-npu.mp4");
-            service.TranscodeAsync(source, output, new VideoTranscodeOptions
-            {
-                SuperResolutionEnabled = true, SuperResolutionBackend = VideoSrBackend.PreferNpu,
-                SuperResolutionAllowCpuFallback = false, SuperResolutionScale = 4,
-                CropEnabled = true, CropLeft = 4, CropRight = 4, CropTop = 2, CropBottom = 2,
-                TrimStartSeconds = 0.4, TrimEndSeconds = 0.5, AudioCodec = AudioCodec.None, Preset = PresetLevel.Ultrafast
-            }).GetAwaiter().GetResult();
-            var probe = service.ProbeAsync(output).GetAwaiter().GetResult()!;
-            if (probe.Width != 608 || probe.Height != 464) throw new InvalidOperationException($"Wrong NPU output dimensions: {probe.Width}x{probe.Height}");
-            if (Math.Abs(probe.Fps - 10) > 0.01) throw new InvalidOperationException($"Wrong NPU output frame rate: {probe.Fps}");
-            if (actual.Count == 0 || !actual[^1].Name.StartsWith("NPU")) throw new InvalidOperationException("NPU request fell back to another device");
-        });
-        Console.WriteLine($"NPU test elapsed: {clock.Elapsed.TotalSeconds:F2}s");
-        clock.Restart();
-        if (testNpu) RunExtra("image NPU inference and transparency", () =>
-        {
-            var preferences = new AppPreferences { UseSuperResolutionNpu = true, SuperResolutionTileSizeIndex = 0 };
-            using var imageSr = new SuperResolutionService(NullLogger<SuperResolutionService>.Instance, preferences, downloader);
-            imageSr.WarmupTask.GetAwaiter().GetResult();
-            using var bitmap = new SKBitmap(new SKImageInfo(24, 18, SKColorType.Bgra8888, SKAlphaType.Premul));
-            bitmap.Erase(new SKColor(80, 120, 170, 128));
-            using var output = imageSr.UpscaleAsync(bitmap, SuperResolutionModel.RealEsrganGeneralX4V3, 2).GetAwaiter().GetResult();
-            if (output.Width != 48 || output.Height != 36 || output.GetPixel(20, 15).Alpha is < 120 or > 136)
-                throw new InvalidOperationException("Image NPU size/alpha incorrect");
-            if (imageSr.InferenceDevice?.Name.StartsWith("NPU") != true) throw new InvalidOperationException($"Image NPU fallback: {imageSr.InferenceDevice}");
-            Console.WriteLine($"  image device: {imageSr.InferenceDevice.Name}");
-        });
-        Console.WriteLine($"Image NPU test elapsed: {clock.Elapsed.TotalSeconds:F2}s");
-        RunExtra("live model directory migration and image session invalidation", () =>
-        {
-            string original = AppPaths.ModelsDirectory;
-            const SuperResolutionModel model = SuperResolutionModel.RealEsrganGeneralX4V3;
-            string name = VideoSuperResolutionService.GetModel(model).FileName;
-            string staged = Path.GetFullPath(Path.Combine(workDir, "migration-source"));
-            string moved = Path.GetFullPath(Path.Combine(workDir, "migration-target"));
-            Directory.CreateDirectory(staged);
-            Directory.CreateDirectory(moved);
-            using var image = new SuperResolutionService(NullLogger<SuperResolutionService>.Instance,
-                new AppPreferences { SuperResolutionTileSizeIndex = 0 }, downloader);
-            image.WarmupTask.GetAwaiter().GetResult();
-            using var opaque = new SKBitmap(new SKImageInfo(16, 12, SKColorType.Bgra8888, SKAlphaType.Opaque));
-            using var alpha = new SKBitmap(new SKImageInfo(16, 12, SKColorType.Bgra8888, SKAlphaType.Premul));
-            opaque.Erase(SKColors.SteelBlue);
-            alpha.Erase(new SKColor(40, 100, 160, 128));
-            foreach (var input in new[] { opaque, alpha })
-                using (image.UpscaleAsync(input, model, 2).GetAwaiter().GetResult()) { }
-            File.Copy(Path.Combine(original, name), Path.Combine(staged, name), true);
-            try
-            {
-                AppPaths.InitializeModelsDirectory(moved);
-                if (image.IsModelAvailable(model) || sr.IsModelAvailable(model))
-                    throw new InvalidOperationException("Existing services still inspected the old model root");
-                File.WriteAllText(Path.Combine(moved, name), "invalid model: must not reuse the old session");
-                foreach (var input in new[] { opaque, alpha })
+                if (selectedHalf.HasValue && half != selectedHalf.Value) continue;
+                string name = $"{model.Model}-{(half ? "fp16" : "fp32")}-{backend}";
+                RunExtra("packaged GPU model, tiled frame and timed video: " + name, () =>
                 {
-                    bool rejected = false;
-                    try { using var result = image.UpscaleAsync(input, model, 2).GetAwaiter().GetResult(); }
-                    catch (Microsoft.ML.OnnxRuntime.OnnxRuntimeException) { rejected = true; }
-                    if (!rejected) throw new InvalidOperationException("Image inference reused a session from the old directory");
-                }
-                File.Delete(Path.Combine(moved, name));
-                using (ModelStorage.Acquire(CancellationToken.None))
-                {
-                    var files = ModelStorage.PrepareMigration(staged, moved);
-                    ModelStorage.RemoveOriginals(files);
-                }
-                if (File.Exists(Path.Combine(staged, name))) throw new InvalidOperationException("Verified model was not moved");
-                sr.EnsureModelAsync(model).GetAwaiter().GetResult();
-                foreach (var input in new[] { opaque, alpha })
-                    using (var result = image.UpscaleAsync(input, model, 2).GetAwaiter().GetResult())
-                        if (result.Width != 32 || result.Height != 24) throw new InvalidOperationException("Image conversion failed after migration");
-                service.TranscodeAsync(source, Path.Combine(workDir, "sr-after-migration.mp4"), new VideoTranscodeOptions
-                {
-                    SuperResolutionEnabled = true, SuperResolutionModel = model, SuperResolutionBackend = VideoSrBackend.PreferNpu,
-                    SuperResolutionAllowCpuFallback = false, TrimEndSeconds = 0.2, Preset = PresetLevel.Ultrafast
-                }).GetAwaiter().GetResult();
+                    var graph = model.GetGraph(half);
+                    string path = Path.Combine(AppPaths.ModelsDirectory, "VideoSr", graph.FileName);
+                    if (!Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))).Equals(graph.Sha256, StringComparison.OrdinalIgnoreCase))
+                        throw new InvalidOperationException("Installed model hash mismatch");
+                    var actualBackend = model.RequiresDirectMl ? VideoSrBackend.DirectMl : model.RequiresVendorGpu || half ? VideoSrBackend.VendorGpu : backend;
+                    var numeric = new List<object>();
+                    if (references != null)
+                    {
+                        using var tensor = new OrtVideoSrTileModel(path, actualBackend, 64, default, 2, true, half);
+                        if (!tensor.Device.IsHardware || !tensor.Device.Name.StartsWith("GPU")) throw new InvalidOperationException("Non-GPU session");
+                        foreach (string fixture in new[] { "random", "flat", "edges" })
+                        {
+                            string prefix = Path.Combine(references, Path.GetFileNameWithoutExtension(graph.FileName), fixture);
+                            var input = ReadFloats(prefix + "-input.f32");
+                            var expected = ReadFloats(prefix + "-output.f32");
+                            var actual = new float[3 * 128 * 128];
+                            tensor.Infer(input, actual, default);
+                            double max = 0, sum = 0;
+                            for (int i = 0; i < actual.Length; i++)
+                            {
+                                if (!float.IsFinite(actual[i])) throw new InvalidOperationException("Non-finite GPU output");
+                                double delta = Math.Abs(actual[i] - expected[i]);
+                                max = Math.Max(max, delta); sum += delta;
+                            }
+                            double mae = sum / actual.Length;
+                            numeric.Add(new { fixture, max, mae });
+                            Console.WriteLine($"NUMERIC {name}/{fixture}: max={max:G6}, mae={mae:G6}");
+                            if (max > .02 || mae > .001) throw new InvalidOperationException("Packaged RGB GPU graph differs from FP32 CPU reference");
+                        }
+                        using var cancelled = new CancellationTokenSource();
+                        cancelled.Cancel();
+                        try { tensor.Infer(new float[3 * 64 * 64], new float[3 * 128 * 128], cancelled.Token); throw new InvalidOperationException("Cancellation ignored"); }
+                        catch (OperationCanceledException) { }
+                    }
+                    var options = new VideoTranscodeOptions
+                    {
+                        SuperResolutionEnabled = true, SuperResolutionModel = model.Model,
+                        SuperResolutionBackend = backend, SuperResolutionUseFp16 = half,
+                        TrimStartSeconds = .4, TrimEndSeconds = 1.1, Preset = PresetLevel.Ultrafast
+                    };
+                    using (var session = sr.CreateSessionAsync(options).GetAwaiter().GetResult())
+                    {
+                        Console.WriteLine("BITMAP start " + name);
+                        using var input = CreateCandidateFrames(667, 337, 1)[0];
+                        using var output = session.Upscale(input, 2, default);
+                        if (!session.Device.IsHardware || !session.Device.Name.StartsWith("GPU") || output.Width != 1334 || output.Height != 674
+                            || output.Pixels.Distinct().Count() < 100)
+                            throw new InvalidOperationException("Production tiling or GPU device incorrect");
+                        if (model.RequiresDirectMl && !session.Device.Name.Contains("DirectML")) throw new InvalidOperationException("RAVU selected an unqualified provider");
+                        using var image = SKImage.FromBitmap(output);
+                        using var png = image.Encode(SKEncodedImageFormat.Png, 100);
+                        using var stream = File.Create(Path.Combine(workDir, name + ".png"));
+                        png.SaveTo(stream);
+                        Console.WriteLine("BITMAP done " + name);
+                    }
+                    Console.WriteLine("BITMAP session disposed " + name);
+                    string video = Path.Combine(workDir, name + ".mp4");
+                    service.TranscodeAsync(source, video, options).GetAwaiter().GetResult();
+                    var probe = service.ProbeAsync(video).GetAwaiter().GetResult()!;
+                    var times = ReadVideoTimes(video);
+                    if (probe.Width != 320 || probe.Height != 240 || !probe.HasAudio || times.Count != 7
+                        || Math.Abs(probe.DurationMs - 700) > 110 || Math.Abs(probe.Fps - 10) > .01)
+                        throw new InvalidOperationException($"Wrong enhanced clip: {probe}, frames={times.Count}");
+                    records.Add(new { name, numeric, graph.Sha256, frames = times.Count, probe.DurationMs, probe.HasAudio, passed = true });
+                    File.WriteAllText(Path.Combine(workDir, "packaged-model-results.json"), JsonSerializer.Serialize(records, new JsonSerializerOptions { WriteIndented = true }));
+                });
             }
-            finally { AppPaths.InitializeModelsDirectory(original); }
-        });
-        RunExtra("native 2x SPAN image alpha and video", () =>
+        }
+
+        if (modelArgument >= 0)
         {
-            using var image = new SuperResolutionService(NullLogger<SuperResolutionService>.Instance, new AppPreferences { SuperResolutionTileSizeIndex = 0 }, downloader);
-            image.WarmupTask.GetAwaiter().GetResult();
-            using var input = new SKBitmap(new SKImageInfo(31, 23, SKColorType.Bgra8888, SKAlphaType.Premul));
-            input.Erase(new SKColor(90, 130, 170, 128));
-            using var output = image.UpscaleAsync(input, SuperResolutionModel.LiveActionSpanX2, 2).GetAwaiter().GetResult();
-            if (output.Width != 62 || output.Height != 46 || output.GetPixel(30, 20).Alpha is < 120 or > 136)
-                throw new InvalidOperationException("Native 2x image size or alpha incorrect");
-            string videoOutput = Path.Combine(workDir, "sr-native2x.mp4");
-            service.TranscodeAsync(source, videoOutput, new VideoTranscodeOptions
-            {
-                SuperResolutionEnabled = true, SuperResolutionModel = SuperResolutionModel.LiveActionSpanX2,
-                SuperResolutionBackend = VideoSrBackend.Gpu, SuperResolutionAllowCpuFallback = false,
-                TrimStartSeconds = 0.4, TrimEndSeconds = 0.6, Preset = PresetLevel.Ultrafast
-            }).GetAwaiter().GetResult();
-            var probe = service.ProbeAsync(videoOutput).GetAwaiter().GetResult()!;
-            if (probe.Width != 320 || probe.Height != 240 || !probe.HasAudio || Math.Abs(probe.Fps - 10) > 0.01)
-                throw new InvalidOperationException("Native 2x video output incorrect");
-        });
-        RunExtra("compressed YUV source super-resolution preprocessing", () =>
+            Console.WriteLine($"GPU SR: {_runCount} cases, {_failures} failures");
+            return _failures == 0 ? 0 : 1;
+        }
+
+        RunExtra("offline installer repairs both FP32 and FP16 copies", () =>
         {
-            string input = Path.Combine(workDir, "sr-compressed-source.mp4");
-            service.TranscodeAsync(source, input, new VideoTranscodeOptions { Preset = PresetLevel.Ultrafast, TrimEndSeconds = 0.5 }).GetAwaiter().GetResult();
-            foreach (var mode in new[] { VideoHdrOutput.SameAsSource, VideoHdrOutput.ForceSdr, VideoHdrOutput.ForceHdr })
+            var model = VideoSrModelCatalog.Get(VideoSrModel.Anime4KCnnS);
+            foreach (var graph in new[] { model.FullPrecision, model.HalfPrecision! })
+                File.WriteAllText(Path.Combine(AppPaths.ModelsDirectory, "VideoSr", graph.FileName), "corrupt");
+            sr.EnsureModelAsync(model.Model).GetAwaiter().GetResult();
+            foreach (var graph in new[] { model.FullPrecision, model.HalfPrecision! })
+                if (!Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(Path.Combine(AppPaths.ModelsDirectory, "VideoSr", graph.FileName))))
+                        .Equals(graph.Sha256, StringComparison.OrdinalIgnoreCase)) throw new InvalidOperationException("Corrupt bundle was not repaired");
+        });
+        RunExtra("CPU/NPU and unsupported RAVU FP16 are rejected", () =>
+        {
+            foreach (var options in new[]
             {
-                string output = Path.Combine(workDir, $"sr-compressed-{mode}.mp4");
-                service.TranscodeAsync(input, output, new VideoTranscodeOptions
-                {
-                    SuperResolutionEnabled = true, SuperResolutionBackend = VideoSrBackend.Gpu,
-                    SuperResolutionAllowCpuFallback = false, HdrOutput = mode, TrimEndSeconds = 0.2, Preset = PresetLevel.Ultrafast
-                }).GetAwaiter().GetResult();
-                if (service.ProbeAsync(output).GetAwaiter().GetResult()!.Width != 320) throw new InvalidOperationException("Compressed SR output missing");
+                new VideoTranscodeOptions { SuperResolutionBackend = VideoSrBackend.Cpu },
+                new VideoTranscodeOptions { SuperResolutionBackend = VideoSrBackend.PreferNpu },
+                new VideoTranscodeOptions { SuperResolutionModel = VideoSrModel.RavuLiteR2, SuperResolutionUseFp16 = true },
+                new VideoTranscodeOptions { SuperResolutionModel = VideoSrModel.RavuLiteR3, SuperResolutionUseFp16 = true },
+                new VideoTranscodeOptions { SuperResolutionModel = VideoSrModel.RavuLiteR3, SuperResolutionBackend = VideoSrBackend.DirectMl },
+                new VideoTranscodeOptions { SuperResolutionModel = VideoSrModel.Anime4KCnnS, SuperResolutionUseFp16 = true, SuperResolutionBackend = VideoSrBackend.DirectMl }
+            })
+            {
+                try { using var invalid = sr.CreateSessionAsync(options).GetAwaiter().GetResult(); throw new InvalidOperationException("Unsupported configuration accepted"); }
+                catch (NotSupportedException) { }
             }
         });
-        RunExtra("GPU fps preprocessing and output scaling", () =>
+        foreach (var model in new[] { VideoSrModel.Anime4KCnnS, VideoSrModel.RavuLiteR2 })
+            RunExtra("cascaded 4x with crop and tail timestamps: " + model, () =>
+            {
+                string output = Path.Combine(workDir, model + "-4x.mp4");
+                service.TranscodeAsync(source, output, new VideoTranscodeOptions
+                {
+                    SuperResolutionEnabled = true, SuperResolutionModel = model, SuperResolutionScale = 4, SuperResolutionBackend = selectedBackend,
+                    CropEnabled = true, CropLeft = 4, CropRight = 4, CropTop = 2, CropBottom = 2,
+                    TrimStartSeconds = .4, TrimEndSeconds = .7, AudioCodec = AudioCodec.None, Preset = PresetLevel.Ultrafast
+                }).GetAwaiter().GetResult();
+                var probe = service.ProbeAsync(output).GetAwaiter().GetResult()!;
+                if (probe.Width != 608 || probe.Height != 464 || ReadVideoTimes(output).Count != 3 || Math.Abs(probe.Fps - 10) > .01)
+                    throw new InvalidOperationException("Cascaded 4x geometry/timestamps incorrect");
+            });
+        RunExtra("GPU fps preprocessing and final output scaling", () =>
         {
             string output = Path.Combine(workDir, "sr-filtered.mp4");
             service.TranscodeAsync(source, output, new VideoTranscodeOptions
             {
-                SuperResolutionEnabled = true, SuperResolutionBackend = VideoSrBackend.Gpu,
-                SuperResolutionAllowCpuFallback = false, TrimStartSeconds = 0.4, TrimEndSeconds = 1,
+                SuperResolutionEnabled = true, SuperResolutionBackend = selectedBackend, TrimStartSeconds = .4, TrimEndSeconds = 1,
                 FpsMode = FpsMode.Fixed, FpsValue = 5, ScaleMode = ScaleMode.Exact, ScaleWidth = 200, ScaleHeight = 150,
                 Preset = PresetLevel.Ultrafast
             }).GetAwaiter().GetResult();
             var probe = service.ProbeAsync(output).GetAwaiter().GetResult()!;
-            if (probe.Width != 200 || probe.Height != 150 || Math.Abs(probe.Fps - 5) > 0.01 || Math.Abs(probe.DurationMs - 600) > 150)
-                throw new InvalidOperationException($"Pre/post filter settings were applied incorrectly: {probe}");
+            if (probe.Width != 200 || probe.Height != 150 || Math.Abs(probe.Fps - 5) > .01 || Math.Abs(probe.DurationMs - 600) > 150)
+                throw new InvalidOperationException("Pre/post filter settings incorrect");
         });
-        RunExtra("CPU selection and canceled enhancement cleanup", () =>
+        RunExtra("canceled enhancement removes partial output", () =>
         {
-            string output = Path.Combine(workDir, "sr-cpu.mp4");
-            service.TranscodeAsync(source, output, new VideoTranscodeOptions
-            {
-                SuperResolutionEnabled = true, SuperResolutionBackend = VideoSrBackend.Cpu,
-                TrimStartSeconds = 0.4, TrimEndSeconds = 0.5, AudioCodec = AudioCodec.None, Preset = PresetLevel.Ultrafast
-            }).GetAwaiter().GetResult();
-            if (service.ProbeAsync(output).GetAwaiter().GetResult()!.Width != 320) throw new InvalidOperationException("CPU enhancement output missing");
             using var ct = new CancellationTokenSource();
-            string canceled = Path.Combine(workDir, "sr-canceled-" + Guid.NewGuid().ToString("N") + ".mp4");
+            string output = Path.Combine(workDir, "sr-canceled.mp4");
             try
             {
-                service.TranscodeAsync(source, canceled, new VideoTranscodeOptions
-                {
-                    SuperResolutionEnabled = true, SuperResolutionBackend = VideoSrBackend.Gpu,
-                    SuperResolutionAllowCpuFallback = false, Preset = PresetLevel.Ultrafast
-                }, ct: ct.Token, preview: new CancelPreview(ct)).GetAwaiter().GetResult();
-                throw new InvalidOperationException("Cancellation was ignored");
+                service.TranscodeAsync(source, output, new VideoTranscodeOptions
+                { SuperResolutionEnabled = true, SuperResolutionBackend = selectedBackend, Preset = PresetLevel.Ultrafast }, ct: ct.Token, preview: new CancelPreview(ct)).GetAwaiter().GetResult();
+                throw new InvalidOperationException("Cancellation ignored");
             }
             catch (OperationCanceledException) { }
-            if (File.Exists(canceled) || File.Exists(Path.ChangeExtension(canceled, "tmp.mp4"))) throw new InvalidOperationException("Canceled enhancement left output files");
+            if (File.Exists(output) || File.Exists(Path.ChangeExtension(output, "tmp.mp4"))) throw new InvalidOperationException("Canceled output was retained");
         });
-        Console.WriteLine($"SR smoke tests: {_runCount} cases, {_failures} failures");
+        RunExtra("exclusive lease cancellation, reuse after cancellation and early 4x size guard", () =>
+        {
+            var options = new VideoTranscodeOptions();
+            VideoSrDevice firstDevice;
+            using (var first = sr.CreateSessionAsync(options).GetAwaiter().GetResult())
+            {
+                firstDevice = first.Device;
+                using var blocked = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
+                try { using var invalid = sr.CreateSessionAsync(options, blocked.Token).GetAwaiter().GetResult(); throw new InvalidOperationException("Concurrent lease was granted"); }
+                catch (OperationCanceledException) { }
+            }
+            using var second = sr.CreateSessionAsync(options).GetAwaiter().GetResult();
+            if (!ReferenceEquals(firstDevice, second.Device)) throw new InvalidOperationException("Compiled session was not reused");
+            using var sourceFrame = CreateCandidateFrames(17, 9, 1)[0];
+            using var output = second.Upscale(sourceFrame, 2, default);
+            if (output.Width != 34 || output.Height != 18) throw new InvalidOperationException("Session was unusable after canceled conversion");
+            using var oversized = new SKBitmap(new SKImageInfo(3000, 1, SKColorType.Bgra8888, SKAlphaType.Opaque));
+            bool rejected = false;
+            try { using var invalid = second.Upscale(oversized, 4, default); }
+            catch (InvalidOperationException ex) when (ex.Message == LocalizationRegistry.Get("VideoTranscode.Msg_SrSizeLimit")) { rejected = true; }
+            if (!rejected) throw new InvalidOperationException("4x output limit was not checked before inference");
+        });
+        File.WriteAllText(Path.Combine(workDir, "packaged-model-results.json"), JsonSerializer.Serialize(new
+        { passed = _failures == 0, cases = _runCount, failures = _failures, cpuFallbackDisabled = true, references, records,
+            processPeakWorkingSetMiB = System.Diagnostics.Process.GetCurrentProcess().PeakWorkingSet64 / 1048576d }, new JsonSerializerOptions { WriteIndented = true }));
+        Console.WriteLine($"GPU SR: {_runCount} cases, {_failures} failures");
         return _failures == 0 ? 0 : 1;
     }
 
     private sealed class CancelPreview(CancellationTokenSource source) : IProgress<VideoPreviewFrame>
     {
+        /// <inheritdoc />
         public void Report(VideoPreviewFrame frame) => source.Cancel();
     }
 }

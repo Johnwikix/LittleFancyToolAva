@@ -72,10 +72,10 @@ internal static partial class Program
         using (var canvas = new SKCanvas(first)) canvas.DrawRect(20, 20, 40, 40, brush);
         using (var canvas = new SKCanvas(second)) canvas.DrawRect(30, 20, 40, 40, brush);
         var results = new List<string>();
-        foreach (var srModel in new[] { SuperResolutionModel.RealEsrganGeneralX4V3, SuperResolutionModel.SpanClearRealityV1 })
+        foreach (var srModel in new[] { VideoSrModel.Anime4KCnnS, VideoSrModel.FsrcnnxS })
         {
             using var upscaler = sr.CreateSessionAsync(new VideoTranscodeOptions { SuperResolutionModel = srModel,
-                SuperResolutionBackend = VideoSrBackend.Gpu, SuperResolutionAllowCpuFallback = false }).GetAwaiter().GetResult();
+                SuperResolutionBackend = VideoSrBackend.Gpu, }).GetAwaiter().GetResult();
             using var firstHigh = upscaler.Upscale(first, 2, CancellationToken.None);
             void Before()
             {

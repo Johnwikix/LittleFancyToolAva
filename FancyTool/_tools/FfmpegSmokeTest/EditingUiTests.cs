@@ -20,28 +20,20 @@ namespace FfmpegSmokeTest;
 
 internal static partial class Program
 {
-    private static int RunEditingUi(VideoTranscodeService service, string source, string workDir, bool srOptions = false, bool interpolationOptions = false, bool nanoOptions = false)
+    private static int RunEditingUi(VideoTranscodeService service, string source, string workDir, bool srOptions = false, bool interpolationOptions = false)
     {
         try
         {
             AppBuilder.Configure<App>().UsePlatformDetect().WithInterFont().SetupWithoutStarting();
             Application.Current!.RequestedThemeVariant = ThemeVariant.Light;
             var vm = ((App)Application.Current!).TryGetService<VideoTranscodeViewModel>()!;
-            if (nanoOptions)
-            {
-                vm.IsVideoSrEnabled = true;
-                vm.VideoSrModelIndex = 5;
-                vm.VideoSrBackendIndex = (int)VideoSrBackend.Gpu;
-                vm.VideoSrAllowCpuFallback = false;
-            }
             if (srOptions)
             {
                 vm.IsVideoSrEnabled = true;
                 vm.VideoSrModelIndex = 1;
-                if (vm.VideoSrScaleLabels.Length != 1 || vm.VideoSrScaleIndex != 0) throw new InvalidOperationException("Native 2x video scale choice incorrect");
+                if (vm.VideoSrScaleLabels.Length != 2 || vm.VideoSrScaleIndex != 0) throw new InvalidOperationException("Native 2x video scale choice incorrect");
                 vm.VideoSrModelIndex = 0;
-                vm.VideoSrBackendIndex = (int)VideoSrBackend.PreferNpu;
-                vm.VideoSrAllowCpuFallback = false;
+                vm.VideoSrBackendIndex = 0;
             }
             var view = new VideoTranscodeView { DataContext = vm, Background = Brushes.WhiteSmoke };
             var window = new Window { Width = 1100, Height = 760, Content = view, Title = "Video editing smoke test" };
@@ -54,17 +46,33 @@ internal static partial class Program
             var hdrSelector = view.GetVisualDescendants().OfType<ComboBox>().Single(c => AutomationProperties.GetAutomationId(c) == "VideoHdrOutput");
             var srModelSelector = view.GetVisualDescendants().OfType<ComboBox>().Single(c => AutomationProperties.GetAutomationId(c) == "VideoSrModel");
             var srScaleSelector = view.GetVisualDescendants().OfType<ComboBox>().Single(c => AutomationProperties.GetAutomationId(c) == "VideoSrScale");
-            var srBackendSelector = view.GetVisualDescendants().OfType<ComboBox>().Single(c => AutomationProperties.GetAutomationId(c) == "VideoSrBackend");
+            var srBackendSelector = view.GetVisualDescendants().OfType<TextBlock>().Single(c => AutomationProperties.GetAutomationId(c) == "VideoSrBackend");
             vm.VideoSrModelIndex = 1;
-            if (srScaleSelector.SelectedIndex != 0 || srScaleSelector.ItemCount != 1) throw new InvalidOperationException("Native 2x scale selection cleared");
+            if (srScaleSelector.SelectedIndex != 0 || srScaleSelector.ItemCount != 2) throw new InvalidOperationException("Native 2x scale selection cleared");
             vm.VideoSrModelIndex = 0;
             if (srScaleSelector.SelectedIndex != 0) throw new InvalidOperationException("Model change cleared scale selection");
-            if (nanoOptions)
+            var fp16 = view.GetVisualDescendants().OfType<CheckBox>().Single(c => AutomationProperties.GetAutomationId(c) == "VideoSrFp16");
+            if (srModelSelector.ItemCount != 6 || vm.VideoSrBackendLabels.Count != 1) throw new InvalidOperationException("Unexpected GPU model/backend choices");
+            foreach (int index in new[] { 4, 5 })
             {
-                vm.VideoSrModelIndex = 5;
-                if (srModelSelector.SelectedIndex != 5 || srScaleSelector.ItemCount != 2)
-                    throw new InvalidOperationException("NanoVSR model or scale selection missing");
+                vm.VideoSrModelIndex = index;
+                vm.VideoSrUseFp16 = true;
+                if (vm.VideoSrUseFp16 || vm.SupportsVideoSrFp16 || fp16.IsEnabled || fp16.IsChecked == true)
+                    throw new InvalidOperationException("RAVU FP16 was not blocked");
             }
+            vm.VideoSrModelIndex = 3;
+            vm.VideoSrBackendIndex = 1;
+            vm.VideoSrUseFp16 = true;
+            if (vm.VideoSrBackendIndex != 0) throw new InvalidOperationException("An unqualified backend was exposed");
+            vm.VideoSrBackendIndex = 0;
+            vm.VideoSrUseFp16 = true;
+            vm.VideoSrScaleIndex = 1;
+            var srSaved = ((IViewState)vm).CaptureState();
+            ((IViewState)vm).RestoreState(new VideoTranscodeViewState { VideoSrModelIndex = 5, VideoSrBackendIndex = 3 });
+            if (vm.VideoSrModelIndex != 0 || vm.VideoSrBackendIndex != 0) throw new InvalidOperationException("Legacy model/backend selection was reinterpreted");
+            ((IViewState)vm).RestoreState(srSaved);
+            if (vm.VideoSrModelIndex != 3 || vm.VideoSrBackendIndex != 0 || vm.VideoSrScaleIndex != 1 || !vm.VideoSrUseFp16 || fp16.IsChecked != true)
+                throw new InvalidOperationException("GPU model/precision/scale selection did not persist");
             vm.HdrOutputIndex = 1;
             var saved = ((IViewState)vm).CaptureState();
             vm.HdrOutputIndex = 0;
@@ -77,7 +85,7 @@ internal static partial class Program
                 PumpUntil(() => vm.HdrOutputOptions[1].Label == expected);
                 if (vm.HdrOutputIndex != 1 || hdrSelector.SelectedIndex != 1)
                     throw new InvalidOperationException("Changing language cleared HDR selection");
-                if (srModelSelector.SelectedIndex != vm.VideoSrModelIndex || srBackendSelector.SelectedIndex != vm.VideoSrBackendIndex)
+                if (srModelSelector.SelectedIndex != vm.VideoSrModelIndex || vm.VideoSrBackendIndex != 0 || srBackendSelector.Text != LocalizationRegistry.Get("VideoTranscode.Sr_AutoGpu"))
                     throw new InvalidOperationException("Changing language cleared super-resolution selection");
             }
             Render(window, view, Path.Combine(workDir, "quality-options.png"));
@@ -86,7 +94,7 @@ internal static partial class Program
             Render(window, view, Path.Combine(workDir, "quality-super-resolution.png"));
             tabs.SelectedIndex = 0;
             PumpUntil(() => TopLevel.GetTopLevel(srOptionsPanel) == null || !srOptionsPanel.IsEffectivelyVisible);
-            if (!srOptions && !nanoOptions) vm.IsVideoSrEnabled = false;
+            if (!srOptions) vm.IsVideoSrEnabled = false;
             vm.HdrOutputIndex = 0;
             if (interpolationOptions)
             {
@@ -181,8 +189,7 @@ internal static partial class Program
                 .Select(path => service.ProbeAsync(path).GetAwaiter().GetResult()!.DurationMs).Order().ToArray();
             if (durations.Length != 2 || Math.Abs(durations[0] - 600) > 120 || Math.Abs(durations[1] - 1000) > 120)
                 throw new InvalidOperationException("Batch command did not preserve per-file trim ranges");
-            if (srOptions && !vm.VideoSrDeviceText.StartsWith("NPU")) throw new InvalidOperationException("Video UI failed to report actual NPU use");
-            if (nanoOptions && !vm.VideoSrDeviceText.Contains("NvTensorRTRTX")) throw new InvalidOperationException("Video UI failed to report TensorRT RTX use");
+            if (srOptions && !vm.VideoSrDeviceText.StartsWith("GPU")) throw new InvalidOperationException("Video UI failed to report actual GPU use");
             if (interpolationOptions && !vm.InterpolationDeviceText.StartsWith("GPU")) throw new InvalidOperationException("Interpolation UI failed to report actual GPU use");
             if (interpolationOptions && Directory.GetFiles(vm.OutputFolder, "*.mp4").Any(p => Math.Abs(service.ProbeAsync(p).GetAwaiter().GetResult()!.Fps - 20) > .001))
                 throw new InvalidOperationException("UI batch did not interpolate to the selected rate");
@@ -192,10 +199,10 @@ internal static partial class Program
             vm.FileItems.Clear();
             if (vm.SelectedFileItem != null || vm.HasPreview || vm.CanEditTrim) throw new InvalidOperationException("Clearing files retained the editor");
             vm.Dispose();
-            if (srOptions || nanoOptions)
+            if (srOptions)
             {
                 var imageVm = ((App)Application.Current!).TryGetService<ImageConvertViewModel>()!;
-                if (imageVm.AvailableSuperResolutionModels.Contains(SuperResolutionModel.NanoVsr644K))
+                if (imageVm.AvailableSuperResolutionModels.Count != 6)
                     throw new InvalidOperationException("Temporal model leaked into image-only model choices");
                 imageVm.IsSuperResolutionEnabled = true;
                 imageVm.SelectedSrModelIndex = (int)SuperResolutionModel.LiveActionSpanX2;

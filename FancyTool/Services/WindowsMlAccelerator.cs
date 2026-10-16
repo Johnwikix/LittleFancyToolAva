@@ -39,13 +39,16 @@ internal static class WindowsMlAccelerator
 
     /// <summary>Creates a session specialized for one rectangular video frame size.</summary>
     internal static InferenceSession CreateSession(string path, VideoSrBackend backend, int width, int height,
-        CancellationToken ct, out VideoSrDevice device, bool requireHardware = false)
-        => CreateTensorSession(path, backend, VideoDimensions(width, height), ct, out device, requireHardware);
+        CancellationToken ct, out VideoSrDevice device, bool requireHardware = false, bool? useFp16 = null)
+        => CreateTensorSession(path, backend, VideoDimensions(width, height), ct, out device, requireHardware, useFp16);
 
     /// <summary>Creates an inference session for explicit named tensor dimensions, independently of media type.</summary>
     internal static InferenceSession CreateTensorSession(string path, VideoSrBackend backend,
-        IReadOnlyDictionary<string, long> dimensions, CancellationToken ct, out VideoSrDevice device, bool requireHardware = false)
+        IReadOnlyDictionary<string, long> dimensions, CancellationToken ct, out VideoSrDevice device, bool requireHardware = false, bool? useFp16 = null)
     {
+        _ = OrtEnv.Instance();
+        if (backend == VideoSrBackend.DirectMl)
+            return CreateDirectMlTensorSession(path, dimensions, ct, out device, requireHardware);
 #if WINDOWS
         Registration.Value.WaitAsync(ct).GetAwaiter().GetResult();
         var env = OrtEnv.Instance();
@@ -67,8 +70,9 @@ internal static class WindowsMlAccelerator
                     options.AddSessionConfigEntry("session.disable_cpu_ep_fallback", "1");
                     // RIFE's FP32 interchange graph can use Intel GPU FP16 compute
                     // without rewriting its weights or changing its tensor contract.
-                    var providerOptions = requireHardware && kind == OrtHardwareDeviceType.GPU && candidate.EpName == "OpenVINOExecutionProvider"
-                        ? new Dictionary<string, string> { ["load_config"] = "{\"GPU\":{\"INFERENCE_PRECISION_HINT\":\"f16\"}}" }
+                    var providerOptions = (requireHardware || useFp16.HasValue) && kind == OrtHardwareDeviceType.GPU && candidate.EpName == "OpenVINOExecutionProvider"
+                        ? new Dictionary<string, string> { ["load_config"] = useFp16 == false
+                            ? "{\"GPU\":{\"INFERENCE_PRECISION_HINT\":\"f32\"}}" : "{\"GPU\":{\"INFERENCE_PRECISION_HINT\":\"f16\"}}" }
                         : new Dictionary<string, string>();
                     if (IsTensorRtProvider(candidate.EpName))
                     {
@@ -79,7 +83,8 @@ internal static class WindowsMlAccelerator
                     }
                     options.AppendExecutionProvider(env, [candidate], providerOptions);
                     var session = new InferenceSession(path, options);
-                    device = new VideoSrDevice($"{kind} · Windows ML / {candidate.EpName.Replace("ExecutionProvider", "")}", true);
+                    device = new VideoSrDevice($"{kind} · Windows ML / {candidate.EpName.Replace("ExecutionProvider", "")}" +
+                        (useFp16.HasValue ? useFp16.Value ? " · FP16" : " · FP32" : ""), true);
                     return session;
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException) { failures.Add(ex.Message); }
@@ -87,7 +92,10 @@ internal static class WindowsMlAccelerator
         }
         if (backend == VideoSrBackend.PreferNpu)
             throw new PlatformNotSupportedException("Windows ML NPU provider unavailable. " + string.Join("; ", failures));
+        if (backend == VideoSrBackend.VendorGpu)
+            throw new PlatformNotSupportedException(LocalizationRegistry.Get("VideoTranscode.Sr_VendorGpuRequired") + " " + string.Join("; ", failures));
 #endif
+        if (backend == VideoSrBackend.VendorGpu) throw new PlatformNotSupportedException("A vendor GPU provider requires Windows ML.");
         if (backend != VideoSrBackend.Cpu)
         {
             var session = CreateDirectMlTensorSession(path, dimensions, ct, out device, requireHardware);
@@ -112,9 +120,28 @@ internal static class WindowsMlAccelerator
         CancellationToken ct, out VideoSrDevice device, bool requireHardware = false)
     {
         ct.ThrowIfCancellationRequested();
+        _ = OrtEnv.Instance();
+#if WINDOWS
+        Registration.Value.WaitAsync(ct).GetAwaiter().GetResult();
+#endif
         using var options = CreateOptions(dimensions);
+        options.IntraOpNumThreads = 1;
+        options.InterOpNumThreads = 1;
+        if (Environment.GetEnvironmentVariable("FANCYTOOL_SR_DIAGNOSTICS") == "1")
+        {
+            options.LogSeverityLevel = OrtLoggingLevel.ORT_LOGGING_LEVEL_VERBOSE;
+            options.LogVerbosityLevel = 1;
+        }
         if (requireHardware) options.AddSessionConfigEntry("session.disable_cpu_ep_fallback", "1");
         var gpu = VideoSrGpuSelector.Select();
+#if WINDOWS
+        var env = OrtEnv.Instance();
+        var candidate = env.GetEpDevices().FirstOrDefault(d => d.EpName == "DmlExecutionProvider"
+            && d.HardwareDevice.Type == OrtHardwareDeviceType.GPU
+            && d.HardwareDevice.VendorId == gpu.VendorId && d.HardwareDevice.DeviceId == gpu.DeviceId);
+        if (candidate != null) options.AppendExecutionProvider(env, [candidate], new Dictionary<string, string>());
+        else
+#endif
         options.AppendExecutionProvider_DML(gpu.Index);
         device = new VideoSrDevice("GPU · " + gpu.Name + " / Windows ML DirectML", true);
         return new InferenceSession(path, options);
@@ -122,7 +149,8 @@ internal static class WindowsMlAccelerator
 
     private static IReadOnlyDictionary<string, long> VideoDimensions(int width, int height) => new Dictionary<string, long>
     {
-        ["batch_size"] = 1, ["batch"] = 1, ["height"] = height, ["width"] = width, ["in_height"] = height, ["in_width"] = width
+        ["batch_size"] = 1, ["batch"] = 1, ["height"] = height, ["width"] = width,
+        ["h"] = height, ["w"] = width, ["in_height"] = height, ["in_width"] = width
     };
 
     private static SessionOptions CreateOptions(IReadOnlyDictionary<string, long> dimensions)

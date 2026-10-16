@@ -25,8 +25,10 @@ public class VideoTranscodeViewState
     public int VideoSrScaleIndex { get; set; }
     /// <summary>Gets or sets the preferred accelerator.</summary>
     public int VideoSrBackendIndex { get; set; }
-    /// <summary>Gets or sets whether CPU fallback is allowed.</summary>
-    public bool VideoSrAllowCpuFallback { get; set; } = true;
+    /// <summary>Gets or sets the video model catalog version used to migrate obsolete selections.</summary>
+    public int VideoSrCatalogVersion { get; set; }
+    /// <summary>Gets or sets whether validated FP16 GPU inference is selected.</summary>
+    public bool VideoSrUseFp16 { get; set; } = true;
     public string? OutputFolder { get; set; }
     public int ContainerIndex { get; set; }
     public int VideoCodecIndex { get; set; }

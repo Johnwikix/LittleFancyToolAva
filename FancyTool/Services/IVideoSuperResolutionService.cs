@@ -13,7 +13,11 @@ public enum VideoSrBackend
     /// <summary>Uses a vendor GPU provider, with DirectML hardware fallback.</summary>
     Gpu,
     /// <summary>Uses software inference.</summary>
-    Cpu
+    Cpu,
+    /// <summary>Uses DirectML GPU explicitly without vendor-provider selection.</summary>
+    DirectMl,
+    /// <summary>Requires a vendor GPU provider without DirectML fallback.</summary>
+    VendorGpu
 }
 
 /// <summary>Reports the actual accelerator and any hardware fallback reason.</summary>
@@ -39,17 +43,17 @@ internal interface IVideoFrameSequenceUpscaler : IVideoFrameUpscaler
     SKBitmap[] UpscaleSequence(IReadOnlyList<SKBitmap> source, int scale, CancellationToken ct);
 }
 
-/// <summary>Installs shared image/video models and creates hardware-preferred video inference sessions.</summary>
+/// <summary>Installs packaged video models and creates GPU-only inference sessions.</summary>
 public interface IVideoSuperResolutionService
 {
     /// <summary>Reports model download and validation progress.</summary>
     event Action<ModelDownloadProgress>? DownloadProgressChanged;
     /// <summary>Reports the accelerator selected after session creation.</summary>
     event Action<VideoSrDevice>? DeviceChanged;
-    /// <summary>Gets whether the selected model exists in the shared model directory.</summary>
-    bool IsModelAvailable(SuperResolutionModel model);
-    /// <summary>Downloads and validates the selected model using the image model installer.</summary>
-    Task EnsureModelAsync(SuperResolutionModel model, CancellationToken ct = default);
+    /// <summary>Gets whether the selected model exists in the managed VideoSr directory.</summary>
+    bool IsModelAvailable(VideoSrModel model);
+    /// <summary>Installs and validates both supported precisions from the application package.</summary>
+    Task EnsureModelAsync(VideoSrModel model, CancellationToken ct = default);
     /// <summary>Installs compatible GPU/NPU providers through the Windows ML catalog.</summary>
     Task InstallAccelerationAsync(CancellationToken ct = default);
     /// <summary>Creates a serial inference session for the selected model and hardware preference.</summary>

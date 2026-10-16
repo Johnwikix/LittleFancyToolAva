@@ -986,7 +986,8 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
         VideoSrModelIndex = VideoSrModelIndex,
         VideoSrScaleIndex = VideoSrScaleIndex,
         VideoSrBackendIndex = VideoSrBackendIndex,
-        VideoSrAllowCpuFallback = VideoSrAllowCpuFallback
+        VideoSrCatalogVersion = 1,
+        VideoSrUseFp16 = VideoSrUseFp16
     };
 
     void IViewState.RestoreState(object state)
@@ -1006,10 +1007,10 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
                 InterpolationSceneDetection = s.InterpolationSceneDetection;
                 OutputFolder = s.OutputFolder;
                 IsVideoSrEnabled = s.IsVideoSrEnabled;
-                VideoSrModelIndex = s.VideoSrModelIndex;
+                VideoSrModelIndex = s.VideoSrCatalogVersion == 1 ? s.VideoSrModelIndex : 0;
                 VideoSrScaleIndex = s.VideoSrScaleIndex;
-                VideoSrBackendIndex = s.VideoSrBackendIndex;
-                VideoSrAllowCpuFallback = s.VideoSrAllowCpuFallback;
+                VideoSrBackendIndex = s.VideoSrCatalogVersion == 1 ? s.VideoSrBackendIndex : 0;
+                VideoSrUseFp16 = s.VideoSrCatalogVersion == 1 ? s.VideoSrUseFp16 : true;
                 // 容器：优先 SelectedItem，有交集保留，无则首项，兼容旧索引；WebM 已移除，旧状态回落至 MP4
                 if (!string.IsNullOrEmpty(s.SelectedContainer))
                 {
@@ -1483,8 +1484,8 @@ private async Task AddPathsAsync(IEnumerable<string> paths)
             SuperResolutionEnabled = IsVideoSrEnabled,
             SuperResolutionModel = VideoModels[VideoSrModelIndex],
             SuperResolutionScale = VideoSrScaleIndex == 0 ? 2 : 4,
-            SuperResolutionBackend = (VideoSrBackend)VideoSrBackendIndex,
-            SuperResolutionAllowCpuFallback = VideoSrAllowCpuFallback,
+            SuperResolutionBackend = VideoBackends[VideoSrBackendIndex],
+            SuperResolutionUseFp16 = VideoSrUseFp16,
             InterpolationMode = (VideoInterpolationMode)InterpolationModeIndex,
             InterpolationModel = (VideoInterpolationModel)InterpolationModelIndex,
             FrameProcessingOrder = (VideoFrameProcessingOrder)InterpolationOrderIndex,

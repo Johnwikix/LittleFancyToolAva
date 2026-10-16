@@ -1,0 +1,62 @@
+[
+  {
+    "name": "anime4k_upscale_cnn_m_fp32",
+    "family": "anime4k",
+    "precision": "fp32",
+    "sha256": "7bdf434d50fe2af2c0a68dafe79c77cec6275591c108e75b34fedb2471c40062"
+  },
+  {
+    "name": "anime4k_upscale_cnn_m_fp16",
+    "family": "anime4k",
+    "precision": "fp16",
+    "sha256": "65872434c5d54a5eb46004f1c6d0ce24a48cc13dbef479cdefbc194dbbdfe62b"
+  },
+  {
+    "name": "anime4k_upscale_cnn_s_fp32",
+    "family": "anime4k",
+    "precision": "fp32",
+    "sha256": "8f923b5b71b4205a8c1904ac5928d064e1f6cded12e01a7afad84392b9f05a90"
+  },
+  {
+    "name": "anime4k_upscale_cnn_s_fp16",
+    "family": "anime4k",
+    "precision": "fp16",
+    "sha256": "5f55b0e06dc4c679ed4412d2aba9c1fda803be4bd568aef64f1077d7b0cc0507"
+  },
+  {
+    "name": "fsrcnnx_m_fp32",
+    "family": "fsrcnnx",
+    "precision": "fp32",
+    "sha256": "54fd3900b4a9dca3247764b0ec4c87e6e689ad5297e14afa3ba47e7710a3f361"
+  },
+  {
+    "name": "fsrcnnx_m_fp16",
+    "family": "fsrcnnx",
+    "precision": "fp16",
+    "sha256": "1d0d075a145199b631d38d90a558c4e32026bc683be1a83557b168931dda7c43"
+  },
+  {
+    "name": "fsrcnnx_s_fp32",
+    "family": "fsrcnnx",
+    "precision": "fp32",
+    "sha256": "2c08452a23665a9e072fafe335415d6fbf2b90311d18fcce08add27830b6e379"
+  },
+  {
+    "name": "fsrcnnx_s_fp16",
+    "family": "fsrcnnx",
+    "precision": "fp16",
+    "sha256": "420d4e0790ab5a7c527a41957762d434c0493baa1b9a43f823a327e84691943b"
+  },
+  {
+    "name": "ravu_lite_r2_fp32",
+    "family": "ravu",
+    "precision": "fp32",
+    "sha256": "15a6ba5be0ba3703a397837827725809be4f95793084ca483ac32a2a43d1dbf1"
+  },
+  {
+    "name": "ravu_lite_r3_fp32",
+    "family": "ravu",
+    "precision": "fp32",
+    "sha256": "a9c4237ee7c793ef6c5d7636dea71936603a718229f8f2c581bd032a76295c8e"
+  }
+]

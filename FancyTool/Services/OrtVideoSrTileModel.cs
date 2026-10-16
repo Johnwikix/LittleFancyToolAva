@@ -5,7 +5,7 @@ using System.Numerics.Tensors;
 
 namespace FancyToolAva.Services;
 
-/// <summary>Runs the shared FP16/FP32 image models on DirectML or CPU with cancelable, serial inference.</summary>
+/// <summary>Runs RGB FP16/FP32 image or video graphs with cancelable, serial inference.</summary>
 internal sealed class OrtVideoSrTileModel : IVideoSrTileModel
 {
     private readonly InferenceSession _session;
@@ -18,11 +18,12 @@ internal sealed class OrtVideoSrTileModel : IVideoSrTileModel
     private readonly int _nativeScale;
     internal VideoSrDevice Device { get; }
 
-    internal OrtVideoSrTileModel(string path, VideoSrBackend backend, int window, CancellationToken ct, int nativeScale = 4)
+    internal OrtVideoSrTileModel(string path, VideoSrBackend backend, int window, CancellationToken ct, int nativeScale = 4,
+        bool requireHardware = false, bool? useFp16 = null)
     {
         _window = window;
         _nativeScale = nativeScale;
-        _session = WindowsMlAccelerator.CreateSession(path, backend, window, ct, out var device);
+        _session = WindowsMlAccelerator.CreateSession(path, backend, window, window, ct, out var device, requireHardware, useFp16);
         Device = device;
         try
         {

@@ -1,5 +1,7 @@
 # 720p / 1080p 实际视频超分对比
 
+> 本文为旧视频模型的历史基线。当前视频功能已替换为 [Anime4K、FSRCNNX、RAVU 六档](adr/0008-lightweight-gpu-video-sr.md)，旧模型不再进入视频菜单或分发包。
+
 2026-10-16，本机 Release 实测。NanoVSR 已通过现有 Windows ML 使用 TensorRT RTX，
 但在当前集成中比两个 SPAN 模型慢：720p→1440p 全流程 **5.48 fps**，1080p→4K
 **2.75 fps**。原默认 ClearReality SPAN 分别为 **9.16 / 4.90 fps**。本次没有模型达到
