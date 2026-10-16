@@ -10,6 +10,27 @@ internal static partial class Program
 {
     private static void RunPreviewCases(VideoTranscodeService service, string workDir)
     {
+        RunExtra("exact container frame count is used only by count-preserving conversions", () =>
+        {
+            var options = new VideoTranscodeOptions();
+            if (VideoTranscodeService.ExactOutputFrameCount(120, options) != 120
+                || VideoTranscodeService.ExactOutputFrameCount(0, options) != null)
+                throw new InvalidOperationException("Known and unknown source frame counts were confused");
+            options.SuperResolutionEnabled = true;
+            if (VideoTranscodeService.ExactOutputFrameCount(120, options) != 120)
+                throw new InvalidOperationException("Spatial SR incorrectly discarded an exact frame count");
+            options.InterpolationMode = VideoInterpolationMode.Rife;
+            if (VideoTranscodeService.ExactOutputFrameCount(120, options) != null)
+                throw new InvalidOperationException("Source frame count was presented as interpolated output count");
+            options.InterpolationMode = VideoInterpolationMode.None;
+            options.TrimEndSeconds = 1;
+            if (VideoTranscodeService.ExactOutputFrameCount(120, options) != null)
+                throw new InvalidOperationException("Source frame count was presented as a clipped output count");
+            options.TrimEndSeconds = null;
+            options.FpsMode = FpsMode.Fixed;
+            if (VideoTranscodeService.ExactOutputFrameCount(120, options) != null)
+                throw new InvalidOperationException("Source frame count was presented as a resampled output count");
+        });
         RunExtra("bounded latest preview ownership", () =>
         {
             var pool = new PreviewTestPool();
@@ -33,6 +54,8 @@ internal static partial class Program
         {
             string input = Path.Combine(workDir, "preview-60fps.avi");
             WriteTestAvi(input, 160, 120, 60, 2);
+            if (service.ProbeAsync(input).GetAwaiter().GetResult()?.FrameCount != 120)
+                throw new InvalidOperationException("FFmpeg's exact AVI source frame count was not retained");
             var preview = new PacedPreview();
             var processingRates = new List<VideoEncodingProgress>();
             var elapsed = Stopwatch.StartNew();
@@ -42,6 +65,7 @@ internal static partial class Program
                 throw new InvalidOperationException($"Preview cadence/final frame: {preview.Count} frames, last={preview.LastPosition}");
             if (processingRates.Count < 2 || !processingRates.Any(rate => rate.FramesPerSecond > 0)
                 || processingRates.Any(rate => !double.IsFinite(rate.FramesPerSecond) || rate.FramesPerSecond < 0)
+                || processingRates[0] is not { TotalFrames: 120, IsTotalEstimated: false }
                 || processingRates[^1] is not { ProcessedFrames: 120, TotalFrames: 120, IsTotalEstimated: false })
                 throw new InvalidOperationException("Conversion did not report valid measured processing FPS");
             Console.WriteLine($"    producer: {preview.Count} previews in {elapsed.Elapsed.TotalSeconds:F2}s ({preview.Count / elapsed.Elapsed.TotalSeconds:F1} fps)");

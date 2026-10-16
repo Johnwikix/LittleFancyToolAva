@@ -17,6 +17,15 @@
   </PropertyGroup>
 
   <Import Project="WindowsInference.props" />
+  <!-- DesktopBridge's ordinary output groups need a managed apphost during IDE
+       Build as well as Publish; the native AOT executable exists only at Publish. -->
+  <PropertyGroup Condition="'$(FancyToolMsixBuild)' == 'true'">
+    <PublishAot>false</PublishAot>
+    <PublishTrimmed>false</PublishTrimmed>
+    <PublishSingleFile>false</PublishSingleFile>
+    <UseAppHost>true</UseAppHost>
+    <SelfContained>true</SelfContained>
+  </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="FfmpegSmokeTest" />
     <None Include="Libraries/VideoSr/*.onnx;Libraries/VideoSr/models.json;Libraries/VideoSr/NOTICE.md;Libraries/VideoSr/Licenses/*" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
@@ -141,4 +150,16 @@
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
   </ItemGroup>
+  <!-- Metadata query only: this target does not compile or publish anything.
+       DesktopBridge's AddProjectMetadata ignores reference-only isolation properties. -->
+  <Target Name="GetFancyToolMsixMetadata" Returns="@(_FancyToolMsixMetadata)">
+    <ItemGroup>
+      <_FancyToolMsixMetadata Include="$(MSBuildProjectFullPath)">
+        <AppOutputPath>$(OutputPath)</AppOutputPath>
+        <AppTargetDir>$(TargetDir)</AppTargetDir>
+        <AppExtensionsPath>$(MSBuildProjectExtensionsPath)</AppExtensionsPath>
+        <AppPublishDir>$(TargetDir)msixpublish\</AppPublishDir>
+      </_FancyToolMsixMetadata>
+    </ItemGroup>
+  </Target>
 </Project>

@@ -80,6 +80,7 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
             string vCodec = "", aCodec = "";
             string? pixFmt = null;
             bool hasVideo = false, hasAudio = false;
+            long? frameCount = null;
             string colorPrimaries = "", colorTransfer = "", colorSpace = "", colorRange = "";
             int bitDepth = 0;
 
@@ -93,6 +94,7 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
                     vCodec = ffmpeg.avcodec_get_name(par->codec_id);
                     width = par->width;
                     height = par->height;
+                    frameCount = s->nb_frames > 0 ? s->nb_frames : null;
                     colorPrimaries = ffmpeg.av_color_primaries_name(par->color_primaries) ?? "";
                     colorTransfer = ffmpeg.av_color_transfer_name(par->color_trc) ?? "";
                     colorSpace = ffmpeg.av_color_space_name(par->color_space) ?? "";
@@ -118,7 +120,7 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
             var probe = new VideoProbeInfo(input, durationMs, width, height, fps, vCodec, aCodec, container, bitRate, hasAudio, hasVideo)
             {
                 PixelFormat = pixFmt ?? "", BitDepth = bitDepth, ColorPrimaries = colorPrimaries,
-                ColorTransfer = colorTransfer, ColorSpace = colorSpace, ColorRange = colorRange
+                ColorTransfer = colorTransfer, ColorSpace = colorSpace, ColorRange = colorRange, FrameCount = frameCount
             };
             return new SourceInfo(probe, pixFmt);
         }
@@ -417,7 +419,8 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
             if (aIdx >= 0) timeline.NextAudioPts = (long)Math.Round(decodeStart / ffmpeg.av_q2d(audioTimeBase));
 
             var encodingProgress = statistics == null ? null : new EncodingProgress(progress, statistics,
-                totalSec, ffmpeg.av_q2d(vEnc->framerate), pass == 0 ? 1 : pass, pass == 0 ? 1 : 2);
+                totalSec, ffmpeg.av_q2d(vEnc->framerate), pass == 0 ? 1 : pass, pass == 0 ? 1 : 2,
+                ExactOutputFrameCount(vInStream->nb_frames, o));
             if (encodingProgress != null) progress = encodingProgress;
             while ((ret = ffmpeg.av_read_frame(inFmt, pkt)) >= 0)
             {

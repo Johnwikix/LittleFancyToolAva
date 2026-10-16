@@ -65,8 +65,14 @@ show processed pictures, including generated frames, through the existing bounde
 preview path.
 
 Each converting file displays measured processing FPS and processed/total output
-frames next to its percentage. Duration multiplied by the encoder frame rate
-provides an explicitly estimated total; unknown durations show an unknown total.
+frames next to its percentage. The source probe preserves FFmpeg's `nb_frames`
+when the container reports it. Complete non-GIF conversions without clipping,
+frame-rate conversion, interpolation, or deinterlacing reuse that exact count;
+spatial SR and resizing do not invalidate it. Other conversions use duration
+multiplied by encoder frame rate as an explicitly estimated total; unknown
+durations without a usable exact count show an unknown total. This avoids a
+second full decode just to count frames. A source frame count is not an exact
+count of generated output frames after temporal processing.
 Completion replaces that estimate with the actual count. Two-pass jobs display
 their pass number and reset the counters per pass. Statistics are posted to the
 UI directly in producer order so the final actual count cannot be overwritten by

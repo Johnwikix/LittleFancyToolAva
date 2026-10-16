@@ -147,6 +147,8 @@ public sealed record VideoProbeInfo(
     bool HasVideo
 )
 {
+    /// <summary>Gets the exact source frame count reported by the container, or null when unavailable.</summary>
+    public long? FrameCount { get; init; }
     public string PixelFormat { get; init; } = string.Empty;
     public int BitDepth { get; init; }
     public string ColorPrimaries { get; init; } = string.Empty;
