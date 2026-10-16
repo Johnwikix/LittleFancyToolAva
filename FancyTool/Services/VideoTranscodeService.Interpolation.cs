@@ -8,26 +8,17 @@ namespace FancyToolAva.Services;
 public sealed unsafe partial class VideoTranscodeService
 {
     private static double InterpolationRate(VideoTranscodeOptions options, double sourceFps)
-        => options.Container == VideoContainer.Gif ? options.GifFps
-            : options.InterpolationMultiplier == 0 ? NormalizeInterpolationRate(options.FpsValue)
-            : (sourceFps > 0 ? sourceFps : 30) * options.InterpolationMultiplier;
-
-    private static double NormalizeInterpolationRate(double rate) => rate switch
-    {
-        var value when Math.Abs(value - 23.976) < 0.000001 => 24000d / 1001,
-        var value when Math.Abs(value - 29.97) < 0.000001 => 30000d / 1001,
-        var value when Math.Abs(value - 59.94) < 0.000001 => 60000d / 1001,
-        var value when Math.Abs(value - 119.88) < 0.000001 => 120000d / 1001,
-        _ => rate
-    };
+        => (sourceFps > 0 ? sourceFps : 30) * options.InterpolationMultiplier;
 
     private static void ValidateInterpolation(VideoTranscodeOptions options, VideoProbeInfo source)
     {
         if (options.InterpolationMode == VideoInterpolationMode.None) return;
         double rate = InterpolationRate(options, source.Fps);
-        if (!Enum.IsDefined(options.InterpolationMode) || !Enum.IsDefined(options.FrameProcessingOrder) || options.InterpolationMultiplier is not (0 or 2 or 4)
-            || !double.IsFinite(rate) || rate < 1 || rate > 240)
+        if (!Enum.IsDefined(options.InterpolationMode) || !Enum.IsDefined(options.FrameProcessingOrder) || options.InterpolationMultiplier is not (2 or 4 or 6)
+            || !double.IsFinite(rate) || rate < 1)
             throw new ArgumentException(LocalizationRegistry.Get("VideoTranscode.Interp_InvalidRate"));
+        if (HardwareVideoInterpolation.IsHardware(options.InterpolationMode))
+            HardwareVideoInterpolation.RequireSupport(options.InterpolationMode, options.InterpolationMultiplier);
         if (source.IsHdr && options.HdrOutput != VideoHdrOutput.ForceSdr && options.Container != VideoContainer.Gif)
             throw new NotSupportedException(LocalizationRegistry.Get("VideoTranscode.Interp_HdrUnsupported"));
     }
@@ -66,6 +57,9 @@ public sealed unsafe partial class VideoTranscodeService
         private SKBitmap? _current;
         private SKBitmap? _intermediate;
         private readonly bool _neural;
+        private readonly bool _hardware;
+        private AVBufferRef* _hardwareDevice;
+        private bool _inputEnded;
         private readonly bool _detectScenes;
         private readonly double _clipDuration;
         private double _lastDuration;
@@ -89,6 +83,7 @@ public sealed unsafe partial class VideoTranscodeService
             double sourceFps, long durationMs, IVideoInterpolationService? service, CancellationToken ct, bool preprocessed = false)
         {
             _neural = options.InterpolationMode == VideoInterpolationMode.Rife;
+            _hardware = HardwareVideoInterpolation.IsHardware(options.InterpolationMode);
             _detectScenes = options.InterpolationSceneDetection;
             _clipDuration = Math.Min(options.TrimEndSeconds ?? double.PositiveInfinity,
                 durationMs > 0 ? durationMs / 1000d : double.PositiveInfinity) - options.TrimStartSeconds;
@@ -127,18 +122,25 @@ public sealed unsafe partial class VideoTranscodeService
                 }
                 pre.FpsMode = FpsMode.SameAsSource;
                 pre.InterpolationMode = VideoInterpolationMode.None;
-                string description = BuildFilterDescription(pre, _neural ? "bgra" : "yuv444p",
-                    BuildColorFilters(ReadColor(decoder), _neural ? VideoColor.SdrRgb : VideoColor.Sdr));
+                string description = BuildFilterDescription(pre, _neural || _hardware ? "bgra" : "yuv444p",
+                    BuildColorFilters(ReadColor(decoder), _neural || _hardware ? VideoColor.SdrRgb : VideoColor.Sdr));
                 if (!_neural)
                 {
                     // Supply lookahead at EOF, then trim the generated clock to the clip.
                     string padding = (3 * _lastDuration).ToString("R", CultureInfo.InvariantCulture);
-                    description += $",tpad=stop_mode=clone:stop_duration={padding},minterpolate=fps={rate.num}/{rate.den}:mi_mode=mci:mc_mode=aobmc:me_mode=bilat:me=epzs:vsbmc=1:scd={(_detectScenes ? "fdiff" : "none")}";
+                    description += $",tpad=stop_mode=clone:stop_duration={padding}";
+                    if (_hardware)
+                    {
+                        var support = HardwareVideoInterpolation.RequireSupport(options.InterpolationMode, options.InterpolationMultiplier);
+                        _hardwareDevice = HardwareVideoInterpolation.CreateDevice(options.InterpolationMode, support.Adapter!);
+                        description += "," + HardwareVideoInterpolation.Filter(options.InterpolationMode, options.InterpolationMultiplier, $"{rate.num}/{rate.den}");
+                    }
+                    else description += $",minterpolate=fps={rate.num}/{rate.den}:mi_mode=mci:mc_mode=aobmc:me_mode=bilat:me=epzs:vsbmc=1:scd={(_detectScenes ? "fdiff" : "none")}";
                     if (double.IsFinite(_clipDuration)) description += ",trim=duration=" + _clipDuration.ToString("R", CultureInfo.InvariantCulture);
-                    description += "," + BuildColorFilters(VideoColor.Sdr, VideoColor.SdrRgb) + ",format=bgra";
+                    if (!_hardware) description += "," + BuildColorFilters(VideoColor.Sdr, VideoColor.SdrRgb) + ",format=bgra";
                 }
                 AVBufferRef* unused = null;
-                if (!BindGraphAndConfigure(_graph, _source, _sink, description, false, "", &unused))
+                if (!BindGraphAndConfigure(_graph, _source, _sink, description, false, "", &unused, _hardwareDevice))
                     throw new InvalidOperationException(LocalizationRegistry.Get("VideoTranscode.Interp_PreprocessingFailed"));
                 _output->format = (int)AVPixelFormat.AV_PIX_FMT_BGRA;
                 _output->width = Width; _output->height = Height;
@@ -158,6 +160,7 @@ public sealed unsafe partial class VideoTranscodeService
 
         public void Send(AVFrame* frame)
         {
+            if (frame == null) _inputEnded = true;
             if (frame != null && !_submittedFirst)
             {
                 _submittedFirst = true;
@@ -190,6 +193,17 @@ public sealed unsafe partial class VideoTranscodeService
             {
                 ffmpeg.av_frame_unref(_input);
                 int ret = ffmpeg.av_buffersink_get_frame(_sink, _input);
+                if (_hardware && _inputEnded && ret == ErrEagain)
+                {
+                    long deadline = Environment.TickCount64 + 30_000;
+                    while (ret == ErrEagain && Environment.TickCount64 < deadline)
+                    {
+                        ct.ThrowIfCancellationRequested();
+                        Thread.Sleep(1);
+                        ret = ffmpeg.av_buffersink_get_frame(_sink, _input);
+                    }
+                    if (ret == ErrEagain) throw new TimeoutException(LocalizationRegistry.Get("VideoTranscode.Interp_HardwareTimeout"));
+                }
                 if (ret == ErrEagain || ret == ffmpeg.AVERROR_EOF) return false;
                 if (ret < 0) throw FFmpegNative.CreateException(ret, LocalizationRegistry.Get("VideoTranscode.Interp_PreprocessingFailed"));
                 _input->pts = ffmpeg.av_rescale_q(_input->pts, _sink->inputs[0]->time_base, TimeBase);
@@ -298,6 +312,9 @@ public sealed unsafe partial class VideoTranscodeService
             _previous = _current = _intermediate = null;
             var input = _input; var output = _output; var graph = _graph;
             ffmpeg.av_frame_free(&input); ffmpeg.av_frame_free(&output); ffmpeg.avfilter_graph_free(&graph);
+            var device = _hardwareDevice;
+            ffmpeg.av_buffer_unref(&device);
+            _hardwareDevice = null;
             _input = _output = null; _graph = null;
         }
     }

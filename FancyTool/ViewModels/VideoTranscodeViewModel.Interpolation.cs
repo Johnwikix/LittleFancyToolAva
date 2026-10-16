@@ -9,13 +9,20 @@ public partial class VideoTranscodeViewModel
 {
     private readonly IVideoInterpolationService? _interpolationService;
     private CancellationTokenSource? _interpolationInstallCts;
+    private IReadOnlyList<HardwareInterpolationSupport> _hardwareInterpolationSupport = [];
+    private int? _pendingHardwareModeIndex;
 
     /// <summary>Gets the localized interpolation methods.</summary>
-    public IReadOnlyList<LocalizedOption> InterpolationModes { get; } = [new("VideoTranscode.Interp_Off"), new("VideoTranscode.Interp_Ai"), new("VideoTranscode.Interp_Motion")];
+    public IReadOnlyList<VideoInterpolationOption> InterpolationModes { get; } =
+    [
+        new("VideoTranscode.Interp_Off"), new("VideoTranscode.Interp_Ai"), new("VideoTranscode.Interp_Motion"),
+        new("VideoTranscode.Interp_Amd", false, "VideoTranscode.Interp_Checking"),
+        new("VideoTranscode.Interp_Nvidia", false, "VideoTranscode.Interp_Checking")
+    ];
     /// <summary>Gets the localized RIFE model choices.</summary>
     public IReadOnlyList<LocalizedOption> InterpolationModels { get; } = [new("VideoTranscode.Interp_ModelLite"), new("VideoTranscode.Interp_ModelQuality")];
     /// <summary>Gets the output frame rate choices.</summary>
-    public IReadOnlyList<LocalizedOption> InterpolationRates { get; } = [new("VideoTranscode.Interp_Double"), new("VideoTranscode.Interp_Quadruple"), new("VideoTranscode.Interp_Custom")];
+    public IReadOnlyList<VideoInterpolationOption> InterpolationRates { get; } = [new("VideoTranscode.Interp_Double"), new("VideoTranscode.Interp_Quadruple"), new("VideoTranscode.Interp_Sextuple")];
     /// <summary>Gets the enhancement and interpolation order choices.</summary>
     public IReadOnlyList<LocalizedOption> InterpolationOrders { get; } = [new("VideoTranscode.Interp_OrderAuto"), new("VideoTranscode.Interp_OrderBefore"), new("VideoTranscode.Interp_OrderAfter")];
     /// <summary>Gets or sets the combined frame processing order.</summary>
@@ -26,7 +33,23 @@ public partial class VideoTranscodeViewModel
     public int InterpolationModeIndex
     {
         get;
-        set { if (!IsBusy && !IsInterpolationInstalling && value >= 0 && SetProperty(ref field, Math.Clamp(value, 0, 2))) { ResetPresetToCustom(); RefreshInterpolationState(); } }
+        set
+        {
+            if (IsBusy || IsInterpolationInstalling || value < 0 || value >= InterpolationModes.Count) return;
+            if (!InterpolationModes[value].IsEnabled)
+            {
+                if (IsCheckingInterpolationHardware && value >= 3)
+                {
+                    _pendingHardwareModeIndex = value;
+                    StartTranscodeCommand.NotifyCanExecuteChanged();
+                }
+                return;
+            }
+            bool hadPendingHardware = _pendingHardwareModeIndex.HasValue;
+            _pendingHardwareModeIndex = null;
+            if (SetProperty(ref field, value)) { ResetPresetToCustom(); RefreshInterpolationState(); }
+            else if (hadPendingHardware) StartTranscodeCommand.NotifyCanExecuteChanged();
+        }
     }
     /// <summary>Gets or sets the selected RIFE model.</summary>
     public int InterpolationModelIndex
@@ -34,11 +57,11 @@ public partial class VideoTranscodeViewModel
         get;
         set { if (!IsBusy && !IsInterpolationInstalling && value >= 0 && SetProperty(ref field, Math.Clamp(value, 0, 1))) { ResetPresetToCustom(); RefreshInterpolationState(); } }
     }
-    /// <summary>Gets or sets the frame rate multiplier or custom-rate mode.</summary>
+    /// <summary>Gets or sets the twofold, fourfold, or sixfold frame rate multiplier index.</summary>
     public int InterpolationRateIndex
     {
         get;
-        set { if (!IsBusy && value >= 0 && SetProperty(ref field, Math.Clamp(value, 0, 2))) { ResetPresetToCustom(); RefreshInterpolationState(); } }
+        set { if (!IsBusy && value >= 0 && value < InterpolationRates.Count && InterpolationRates[value].IsEnabled && SetProperty(ref field, value)) { ResetPresetToCustom(); RefreshInterpolationState(); } }
     }
     /// <summary>Gets or sets the preferred interpolation accelerator.</summary>
     public int InterpolationBackendIndex { get; set { if (!IsBusy && value >= 0) SetProperty(ref field, Math.Clamp(value, 0, 3)); } }
@@ -50,10 +73,16 @@ public partial class VideoTranscodeViewModel
     public bool IsInterpolationEnabled => InterpolationModeIndex != 0;
     /// <summary>Gets whether neural interpolation settings are visible.</summary>
     public bool IsAiInterpolation => InterpolationModeIndex == 1;
-    /// <summary>Gets whether interpolation controls the non-GIF target rate.</summary>
-    public bool ShowInterpolationRate => IsInterpolationEnabled && !IsGifMode;
-    /// <summary>Gets whether a custom interpolation frame rate is selected.</summary>
-    public bool ShowInterpolationFps => ShowInterpolationRate && InterpolationRateIndex == 2;
+    /// <summary>Gets whether a vendor GPU optical flow method is selected.</summary>
+    public bool IsHardwareInterpolation => HardwareVideoInterpolation.IsHardware((VideoInterpolationMode)InterpolationModeIndex);
+    /// <summary>Gets whether configurable scene-cut protection is implemented by the selected method.</summary>
+    public bool ShowInterpolationSceneDetection => !IsHardwareInterpolation;
+    /// <summary>Gets whether hardware optical flow availability is still being checked.</summary>
+    public bool IsCheckingInterpolationHardware { get; private set => SetProperty(ref field, value); } = true;
+    /// <summary>Gets the availability status for AMD and NVIDIA interpolation.</summary>
+    public string HardwareInterpolationStatus => string.Join(Environment.NewLine, InterpolationModes.Skip(3).Select(option => option.Label + " · " + option.Description));
+    /// <summary>Gets whether the interpolation multiplier control is visible.</summary>
+    public bool ShowInterpolationRate => IsInterpolationEnabled;
     /// <summary>Gets whether ordinary frame rate conversion settings are visible.</summary>
     public bool ShowOrdinaryFps => !IsInterpolationEnabled;
     /// <summary>Gets whether the selected interpolation model exists on disk.</summary>
@@ -73,12 +102,51 @@ public partial class VideoTranscodeViewModel
 
     private void RefreshInterpolationState()
     {
-        foreach (string property in new[] { nameof(IsInterpolationEnabled), nameof(IsAiInterpolation), nameof(ShowInterpolationRate),
-                     nameof(ShowInterpolationFps), nameof(ShowOrdinaryFps), nameof(ShowInterpolationOrder), nameof(IsInterpolationModelReady), nameof(InterpolationInstallLabel) })
+        var support = _hardwareInterpolationSupport.FirstOrDefault(value => (int)value.Mode == InterpolationModeIndex);
+        for (int i = 0; i < InterpolationRates.Count; i++)
+            InterpolationRates[i].SetAvailability(!IsHardwareInterpolation || support?.Multipliers.Contains((i + 1) * 2) == true,
+                IsHardwareInterpolation && support?.Multipliers.Contains((i + 1) * 2) != true
+                    ? InterpolationModeIndex == (int)VideoInterpolationMode.AmdOpticalFlow && i == 2 ? "VideoTranscode.Interp_AmdRates" : "VideoTranscode.Interp_UnsupportedMultiplier"
+                    : null);
+        if (!InterpolationRates[InterpolationRateIndex].IsEnabled)
+            InterpolationRateIndex = Enumerable.Range(0, InterpolationRates.Count).First(index => InterpolationRates[index].IsEnabled);
+        foreach (string property in new[] { nameof(IsInterpolationEnabled), nameof(IsAiInterpolation), nameof(IsHardwareInterpolation), nameof(ShowInterpolationSceneDetection), nameof(HardwareInterpolationStatus), nameof(ShowInterpolationRate),
+                     nameof(ShowOrdinaryFps), nameof(ShowInterpolationOrder), nameof(IsInterpolationModelReady), nameof(InterpolationInstallLabel) })
             OnPropertyChanged(property);
         InstallInterpolationModelCommand.NotifyCanExecuteChanged();
         InstallInterpolationAccelerationCommand.NotifyCanExecuteChanged();
         StartTranscodeCommand.NotifyCanExecuteChanged();
+    }
+
+    private async Task CheckHardwareInterpolationAsync()
+    {
+        try
+        {
+            var support = await HardwareVideoInterpolation.GetCapabilitiesAsync().ConfigureAwait(false);
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (_isDisposed) return;
+                _hardwareInterpolationSupport = support;
+                foreach (var capability in support)
+                    InterpolationModes[(int)capability.Mode].SetAvailability(capability.IsSupported, capability.ReasonKey, capability.Detail);
+                IsCheckingInterpolationHardware = false;
+                var requested = _pendingHardwareModeIndex;
+                _pendingHardwareModeIndex = null;
+                if (requested is { } index && InterpolationModes[index].IsEnabled) InterpolationModeIndex = index;
+                RefreshInterpolationState();
+            });
+        }
+        catch (Exception ex)
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (_isDisposed) return;
+                foreach (var option in InterpolationModes.Skip(3)) option.SetAvailability(false, "VideoTranscode.Interp_ProbeFailed", ex.Message);
+                IsCheckingInterpolationHardware = false;
+                _pendingHardwareModeIndex = null;
+                RefreshInterpolationState();
+            });
+        }
     }
 
     private bool CanInstallInterpolation() => !IsBusy && !IsInterpolationInstalling && _interpolationService != null;

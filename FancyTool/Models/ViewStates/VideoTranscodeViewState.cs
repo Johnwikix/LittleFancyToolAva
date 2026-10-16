@@ -8,8 +8,10 @@ public class VideoTranscodeViewState
     public int InterpolationModelIndex { get; set; }
     /// <summary>Gets or sets the combined frame processing order.</summary>
     public int InterpolationOrderIndex { get; set; }
-    /// <summary>Gets or sets the multiplier or custom frame rate mode.</summary>
+    /// <summary>Gets or sets the twofold, fourfold, or sixfold frame rate multiplier index.</summary>
     public int InterpolationRateIndex { get; set; }
+    /// <summary>Gets or sets the rate catalog version used to migrate obsolete custom target selections.</summary>
+    public int InterpolationRateVersion { get; set; }
     /// <summary>Gets or sets the interpolation accelerator preference.</summary>
     public int InterpolationBackendIndex { get; set; }
     /// <summary>Gets or sets whether software interpolation fallback is allowed.</summary>

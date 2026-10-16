@@ -49,22 +49,25 @@ internal static partial class Program
                 service.TranscodeAsync(source, output, options).GetAwaiter().GetResult();
                 AssertInterpolated(service, output, 40, 4, .1, true);
             });
-            RunExtra($"{mode}: rational target rate without a second fps filter", () =>
+            RunExtra($"{mode}: sixfold rate ignores the ordinary fps setting", () =>
             {
-                string output = Path.Combine(workDir, $"interpolation-fractional-{mode}.mp4");
+                string output = Path.Combine(workDir, $"interpolation-sixfold-{mode}.mp4");
                 var options = Options(mode, .4, .8);
-                options.InterpolationMultiplier = 0;
+                options.InterpolationMultiplier = 6;
                 options.FpsValue = 59.94;
                 options.FpsMode = FpsMode.Fixed;
-                service.TranscodeAsync(source, output, options).GetAwaiter().GetResult();
-                AssertInterpolated(service, output, 60000d / 1001, 24, .4, true);
+                var statistics = new List<VideoEncodingProgress>();
+                service.TranscodeAsync(source, output, options, statistics: new CaptureProgress<VideoEncodingProgress>(statistics)).GetAwaiter().GetResult();
+                AssertInterpolated(service, output, 60, 24, .4, true);
+                if (statistics.LastOrDefault() is not { ProcessedFrames: 24, TotalFrames: 24, IsTotalEstimated: false })
+                    throw new InvalidOperationException("Interpolation counted source frames instead of generated output frames");
             });
             RunExtra($"{mode}: non-frame-aligned trim keeps a zero-based clock", () =>
             {
                 string output = Path.Combine(workDir, $"interpolation-unaligned-{mode}.mp4");
-                var options = Options(mode, .353, .953); options.InterpolationMultiplier = 0; options.FpsValue = 30;
+                var options = Options(mode, .353, .953); options.InterpolationMultiplier = 4;
                 service.TranscodeAsync(source, output, options).GetAwaiter().GetResult();
-                AssertInterpolated(service, output, 30, 18, .6, true);
+                AssertInterpolated(service, output, 40, 24, .6, true);
             });
         }
         RunExtra("Intel NPU and explicit CPU execute actual interpolation", () =>
@@ -149,18 +152,19 @@ internal static partial class Program
                 throw new InvalidOperationException("Variable-frame-rate fixture has constant timestamps");
             foreach (var mode in new[] { VideoInterpolationMode.Rife, VideoInterpolationMode.MotionCompensation })
             {
-                var options = Options(mode, 0, 1); options.InterpolationMultiplier = 0; options.FpsValue = 30;
+                var options = Options(mode, 0, 1);
+                double rate = service.ProbeAsync(vfr).GetAwaiter().GetResult()!.Fps * options.InterpolationMultiplier;
                 string output = Path.Combine(workDir, $"vfr-{mode}.mp4");
                 service.TranscodeAsync(vfr, output, options).GetAwaiter().GetResult();
-                AssertInterpolated(service, output, 30, 30, 1, true);
+                AssertInterpolated(service, output, rate, (int)Math.Ceiling(rate - 0.000001), 1, true);
             }
         });
-        RunExtra("interpolated GIF uses the GIF target rate", () =>
+        RunExtra("interpolated GIF uses the multiplier instead of the GIF target rate", () =>
         {
             string output = Path.Combine(workDir, "interpolated.gif");
             var options = Options(VideoInterpolationMode.Rife, .4, 1.4);
             options.Container = VideoContainer.Gif; options.VideoCodec = VideoCodec.Gif; options.AudioCodec = AudioCodec.None;
-            options.GifFps = 20; options.GifWidth = 120;
+            options.GifFps = 15; options.GifWidth = 120;
             service.TranscodeAsync(source, output, options).GetAwaiter().GetResult();
             AssertInterpolated(service, output, 20, 20, 1, false);
         });
@@ -194,15 +198,40 @@ internal static partial class Program
                 if (service.ProbeAsync(output).GetAwaiter().GetResult()!.IsHdr) throw new InvalidOperationException("Tone-mapped interpolation retained HDR tags");
             }
         });
-        RunExtra("invalid interpolation rate is rejected", () =>
+        RunExtra("unsupported interpolation multipliers are rejected", () =>
         {
-            foreach (double fps in new[] { double.NaN, 0, double.PositiveInfinity, 241 })
+            foreach (int multiplier in new[] { -1, 0, 1, 3, 5, 8 })
             {
-                var options = Options(VideoInterpolationMode.Rife, 0, 1); options.InterpolationMultiplier = 0; options.FpsValue = fps;
-                try { service.TranscodeAsync(source, Path.Combine(workDir, "invalid.mp4"), options).GetAwaiter().GetResult(); throw new InvalidOperationException("Invalid interpolation rate accepted"); }
+                var options = Options(VideoInterpolationMode.Rife, 0, 1); options.InterpolationMultiplier = multiplier;
+                try { service.TranscodeAsync(source, Path.Combine(workDir, "invalid.mp4"), options).GetAwaiter().GetResult(); throw new InvalidOperationException("Invalid interpolation multiplier accepted"); }
                 catch (ArgumentException) { }
             }
         });
+        foreach (var capability in HardwareVideoInterpolation.GetCapabilitiesAsync().GetAwaiter().GetResult())
+        {
+            if (!capability.IsSupported)
+            {
+                RunExtra($"{capability.Mode}: unsupported hardware rejects conversion without a CPU fallback", () =>
+                {
+                    var options = Options(capability.Mode, 0, .3);
+                    options.InterpolationAllowCpuFallback = true;
+                    string output = Path.Combine(workDir, $"unavailable-{capability.Mode}.mp4");
+                    try { service.TranscodeAsync(source, output, options).GetAwaiter().GetResult(); throw new InvalidOperationException("Unavailable hardware silently converted"); }
+                    catch (NotSupportedException) { }
+                    if (File.Exists(output)) throw new InvalidOperationException("Unavailable hardware left an output file");
+                });
+                continue;
+            }
+            foreach (int multiplier in capability.Multipliers)
+                RunExtra($"{capability.Mode}: actual GPU conversion at {multiplier}x", () =>
+                {
+                    var options = Options(capability.Mode, .4, .8);
+                    options.InterpolationMultiplier = multiplier;
+                    string output = Path.Combine(workDir, $"hardware-{capability.Mode}-{multiplier}.mp4");
+                    service.TranscodeAsync(source, output, options).GetAwaiter().GetResult();
+                    AssertInterpolated(service, output, 10 * multiplier, 4 * multiplier, .4, true);
+                });
+        }
         Console.WriteLine($"Interpolation smoke tests: {_runCount} cases, {_failures} failures");
         return _failures == 0 ? 0 : 1;
 

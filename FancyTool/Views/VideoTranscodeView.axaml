@@ -215,14 +215,26 @@
                                     <StackPanel Spacing="8">
                                         <TextBlock Text="{lan:I18n VideoTranscode.Interp_Title}" FontWeight="SemiBold" />
                                         <ComboBox ItemsSource="{Binding InterpolationModes}" SelectedIndex="{Binding InterpolationModeIndex, Mode=TwoWay}" IsEnabled="{Binding !IsBusy}" HorizontalAlignment="Stretch" AutomationProperties.AutomationId="VideoInterpolationMode">
-                                            <ComboBox.ItemTemplate><DataTemplate x:DataType="models:LocalizedOption"><TextBlock Text="{Binding Label}" /></DataTemplate></ComboBox.ItemTemplate>
+                                            <ComboBox.Styles>
+                                                <Style Selector="ComboBoxItem" x:DataType="models:VideoInterpolationOption">
+                                                    <Setter Property="IsEnabled" Value="{Binding IsEnabled}" />
+                                                    <Setter Property="ToolTip.Tip" Value="{Binding Description}" />
+                                                </Style>
+                                            </ComboBox.Styles>
+                                            <ComboBox.ItemTemplate><DataTemplate x:DataType="models:VideoInterpolationOption"><TextBlock Text="{Binding Label}" /></DataTemplate></ComboBox.ItemTemplate>
                                         </ComboBox>
+                                        <TextBlock Text="{Binding HardwareInterpolationStatus}" FontSize="11" Opacity="0.75" TextWrapping="Wrap" AutomationProperties.AutomationId="VideoInterpolationHardwareStatus" />
                                         <StackPanel IsVisible="{Binding IsInterpolationEnabled}" Spacing="8">
                                             <StackPanel IsEnabled="{Binding !IsBusy}" Spacing="8">
                                                 <ComboBox IsVisible="{Binding ShowInterpolationRate}" ItemsSource="{Binding InterpolationRates}" SelectedIndex="{Binding InterpolationRateIndex, Mode=TwoWay}" HorizontalAlignment="Stretch" AutomationProperties.AutomationId="VideoInterpolationRate">
-                                                    <ComboBox.ItemTemplate><DataTemplate x:DataType="models:LocalizedOption"><TextBlock Text="{Binding Label}" /></DataTemplate></ComboBox.ItemTemplate>
+                                                    <ComboBox.Styles>
+                                                        <Style Selector="ComboBoxItem" x:DataType="models:VideoInterpolationOption">
+                                                            <Setter Property="IsEnabled" Value="{Binding IsEnabled}" />
+                                                            <Setter Property="ToolTip.Tip" Value="{Binding Description}" />
+                                                        </Style>
+                                                    </ComboBox.Styles>
+                                                    <ComboBox.ItemTemplate><DataTemplate x:DataType="models:VideoInterpolationOption"><TextBlock Text="{Binding Label}" /></DataTemplate></ComboBox.ItemTemplate>
                                                 </ComboBox>
-                                                <NumericUpDown IsVisible="{Binding ShowInterpolationFps}" Minimum="1" Maximum="120" Value="{Binding FpsValue, Mode=TwoWay}" Increment="0.01" FormatString="0.###" AutomationProperties.AutomationId="VideoInterpolationFps" />
                                                 <StackPanel IsVisible="{Binding IsAiInterpolation}" Spacing="8">
                                                     <ComboBox ItemsSource="{Binding InterpolationModels}" SelectedIndex="{Binding InterpolationModelIndex, Mode=TwoWay}" HorizontalAlignment="Stretch" AutomationProperties.AutomationId="VideoInterpolationModel">
                                                         <ComboBox.ItemTemplate><DataTemplate x:DataType="models:LocalizedOption"><TextBlock Text="{Binding Label}" /></DataTemplate></ComboBox.ItemTemplate>
@@ -232,12 +244,13 @@
                                                     </ComboBox>
                                                     <CheckBox IsChecked="{Binding InterpolationAllowCpuFallback, Mode=TwoWay}"><TextBlock Text="{lan:I18n VideoTranscode.Sr_AllowCpu}" TextWrapping="Wrap" /></CheckBox>
                                                 </StackPanel>
-                                                <CheckBox IsChecked="{Binding InterpolationSceneDetection, Mode=TwoWay}" Content="{lan:I18n VideoTranscode.Interp_SceneDetection}" />
+                                                <CheckBox IsVisible="{Binding ShowInterpolationSceneDetection}" IsChecked="{Binding InterpolationSceneDetection, Mode=TwoWay}" Content="{lan:I18n VideoTranscode.Interp_SceneDetection}" />
                                                 <ComboBox IsVisible="{Binding ShowInterpolationOrder}" ItemsSource="{Binding InterpolationOrders}" SelectedIndex="{Binding InterpolationOrderIndex, Mode=TwoWay}" HorizontalAlignment="Stretch" AutomationProperties.AutomationId="VideoInterpolationOrder">
                                                     <ComboBox.ItemTemplate><DataTemplate x:DataType="models:LocalizedOption"><TextBlock Text="{Binding Label}" TextWrapping="Wrap" /></DataTemplate></ComboBox.ItemTemplate>
                                                 </ComboBox>
                                             </StackPanel>
                                             <TextBlock Text="{lan:I18n VideoTranscode.Interp_Hint}" FontSize="11" Opacity="0.75" TextWrapping="Wrap" />
+                                            <TextBlock IsVisible="{Binding IsHardwareInterpolation}" Text="{lan:I18n VideoTranscode.Interp_HardwareHint}" FontSize="11" Opacity="0.75" TextWrapping="Wrap" />
                                             <TextBlock IsVisible="{Binding IsGifMode}" Text="{lan:I18n VideoTranscode.Interp_GifHint}" FontSize="11" Opacity="0.75" TextWrapping="Wrap" />
                                             <StackPanel IsVisible="{Binding IsAiInterpolation}" Spacing="8">
                                                 <Button Command="{Binding InstallInterpolationModelCommand}" Content="{Binding InterpolationInstallLabel}" HorizontalAlignment="Stretch" />
@@ -279,7 +292,7 @@
                                         <Slider Grid.Column="1" Minimum="64" Maximum="800" Value="{Binding GifWidth}" Margin="8,0" />
                                         <TextBlock Grid.Column="2" Text="{Binding GifWidth, StringFormat='{}{0}px'}" VerticalAlignment="Center" MinWidth="45" TextAlignment="Right" />
                                     </Grid>
-                                    <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">
+                                    <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center" IsVisible="{Binding ShowOrdinaryFps}">
                                         <TextBlock Grid.Column="0" Text="{lan:I18n VideoTranscode.Label_GifFps}" VerticalAlignment="Center" />
                                         <Slider Grid.Column="1" Minimum="1" Maximum="30" Value="{Binding GifFps}" Margin="8,0" />
                                         <TextBlock Grid.Column="2" Text="{Binding GifFps, StringFormat='{}{0}fps'}" VerticalAlignment="Center" MinWidth="45" TextAlignment="Right" />
@@ -379,7 +392,7 @@
                                         <SelectableTextBlock Text="{Binding FileName}" FontWeight="Medium" TextTrimming="CharacterEllipsis" />
                                         <SelectableTextBlock Text="{Binding ProbeDisplay}" FontSize="11" Opacity="0.7" TextTrimming="CharacterEllipsis" />
                                     </StackPanel>
-                                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center" Margin="8,0">
+                                    <StackPanel Grid.Column="2" Spacing="2" VerticalAlignment="Center" Margin="8,0">
                                         <SelectableTextBlock Text="{Binding StatusDisplay}" FontSize="11" />
                                         <SelectableTextBlock Text="{Binding ProgressDisplay}" FontSize="11" Opacity="0.8" />
                                     </StackPanel>

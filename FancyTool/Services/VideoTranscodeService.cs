@@ -141,7 +141,8 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
 
     /// <inheritdoc />
     public Task TranscodeAsync(string inputPath, string outputPath, VideoTranscodeOptions options,
-        IProgress<double>? progress = null, CancellationToken ct = default, IProgress<VideoPreviewFrame>? preview = null)
+        IProgress<double>? progress = null, CancellationToken ct = default, IProgress<VideoPreviewFrame>? preview = null,
+        IProgress<VideoEncodingProgress>? statistics = null)
     {
         if (!File.Exists(inputPath)) throw new FileNotFoundException(inputPath);
         return Task.Run(() =>
@@ -178,10 +179,10 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
                     {
                         _logger.LogInformation("FFmpeg in-process 2-pass pass1: {Input} encoder={Enc}", inputPath, encoderName);
                         ConvertOnce(inputPath, pass1Out, options, src.PixFmt, src.Probe.Fps, pass: 1, passLogFile: passLog,
-                            durationMs, new ScaledProgress(progress, 0, 0.5), ct, preview, upscaler);
+                            durationMs, new ScaledProgress(progress, 0, 0.5), ct, preview, upscaler, statistics);
                         _logger.LogInformation("FFmpeg in-process 2-pass pass2: {Input} -> {Output}", inputPath, outputPath);
                         ConvertOnce(inputPath, tmpPath, options, src.PixFmt, src.Probe.Fps, pass: 2, passLogFile: passLog,
-                            durationMs, new ScaledProgress(progress, 0.5, 0.5), ct, preview, upscaler);
+                            durationMs, new ScaledProgress(progress, 0.5, 0.5), ct, preview, upscaler, statistics);
                     }
                     finally
                     {
@@ -197,7 +198,7 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
                 {
                     _logger.LogInformation("FFmpeg in-process transcode: {Input} -> {Output} encoder={Enc} muxer={Fmt}",
                         inputPath, outputPath, encoderName, GetMuxerName(options.Container));
-                    ConvertOnce(inputPath, tmpPath, options, src.PixFmt, src.Probe.Fps, pass: 0, passLogFile: null, durationMs, progress, ct, preview, upscaler);
+                    ConvertOnce(inputPath, tmpPath, options, src.PixFmt, src.Probe.Fps, pass: 0, passLogFile: null, durationMs, progress, ct, preview, upscaler, statistics);
                 }
 
                 if (File.Exists(outputPath)) File.Delete(outputPath);
@@ -216,7 +217,7 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
     /// <summary>单次完整管线执行（两通编码时 pass=1/2，pass=0 表示单通）。</summary>
     private void ConvertOnce(string inputPath, string outputPath, VideoTranscodeOptions o, string? sourcePixFmt,
         double sourceFps, int pass, string? passLogFile, long durationMs, IProgress<double>? progress, CancellationToken ct,
-        IProgress<VideoPreviewFrame>? preview, IVideoFrameUpscaler? upscaler)
+        IProgress<VideoPreviewFrame>? preview, IVideoFrameUpscaler? upscaler, IProgress<VideoEncodingProgress>? statistics)
     {
         ct.ThrowIfCancellationRequested();
 
@@ -415,6 +416,9 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
             AVRational audioTimeBase = aIdx >= 0 ? inFmt->streams[aIdx]->time_base : default;
             if (aIdx >= 0) timeline.NextAudioPts = (long)Math.Round(decodeStart / ffmpeg.av_q2d(audioTimeBase));
 
+            var encodingProgress = statistics == null ? null : new EncodingProgress(progress, statistics,
+                totalSec, ffmpeg.av_q2d(vEnc->framerate), pass == 0 ? 1 : pass, pass == 0 ? 1 : 2);
+            if (encodingProgress != null) progress = encodingProgress;
             while ((ret = ffmpeg.av_read_frame(inFmt, pkt)) >= 0)
             {
                 ct.ThrowIfCancellationRequested();
@@ -492,6 +496,7 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
 
             ffmpeg.av_write_trailer(ofmt);
             previewConverter.Flush(preview);
+            encodingProgress?.Flush(completed: true);
         }
         finally
         {
@@ -634,6 +639,7 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
                 progress?.Report(Math.Clamp(ffmpeg.av_q2d(vEnc->time_base) * filtFrame->pts, 0, totalSec) / totalSec);
             ffmpeg.av_frame_unref(filtFrame);
             DrainPackets(vEnc, ofmt, stream, pkt, vEnc->time_base);
+            (progress as EncodingProgress)?.ReportFrame();
         }
     }
 
@@ -707,7 +713,7 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
     /// vaapi 时创建硬件设备并挂到 hwupload。返回 false 表示配置失败。
     /// </summary>
     private static bool BindGraphAndConfigure(AVFilterGraph* graph, AVFilterContext* src, AVFilterContext* sink,
-        string description, bool vaapi, string vaapiDevice, AVBufferRef** outHwDevice)
+        string description, bool vaapi, string vaapiDevice, AVBufferRef** outHwDevice, AVBufferRef* filterDevice = null)
     {
         // 命名与官方示例一致：outputs = 图的开放输入（← buffersrc），inputs = 开放输出（→ buffersink）
         AVFilterInOut* outputs = ffmpeg.avfilter_inout_alloc();
@@ -731,6 +737,19 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
 
             int ret = ffmpeg.avfilter_graph_parse_ptr(graph, description, &inputs, &outputs, null);
             if (ret < 0) return false;
+
+            if (filterDevice != null)
+            {
+                for (uint i = 0; i < graph->nb_filters; i++)
+                {
+                    AVFilterContext* filter = graph->filters[i];
+                    if (PtrToString(filter->filter->name) == "hwupload" && filter->hw_device_ctx == null)
+                    {
+                        filter->hw_device_ctx = ffmpeg.av_buffer_ref(filterDevice);
+                        if (filter->hw_device_ctx == null) throw new OutOfMemoryException();
+                    }
+                }
+            }
 
             if (vaapi)
             {
@@ -1355,7 +1374,9 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
         {
             string fps = (o.GifFps > 0 ? o.GifFps : 15).ToString(System.Globalization.CultureInfo.InvariantCulture);
             string width = (o.GifWidth > 0 ? o.GifWidth : 480).ToString(System.Globalization.CultureInfo.InvariantCulture);
-            var parts = new List<string> { $"fps={fps}", $"scale={width}:-1:flags=lanczos" };
+            var parts = new List<string>();
+            if (o.InterpolationMode == VideoInterpolationMode.None) parts.Add($"fps={fps}");
+            parts.Add($"scale={width}:-1:flags=lanczos");
             if (!string.IsNullOrEmpty(colorFilters)) parts.Insert(0, colorFilters);
             if (o.CropEnabled) parts.Add($"crop=iw-{o.CropLeft + o.CropRight}:ih-{o.CropTop + o.CropBottom}:{o.CropLeft}:{o.CropTop}");
             if (o.Deinterlace != DeinterlaceMode.None) parts.Add(o.Deinterlace == DeinterlaceMode.Bwdif ? "bwdif" : "yadif");

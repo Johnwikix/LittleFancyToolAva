@@ -11,7 +11,11 @@ public enum VideoInterpolationMode
     /// <summary>Generates intermediate frames using RIFE.</summary>
     Rife,
     /// <summary>Uses FFmpeg motion estimation and compensation on the CPU.</summary>
-    MotionCompensation
+    MotionCompensation,
+    /// <summary>Uses AMD AMF GPU motion estimation and frame rate conversion.</summary>
+    AmdOpticalFlow,
+    /// <summary>Uses NVIDIA optical flow hardware through Vulkan.</summary>
+    NvidiaOpticalFlow
 }
 
 /// <summary>Specifies the RIFE model used for frame interpolation.</summary>

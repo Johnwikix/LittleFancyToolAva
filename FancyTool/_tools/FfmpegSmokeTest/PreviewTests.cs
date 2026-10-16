@@ -34,11 +34,16 @@ internal static partial class Program
             string input = Path.Combine(workDir, "preview-60fps.avi");
             WriteTestAvi(input, 160, 120, 60, 2);
             var preview = new PacedPreview();
+            var processingRates = new List<VideoEncodingProgress>();
             var elapsed = Stopwatch.StartNew();
             service.TranscodeAsync(input, Path.Combine(workDir, "preview-60fps.mp4"), new VideoTranscodeOptions
-            { Preset = PresetLevel.Ultrafast }, preview: preview).GetAwaiter().GetResult();
+            { Preset = PresetLevel.Ultrafast }, preview: preview, statistics: new CaptureProgress<VideoEncodingProgress>(processingRates)).GetAwaiter().GetResult();
             if (preview.Count < 100 || Math.Abs(preview.LastPosition - 119d / 60) > 0.002)
                 throw new InvalidOperationException($"Preview cadence/final frame: {preview.Count} frames, last={preview.LastPosition}");
+            if (processingRates.Count < 2 || !processingRates.Any(rate => rate.FramesPerSecond > 0)
+                || processingRates.Any(rate => !double.IsFinite(rate.FramesPerSecond) || rate.FramesPerSecond < 0)
+                || processingRates[^1] is not { ProcessedFrames: 120, TotalFrames: 120, IsTotalEstimated: false })
+                throw new InvalidOperationException("Conversion did not report valid measured processing FPS");
             Console.WriteLine($"    producer: {preview.Count} previews in {elapsed.Elapsed.TotalSeconds:F2}s ({preview.Count / elapsed.Elapsed.TotalSeconds:F1} fps)");
             // Encoding faster than the display cap must still publish the ending position.
             var burst = new LastPreview();

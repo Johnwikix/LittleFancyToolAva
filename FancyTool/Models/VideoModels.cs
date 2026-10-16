@@ -165,7 +165,7 @@ public sealed class VideoTranscodeOptions
     public Services.VideoInterpolationModel InterpolationModel { get; set; }
     /// <summary>Gets or sets the order used when interpolation and super-resolution are combined.</summary>
     public Services.VideoFrameProcessingOrder FrameProcessingOrder { get; set; }
-    /// <summary>Gets or sets the source frame rate multiplier, two or four, or zero to use FpsValue.</summary>
+    /// <summary>Gets or sets the source frame rate multiplier: two, four, or six.</summary>
     public int InterpolationMultiplier { get; set; } = 2;
     /// <summary>Gets or sets the preferred interpolation accelerator.</summary>
     public Services.VideoSrBackend InterpolationBackend { get; set; }
@@ -257,6 +257,7 @@ public partial class VideoFileItem : ObservableObject
     private FileStatus _status = FileStatus.Pending;
     private string? _errorMessage;
     private double _progress;
+    private double _processingFps;
     private string _statusDisplay = "";
     private string _progressDisplay = "";
     private VideoProbeInfo? _probeInfo;
@@ -264,7 +265,7 @@ public partial class VideoFileItem : ObservableObject
     public FileStatus Status
     {
         get => _status;
-        set { if (SetProperty(ref _status, value)) RefreshStatusDisplay(); }
+        set { if (SetProperty(ref _status, value)) { RefreshStatusDisplay(); RefreshProgressDisplay(); } }
     }
 
     public string? ErrorMessage
@@ -277,6 +278,27 @@ public partial class VideoFileItem : ObservableObject
     {
         get => _progress;
         set { if (SetProperty(ref _progress, value)) RefreshProgressDisplay(); }
+    }
+
+    /// <summary>Gets or sets the measured output frames processed per second during conversion.</summary>
+    public double ProcessingFps
+    {
+        get => _processingFps;
+        set { if (SetProperty(ref _processingFps, value)) RefreshProgressDisplay(); }
+    }
+
+    /// <summary>Gets the latest output frame counters for the current encoding pass.</summary>
+    public VideoEncodingProgress? EncodingStatistics { get; private set; }
+
+    /// <summary>Updates measured frame counts and throughput together.</summary>
+    /// <param name="statistics">The current pass statistics, or null to clear a previous conversion.</param>
+    public void UpdateEncodingStatistics(VideoEncodingProgress? statistics)
+    {
+        EncodingStatistics = statistics;
+        OnPropertyChanged(nameof(EncodingStatistics));
+        _processingFps = statistics?.FramesPerSecond ?? 0;
+        OnPropertyChanged(nameof(ProcessingFps));
+        RefreshProgressDisplay();
     }
 
     public VideoProbeInfo? ProbeInfo
@@ -330,10 +352,16 @@ public partial class VideoFileItem : ObservableObject
 
     private void RefreshProgressDisplay()
     {
+        string frames = EncodingStatistics is not { } stats ? string.Empty
+            : FancyToolAva.Services.LocalizationRegistry.Get(stats.TotalFrames == null ? "VideoTranscode.Progress_FramesUnknown"
+                : stats.IsTotalEstimated ? "VideoTranscode.Progress_FramesEstimated" : "VideoTranscode.Progress_Frames",
+                stats.ProcessedFrames, stats.TotalFrames ?? 0);
+        string pass = EncodingStatistics is { PassCount: > 1 } multi
+            ? FancyToolAva.Services.LocalizationRegistry.Get("VideoTranscode.Progress_Pass", multi.Pass, multi.PassCount) + " · " : string.Empty;
         _progressDisplay = _status switch
         {
-            FileStatus.Converting => $" {_progress * 100:F0}%",
-            FileStatus.Completed => " 100%",
+            FileStatus.Converting => $" {_progress * 100:F0}% · {pass}{(frames.Length == 0 ? string.Empty : frames + " · ")}{_processingFps:0.0} fps",
+            FileStatus.Completed => " 100%" + (frames.Length == 0 ? string.Empty : " · " + frames),
             _ => ""
         };
         OnPropertyChanged(nameof(ProgressDisplay));

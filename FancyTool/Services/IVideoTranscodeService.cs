@@ -25,6 +25,7 @@ public interface IVideoTranscodeService
     /// <param name="progress">The optional normalized conversion progress reporter.</param>
     /// <param name="ct">The cancellation token.</param>
     /// <param name="preview">The optional reporter for small source frames at the current conversion position.</param>
+    /// <param name="statistics">The optional reporter for output frame counts and measured throughput.</param>
     /// <returns>The task that completes after the output has been finalized.</returns>
     Task TranscodeAsync(
         string inputPath,
@@ -32,5 +33,6 @@ public interface IVideoTranscodeService
         VideoTranscodeOptions options,
         IProgress<double>? progress = null,
         CancellationToken ct = default,
-        IProgress<VideoPreviewFrame>? preview = null);
+        IProgress<VideoPreviewFrame>? preview = null,
+        IProgress<VideoEncodingProgress>? statistics = null);
 }

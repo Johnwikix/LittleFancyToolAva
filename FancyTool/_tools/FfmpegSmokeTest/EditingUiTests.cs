@@ -110,7 +110,6 @@ internal static partial class Program
                 var mode = view.GetVisualDescendants().OfType<ComboBox>().Single(c => AutomationProperties.GetAutomationId(c) == "VideoInterpolationMode");
                 var model = view.GetVisualDescendants().OfType<ComboBox>().Single(c => AutomationProperties.GetAutomationId(c) == "VideoInterpolationModel");
                 var rate = view.GetVisualDescendants().OfType<ComboBox>().Single(c => AutomationProperties.GetAutomationId(c) == "VideoInterpolationRate");
-                var target = view.GetVisualDescendants().OfType<NumericUpDown>().Single(c => AutomationProperties.GetAutomationId(c) == "VideoInterpolationFps");
                 var order = view.GetVisualDescendants().OfType<ComboBox>().Single(c => AutomationProperties.GetAutomationId(c) == "VideoInterpolationOrder");
                 var state = ((IViewState)vm).CaptureState();
                 vm.InterpolationModeIndex = 0; vm.InterpolationModelIndex = 0; vm.InterpolationRateIndex = 0;
@@ -120,8 +119,10 @@ internal static partial class Program
                     I18nManager.Instance.Culture = new CultureInfo(culture);
                     PumpUntil(() => vm.InterpolationModes[0].Label == (culture == "en-US" ? "Off" : "关闭插帧"));
                     if (mode.SelectedIndex != 1 || model.SelectedIndex != 1 || rate.SelectedIndex != 2
-                        || order.SelectedIndex != 2 || !order.IsVisible || !target.IsVisible || Math.Abs(vm.FpsValue - 60000d / 1001) > .0001)
-                        throw new InvalidOperationException("Interpolation state, bindings, or localization changed the target rate");
+                        || order.SelectedIndex != 2 || !order.IsVisible || vm.InterpolationRates.Count != 3
+                        || vm.InterpolationRates[2].Label != (culture == "en-US" ? "Source frame rate × 6" : "源帧率 × 6")
+                        || view.GetVisualDescendants().OfType<NumericUpDown>().Any(c => AutomationProperties.GetAutomationId(c) == "VideoInterpolationFps"))
+                        throw new InvalidOperationException("Interpolation state, multiplier choices, or localization is incorrect");
                 }
                 mode.BringIntoView();
                 PumpUntil(() => true);
@@ -132,6 +133,16 @@ internal static partial class Program
             var info = service.ProbeAsync(source).GetAwaiter().GetResult()!;
             var first = new VideoFileItem(source) { ProbeInfo = info };
             var second = new VideoFileItem(source) { ProbeInfo = info with { DurationMs = 1000 } };
+            first.Status = FileStatus.Converting;
+            first.UpdateEncodingStatistics(new VideoEncodingProgress(12, 40, 24.5, true, 1, 2));
+            if (!first.ProgressDisplay.Contains("12") || !first.ProgressDisplay.Contains("40") || !first.ProgressDisplay.Contains("fps"))
+                throw new InvalidOperationException("Conversion UI omitted the processed/total frame counters or FPS");
+            first.UpdateEncodingStatistics(new VideoEncodingProgress(40, 40, 24.5, false, 2, 2));
+            first.Status = FileStatus.Completed;
+            if (!first.ProgressDisplay.Contains("40") || first.ProgressDisplay.Contains("fps"))
+                throw new InvalidOperationException("Completed conversion did not retain its actual frame count");
+            first.Status = FileStatus.Pending;
+            first.UpdateEncodingStatistics(null);
             vm.FileItems.Add(first);
             vm.TrimStartSeconds = 0.4;
             vm.TrimEndSeconds = 1.4;

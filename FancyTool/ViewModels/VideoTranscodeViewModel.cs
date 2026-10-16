@@ -114,7 +114,6 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
             {
                 OnPropertyChanged(nameof(IsGifMode));
                 OnPropertyChanged(nameof(ShowInterpolationRate));
-                OnPropertyChanged(nameof(ShowInterpolationFps));
                 OnPropertyChanged(nameof(ShowTwoPass));
                 // 先更新源再定选，避免 SelectedItem 在旧 ItemsSource 上被 TwoWay 回推 null
                 OnPropertyChanged(nameof(FilteredVideoCodecs));
@@ -812,6 +811,7 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
         _ffmpegService.AvailabilityChanged += OnFfmpegAvailabilityChanged;
         I18nManager.Instance.CultureChanged += OnCultureChanged;
         UpdateStatusText();
+        _ = CheckHardwareInterpolationAsync();
     }
 
     private void OnFfmpegAvailabilityChanged(object? sender, bool available)
@@ -839,7 +839,8 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
             foreach (var option in VideoSrModelLabels) option.Refresh();
             foreach (var option in VideoSrBackendLabels) option.Refresh();
             foreach (var option in HdrOutputOptions) option.Refresh();
-            foreach (var option in InterpolationModes.Concat(InterpolationModels).Concat(InterpolationRates).Concat(InterpolationOrders)) option.Refresh();
+            foreach (var option in InterpolationModes.Concat(InterpolationRates)) option.Refresh();
+            foreach (var option in InterpolationModels.Concat(InterpolationOrders)) option.Refresh();
             RefreshInterpolationState();
             OnPropertyChanged(nameof(HdrOutputIndex));
             RefreshSrState();
@@ -933,6 +934,7 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
         InterpolationModelIndex = InterpolationModelIndex,
         InterpolationOrderIndex = InterpolationOrderIndex,
         InterpolationRateIndex = InterpolationRateIndex,
+        InterpolationRateVersion = 1,
         InterpolationBackendIndex = InterpolationBackendIndex,
         InterpolationAllowCpuFallback = InterpolationAllowCpuFallback,
         InterpolationSceneDetection = InterpolationSceneDetection,
@@ -1001,7 +1003,7 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
                 InterpolationModeIndex = s.InterpolationModeIndex;
                 InterpolationModelIndex = s.InterpolationModelIndex;
                 InterpolationOrderIndex = s.InterpolationOrderIndex;
-                InterpolationRateIndex = s.InterpolationRateIndex;
+                InterpolationRateIndex = s.InterpolationRateVersion == 0 && s.InterpolationRateIndex == 2 ? 0 : s.InterpolationRateIndex;
                 InterpolationBackendIndex = s.InterpolationBackendIndex;
                 InterpolationAllowCpuFallback = s.InterpolationAllowCpuFallback;
                 InterpolationSceneDetection = s.InterpolationSceneDetection;
@@ -1379,16 +1381,18 @@ private async Task AddPathsAsync(IEnumerable<string> paths)
             {
                 item.Status = FileStatus.Converting;
                 item.Progress = 0;
+                item.UpdateEncodingStatistics(null);
                 if (SelectedFileItem?.Status != FileStatus.Converting) SelectedFileItem = item;
             });
             var progress = new Progress<double>(p => Dispatcher.UIThread.Post(() => item.Progress = p));
+            var statistics = new EncodingStatisticsReporter(item);
 
             bool itemFailed = false;
             try
             {
                 // Every file owns its clip range; shared encoding settings are snapshotted for the batch.
                 var itemOptions = options.WithTrim(item.TrimStartSeconds, item.TrimEndSeconds);
-                await _videoService.TranscodeAsync(item.FilePath, outputPath, itemOptions, progress, _cts.Token, CreateProgressPreview(item)).ConfigureAwait(false);
+                await _videoService.TranscodeAsync(item.FilePath, outputPath, itemOptions, progress, _cts.Token, CreateProgressPreview(item), statistics).ConfigureAwait(false);
                 Dispatcher.UIThread.Post(() => { item.Progress = 1.0; item.Status = FileStatus.Completed; });
             }
             catch (OperationCanceledException)
@@ -1463,7 +1467,10 @@ private async Task AddPathsAsync(IEnumerable<string> paths)
             : string.Empty;
     }
 
-    private bool CanStartTranscode() => !IsBusy && !IsSrInstalling && !IsInterpolationInstalling && FileItems.Count > 0 && _ffmpegService.IsAvailable;
+    private bool CanStartTranscode() => !IsBusy && !IsSrInstalling && !IsInterpolationInstalling
+        && !(IsCheckingInterpolationHardware && _pendingHardwareModeIndex.HasValue)
+        && InterpolationModes[InterpolationModeIndex].IsEnabled && InterpolationRates[InterpolationRateIndex].IsEnabled
+        && FileItems.Count > 0 && _ffmpegService.IsAvailable;
 
     private VideoTranscodeOptions BuildOptions()
     {
@@ -1489,7 +1496,7 @@ private async Task AddPathsAsync(IEnumerable<string> paths)
             InterpolationMode = (VideoInterpolationMode)InterpolationModeIndex,
             InterpolationModel = (VideoInterpolationModel)InterpolationModelIndex,
             FrameProcessingOrder = (VideoFrameProcessingOrder)InterpolationOrderIndex,
-            InterpolationMultiplier = InterpolationRateIndex switch { 0 => 2, 1 => 4, _ => 0 },
+            InterpolationMultiplier = InterpolationRateIndex switch { 0 => 2, 1 => 4, _ => 6 },
             InterpolationBackend = (VideoSrBackend)InterpolationBackendIndex,
             InterpolationAllowCpuFallback = InterpolationAllowCpuFallback,
             InterpolationSceneDetection = InterpolationSceneDetection,
