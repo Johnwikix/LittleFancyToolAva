@@ -55,7 +55,8 @@
     <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
     <DefaultLanguage>zh-CN</DefaultLanguage>
     <AppxPackageSigningEnabled>False</AppxPackageSigningEnabled>
-    <GenerateTemporaryStoreCertificate>true</GenerateTemporaryStoreCertificate>
+    <!-- Unsigned packages must not request cleanup of a certificate that was never created. -->
+    <GenerateTemporaryStoreCertificate>$(AppxPackageSigningEnabled)</GenerateTemporaryStoreCertificate>
     <PackageCertificateThumbprint>
     </PackageCertificateThumbprint>
     <NoWarn>$(NoWarn);NU1702;NU1701</NoWarn>
@@ -66,6 +67,9 @@
     <AppxBundlePlatforms>x64</AppxBundlePlatforms>
     <HoursBetweenUpdateChecks>0</HoursBetweenUpdateChecks>
     <EntryPointProjectUniqueName>..\FancyTool\FancyToolAva.csproj</EntryPointProjectUniqueName>
+    <!-- VS builds the solution's ordinary app evaluation, not this isolated
+         reference. Publish the isolated variant before collecting its outputs. -->
+    <WapAlwaysBuildDependentProjects>true</WapAlwaysBuildDependentProjects>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x86'">
     <AppxBundle>Always</AppxBundle>
@@ -112,7 +116,9 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\FancyTool\FancyToolAva.csproj">
-      <AdditionalProperties>FancyToolMsixBuild=true</AdditionalProperties>
+      <!-- The IDE built ordinary dependency outputs. This isolated evaluation
+           must build its own complete dependency graph, including references. -->
+      <AdditionalProperties>FancyToolMsixBuild=true;BuildingInsideVisualStudio=false;BuildProjectReferences=true</AdditionalProperties>
     </ProjectReference>
   </ItemGroup>
   <!-- Restore before DesktopBridge queries deployable content from the isolated app.

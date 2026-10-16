@@ -1,33 +1,52 @@
-# MSIX entry point output metadata
+# Build the isolated MSIX application and its dependencies
 
-On 2026-10-16, the packaging project reported that `FancyToolAva.exe` was missing
-from project outputs. Metadata-only evaluation reproduced a concrete mismatch:
-DesktopBridge's `AddProjectMetadata` reported `bin/x64/Release/...` and `obj/`,
-while its reference's `FancyToolMsixBuild=true` evaluated the app with
-`bin/msix/x64/Release/...` and `obj/msix/`. `SetPublishProperties` then calculated
-`PublishDir` from the ordinary output path, mixing the two evaluations.
+On 2026-10-16 an actual Debug/x64 build with
+`BuildingInsideVisualStudio=true` reproduced the missing
+`EntryPointExe FancyToolAva.exe` error at DesktopBridge's package file collection.
+Visual Studio builds the solution's ordinary app evaluation, while the MSIX
+reference uses `FancyToolMsixBuild=true` and separate `bin/msix` / `obj/msix`
+directories. DesktopBridge normally skips building its dependent projects inside
+the IDE. Consequently the isolated apphost may never have been generated.
+Metadata-only path checks cannot prove the required executable exists.
 
-The app now exposes `GetFancyToolMsixMetadata`, which returns its actual evaluated
-output and intermediate paths without compiling or publishing. The packaging
-project calls this query with the original reference properties after
-`SetProjectReferenceProperties`, updates both reference metadata collections,
-and replaces the generated publish directory with the isolated app's
-`TargetDir/msixpublish/`. Reference consumers now agree on the same output root.
+The packaging project now sets `WapAlwaysBuildDependentProjects=true`. Its app
+reference additionally sets `BuildingInsideVisualStudio=false` and
+`BuildProjectReferences=true`: the isolated publish must build its own complete
+dependency graph, including Lyricify, instead of relying on the IDE's ordinary
+dependency outputs. Merely forcing the app's publish without its dependencies
+produced CS0006 for the isolated Lyricify reference assembly. Both flags are
+scoped to the MSIX reference. The existing managed apphost configuration remains
+in place. No custom output-metadata rewriting target is needed.
 
-For MSIX only, the app sets `PublishAot=false`, `UseAppHost=true`,
-`PublishSingleFile=false`, `PublishTrimmed=false`, and `SelfContained=true`.
-This supplies a managed executable for the DesktopBridge output groups during
-ordinary IDE Build/deploy, which cannot rely on the native AOT executable that
-is produced only by Publish. Other publishing modes retain their existing AOT
-configuration. The manifest entry point name is unchanged.
+Actual Release package generation also exposed two independent packaging
+errors. Package `Properties/DisplayName` must match a reserved name in the
+repository's StoreAssociation file; it now uses the first reserved name. The
+Start-menu `VisualElements/DisplayName` is unchanged. Temporary store certificate
+generation now follows `AppxPackageSigningEnabled`, avoiding a cleanup task with
+an empty certificate thumbprint for the configured unsigned build.
 
-The before/after check used VS 18 MSBuild with `DesignTimeBuild=true` and only
-`AssignProjectConfiguration;SetProjectReferenceProperties`, followed by
-`-getItem:ProjectReferenceWithExtraMetadata,ProjectReferenceWithPublishProps`.
-After the change, output, target, publish, and NuGet extension paths all resolve
-under the isolated roots. A separate `dotnet msbuild -getProperty:...` evaluation
-confirmed the MSIX apphost settings. No Restore, Build, Publish, or package
-generation was run for this fix, following the user's no-build requirement.
+Validation used VS 18's full-framework MSBuild, the stable .NET 10 SDK, and the
+real Build/Publish/package targets:
 
-This confirms the metadata mismatch is corrected; a full MSIX build remains
-necessary to confirm the final package generation succeeds.
+```powershell
+& 'C:/Program Files/Microsoft Visual Studio/18/Professional/MSBuild/Current/Bin/MSBuild.exe' `
+  FancyToolAva.Msix/FancyToolAva.Msix.wapproj -nologo -m:1 `
+  -p:Configuration=Debug -p:Platform=x64 -p:BuildingInsideVisualStudio=true
+
+& 'C:/Program Files/Microsoft Visual Studio/18/Professional/MSBuild/Current/Bin/MSBuild.exe' `
+  FancyToolAva.Msix/FancyToolAva.Msix.wapproj -restore -nologo -m:1 `
+  -p:Configuration=Release -p:Platform=x64
+```
+
+Both builds exited 0. The Release build generated unsigned MSIX, MSIXBundle, and
+store-upload artifacts. Archive inspection resolved the manifest executable to
+`FancyToolAva/FancyToolAva.exe`, checked its PE signature, and matched the SHA-256
+of both the packaged executable and main DLL against the actual isolated build.
+The six FFmpeg runtime DLLs and runtimeconfig are present. The bundle's embedded
+MSIX hash matches the inspected standalone MSIX. No package was installed.
+
+Evidence is in [verification.json](../data/msix-build-2026-10-16/verification.json),
+[reproduced IDE failure](../data/msix-build-2026-10-16/ide-debug-before.log),
+[successful IDE build](../data/msix-build-2026-10-16/ide-debug-after.log), and
+[successful Release packaging](../data/msix-build-2026-10-16/package-release-final.log).
+Raw binlogs and intermediate failure logs remain in `.qa/msix-fix-2026-10-16`.
