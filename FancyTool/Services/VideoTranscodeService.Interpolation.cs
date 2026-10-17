@@ -45,13 +45,14 @@ public sealed unsafe partial class VideoTranscodeService
     };
 
     /// <summary>Samples frame pairs on a rational output clock while retaining only two source frames.</summary>
-    private sealed class VideoInterpolationPipeline : IDisposable
+    private sealed class VideoInterpolationPipeline : IDisposable, IVideoFrameStage
     {
         private AVFilterGraph* _graph;
         private AVFilterContext* _source;
         private AVFilterContext* _sink;
         private AVFrame* _input = ffmpeg.av_frame_alloc();
-        private AVFrame* _output = ffmpeg.av_frame_alloc();
+        private AVFrame* _output;
+        private readonly BgraFramePool _outputPool = new();
         private IVideoFrameInterpolator? _model;
         private SKBitmap? _previous;
         private SKBitmap? _current;
@@ -93,7 +94,7 @@ public sealed unsafe partial class VideoTranscodeService
             try
             {
                 _graph = ffmpeg.avfilter_graph_alloc();
-                if (_graph == null || _input == null || _output == null) throw new OutOfMemoryException();
+                if (_graph == null || _input == null) throw new OutOfMemoryException();
                 _source = CreateBufferSource(_graph, decoder, stream);
                 _sink = CreateBufferSink(_graph);
                 var pre = options.WithTrim(0, null);
@@ -142,13 +143,9 @@ public sealed unsafe partial class VideoTranscodeService
                 AVBufferRef* unused = null;
                 if (!BindGraphAndConfigure(_graph, _source, _sink, description, false, "", &unused, _hardwareDevice))
                     throw new InvalidOperationException(LocalizationRegistry.Get("VideoTranscode.Interp_PreprocessingFailed"));
-                _output->format = (int)AVPixelFormat.AV_PIX_FMT_BGRA;
-                _output->width = Width; _output->height = Height;
-                int ret = ffmpeg.av_frame_get_buffer(_output, 32);
-                if (ret < 0) throw FFmpegNative.CreateException(ret, LocalizationRegistry.Get("VideoTranscode.Interp_PreprocessingFailed"));
                 if (_neural)
                 {
-                    _previous = Bitmap(); _current = Bitmap(); _intermediate = Bitmap();
+                    _previous = Bitmap(); _current = Bitmap(); _intermediate = new SKBitmap();
                     _model = (service ?? throw new InvalidOperationException(LocalizationRegistry.Get("VideoTranscode.Interp_ServiceUnavailable")))
                         .CreateSessionAsync(options, Width, Height, ct).GetAwaiter().GetResult();
                 }
@@ -224,6 +221,8 @@ public sealed unsafe partial class VideoTranscodeService
                         var bitmap = _previous!;
                         if (!_holdPair && time > _previousTime + 0.0000001)
                         {
+                            _output = _outputPool.Get(Width, Height);
+                            WrapBgraFrame(_intermediate!, _output);
                             _model!.Interpolate(Math.Clamp((time - _previousTime) / (_currentTime - _previousTime), 0.00000001, 0.99999999), _intermediate!, ct);
                             bitmap = _intermediate!;
                         }
@@ -268,11 +267,13 @@ public sealed unsafe partial class VideoTranscodeService
 
         private AVFrame* Output(SKBitmap bitmap)
         {
-            int ret = ffmpeg.av_frame_make_writable(_output);
-            if (ret < 0) throw FFmpegNative.CreateException(ret, LocalizationRegistry.Get("VideoTranscode.Interp_PreprocessingFailed"));
-            for (int y = 0; y < Height; y++)
-                new ReadOnlySpan<byte>((byte*)bitmap.GetPixels() + y * bitmap.RowBytes, Width * 4)
-                    .CopyTo(new Span<byte>(_output->data[0] + y * _output->linesize[0], Width * 4));
+            if (!ReferenceEquals(bitmap, _intermediate))
+            {
+                _output = _outputPool.Get(Width, Height);
+                for (int y = 0; y < Height; y++)
+                    new ReadOnlySpan<byte>((byte*)bitmap.GetPixels() + y * bitmap.RowBytes, Width * 4)
+                        .CopyTo(new Span<byte>(_output->data[0] + y * _output->linesize[0], Width * 4));
+            }
             _output->pts = _nextFrame++;
             _output->duration = 1;
             _output->sample_aspect_ratio = Aspect;
@@ -307,48 +308,23 @@ public sealed unsafe partial class VideoTranscodeService
 
         public void Dispose()
         {
-            _model?.Dispose(); _model = null;
-            _previous?.Dispose(); _current?.Dispose(); _intermediate?.Dispose();
+            _model?.Dispose();
+            _model = null;
+            _previous?.Dispose();
+            _current?.Dispose();
+            _intermediate?.Dispose();
             _previous = _current = _intermediate = null;
-            var input = _input; var output = _output; var graph = _graph;
-            ffmpeg.av_frame_free(&input); ffmpeg.av_frame_free(&output); ffmpeg.avfilter_graph_free(&graph);
+            var input = _input;
+            var graph = _graph;
+            ffmpeg.av_frame_free(&input);
+            _outputPool.Dispose();
+            ffmpeg.avfilter_graph_free(&graph);
             var device = _hardwareDevice;
             ffmpeg.av_buffer_unref(&device);
             _hardwareDevice = null;
-            _input = _output = null; _graph = null;
+            _input = _output = null;
+            _graph = null;
         }
     }
 
-    private static void DrainInterpolatedFrames(VideoInterpolationPipeline pipeline, VideoSrPipeline? enhancement, CancellationToken ct,
-        AVFilterContext* source, AVFilterContext* sink, AVFrame* filterFrame, AVCodecContext* encoder,
-        AVFormatContext* output, AVStream* stream, AVPacket* packet, double total, IProgress<double>? progress,
-        PreviewConverter converter, IProgress<VideoPreviewFrame>? preview, double trimStart)
-    {
-        while (pipeline.Receive(ct, out var frame))
-        {
-            if (enhancement != null)
-            {
-                enhancement.Send(frame);
-                DrainEnhancedFrames(enhancement, ct, source, sink, filterFrame, encoder, output, stream, packet, total, progress, converter, preview, trimStart);
-            }
-            else
-            {
-                converter.Report(frame, trimStart + frame->pts * ffmpeg.av_q2d(pipeline.TimeBase), preview);
-                PushVideoFrame(source, sink, frame, filterFrame, encoder, output, stream, packet, total, progress);
-            }
-        }
-    }
-
-    private static void DrainEnhancedBeforeInterpolation(VideoSrPipeline enhancement, VideoInterpolationPipeline interpolation, CancellationToken ct,
-        AVFilterContext* source, AVFilterContext* sink, AVFrame* filterFrame, AVCodecContext* encoder,
-        AVFormatContext* output, AVStream* stream, AVPacket* packet, double total, IProgress<double>? progress,
-        PreviewConverter converter, IProgress<VideoPreviewFrame>? preview, double trimStart)
-    {
-        while (enhancement.Receive(ct, out var frame))
-        {
-            interpolation.Send(frame);
-            DrainInterpolatedFrames(interpolation, null, ct, source, sink, filterFrame, encoder, output, stream,
-                packet, total, progress, converter, preview, trimStart);
-        }
-    }
 }

@@ -622,6 +622,7 @@
     "Msg_OutputDirMissing": "输出目录不存在",
     "Msg_FfmpegReady": "FFmpeg 就绪：{0}",
     "Msg_FfmpegNotAvailable": "内置 FFmpeg 库不可用。",
+    "Msg_PipelineFailed": "视频处理管线失败（{0}）",
     "Msg_FfmpegLoadFailed": "内置 FFmpeg 库加载失败：{0}",
     "Msg_OpenFailed": "无法打开输入文件：{0}",
     "Msg_ReadStreamInfoFailed": "无法读取流信息：{0}",

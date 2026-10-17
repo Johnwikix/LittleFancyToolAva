@@ -129,6 +129,7 @@ internal static partial class Program
             File.WriteAllText(marker, "availability marker only");
             Check(video.IsModelAvailable(VideoSrModel.Anime4KCnnS), "Video models ignored the custom root");
             var interpolation = new VideoInterpolationService(downloader, NullLogger<VideoInterpolationService>.Instance);
+            using var interpolationLifetime = TestServiceLifetime(interpolation);
             string interpolationMarker = Path.Combine(custom, "Interpolation", VideoInterpolationService.GetModel(VideoInterpolationModel.Rife425Lite).FileName);
             Directory.CreateDirectory(Path.GetDirectoryName(interpolationMarker)!);
             File.WriteAllText(interpolationMarker, "availability marker only");

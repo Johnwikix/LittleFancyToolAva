@@ -72,11 +72,13 @@
 
 ### 视频转码
 
-“滤镜”页支持 RIFE AI 插帧和无需模型的 CPU 运动补偿插帧，可选择 2×、4× 或指定目标帧率，保持原时长和音画同步，并默认启用场景切换保护。AI 插帧提供 RIFE 4.25 Lite（默认）与 4.25，沿用 Windows ML 的 GPU/NPU 加速和 DirectML GPU 回退；模型按需下载至统一模型目录的 `Interpolation` 子目录，支持校验和目录迁移。GIF 使用 GIF 选项中的帧率；HDR 输入须显式选择“强制 SDR”后插帧。与超分同时启用时自动选择处理顺序，也可手动选择先插帧或先超分；未开启超分的降分辨率输出会先缩小画面，以降低插帧计算量。NPU 首次编译大画面可能较慢，速度优先推荐 GPU。
+“滤镜”页支持 RIFE AI 插帧和无需模型的 CPU 运动补偿插帧，可选择 2×、4× 或 6× 源帧率，保持原时长和音画同步，并默认启用场景切换保护。AI 插帧提供 RIFE 4.25 Lite（默认）与 4.25，沿用 Windows ML 的 GPU/NPU 加速和 DirectML GPU 回退；模型按需下载至统一模型目录的 `Interpolation` 子目录，支持校验和目录迁移。开启插帧后，GIF 同样使用所选倍率；HDR 输入须显式选择“强制 SDR”后插帧。与超分同时启用时自动选择处理顺序，也可手动选择先插帧或先超分；未开启超分的降分辨率输出会先缩小画面，以降低插帧计算量。NPU 首次编译大画面可能较慢，速度优先推荐 GPU。
 
 “画质”页集中显示 AI 视频超分和 HDR 输出选项。HDR 输出可选“与源一致”“强制 HDR”“强制 SDR”：强制 HDR 将 SDR 经 BT.2446 逆映射转换为 1000 尼特目标的 10 位 PQ / BT.2020；强制 SDR 对 HDR 做亮度映射并输出 BT.709。与源一致保留 SDR、PQ 或 HLG 类型，GIF 始终输出 SDR。不支持 10 位 HDR 的编码器或档次会提示调整设置。
 
 视频超分提供 Anime4K CNN S/M、FSRCNNX s/m 和 RAVU Lite r2/r3 六档，模型随应用分发，可离线安装与校验，存放在模型管理目录的 `VideoSr` 子目录。仅使用 GPU，按模型自动选择已验证的后端，没有 CPU 回退。Anime4K / FSRCNNX 可选 FP16，使用厂商 GPU 加速（Intel 为 OpenVINO）；RAVU r2 使用 DirectML FP32，r3 使用厂商 GPU FP32。缺少兼容组件时可点击安装 GPU 加速。批量视频独占租用并复用已编译会话。2×运行一次，4×运行两次，耗时和内存更高。旧视频模型选择会迁移到 Anime4K S，图片超分仍保留原有模型。模型来源及许可见 [模型说明](FancyTool/Libraries/VideoSr/NOTICE.md)。
+
+超分和插帧使用有界流水线，让解码、推理、编码与封装处理不同的帧；NVIDIA 超分支持独立分块会话并发，RIFE 前处理、网络与打包之间使用 GPU 张量。像素转换尽量留在 GPU，CPU 仍负责解码、音频、调度和必要的字节复制；RAVU R2 同样支持 DirectML GPU 像素图，其他不支持的后端保留原有硬件张量路径。取消或失败会等待在途任务结束后再释放原生资源。设计与实测见 [管线设计](FancyTool/docs/adr/0010-bounded-video-processing-pipeline.md) 和 [RTX 5070 Ti 实测](FancyTool/docs/video-pipeline-2026-10-17.md)。
 
 现有超分模型处理 SDR 图像；HDR 素材启用超分时先映射为 SDR，再按输出选择转回 HDR。逆映射可扩展高光，但不能保证恢复 SDR 中已经丢失的细节。算法与模型目录说明见 [设计记录](FancyTool/docs/adr/0005-model-storage-and-hdr-output.md)。
 

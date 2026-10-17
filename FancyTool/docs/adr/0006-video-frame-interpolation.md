@@ -1,5 +1,7 @@
 # Video frame interpolation
 
+> 2026-10-16 补充：执行管线与 RTX 5070 Ti 回归见 [ADR 0010](0010-bounded-video-processing-pipeline.md)。下文旧设备性能记录保留；新的流水线不改变输出时钟或模型后端规则。
+
 Video transcoding offers RIFE 4.25 Lite (default), RIFE 4.25, and FFmpeg motion
 compensation. RIFE provides generated intermediate pictures; motion compensation
 uses `minterpolate` with adaptive overlapped blocks and variable block sizes, and

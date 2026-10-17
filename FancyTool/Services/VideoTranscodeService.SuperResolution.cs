@@ -7,19 +7,25 @@ namespace FancyToolAva.Services;
 public sealed unsafe partial class VideoTranscodeService
 {
     /// <summary>Runs preprocessing and bounded single-frame or temporal-window inference.</summary>
-    private sealed class VideoSrPipeline : IDisposable
+    private sealed class VideoSrPipeline : IDisposable, IVideoFrameStage
     {
         private AVFilterGraph* _graph;
         private AVFilterContext* _source;
         private AVFilterContext* _sink;
         private AVFrame* _input = ffmpeg.av_frame_alloc();
-        private AVFrame* _output = ffmpeg.av_frame_alloc();
+        private AVFrame* _output;
+        private AVFrame* _reuseInput;
+        private AVFrame* _reuseOutput;
+        private readonly bool _reuseFrames;
+        private readonly BgraFramePool _outputPool = new();
         private SwsContext* _converter;
         private readonly byte*[] _sourceData = new byte*[8];
         private readonly int[] _sourceStride = new int[8];
         private readonly byte*[] _targetData = new byte*[4];
         private readonly int[] _targetStride = new int[4];
         private SKBitmap? _bitmap;
+        private SKBitmap? _destinationBitmap;
+        private bool _bitmapOwnsPixels;
         private readonly IVideoFrameUpscaler _upscaler;
         private readonly int _scale;
         private readonly List<SKBitmap> _pending = [];
@@ -32,9 +38,17 @@ public sealed unsafe partial class VideoTranscodeService
         {
             _upscaler = upscaler;
             _scale = options.SuperResolutionScale;
+            _reuseFrames = upscaler is IVideoFrameReuseUpscaler;
             try
             {
+                if (_reuseFrames)
+                {
+                    _reuseInput = ffmpeg.av_frame_alloc();
+                    _reuseOutput = ffmpeg.av_frame_alloc();
+                    if (_reuseInput == null || _reuseOutput == null) throw new OutOfMemoryException();
+                }
                 _graph = ffmpeg.avfilter_graph_alloc();
+                if (_graph == null || _input == null) throw new OutOfMemoryException();
                 _source = CreateBufferSource(_graph, decoder, stream);
                 _sink = CreateBufferSink(_graph);
                 var pre = options.WithTrim(0, null);
@@ -71,20 +85,84 @@ public sealed unsafe partial class VideoTranscodeService
             if (ret < 0) throw FFmpegNative.CreateException(ret, "Super-resolution preprocessing failed");
             try
             {
-                using var enhanced = _upscaler.Upscale(ConvertInput(), _scale, ct);
-                WriteOutput(enhanced, _input->pts, _input->duration, _input->sample_aspect_ratio);
+                if (TryReuseOutput(ct))
+                {
+                    WriteTimestamp(_input->pts, _input->duration, _input->sample_aspect_ratio);
+                    frame = _output;
+                    return true;
+                }
+                var source = ConvertInput();
+                bool written = false;
+                if (_upscaler is IVideoFrameDestinationUpscaler writer)
+                {
+                    _output = _outputPool.Get(source.Width * _scale, source.Height * _scale);
+                    _destinationBitmap ??= new SKBitmap();
+                    WrapBgraFrame(_destinationBitmap, _output);
+                    written = writer.TryUpscaleInto(source, _scale, _destinationBitmap, ct);
+                }
+                if (written) WriteTimestamp(_input->pts, _input->duration, _input->sample_aspect_ratio);
+                else
+                {
+                    using var enhanced = _upscaler.Upscale(source, _scale, ct);
+                    WriteOutput(enhanced, _input->pts, _input->duration, _input->sample_aspect_ratio);
+                }
+                CacheOutput();
                 frame = _output;
                 return true;
             }
             finally { ffmpeg.av_frame_unref(_input); }
         }
 
+        private bool TryReuseOutput(CancellationToken ct)
+        {
+            if (!_reuseFrames) return false;
+            long stamp = VideoPipelineMetrics.Start();
+            try
+            {
+                int bytes = _input->width * 4;
+                if (_reuseInput->data[0] == null || _reuseOutput->data[0] == null
+                    || _input->format != (int)AVPixelFormat.AV_PIX_FMT_BGRA
+                    || _input->width != _reuseInput->width || _input->height != _reuseInput->height
+                    || _input->linesize[0] < bytes || _reuseInput->linesize[0] < bytes) return false;
+                int height = _input->height;
+                var current = new ReadOnlySpan<byte>(_input->data[0], checked((height - 1) * _input->linesize[0] + bytes));
+                var previous = new ReadOnlySpan<byte>(_reuseInput->data[0], checked((height - 1) * _reuseInput->linesize[0] + bytes));
+                if (!VideoBgraPixels.EqualRows(current, _input->linesize[0], previous, _reuseInput->linesize[0], _input->width, height, ct)) return false;
+                // 只修改自有 AVFrame 的时间信息；已发出的克隆保留各自的 PTS 和像素引用。
+                _output = _reuseOutput;
+                VideoPipelineMetrics.Record(VideoPipelineMetrics.Phase.SrFrameReuse, stamp);
+                return true;
+            }
+            finally { VideoPipelineMetrics.Record(VideoPipelineMetrics.Phase.SrReuseCheck, stamp); }
+        }
+
+        private void CacheOutput()
+        {
+            if (!_reuseFrames) return;
+            ffmpeg.av_frame_unref(_reuseInput);
+            ffmpeg.av_frame_unref(_reuseOutput);
+            if (_input->format != (int)AVPixelFormat.AV_PIX_FMT_BGRA || _input->linesize[0] < _input->width * 4) return;
+            int result = ffmpeg.av_frame_ref(_reuseInput, _input);
+            if (result >= 0) result = ffmpeg.av_frame_ref(_reuseOutput, _output);
+            if (result < 0) throw FFmpegNative.CreateException(result,
+                LocalizationRegistry.Get("VideoTranscode.Msg_PipelineFailed", "av_frame_ref/reuse"));
+        }
+
         private SKBitmap ConvertInput()
         {
-            if (_bitmap == null || _bitmap.Width != _input->width || _bitmap.Height != _input->height)
+            if (_input->format == (int)AVPixelFormat.AV_PIX_FMT_BGRA && _input->linesize[0] >= _input->width * 4)
+            {
+                _bitmap ??= new SKBitmap();
+                WrapBgraFrame(_bitmap, _input);
+                _bitmapOwnsPixels = false;
+                return _bitmap;
+            }
+            // 负步长或非 BGRA 输入仍由 swscale 转换到自有缓冲。
+            if (_bitmap == null || !_bitmapOwnsPixels || _bitmap.Width != _input->width || _bitmap.Height != _input->height)
             {
                 _bitmap?.Dispose();
                 _bitmap = new SKBitmap(new SKImageInfo(_input->width, _input->height, SKColorType.Bgra8888, SKAlphaType.Opaque));
+                _bitmapOwnsPixels = true;
             }
             _converter = ffmpeg.sws_getCachedContext(_converter, _input->width, _input->height, (AVPixelFormat)_input->format,
                 _bitmap.Width, _bitmap.Height, AVPixelFormat.AV_PIX_FMT_BGRA, (int)SwsFlags.SWS_BILINEAR, null, null, null);
@@ -99,21 +177,16 @@ public sealed unsafe partial class VideoTranscodeService
 
         private void WriteOutput(SKBitmap enhanced, long pts, long duration, AVRational aspect)
         {
-            if (_output->width != enhanced.Width || _output->height != enhanced.Height)
-            {
-                ffmpeg.av_frame_unref(_output);
-                _output->width = enhanced.Width;
-                _output->height = enhanced.Height;
-                _output->format = (int)AVPixelFormat.AV_PIX_FMT_BGRA;
-                int allocation = ffmpeg.av_frame_get_buffer(_output, 32);
-                if (allocation < 0) throw FFmpegNative.CreateException(allocation, "Super-resolution frame allocation failed");
-            }
-            int ret = ffmpeg.av_frame_make_writable(_output);
-            if (ret < 0) throw FFmpegNative.CreateException(ret, "Super-resolution frame allocation failed");
+            _output = _outputPool.Get(enhanced.Width, enhanced.Height);
             int bytes = enhanced.Width * 4;
             for (int row = 0; row < enhanced.Height; row++)
                 Buffer.MemoryCopy((byte*)enhanced.GetPixels() + row * enhanced.RowBytes,
                     _output->data[0] + row * _output->linesize[0], bytes, bytes);
+            WriteTimestamp(pts, duration, aspect);
+        }
+
+        private void WriteTimestamp(long pts, long duration, AVRational aspect)
+        {
             _output->pts = pts;
             _output->duration = duration;
             _output->time_base = OutputFormat->time_base;
@@ -169,9 +242,15 @@ public sealed unsafe partial class VideoTranscodeService
             while (_ready.TryDequeue(out var ready)) ready.Bitmap.Dispose();
             _bitmap?.Dispose();
             _bitmap = null;
-            var output = _output;
+            _destinationBitmap?.Dispose();
+            _destinationBitmap = null;
             var input = _input;
-            ffmpeg.av_frame_free(&output);
+            var reuseInput = _reuseInput;
+            var reuseOutput = _reuseOutput;
+            ffmpeg.av_frame_free(&reuseInput);
+            ffmpeg.av_frame_free(&reuseOutput);
+            _reuseInput = _reuseOutput = null;
+            _outputPool.Dispose();
             ffmpeg.av_frame_free(&input);
             _output = _input = null;
             if (_converter != null) ffmpeg.sws_freeContext(_converter);
@@ -182,15 +261,4 @@ public sealed unsafe partial class VideoTranscodeService
         }
     }
 
-    private static void DrainEnhancedFrames(VideoSrPipeline pipeline, CancellationToken ct,
-        AVFilterContext* source, AVFilterContext* sink, AVFrame* filterFrame, AVCodecContext* encoder,
-        AVFormatContext* output, AVStream* stream, AVPacket* packet, double total, IProgress<double>? progress,
-        PreviewConverter? previewConverter = null, IProgress<VideoPreviewFrame>? preview = null, double trimStart = 0)
-    {
-        while (pipeline.Receive(ct, out var frame))
-        {
-            previewConverter?.Report(frame, trimStart + frame->pts * ffmpeg.av_q2d(pipeline.OutputFormat->time_base), preview);
-            PushVideoFrame(source, sink, frame, filterFrame, encoder, output, stream, packet, total, progress);
-        }
-    }
 }

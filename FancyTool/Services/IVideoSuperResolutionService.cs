@@ -21,9 +21,16 @@ public enum VideoSrBackend
 }
 
 /// <summary>Reports the actual accelerator and any hardware fallback reason.</summary>
-public sealed record VideoSrDevice(string Name, bool IsHardware, string? FallbackReason = null);
+public sealed record VideoSrDevice(string Name, bool IsHardware, string? FallbackReason = null)
+{
+    internal bool UsesCudaGraph { get; init; }
+    internal bool UsesTensorRt { get; init; }
+    internal int? TensorRtDeviceId { get; init; }
+    internal bool UsesGpuPixels { get; init; }
+    internal bool UsesGpuHostMemory { get; init; }
+}
 
-/// <summary>Owns a serial inference session reused for all frames of one video.</summary>
+/// <summary>为单个视频独占租借处理器；分块可以由独立上下文并发推理。</summary>
 public interface IVideoFrameUpscaler : IDisposable
 {
     /// <summary>Gets the actual inference device.</summary>

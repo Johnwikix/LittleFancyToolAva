@@ -39,12 +39,12 @@ internal static class WindowsMlAccelerator
 
     /// <summary>Creates a session specialized for one rectangular video frame size.</summary>
     internal static InferenceSession CreateSession(string path, VideoSrBackend backend, int width, int height,
-        CancellationToken ct, out VideoSrDevice device, bool requireHardware = false, bool? useFp16 = null)
-        => CreateTensorSession(path, backend, VideoDimensions(width, height), ct, out device, requireHardware, useFp16);
+        CancellationToken ct, out VideoSrDevice device, bool requireHardware = false, bool? useFp16 = null, bool useCudaGraph = true)
+        => CreateTensorSession(path, backend, VideoDimensions(width, height), ct, out device, requireHardware, useFp16, useCudaGraph);
 
     /// <summary>Creates an inference session for explicit named tensor dimensions, independently of media type.</summary>
     internal static InferenceSession CreateTensorSession(string path, VideoSrBackend backend,
-        IReadOnlyDictionary<string, long> dimensions, CancellationToken ct, out VideoSrDevice device, bool requireHardware = false, bool? useFp16 = null)
+        IReadOnlyDictionary<string, long> dimensions, CancellationToken ct, out VideoSrDevice device, bool requireHardware = false, bool? useFp16 = null, bool useCudaGraph = true)
     {
         _ = OrtEnv.Instance();
         if (backend == VideoSrBackend.DirectMl)
@@ -79,12 +79,17 @@ internal static class WindowsMlAccelerator
                         string cache = Path.Combine(AppPaths.ModelsDirectory, "Cache", "TensorRT-RTX");
                         Directory.CreateDirectory(cache);
                         providerOptions["nv_runtime_cache_path"] = cache;
-                        providerOptions["enable_cuda_graph"] = "1";
+                        providerOptions["enable_cuda_graph"] = useCudaGraph ? "1" : "0";
                     }
                     options.AppendExecutionProvider(env, [candidate], providerOptions);
                     var session = new InferenceSession(path, options);
                     device = new VideoSrDevice($"{kind} · Windows ML / {candidate.EpName.Replace("ExecutionProvider", "")}" +
-                        (useFp16.HasValue ? useFp16.Value ? " · FP16" : " · FP32" : ""), true);
+                        (useFp16.HasValue ? useFp16.Value ? " · FP16" : " · FP32" : ""), true)
+                    {
+                        UsesTensorRt = IsTensorRtProvider(candidate.EpName), UsesCudaGraph = IsTensorRtProvider(candidate.EpName) && useCudaGraph,
+                        TensorRtDeviceId = IsTensorRtProvider(candidate.EpName)
+                            && candidate.EpOptions.Entries.TryGetValue("device_id", out var id) && int.TryParse(id, out int ordinal) ? ordinal : null
+                    };
                     return session;
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException) { failures.Add(ex.Message); }
@@ -108,6 +113,16 @@ internal static class WindowsMlAccelerator
         fallbackOptions.AppendExecutionProvider_CPU(0);
         device = new VideoSrDevice("CPU", false);
         return new InferenceSession(path, fallbackOptions);
+    }
+
+    internal static bool CanUseGpuPixels(CancellationToken ct)
+    {
+#if WINDOWS
+        Registration.Value.WaitAsync(ct).GetAwaiter().GetResult();
+        return OrtEnv.Instance().GetEpDevices().Any(d => d.HardwareDevice.Type == OrtHardwareDeviceType.GPU && IsTensorRtProvider(d.EpName));
+#else
+        return false;
+#endif
     }
 
     /// <summary>Creates the common DirectML GPU path used when vendor providers are unavailable.</summary>

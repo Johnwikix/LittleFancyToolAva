@@ -22,6 +22,14 @@ internal sealed class VideoFrameUpscaler(IVideoSrTileModel model, VideoSrDevice 
     private readonly float[] _input = new float[3 * window * window];
     private readonly float[] _output = new float[3 * window * window * nativeScale * nativeScale];
     private bool _disposed;
+    private TileBuffer[]? _pipelineBuffers;
+
+    private sealed class TileBuffer(float[] input, float[] output)
+    {
+        internal readonly float[] Input = input;
+        internal readonly float[] Output = output;
+        internal int X, Y;
+    }
 
     public VideoSrDevice Device => device;
 
@@ -46,13 +54,56 @@ internal sealed class VideoFrameUpscaler(IVideoSrTileModel model, VideoSrDevice 
         var result = new SKBitmap(new SKImageInfo(source.Width * scale, source.Height * scale, SKColorType.Bgra8888, SKAlphaType.Opaque));
         try
         {
+            // 多块帧才能摊薄工作线程启动成本；小图沿用直接路径。
+            if (device.IsHardware && totalTiles >= 8)
+            {
+                _pipelineBuffers ??=
+                [
+                    new(_input, _output),
+                    new(new float[_input.Length], new float[_output.Length]),
+                    new(new float[_input.Length], new float[_output.Length])
+                ];
+                int nextTile = 0;
+                int columns = (source.Width + _tile - 1) / _tile;
+                BoundedVideoWorkPipeline.Run(_pipelineBuffers, (buffer, token) =>
+                {
+                    token.ThrowIfCancellationRequested();
+                    if (nextTile == totalTiles) return false;
+                    buffer.X = nextTile % columns * _tile;
+                    buffer.Y = nextTile++ / columns * _tile;
+                    long stamp = VideoPipelineMetrics.Start();
+                    FillInput(source, buffer.X, buffer.Y, window, Pad, buffer.Input);
+                    VideoPipelineMetrics.Record(VideoPipelineMetrics.Phase.SrPrepare, stamp);
+                    return true;
+                }, (buffer, token) =>
+                {
+                    long stamp = VideoPipelineMetrics.Start();
+                    model.Infer(buffer.Input, buffer.Output, token);
+                    VideoPipelineMetrics.Record(VideoPipelineMetrics.Phase.SrRun, stamp);
+                }, (buffer, token) =>
+                {
+                    token.ThrowIfCancellationRequested();
+                    long stamp = VideoPipelineMetrics.Start();
+                    PasteOutput(result, buffer.X, buffer.Y, Math.Min(_tile, source.Width - buffer.X),
+                        Math.Min(_tile, source.Height - buffer.Y), scale, window, Pad, nativeScale, buffer.Output);
+                    VideoPipelineMetrics.Record(VideoPipelineMetrics.Phase.SrPaste, stamp);
+                    progress?.Report(0.05 + 0.8 * ++tileIndex / totalTiles);
+                }, ct);
+                return result;
+            }
             for (int y = 0; y < source.Height; y += _tile)
             for (int x = 0; x < source.Width; x += _tile)
             {
                 ct.ThrowIfCancellationRequested();
+                long stamp = VideoPipelineMetrics.Start();
                 FillInput(source, x, y);
+                VideoPipelineMetrics.Record(VideoPipelineMetrics.Phase.SrPrepare, stamp);
+                stamp = VideoPipelineMetrics.Start();
                 model.Infer(_input, _output, ct);
+                VideoPipelineMetrics.Record(VideoPipelineMetrics.Phase.SrRun, stamp);
+                stamp = VideoPipelineMetrics.Start();
                 PasteOutput(result, x, y, Math.Min(_tile, source.Width - x), Math.Min(_tile, source.Height - y), scale);
+                VideoPipelineMetrics.Record(VideoPipelineMetrics.Phase.SrPaste, stamp);
                 progress?.Report(0.05 + 0.8 * ++tileIndex / totalTiles);
             }
             return result;
@@ -167,6 +218,7 @@ internal sealed class VideoFrameUpscaler(IVideoSrTileModel model, VideoSrDevice 
     {
         if (_disposed) return;
         _disposed = true;
+        _pipelineBuffers = null;
         model.Dispose();
     }
 }

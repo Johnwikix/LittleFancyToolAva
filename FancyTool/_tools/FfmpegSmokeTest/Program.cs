@@ -16,6 +16,9 @@ internal static partial class Program
     private static int _skips;
     private static readonly List<string> _failedNames = [];
 
+    // 基线构建使用历史服务类型；新版服务可保留原生会话，需要在烟测结束时释放。
+    private static IDisposable? TestServiceLifetime(object service) => service as IDisposable;
+
     [STAThread]
     private static int Main(string[] args)
     {
@@ -45,6 +48,16 @@ internal static partial class Program
 
         if (args.Contains("--hdr-capabilities")) return RunHdrCapabilities();
         if (args.Contains("--hdr-only")) return RunHdrCases(svc, workDir);
+        if (args.Contains("--pipeline-benchmark")) return RunVideoPipelineBenchmark(workDir, args);
+        if (args.Contains("--pipeline-cpu")) return RunVideoPipelineCpuTests(workDir);
+        if (args.Contains("--pipeline-adapters")) return RunVideoGpuAdapters(workDir, args);
+        if (args.Contains("--pipeline-pixel-stages")) return RunGpuPixelStages(workDir);
+        if (args.Contains("--pipeline-integration")) return RunVideoPipelineIntegration(sample, workDir);
+        if (args.Contains("--pipeline-compare")) return CompareVideoPipeline(workDir, args);
+        if (args.Contains("--gpu-pixel-experiment")) return RunGpuPixelExperiment(workDir);
+        if (args.Contains("--gpu-pixel-batch")) return RunGpuPixelBatchExperiment(workDir);
+        if (args.Contains("--pipeline-host-memory")) return RunVideoHostMemory(workDir);
+        if (args.Contains("--video-native-concurrency")) return RunVideoNativeConcurrency(workDir, args);
 
         if (args.Contains("--sr-diagnostics")) return RunSrDiagnostics(workDir, args.Contains("--install-providers"));
         if (args.Contains("--real-video-sr")) return RunRealVideoSrCase(workDir, args);

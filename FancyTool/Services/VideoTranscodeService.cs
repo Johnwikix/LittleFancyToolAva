@@ -248,6 +248,8 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
         VideoSrPipeline? srPipeline = null;
         VideoInterpolationPipeline? interpolationPipeline = null;
         bool upscaleFirst = false;
+        QueuedVideoPipeline? queued = null;
+        VideoPipelineMetrics? metrics = null;
 
         try
         {
@@ -422,6 +424,13 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
                 totalSec, ffmpeg.av_q2d(vEnc->framerate), pass == 0 ? 1 : pass, pass == 0 ? 1 : 2,
                 ExactOutputFrameCount(vInStream->nb_frames, o));
             if (encodingProgress != null) progress = encodingProgress;
+            metrics = VideoPipelineMetrics.Begin();
+            if (srPipeline != null || interpolationPipeline != null)
+            {
+                queued = new QueuedVideoPipeline(srPipeline, interpolationPipeline, upscaleFirst,
+                    srcCtx, sinkCtx, vEnc, ofmt, vOutStream, totalSec, progress, previewConverter, preview, timeline.Start, ct);
+                if (audioFeeder != null) audioFeeder.PacketQueue = queued;
+            }
             while ((ret = ffmpeg.av_read_frame(inFmt, pkt)) >= 0)
             {
                 ct.ThrowIfCancellationRequested();
@@ -431,13 +440,13 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
                     if (ret == ErrEagain)
                     {
                         // 解码器输出满：先排空再重送一次（数据包不得丢弃）
-                        ProcessVideoFrames(vDec, decFrame, filtFrame, srcCtx, sinkCtx, vEnc, ofmt, vOutStream, encPkt, totalSec, progress, ref nextPts, frameStep, vInStream->time_base, timeline, previewConverter, preview, srPipeline, interpolationPipeline, upscaleFirst, ct);
+                        ProcessVideoFrames(vDec, decFrame, filtFrame, srcCtx, sinkCtx, vEnc, ofmt, vOutStream, encPkt, totalSec, progress, ref nextPts, frameStep, vInStream->time_base, timeline, previewConverter, preview, interpolationPipeline == null, ct, queued);
                         ret = ffmpeg.avcodec_send_packet(vDec, pkt);
                     }
                     if (ret < 0 && ret != ErrEagain && ret != ffmpeg.AVERROR_EOF)
                         throw FFmpegNative.CreateException(ret, "视频解码失败");
                     ffmpeg.av_packet_unref(pkt);
-                    ProcessVideoFrames(vDec, decFrame, filtFrame, srcCtx, sinkCtx, vEnc, ofmt, vOutStream, encPkt, totalSec, progress, ref nextPts, frameStep, vInStream->time_base, timeline, previewConverter, preview, srPipeline, interpolationPipeline, upscaleFirst, ct);
+                    ProcessVideoFrames(vDec, decFrame, filtFrame, srcCtx, sinkCtx, vEnc, ofmt, vOutStream, encPkt, totalSec, progress, ref nextPts, frameStep, vInStream->time_base, timeline, previewConverter, preview, interpolationPipeline == null, ct, queued);
                 }
                 else if (aDec != null && pkt->stream_index == aIdx)
                 {
@@ -462,30 +471,15 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
 
             // ── 8. 冲洗：解码器 → 滤镜图 → 音频 → 编码器 ──
             ffmpeg.avcodec_send_packet(vDec, null);
-            ProcessVideoFrames(vDec, decFrame, filtFrame, srcCtx, sinkCtx, vEnc, ofmt, vOutStream, encPkt, totalSec, progress, ref nextPts, frameStep, vInStream->time_base, timeline, previewConverter, preview, srPipeline, interpolationPipeline, upscaleFirst, ct);
-            if (upscaleFirst)
+            ProcessVideoFrames(vDec, decFrame, filtFrame, srcCtx, sinkCtx, vEnc, ofmt, vOutStream, encPkt, totalSec, progress, ref nextPts, frameStep, vInStream->time_base, timeline, previewConverter, preview, interpolationPipeline == null, ct, queued);
+            if (queued != null) queued.CompleteVideo();
+            else
             {
-                srPipeline!.Send(null);
-                DrainEnhancedBeforeInterpolation(srPipeline, interpolationPipeline!, ct, srcCtx, sinkCtx, filtFrame, vEnc, ofmt,
-                    vOutStream, encPkt, totalSec, progress, previewConverter, preview, o.TrimStartSeconds);
+                ffmpeg.av_buffersrc_add_frame(srcCtx, null); // 通知 EOF，滤镜图内部冲刷
+                DrainSink(sinkCtx, filtFrame, vEnc, ofmt, vOutStream, encPkt, totalSec, progress);
+                ffmpeg.avcodec_send_frame(vEnc, null);
+                DrainPackets(vEnc, ofmt, vOutStream, encPkt, vEnc->time_base);
             }
-            if (interpolationPipeline != null)
-            {
-                interpolationPipeline.Send(null);
-                DrainInterpolatedFrames(interpolationPipeline, upscaleFirst ? null : srPipeline, ct, srcCtx, sinkCtx, filtFrame, vEnc, ofmt, vOutStream,
-                    encPkt, totalSec, progress, previewConverter, preview, o.TrimStartSeconds);
-            }
-            if (srPipeline != null && !upscaleFirst)
-            {
-                srPipeline.Send(null);
-                DrainEnhancedFrames(srPipeline, ct, srcCtx, sinkCtx, filtFrame, vEnc, ofmt, vOutStream, encPkt, totalSec, progress,
-                    interpolationPipeline != null ? previewConverter : null, preview, o.TrimStartSeconds);
-            }
-
-            ffmpeg.av_buffersrc_add_frame(srcCtx, null); // 通知 EOF，滤镜图内部冲刷
-            DrainSink(sinkCtx, filtFrame, vEnc, ofmt, vOutStream, encPkt, totalSec, progress);
-            ffmpeg.avcodec_send_frame(vEnc, null);
-            DrainPackets(vEnc, ofmt, vOutStream, encPkt, vEnc->time_base);
 
             if (aDec != null)
             {
@@ -494,15 +488,23 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
                 FlushSwr(swr, swrFrame, aEnc, audioFeeder!, o.AudioGainDb);
                 audioFeeder!.Flush();
                 ffmpeg.avcodec_send_frame(aEnc, null);
-                DrainPackets(aEnc, ofmt, aOutStream!, encPkt, aEnc->time_base);
+                DrainPackets(aEnc, ofmt, aOutStream!, encPkt, aEnc->time_base, queued);
             }
 
+            queued?.Finish();
             ffmpeg.av_write_trailer(ofmt);
             previewConverter.Flush(preview);
             encodingProgress?.Flush(completed: true);
         }
+        catch
+        {
+            queued?.ThrowIfFailed();
+            throw;
+        }
         finally
         {
+            queued?.Dispose();
+            metrics?.Dispose();
             audioFeeder?.Dispose();
             srPipeline?.Dispose();
             interpolationPipeline?.Dispose();
@@ -567,10 +569,15 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
         AVFormatContext* ofmt, AVStream* stream, AVPacket* pkt,
         double totalSec, IProgress<double>? progress, ref long nextPts, long frameStep, AVRational inputTimeBase,
         TrimTimeline timeline, PreviewConverter previewConverter, IProgress<VideoPreviewFrame>? preview,
-        VideoSrPipeline? srPipeline, VideoInterpolationPipeline? interpolationPipeline, bool upscaleFirst, CancellationToken ct)
+        bool previewSource, CancellationToken ct,
+        QueuedVideoPipeline? queued = null)
     {
-        while (ffmpeg.avcodec_receive_frame(vDec, decFrame) >= 0)
+        while (true)
         {
+            long decodeStamp = VideoPipelineMetrics.Start();
+            int decoded = ffmpeg.avcodec_receive_frame(vDec, decFrame);
+            VideoPipelineMetrics.Record(VideoPipelineMetrics.Phase.Decode, decodeStamp);
+            if (decoded < 0) break;
             if (decFrame->best_effort_timestamp != ffmpeg.AV_NOPTS_VALUE)
                 decFrame->pts = decFrame->best_effort_timestamp;
             if (decFrame->pts == ffmpeg.AV_NOPTS_VALUE)
@@ -584,27 +591,10 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
             }
             if (timeline.KeepVideo(decFrame, inputTimeBase, out double position))
             {
-                if (upscaleFirst)
-                {
-                    srPipeline!.Send(decFrame);
-                    DrainEnhancedBeforeInterpolation(srPipeline, interpolationPipeline!, ct, srcCtx, sinkCtx, filtFrame, vEnc, ofmt,
-                        stream, pkt, totalSec, progress, previewConverter, preview, timeline.Start);
-                }
-                else if (interpolationPipeline != null)
-                {
-                    interpolationPipeline.Send(decFrame);
-                    DrainInterpolatedFrames(interpolationPipeline, srPipeline, ct, srcCtx, sinkCtx, filtFrame, vEnc, ofmt,
-                        stream, pkt, totalSec, progress, previewConverter, preview, timeline.Start);
-                }
-                else if (srPipeline != null)
-                {
-                    previewConverter.Report(decFrame, position, preview);
-                    srPipeline.Send(decFrame);
-                    DrainEnhancedFrames(srPipeline, ct, srcCtx, sinkCtx, filtFrame, vEnc, ofmt, stream, pkt, totalSec, progress);
-                }
+                if (previewSource) previewConverter.Report(decFrame, position, preview);
+                if (queued != null) queued.Send(decFrame);
                 else
                 {
-                    previewConverter.Report(decFrame, position, preview);
                     PushVideoFrame(srcCtx, sinkCtx, decFrame, filtFrame, vEnc, ofmt, stream, pkt, totalSec, progress);
                 }
             }
@@ -614,13 +604,15 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
 
     private static void PushVideoFrame(AVFilterContext* srcCtx, AVFilterContext* sinkCtx, AVFrame* decFrame,
         AVFrame* filtFrame, AVCodecContext* vEnc, AVFormatContext* ofmt, AVStream* stream, AVPacket* pkt,
-        double totalSec, IProgress<double>? progress)
+        double totalSec, IProgress<double>? progress, QueuedVideoPipeline? queued = null)
     {
+        long encodeStamp = VideoPipelineMetrics.Start();
         int ret = ffmpeg.av_buffersrc_add_frame_flags(srcCtx, decFrame, (int)AvBuffersrcFlag.AV_BUFFERSRC_FLAG_KEEP_REF);
         if (ret < 0 && ret != ErrEagain)
             throw FFmpegNative.CreateException(ret, "滤镜图送帧失败");
         // 每帧送入后立即排空 sink（滤镜内部缓冲有限）
-        DrainSinkInto(sinkCtx, filtFrame, vEnc, ofmt, stream, pkt, totalSec, progress);
+        DrainSinkInto(sinkCtx, filtFrame, vEnc, ofmt, stream, pkt, totalSec, progress, queued);
+        VideoPipelineMetrics.Record(VideoPipelineMetrics.Phase.Encode, encodeStamp);
     }
 
     private static void DrainSink(AVFilterContext* sinkCtx, AVFrame* filtFrame, AVCodecContext* vEnc,
@@ -628,7 +620,7 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
         => DrainSinkInto(sinkCtx, filtFrame, vEnc, ofmt, stream, pkt, totalSec, progress);
 
     private static void DrainSinkInto(AVFilterContext* sinkCtx, AVFrame* filtFrame, AVCodecContext* vEnc,
-        AVFormatContext* ofmt, AVStream* stream, AVPacket* pkt, double totalSec, IProgress<double>? progress)
+        AVFormatContext* ofmt, AVStream* stream, AVPacket* pkt, double totalSec, IProgress<double>? progress, QueuedVideoPipeline? queued = null)
     {
         AVRational sinkTb = sinkCtx->inputs[0]->time_base;
         while (ffmpeg.av_buffersink_get_frame(sinkCtx, filtFrame) >= 0)
@@ -641,7 +633,7 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
             if (totalSec > 0 && filtFrame->pts != ffmpeg.AV_NOPTS_VALUE)
                 progress?.Report(Math.Clamp(ffmpeg.av_q2d(vEnc->time_base) * filtFrame->pts, 0, totalSec) / totalSec);
             ffmpeg.av_frame_unref(filtFrame);
-            DrainPackets(vEnc, ofmt, stream, pkt, vEnc->time_base);
+            DrainPackets(vEnc, ofmt, stream, pkt, vEnc->time_base, queued);
             (progress as EncodingProgress)?.ReportFrame();
         }
     }
@@ -659,7 +651,7 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
     }
 
     private static void DrainPackets(AVCodecContext* enc, AVFormatContext* ofmt, AVStream* stream,
-        AVPacket* pkt, AVRational encTb)
+        AVPacket* pkt, AVRational encTb, QueuedVideoPipeline? queued = null)
     {
         while (ffmpeg.avcodec_receive_packet(enc, pkt) >= 0)
         {
@@ -668,7 +660,12 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
                 pkt->duration = Math.Max(1, ffmpeg.av_rescale_q(1, new AVRational { num = enc->framerate.den, den = enc->framerate.num }, encTb));
             ffmpeg.av_packet_rescale_ts(pkt, encTb, stream->time_base);
             pkt->stream_index = stream->index;
-            ffmpeg.av_interleaved_write_frame(ofmt, pkt);
+            if (queued != null) queued.SendPacket(pkt);
+            else
+            {
+                int result = ffmpeg.av_interleaved_write_frame(ofmt, pkt);
+                if (result < 0) throw FFmpegNative.CreateException(result, LocalizationRegistry.Get("VideoTranscode.Msg_PipelineFailed", "av_interleaved_write_frame"));
+            }
             ffmpeg.av_packet_unref(pkt);
         }
     }
@@ -1213,6 +1210,7 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
         private readonly int _capacity;
         private int _filled;
         private long _nextPts;
+        internal QueuedVideoPipeline? PacketQueue { get; set; }
 
         /// <summary>Preserves an initial audio offset relative to the clipped video timeline.</summary>
         public void SetStartSeconds(double seconds) => _nextPts = (long)Math.Round(seconds * _encCtx->sample_rate);
@@ -1280,7 +1278,7 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
         {
             int ret = ffmpeg.avcodec_send_frame(_encCtx, frame);
             if (ret < 0) throw FFmpegNative.CreateException(ret, "音频编码失败");
-            DrainPackets(_encCtx, _ofmt, _stream, _pkt, _encCtx->time_base);
+            DrainPackets(_encCtx, _ofmt, _stream, _pkt, _encCtx->time_base, PacketQueue);
         }
 
         private void ReallocFrame()

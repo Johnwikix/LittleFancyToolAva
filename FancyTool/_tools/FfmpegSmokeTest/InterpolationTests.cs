@@ -13,7 +13,8 @@ internal static partial class Program
         using var http = new HttpClient();
         var downloads = new ModelDownloadService(http, NullLogger<ModelDownloadService>.Instance);
         var interpolation = new VideoInterpolationService(downloads, NullLogger<VideoInterpolationService>.Instance);
-        var enhancement = new VideoSuperResolutionService(downloads, NullLogger<VideoSuperResolutionService>.Instance);
+        using var interpolationLifetime = TestServiceLifetime(interpolation);
+        using var enhancement = new VideoSuperResolutionService(downloads, NullLogger<VideoSuperResolutionService>.Instance);
         var service = new VideoTranscodeService(NullLogger<VideoTranscodeService>.Instance, enhancement, interpolation);
         interpolation.DeviceChanged += device => Console.WriteLine($"    interpolation device: {device.Name}; fallback: {device.FallbackReason ?? "none"}");
         RunExtra("DirectML fallback executes the complete RIFE graph on GPU", () => Task.Run(() =>
@@ -252,11 +253,12 @@ internal static partial class Program
             throw new InvalidOperationException($"Output clock mismatch: expected {expectedFrames} frames at {fps}, got {timestamps.Count}: {string.Join(",", timestamps.Take(6))}");
     }
 
-    private static unsafe List<double> ReadVideoTimes(string path)
+    private static unsafe List<double> ReadVideoTimes(string path, List<string>? frameHashes = null)
     {
         AVFormatContext* input = null; AVCodecContext* decoder = null;
         AVPacket* packet = ffmpeg.av_packet_alloc(); AVFrame* frame = ffmpeg.av_frame_alloc();
         var result = new List<double>();
+        byte[]? framePixels = null;
         try
         {
             if (ffmpeg.avformat_open_input(&input, path, null, null) < 0) throw new InvalidOperationException("Cannot open interpolated output");
@@ -272,7 +274,30 @@ internal static partial class Program
                 ffmpeg.avcodec_send_packet(decoder, ret < 0 ? null : packet);
                 ffmpeg.av_packet_unref(packet);
                 while (ffmpeg.avcodec_receive_frame(decoder, frame) >= 0)
-                { result.Add(frame->best_effort_timestamp * ffmpeg.av_q2d(stream->time_base)); ffmpeg.av_frame_unref(frame); }
+                {
+                    result.Add(frame->best_effort_timestamp * ffmpeg.av_q2d(stream->time_base));
+                    if (frameHashes != null)
+                    {
+                        var format = (AVPixelFormat)frame->format;
+                        int size = ffmpeg.av_image_get_buffer_size(format, frame->width, frame->height, 1);
+                        if (size < 0) throw FFmpegNative.CreateException(size, "Frame hash buffer size");
+                        if (framePixels == null || framePixels.Length != size) framePixels = new byte[size];
+                        byte_ptrArray4 planes = default;
+                        int_array4 strides = default;
+                        for (uint plane = 0; plane < 4; plane++)
+                        {
+                            planes[plane] = frame->data[plane];
+                            strides[plane] = frame->linesize[plane];
+                        }
+                        fixed (byte* pixels = framePixels)
+                        {
+                            int copied = ffmpeg.av_image_copy_to_buffer(pixels, size, planes, strides, format, frame->width, frame->height, 1);
+                            if (copied != size) throw new InvalidOperationException("Frame hash copy size mismatch");
+                        }
+                        frameHashes.Add(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(framePixels)));
+                    }
+                    ffmpeg.av_frame_unref(frame);
+                }
                 if (ret < 0) break;
             }
         }
@@ -332,14 +357,24 @@ internal static partial class Program
     private static void FillAviFrames(string path, AviFrameWriter writer)
     {
         byte[] avi = File.ReadAllBytes(path);
+        int start = -1, end = 0;
+        for (int i = 12; i + 12 <= avi.Length; i++)
+        {
+            if (!avi.AsSpan(i, 4).SequenceEqual("LIST"u8) || !avi.AsSpan(i + 8, 4).SequenceEqual("movi"u8)) continue;
+            start = i + 12;
+            end = checked(i + 8 + BitConverter.ToInt32(avi, i + 4));
+            break;
+        }
+        if (start < 0 || end > avi.Length) throw new InvalidOperationException("AVI fixture has no valid movi list");
         int count = 0;
-        for (int i = 0; i < avi.Length - 8; i++)
-            if (avi[i] == '0' && avi[i + 1] == '0' && avi[i + 2] == 'd' && avi[i + 3] == 'b')
-            {
-                int size = BitConverter.ToInt32(avi, i + 4);
-                if (size <= 0 || size > avi.Length - i - 8) continue;
-                writer(avi.AsSpan(i + 8, size), count++); i += 7 + size;
-            }
+        // 仅改 movi 图像块，不能把 idx1 中的 00db 索引项误当成像素。
+        for (int offset = start; offset + 8 <= end;)
+        {
+            int size = BitConverter.ToInt32(avi, offset + 4);
+            if (size < 0 || size > end - offset - 8) throw new InvalidOperationException("AVI fixture chunk is truncated");
+            if (avi.AsSpan(offset, 4).SequenceEqual("00db"u8)) writer(avi.AsSpan(offset + 8, size), count++);
+            offset = checked(offset + 8 + size + (size & 1));
+        }
         if (count == 0) throw new InvalidOperationException("AVI fixture contains no video frames");
         File.WriteAllBytes(path, avi);
     }

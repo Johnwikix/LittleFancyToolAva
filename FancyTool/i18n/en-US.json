@@ -624,6 +624,7 @@
     "Msg_OutputDirMissing": "Output directory does not exist",
     "Msg_FfmpegReady": "FFmpeg ready ({0})",
     "Msg_FfmpegNotAvailable": "Bundled FFmpeg libraries unavailable.",
+    "Msg_PipelineFailed": "Video processing pipeline failed ({0})",
     "Msg_FfmpegLoadFailed": "Failed to load bundled FFmpeg libraries: {0}",
     "Msg_OpenFailed": "Cannot open input file: {0}",
     "Msg_ReadStreamInfoFailed": "Cannot read stream info: {0}",

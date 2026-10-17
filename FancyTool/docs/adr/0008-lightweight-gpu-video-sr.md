@@ -1,5 +1,7 @@
 # 轻量 GPU 视频超分与可选 FP16
 
+> 执行调度、缓冲区和 RTX 5070 Ti 实测补充见 [ADR 0010](0010-bounded-video-processing-pipeline.md)。本 ADR 的模型与后端限制继续有效。
+
 2026-10-16。替代 ADR 0007 的视频模型选择，继续使用现有 Windows ML / ONNX Runtime 与分块视频管线。
 
 视频使用独立 `VideoSrModel` 类型，只提供 Anime4K CNN S/M、FSRCNNX s/m、RAVU Lite r2/r3。图片模型枚举保持原有六个值，移除视频专用 NanoVSR 值；旧视频模型菜单、NanoVSR 推理实现、导出工具与分发权重已移除。旧实验报告保留为历史记录。

@@ -5,30 +5,34 @@ using System.Numerics.Tensors;
 
 namespace FancyToolAva.Services;
 
-/// <summary>Runs RGB FP16/FP32 image or video graphs with cancelable, serial inference.</summary>
+/// <summary>复用固定形状的输入输出张量，并保持可取消的串行推理。</summary>
 internal sealed class OrtVideoSrTileModel : IVideoSrTileModel
 {
     private readonly InferenceSession _session;
     private readonly Dictionary<string, OrtValue> _inputs = new();
     private readonly List<GCHandle> _pins = [];
     private readonly string[] _outputNames;
+    private readonly string[] _inputNames;
+    private readonly OrtValue[] _inputValues;
+    private readonly OrtValue[] _outputValues = [];
     private readonly float[]? _floatInput;
     private readonly Half[]? _halfInput;
-    private readonly int _window;
-    private readonly int _nativeScale;
+    private readonly float[]? _floatOutput;
+    private readonly Half[]? _halfOutput;
+    private bool _disposed;
+    private readonly VideoInferenceRunGuard _runGuard;
     internal VideoSrDevice Device { get; }
 
     internal OrtVideoSrTileModel(string path, VideoSrBackend backend, int window, CancellationToken ct, int nativeScale = 4,
         bool requireHardware = false, bool? useFp16 = null)
     {
-        _window = window;
-        _nativeScale = nativeScale;
         _session = WindowsMlAccelerator.CreateSession(path, backend, window, window, ct, out var device, requireHardware, useFp16);
         Device = device;
+        _runGuard = new(device);
         try
         {
             var imageInput = _session.InputMetadata.First(kv => kv.Value.Dimensions.Length == 4);
-            var shape = new long[] { 1, 3, window, window };
+            long[] shape = [1, 3, window, window];
             if (imageInput.Value.ElementDataType == TensorElementType.Float16)
             {
                 _halfInput = new Half[3 * window * window];
@@ -47,6 +51,21 @@ internal sealed class OrtVideoSrTileModel : IVideoSrTileModel
                     ? MakeHalf([(Half)0.5f], [1]) : OrtValue.CreateTensorValueFromMemory(new float[] { 0.5f }, [1]));
             }
             _outputNames = [_session.OutputMetadata.First().Key];
+            _inputNames = _inputs.Keys.ToArray();
+            _inputValues = _inputs.Values.ToArray();
+            long[] outputShape = [1, 3, window * nativeScale, window * nativeScale];
+            int outputLength = checked(3 * window * window * nativeScale * nativeScale);
+            if (_session.OutputMetadata.First().Value.ElementDataType == TensorElementType.Float16)
+            {
+                _halfOutput = new Half[outputLength];
+                _outputValues = [MakeHalf(_halfOutput, outputShape)];
+            }
+            else if (_session.OutputMetadata.First().Value.ElementDataType == TensorElementType.Float)
+            {
+                _floatOutput = new float[outputLength];
+                _outputValues = [OrtValue.CreateTensorValueFromMemory(_floatOutput, outputShape)];
+            }
+            else throw new NotSupportedException("Unsupported model output precision");
         }
         catch { Dispose(); throw; }
     }
@@ -61,23 +80,23 @@ internal sealed class OrtVideoSrTileModel : IVideoSrTileModel
 
     public void Infer(float[] input, float[] output, CancellationToken ct)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         ct.ThrowIfCancellationRequested();
+        long stamp = VideoPipelineMetrics.Start();
         if (_halfInput != null) TensorPrimitives.ConvertToHalf(input, _halfInput);
         else input.CopyTo(_floatInput!, 0);
+        VideoPipelineMetrics.Record(VideoPipelineMetrics.Phase.SrTensorPrepare, stamp);
         using var options = new RunOptions();
         using var registration = ct.Register(() => options.Terminate = true);
         try
         {
-            using var results = _session.Run(options, _inputs, _outputNames);
-            var value = results[0];
-            var shape = value.GetTensorTypeAndShape();
-            if (!shape.Shape.SequenceEqual(new long[] { 1, 3, _window * _nativeScale, _window * _nativeScale }))
-                throw new InvalidOperationException("Unexpected super-resolution output shape");
-            if (shape.ElementDataType == TensorElementType.Float16)
-            {
-                TensorPrimitives.ConvertToSingle(MemoryMarshal.Cast<Float16, Half>(value.GetTensorDataAsSpan<Float16>()), output);
-            }
-            else value.GetTensorDataAsSpan<float>().CopyTo(output);
+            stamp = VideoPipelineMetrics.Start();
+            _runGuard.Run(_session, options, _inputNames, _inputValues, _outputNames, _outputValues, ct);
+            VideoPipelineMetrics.Record(VideoPipelineMetrics.Phase.SrNativeRun, stamp);
+            stamp = VideoPipelineMetrics.Start();
+            if (_halfOutput != null) TensorPrimitives.ConvertToSingle(_halfOutput, output);
+            else _floatOutput!.CopyTo(output, 0);
+            VideoPipelineMetrics.Record(VideoPipelineMetrics.Phase.SrTensorRead, stamp);
         }
         catch (OnnxRuntimeException) when (ct.IsCancellationRequested) { throw new OperationCanceledException(ct); }
         ct.ThrowIfCancellationRequested();
@@ -85,9 +104,12 @@ internal sealed class OrtVideoSrTileModel : IVideoSrTileModel
 
     public void Dispose()
     {
+        if (_disposed) return;
+        _disposed = true;
         foreach (var input in _inputs.Values) input.Dispose();
-        _inputs.Clear();
+        foreach (var output in _outputValues) output.Dispose();
         foreach (var pin in _pins) pin.Free();
+        _inputs.Clear();
         _pins.Clear();
         _session.Dispose();
     }
