@@ -111,6 +111,26 @@ internal static partial class Program
                 var model = view.GetVisualDescendants().OfType<ComboBox>().Single(c => AutomationProperties.GetAutomationId(c) == "VideoInterpolationModel");
                 var rate = view.GetVisualDescendants().OfType<ComboBox>().Single(c => AutomationProperties.GetAutomationId(c) == "VideoInterpolationRate");
                 var order = view.GetVisualDescendants().OfType<ComboBox>().Single(c => AutomationProperties.GetAutomationId(c) == "VideoInterpolationOrder");
+                PumpUntil(() => !vm.IsCheckingInterpolationHardware);
+                foreach (var capability in HardwareVideoInterpolation.GetCapabilitiesAsync().GetAwaiter().GetResult())
+                {
+                    if (vm.InterpolationModes[(int)capability.Mode].IsEnabled != capability.IsSupported)
+                        throw new InvalidOperationException("Hardware interpolation availability did not reach the UI");
+                    if (!capability.IsSupported) continue;
+                    vm.InterpolationModeIndex = (int)capability.Mode;
+                    PumpUntil(() => mode.SelectedIndex == (int)capability.Mode);
+                    foreach (int multiplier in capability.Multipliers)
+                    {
+                        vm.InterpolationRateIndex = multiplier / 2 - 1;
+                        if (!vm.IsHardwareInterpolation || rate.SelectedIndex != vm.InterpolationRateIndex
+                            || !vm.InterpolationRates[vm.InterpolationRateIndex].IsEnabled)
+                            throw new InvalidOperationException("Probed hardware mode or multiplier could not be selected in the UI");
+                    }
+                    mode.BringIntoView();
+                    Render(window, view, Path.Combine(workDir, "interpolation-" + capability.Mode + ".png"));
+                }
+                vm.InterpolationModeIndex = 1;
+                vm.InterpolationRateIndex = 2;
                 var state = ((IViewState)vm).CaptureState();
                 vm.InterpolationModeIndex = 0; vm.InterpolationModelIndex = 0; vm.InterpolationRateIndex = 0;
                 ((IViewState)vm).RestoreState(state);

@@ -134,7 +134,7 @@ public sealed unsafe partial class VideoTranscodeService
                     if (_hardware)
                     {
                         var support = HardwareVideoInterpolation.RequireSupport(options.InterpolationMode, options.InterpolationMultiplier);
-                        _hardwareDevice = HardwareVideoInterpolation.CreateDevice(options.InterpolationMode, support.Adapter!);
+                        _hardwareDevice = HardwareVideoInterpolation.CreateDevice(options.InterpolationMode, support.Adapter!, support.UseLinearImages);
                         description += "," + HardwareVideoInterpolation.Filter(options.InterpolationMode, options.InterpolationMultiplier, $"{rate.num}/{rate.den}");
                     }
                     else description += $",minterpolate=fps={rate.num}/{rate.den}:mi_mode=mci:mc_mode=aobmc:me_mode=bilat:me=epzs:vsbmc=1:scd={(_detectScenes ? "fdiff" : "none")}";

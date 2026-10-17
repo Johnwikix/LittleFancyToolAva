@@ -5,7 +5,7 @@ namespace FancyToolAva.Services;
 public sealed unsafe partial class VideoTranscodeService
 {
     /// <summary>Initializes the actual vendor filter and requires it to generate frames on the selected adapter.</summary>
-    internal static void ProbeHardwareInterpolation(VideoInterpolationMode mode, VideoGpuAdapter adapter, int multiplier)
+    internal static void ProbeHardwareInterpolation(VideoInterpolationMode mode, VideoGpuAdapter adapter, int multiplier, bool useLinearImages = false)
     {
         AVFilterGraph* graph = null;
         AVBufferRef* device = null;
@@ -13,7 +13,7 @@ public sealed unsafe partial class VideoTranscodeService
         AVFrame* output = null;
         try
         {
-            device = HardwareVideoInterpolation.CreateDevice(mode, adapter);
+            device = HardwareVideoInterpolation.CreateDevice(mode, adapter, useLinearImages);
             graph = ffmpeg.avfilter_graph_alloc();
             input = ffmpeg.av_frame_alloc();
             output = ffmpeg.av_frame_alloc();

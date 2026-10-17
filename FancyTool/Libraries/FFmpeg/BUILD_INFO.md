@@ -2,30 +2,43 @@
 
 应用通过 FFmpeg.AutoGen 在进程内直接调用下列 shared 库，不再依赖外部 ffmpeg.exe/ffprobe.exe。
 
-- 版本：FFmpeg n9.0.1-84-g946fcce07b-20260918（release/9.0 分支，ABI 9.0.x）
-- 构建：BtbN FFmpeg-Builds `autobuild-2026-09-18-13-22`
-  - win64: `ffmpeg-n9.0.1-84-g946fcce07b-win64-gpl-shared-9.0.zip`
-  - linux64: `ffmpeg-n9.0.1-84-g946fcce07b-linux64-gpl-shared-9.0.tar.xz`
-  - https://github.com/BtbN/FFmpeg-Builds/releases/tag/autobuild-2026-09-18-13-22
+- 版本：FFmpeg N-127579-g5cb9fcd211-20261016（固定 master 提交，保持 AutoGen 9.0.1.1 使用的六库 ABI 主版本）
+- 构建：BtbN FFmpeg-Builds `autobuild-2026-10-16-13-04`
+  - win64: `ffmpeg-N-127579-g5cb9fcd211-win64-gpl-shared.zip`
+  - linux64: `ffmpeg-N-127579-g5cb9fcd211-linux64-gpl-shared.tar.xz`
+  - https://github.com/BtbN/FFmpeg-Builds/releases/tag/autobuild-2026-10-16-13-04
 - 许可：GPL-3.0（gpl full 构建，含 libx264/libx265/libaom/libsvtav1/libvpx 等 GPL 组件），见 LICENSE.txt
 - 仅拷贝转码管线实际依赖的六个库：
   avformat→avcodec→avutil、avfilter→swscale→swresample→avutil；
   avdevice 未使用，不随包分发。exe（ffmpeg/ffprobe/ffplay）不分发。
 
-## Win-x64 SHA-256
+## 共享库 SHA-256
 
-- `avcodec-63.dll`: a262c589cb818006ae6f33182666bf2cdea690ea0219062b77b1834cc61df171
-- `avfilter-12.dll`: 18e1e48015bf815be6931cf8f2290c2c1bdb7d0ebe23dc1da932751f7f3d7a7b
-- `avformat-63.dll`: 1f42d0f445467cdb9adf62eed15184f018e7adb93f295bb6c445c59673db584b
-- `avutil-61.dll`: f055a75616b12a49c741876723a459235852ad657e9e1d04e442163eba5b1b2f
-- `swresample-7.dll`: f185d89c41c0a3fdf0801b9ae5c8df3f5e1033e6d03901b9699e2d6d427a64dd
-- `swscale-10.dll`: ea8d02bb10314c4372cf484fa7822aec49cb37c8011fd8e5a2028ecab89015d2
+### win-x64
+
+- `avcodec-63.dll`: 776d673738f99c6fc7499404056b017e1ecf8e5c3f6ae918013dca62d7256398
+- `avfilter-12.dll`: 9fc7f99c04d94e38354c91efdea471629b11524392993a09508fbcbe4c39cc81
+- `avformat-63.dll`: e9dbab861b5095bb098f7a027ea0a846347a9886a6d77d35234a5c7decd0d71c
+- `avutil-61.dll`: 8fc87fb2cb1abdd16780ace8cff98c7392858650314f5a77f7393497cec9fa61
+- `swresample-7.dll`: a050a845f24882c45bb162d4f2b34377c15297632cfb04c4c1570145813f3157
+- `swscale-10.dll`: 62b03d1fd6e4dfb05f830ce4430123de27c96089b9a4beaa0b7b09aaa4b3779d
+
+### linux-x64
+
+- `libavcodec.so.63`: 62b1e8dd224135bda6202e3528a5101713d5ca38061671048b67e6c1ad7d45ca
+- `libavfilter.so.12`: 6df2e3fcb76fe051c1a17d5cd4f663d4f05f00846f817a1227d3619c372cbccc
+- `libavformat.so.63`: f21e43be2bc20411cc866bae73d57310d3cdd33cf43b8a3758f6fd0e18c3bf08
+- `libavutil.so.61`: 5433570c5a2e6dc0762621b7ee875f44bd685613778fdf256f8daad69759b4d1
+- `libswresample.so.7`: b08da71b0bc7310e6c057a7e87bd6e06e0e06af48e430b47b0e1575c6b47c56a
+- `libswscale.so.10`: 00ea4fc1a13273ef2db0a0f9b33853c4bcb44a330995a5fb38cab0e0466d20ee
 
 ## 升级须知
 
 目录通配符意味着升级 FFmpeg 解进新 DLL/so 会被静默带上包，需人工核对：
-版本仍须为 FFmpeg 9.0.x ABI（avcodec-63/avformat-63/avutil-61/swresample-7/swscale-10/avfilter-12），
-与 FFmpeg.AutoGen 9.0.1.1 绑定版本一致；升级 AutoGen 时需同步替换本目录并更新本文件。
+六库 ABI 主版本必须保持兼容（avcodec-63/avformat-63/avutil-61/swresample-7/swscale-10/avfilter-12），
+当前 libavutil 61.14、avcodec 63.20、avformat 63.10、avfilter 12.5、swscale 10.2、swresample 7.3，保持 FFmpeg.AutoGen 9.0.1.1 的 ABI 主版本；不得只混换单个库，升级后必须执行完整转码、HDR 与 GPU 烟测。
+
+> 下列 NVDEC/HDR 条目记录本次更新之前的旧库验证；当前库的结果以末尾光流诊断链接为准。
 
 ## NVDEC / CUDA / NVENC 管线验证（2026-10-17）
 
@@ -48,3 +61,7 @@ pwsh -File FancyTool/_tools/FfmpegSmokeTest/ValidatePipeline.ps1 -OutputDirector
 ```
 
 `$exe` 指向 Release 的 FfmpegSmokeTest；需按 [HDR 实测报告](../../docs/video-hdr-cuda-2026-10-17.md) 设置隔离模型目录。57 项 HDR GPU 扩展、21 项插帧、101 项 FFmpeg 烟测及原矩阵结果见本地 `.qa/video-hdr/verification.json`，两项无对应设备的编码烟测跳过。
+
+## 2026-10-17：启用 NVIDIA Vulkan 光流
+
+旧 release/9.0 构建缺少 `fruc_vulkan`；本次固定到上述提交，Windows/Linux 同步更新六库，未修改 FFmpeg.AutoGen 包版本。Windows RTX 5070 Ti / 617.14 暴露 `VK_NV_optical_flow`，并已真实生成 2×/4×/6× 帧；硬件滤镜使用 segment API，在滤镜初始化前绑定设备；NVIDIA 优先探测线性图像以降低 Windows 回读开销，失败时继续验证原布局。归档下载 SHA-256 与各库校验见本地 `.qa/optical-flow-2026-10-17/native-manifest.json`；复现与完整验证见 [光流诊断](../../docs/optical-flow-2026-10-17.md)。

@@ -74,6 +74,8 @@
 
 “滤镜”页支持 RIFE AI 插帧和无需模型的 CPU 运动补偿插帧，可选择 2×、4× 或 6× 源帧率，保持原时长和音画同步，并默认启用场景切换保护。AI 插帧提供 RIFE 4.25 Lite（默认）与 4.25，沿用 Windows ML 的 GPU/NPU 加速和 DirectML GPU 回退；模型按需下载至统一模型目录的 `Interpolation` 子目录，支持校验和目录迁移。开启插帧后，GIF 同样使用所选倍率；RIFE 可对 HDR 输入映射后补帧并输出 10 位 HDR；其他插帧方式仍需选择“强制 SDR”。与超分同时启用时自动选择处理顺序，也可手动选择先插帧或先超分；未开启超分的降分辨率输出会先缩小画面，以降低插帧计算量。NPU 首次编译大画面可能较慢，速度优先推荐 GPU。
 
+NVIDIA 光流使用 `fruc_vulkan`，要求驱动暴露 `VK_NV_optical_flow` 等所需能力，并通过应用的 2×/4×/6× 实际生成帧校验；RTX 5070 Ti 已验证。该路径通过上传/回读接入现有处理链，尚非 CUDA 全显存路径。CPU 运动补偿的 `minterpolate` 核心不支持切片多线程，总 CPU 占用低不代表单核没有饱和。
+
 “画质”页集中显示 AI 视频超分和 HDR 输出选项。HDR 输出可选“与源一致”“强制 HDR”“强制 SDR”：强制 HDR 将 SDR 经 BT.2446 逆映射转换为 1000 尼特目标的 10 位 PQ / BT.2020；强制 SDR 对 HDR 做亮度映射并输出 BT.709。与源一致保留 SDR、PQ 或 HLG 类型，GIF 始终输出 SDR。不支持 10 位 HDR 的编码器或档次会提示调整设置。
 
 视频超分提供 Anime4K CNN S/M、FSRCNNX s/m 和 RAVU Lite r2/r3 六档，模型随应用分发，可离线安装与校验，存放在模型管理目录的 `VideoSr` 子目录。仅使用 GPU，按模型自动选择已验证的后端，没有 CPU 回退。Anime4K / FSRCNNX 可选 FP16，使用厂商 GPU 加速（Intel 为 OpenVINO）；RAVU r2 使用 DirectML FP32，r3 使用厂商 GPU FP32。缺少兼容组件时可点击安装 GPU 加速。批量视频独占租用并复用已编译会话。2×运行一次，4×运行两次，耗时和内存更高。旧视频模型选择会迁移到 Anime4K S，图片超分仍保留原有模型。模型来源及许可见 [模型说明](FancyTool/Libraries/VideoSr/NOTICE.md)。
@@ -210,7 +212,7 @@ dotnet run -c Debug
 | [Avalonia.Skia](https://github.com/AvaloniaUI/Avalonia) | Skia 渲染层（Avalonia Desktop 传递依赖） | MIT |
 | [SkiaSharp](https://github.com/mono/SkiaSharp) | 图片处理与格式转换（直接用于 ICO / PNG / JPEG / WebP / HEIF / GIF / BMP 编码） | MIT |
 | [HarfBuzzSharp](https://github.com/harfbuzz/harfbuzz-sharp) | 文字整形（Avalonia Desktop 传递依赖） | MIT |
-| [FFmpeg](https://ffmpeg.org/) | 视频/音频转码（FFmpeg 9.0.1 GPL shared 库随应用分发，进程内经 FFmpeg.AutoGen 直调，见 `FancyTool/Libraries/FFmpeg/BUILD_INFO.md`） | GPL-3.0 |
+| [FFmpeg](https://ffmpeg.org/) | 视频/音频转码（FFmpeg GPL shared 库（固定 N-127579，六库 ABI 与 9.0 绑定兼容）随应用分发，进程内经 FFmpeg.AutoGen 直调，见 `FancyTool/Libraries/FFmpeg/BUILD_INFO.md`） | GPL-3.0 |
 | [FFmpeg.AutoGen](https://github.com/Ruslan-B/FFmpeg.AutoGen) | FFmpeg C API 的 .NET 绑定 | MIT |
 | [Packaging.Targets](https://github.com/qmfrederik/dotnet-packaging) | Linux `.deb` 包打包（`CreateDeb` MSBuild 目标） | MIT |
 
@@ -218,7 +220,7 @@ dotnet run -c Debug
 
 本项目基于 [GPL-3.0 许可证](LICENSE) 授权。
 
-视频转码功能捆绑分发 FFmpeg 9.0.1 GPL shared 库（含 libx264/libx265 等 GPL 组件，位于应用根目录，
+视频转码功能捆绑分发 FFmpeg GPL shared 库（固定 N-127579，六库 ABI 与 9.0 绑定兼容）（含 libx264/libx265 等 GPL 组件，位于应用根目录，
 许可证文本随应用分发至 `Licenses/FFmpeg.txt`），因此本仓库自捆绑之日起由 MIT 变更为 GPL-3.0。
 
 ## 🗂️ 数据存储

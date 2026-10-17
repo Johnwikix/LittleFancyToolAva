@@ -74,6 +74,8 @@
 
 The Filters tab offers RIFE AI interpolation and model-free CPU motion compensation, with 2×, 4×, or 6× the source frame rate. Playback duration and audio sync are preserved, with scene-cut protection enabled by default. RIFE 4.25 Lite (default) and 4.25 use Windows ML GPU/NPU providers with DirectML GPU fallback. Models download on demand into the shared model directory's `Interpolation` subfolder and support verification and directory migration. With interpolation enabled, GIF uses the selected multiplier too; RIFE can tone-map HDR input and produce 10-bit HDR output; other interpolation modes require Force SDR. The combined processing order is automatic or can be selected manually. When upscaling is disabled, output downscaling runs before interpolation to reduce processing cost. NPU compilation may take longer for large frames; GPU is recommended for speed.
 
+NVIDIA optical flow uses `fruc_vulkan`, requires the necessary driver capabilities including `VK_NV_optical_flow`, and is exposed only after real 2×/4×/6× frame generation probes pass. RTX 5070 Ti has been verified. This path uploads and downloads frames; it is not the CUDA GPU-resident path. CPU motion compensation uses `minterpolate`, whose core does not support slice threading, so low overall CPU utilization can still mean a saturated single core.
+
 The Quality tab contains AI video enhancement and HDR output controls. Choose Same as Source, Force HDR or Force SDR. Force HDR expands SDR through BT.2446 inverse tone mapping to a 1000-nit target with 10-bit PQ / BT.2020 output. Force SDR tone-maps HDR to BT.709. Same as Source retains SDR, PQ or HLG; GIF is always SDR. Incompatible eight-bit encoders or profiles report an error.
 
 Video enhancement offers six tiers: Anime4K CNN S/M, FSRCNNX s/m and RAVU Lite r2/r3. Models are bundled for offline installation and verification in the managed model directory's `VideoSr` subfolder. Inference requires a GPU, with a validated backend selected automatically and no CPU fallback. Anime4K / FSRCNNX support optional FP16 through vendor GPU acceleration (OpenVINO on Intel); RAVU r2 uses DirectML FP32 and r3 uses vendor GPU FP32. Install GPU acceleration if compatible components are missing. Batch videos lease compiled sessions exclusively and reuse them. 2× runs once and 4× runs twice, using more time and memory. Legacy video selections migrate to Anime4K S; image enhancement retains its existing models. See [model provenance and licenses](FancyTool/Libraries/VideoSr/NOTICE.md).
@@ -202,7 +204,7 @@ dotnet run -c Debug
 | [Avalonia.Skia](https://github.com/AvaloniaUI/Avalonia) | Skia renderer (transitive via Avalonia Desktop) | MIT |
 | [SkiaSharp](https://github.com/mono/SkiaSharp) | Image processing & format conversion (directly drives ICO / PNG / JPEG / WebP / HEIF / GIF / BMP encoding) | MIT |
 | [HarfBuzzSharp](https://github.com/harfbuzz/harfbuzz-sharp) | Text shaping (transitive via Avalonia Desktop) | MIT |
-| [FFmpeg](https://ffmpeg.org/) | Video/audio transcoding (FFmpeg 9.0.1 GPL shared libs bundled with the app, called in-process via FFmpeg.AutoGen; see `FancyTool/Libraries/FFmpeg/BUILD_INFO.md`) | GPL-3.0 |
+| [FFmpeg](https://ffmpeg.org/) | Video/audio transcoding (FFmpeg GPL shared libraries (pinned N-127579, compatible with the 9.0 binding ABI) bundled with the app, called in-process via FFmpeg.AutoGen; see `FancyTool/Libraries/FFmpeg/BUILD_INFO.md`) | GPL-3.0 |
 | [FFmpeg.AutoGen](https://github.com/Ruslan-B/FFmpeg.AutoGen) | .NET bindings for the FFmpeg C API | MIT |
 | [Packaging.Targets](https://github.com/qmfrederik/dotnet-packaging) | Linux `.deb` packaging (`CreateDeb` MSBuild target) | MIT |
 
@@ -210,7 +212,7 @@ dotnet run -c Debug
 
 This project is licensed under the [GPL-3.0 License](LICENSE).
 
-The video transcode feature bundles FFmpeg 9.0.1 GPL shared libraries (which include GPL components such as
+The video transcode feature bundles FFmpeg GPL shared libraries (pinned N-127579, compatible with the 9.0 binding ABI; these include GPL components such as
 libx264/libx265; placed next to the app executable, license text shipped as `Licenses/FFmpeg.txt`). Because of
 this bundling, the repository license changed from MIT to GPL-3.0.
 

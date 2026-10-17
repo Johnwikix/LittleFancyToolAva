@@ -1,5 +1,7 @@
 # RTX 5070 Ti：10 位 HDR 显存管线实测
 
+> 2026-10-17 后续更新：NVIDIA 光流可用性、FFmpeg 固定版本升级和 CPU 单核诊断见 [ADR 0013](adr/0013-vulkan-optical-flow-runtime.md)。本文既有测量使用当时锁定的旧库，保留作为历史证据。
+
 日期：2026-10-17。设计见 [ADR 0012](adr/0012-hdr-cuda-video-pipeline.md)，此前 SDR 结果见 [原报告](video-cuda-pipeline-2026-10-17.md)。原始媒体、日志和采样均在本地 `.qa/video-hdr/`，不纳入 Git。
 
 ## 场景和计时

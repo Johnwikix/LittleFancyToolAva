@@ -832,11 +832,26 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
     /// <summary>
     /// 把 buffersrc/buffersink 绑定到描述字符串两端并配置滤镜图（ffmpeg filtering 官方示例的
     /// 绑定方式：inout 节点 name 用隐式标签 "in"/"out" 匹配无标签端点）；
-    /// vaapi 时创建硬件设备并挂到 hwupload。返回 false 表示配置失败。
+    /// 硬件路径在滤镜初始化前绑定设备；VAAPI 设备引用由调用方负责释放。返回 false 表示配置失败。
     /// </summary>
     private static bool BindGraphAndConfigure(AVFilterGraph* graph, AVFilterContext* src, AVFilterContext* sink,
         string description, bool vaapi, string vaapiDevice, AVBufferRef** outHwDevice, AVBufferRef* filterDevice = null)
     {
+        if (vaapi)
+        {
+            AVBufferRef* device = null;
+            int result = ffmpeg.av_hwdevice_ctx_create(&device, AVHWDeviceType.AV_HWDEVICE_TYPE_VAAPI, vaapiDevice, null, 0);
+            if (result < 0 || device == null)
+            {
+                ffmpeg.av_buffer_unref(&device);
+                return false;
+            }
+            *outHwDevice = device;
+            filterDevice = device;
+        }
+        if (filterDevice != null)
+            return BindHardwareFilterGraphAndConfigure(graph, src, sink, description, filterDevice);
+
         // 命名与官方示例一致：outputs = 图的开放输入（← buffersrc），inputs = 开放输出（→ buffersink）
         AVFilterInOut* outputs = ffmpeg.avfilter_inout_alloc();
         AVFilterInOut* inputs = ffmpeg.avfilter_inout_alloc();
@@ -860,39 +875,48 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
             int ret = ffmpeg.avfilter_graph_parse_ptr(graph, description, &inputs, &outputs, null);
             if (ret < 0) return false;
 
-            if (filterDevice != null)
-            {
-                for (uint i = 0; i < graph->nb_filters; i++)
-                {
-                    AVFilterContext* filter = graph->filters[i];
-                    if (PtrToString(filter->filter->name) == "hwupload" && filter->hw_device_ctx == null)
-                    {
-                        filter->hw_device_ctx = ffmpeg.av_buffer_ref(filterDevice);
-                        if (filter->hw_device_ctx == null) throw new OutOfMemoryException();
-                    }
-                }
-            }
-
-            if (vaapi)
-            {
-                AVBufferRef* dev = null;
-                ret = ffmpeg.av_hwdevice_ctx_create(&dev, AVHWDeviceType.AV_HWDEVICE_TYPE_VAAPI, vaapiDevice, null, 0);
-                if (ret < 0 || dev == null) return false;
-                *outHwDevice = dev;
-                for (uint i = 0; i < graph->nb_filters; i++)
-                {
-                    AVFilterContext* f = graph->filters[i];
-                    if (PtrToString(f->filter->name) == "hwupload" && f->hw_device_ctx == null)
-                        f->hw_device_ctx = ffmpeg.av_buffer_ref(dev);
-                }
-            }
-
             return ffmpeg.avfilter_graph_config(graph, null) >= 0;
         }
         finally
         {
             ffmpeg.avfilter_inout_free(&inputs);
             ffmpeg.avfilter_inout_free(&outputs);
+        }
+    }
+
+    private static bool BindHardwareFilterGraphAndConfigure(AVFilterGraph* graph, AVFilterContext* src,
+        AVFilterContext* sink, string description, AVBufferRef* device)
+    {
+        AVFilterGraphSegment* segment = null;
+        AVFilterInOut* inputs = null;
+        AVFilterInOut* outputs = null;
+        try
+        {
+            // parse_ptr 会初始化 hwupload，设备必须在初始化之前绑定。
+            int result = ffmpeg.avfilter_graph_segment_parse(graph, description, 0, &segment);
+            if (result < 0) return false;
+            result = ffmpeg.avfilter_graph_segment_create_filters(segment, 0);
+            if (result < 0) return false;
+            for (uint i = 0; i < graph->nb_filters; i++)
+            {
+                AVFilterContext* filter = graph->filters[i];
+                if (filter->hw_device_ctx != null) continue;
+                filter->hw_device_ctx = ffmpeg.av_buffer_ref(device);
+                if (filter->hw_device_ctx == null) throw new OutOfMemoryException();
+            }
+            result = ffmpeg.avfilter_graph_segment_apply(segment, 0, &inputs, &outputs);
+            if (result < 0 || inputs == null || outputs == null || inputs->next != null || outputs->next != null)
+                return false;
+            result = ffmpeg.avfilter_link(src, 0, inputs->filter_ctx, (uint)inputs->pad_idx);
+            if (result < 0) return false;
+            result = ffmpeg.avfilter_link(outputs->filter_ctx, (uint)outputs->pad_idx, sink, 0);
+            return result >= 0 && ffmpeg.avfilter_graph_config(graph, null) >= 0;
+        }
+        finally
+        {
+            ffmpeg.avfilter_inout_free(&inputs);
+            ffmpeg.avfilter_inout_free(&outputs);
+            ffmpeg.avfilter_graph_segment_free(&segment);
         }
     }
 

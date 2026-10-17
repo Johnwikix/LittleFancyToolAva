@@ -1,5 +1,7 @@
 # Video frame interpolation
 
+> 2026-10-17 后续更新：NVIDIA 光流可用性、FFmpeg 固定版本升级和 CPU 单核诊断见 [ADR 0013](0013-vulkan-optical-flow-runtime.md)。本文既有测量使用当时锁定的旧库，保留作为历史证据。
+
 > 2026-10-17 补充：HDR 显存管线与 RIFE 保留 HDR 输出见 [ADR 0012](0012-hdr-cuda-video-pipeline.md)。本文原有算法说明与历史验证范围保留，旧 HDR 管线限制由新 ADR 更新。
 
 > 2026-10-16 补充：执行管线与 RTX 5070 Ti 回归见 [ADR 0010](0010-bounded-video-processing-pipeline.md)。下文旧设备性能记录保留；新的流水线不改变输出时钟或模型后端规则。

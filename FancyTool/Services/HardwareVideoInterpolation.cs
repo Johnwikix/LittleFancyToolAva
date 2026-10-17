@@ -4,7 +4,7 @@ namespace FancyToolAva.Services;
 
 /// <summary>Records a probed adapter, supported integer multipliers, and the reason for unavailability.</summary>
 internal sealed record HardwareInterpolationSupport(VideoInterpolationMode Mode, VideoGpuAdapter? Adapter,
-    IReadOnlyList<int> Multipliers, string ReasonKey, string Detail)
+    IReadOnlyList<int> Multipliers, string ReasonKey, string Detail, bool UseLinearImages = false)
 {
     internal bool IsSupported => Adapter != null && Multipliers.Count > 0;
 }
@@ -28,20 +28,30 @@ internal static unsafe class HardwareVideoInterpolation
         return support;
     }
 
-    internal static AVBufferRef* CreateDevice(VideoInterpolationMode mode, VideoGpuAdapter adapter)
+    internal static AVBufferRef* CreateDevice(VideoInterpolationMode mode, VideoGpuAdapter adapter, bool useLinearImages = false)
     {
         string typeName = mode == VideoInterpolationMode.NvidiaOpticalFlow ? "vulkan" : "d3d11va";
         var type = ffmpeg.av_hwdevice_find_type_by_name(typeName);
         AVBufferRef* device = null;
         // Vulkan identifies a physical device by name; its enumeration order is independent of DXGI.
         string selector = mode == VideoInterpolationMode.NvidiaOpticalFlow ? adapter.Name : adapter.Index.ToString(System.Globalization.CultureInfo.InvariantCulture);
-        int result = ffmpeg.av_hwdevice_ctx_create(&device, type, selector, null, 0);
-        if (result < 0 || device == null)
+        AVDictionary* options = null;
+        try
         {
-            ffmpeg.av_buffer_unref(&device);
-            throw FFmpegNative.CreateException(result, LocalizationRegistry.Get("VideoTranscode.Interp_ProbeFailed"));
+            if (mode == VideoInterpolationMode.NvidiaOpticalFlow && useLinearImages)
+            {
+                int configured = ffmpeg.av_dict_set(&options, "linear_images", "1", 0);
+                if (configured < 0) throw FFmpegNative.CreateException(configured, LocalizationRegistry.Get("VideoTranscode.Interp_ProbeFailed"));
+            }
+            int result = ffmpeg.av_hwdevice_ctx_create(&device, type, selector, options, 0);
+            if (result < 0 || device == null)
+            {
+                ffmpeg.av_buffer_unref(&device);
+                throw FFmpegNative.CreateException(result, LocalizationRegistry.Get("VideoTranscode.Interp_ProbeFailed"));
+            }
+            return device;
         }
-        return device;
+        finally { ffmpeg.av_dict_free(&options); }
     }
 
     internal static string Filter(VideoInterpolationMode mode, int multiplier, string outputRate)
@@ -80,13 +90,30 @@ internal static unsafe class HardwareVideoInterpolation
         var failures = new List<string>();
         foreach (var adapter in candidates)
         {
-            var multipliers = new List<int>();
-            foreach (int multiplier in mode == VideoInterpolationMode.AmdOpticalFlow ? new[] { 2, 4 } : new[] { 2, 4, 6 })
+            HardwareInterpolationSupport? best = null;
+            // 线性图像降低 Windows 回读开销；探测失败或倍率不全时再尝试最优平铺布局。
+            foreach (bool useLinearImages in mode == VideoInterpolationMode.NvidiaOpticalFlow ? new[] { true, false } : new[] { false })
             {
-                try { VideoTranscodeService.ProbeHardwareInterpolation(mode, adapter, multiplier); multipliers.Add(multiplier); }
-                catch (Exception ex) { failures.Add($"{adapter.Name} ×{multiplier}: {ex.Message}"); }
+                var multipliers = new List<int>();
+                foreach (int multiplier in mode == VideoInterpolationMode.AmdOpticalFlow ? new[] { 2, 4 } : new[] { 2, 4, 6 })
+                {
+                    try
+                    {
+                        VideoTranscodeService.ProbeHardwareInterpolation(mode, adapter, multiplier, useLinearImages);
+                        multipliers.Add(multiplier);
+                    }
+                    catch (Exception ex)
+                    {
+                        failures.Add($"{adapter.Name} ×{multiplier} (linear={useLinearImages}): {ex.Message}");
+                    }
+                }
+                if (multipliers.Count == 0) continue;
+                var support = new HardwareInterpolationSupport(mode, adapter, multipliers, "VideoTranscode.Interp_Ready",
+                    adapter.Name + " · " + string.Join(" / ", multipliers.Select(value => $"{value}×")), useLinearImages);
+                if (best == null || multipliers.Count > best.Multipliers.Count) best = support;
+                if (mode != VideoInterpolationMode.NvidiaOpticalFlow || multipliers.Count == 3) return support;
             }
-            if (multipliers.Count > 0) return new(mode, adapter, multipliers, "VideoTranscode.Interp_Ready", adapter.Name + " · " + string.Join(" / ", multipliers.Select(value => $"{value}×")));
+            if (best != null) return best;
         }
         return Unavailable(mode, "VideoTranscode.Interp_ProbeFailed", string.Join("; ", failures));
     }

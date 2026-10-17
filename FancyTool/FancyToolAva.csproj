@@ -34,7 +34,7 @@
     <None Include="Libraries/InterpolationModels/NOTICE.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Link="Licenses/RIFE-NOTICE.md" />
   </ItemGroup>
 
-  <!-- FFmpeg 9.0 GPL shared 库（进程内经 FFmpeg.AutoGen 调用，随应用分发，用户无需下载）：
+  <!-- FFmpeg GPL shared（兼容 9.0 绑定 ABI） 库（进程内经 FFmpeg.AutoGen 调用，随应用分发，用户无需下载）：
        仅 avformat/avcodec/avutil/avfilter/swscale/swresample 六库，来源与 SHA-256 见 Libraries\FFmpeg\BUILD_INFO.md -->
   <ItemGroup Condition="'$(RuntimeIdentifier)' == 'win-x64' or ('$(RuntimeIdentifier)' == '' and $([MSBuild]::IsOSPlatform('windows')))">
     <None Include="Libraries\FFmpeg\win-x64\*.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Link="%(Filename)%(Extension)" />
