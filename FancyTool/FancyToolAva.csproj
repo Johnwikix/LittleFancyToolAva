@@ -80,6 +80,7 @@
     <AvaloniaResource Include="Assets\**" />
     <AvaloniaResource Include="Resources\**" />
     <EmbeddedResource Include="Resources\LyricsModels\*.json" />
+    <EmbeddedResource Include="Libraries/VideoCuda/*.ptx" LogicalName="FancyToolAva.VideoCuda.%(Filename)%(Extension)" />
     <EmbeddedResource Include="Libraries/VideoPixels/*.pb" LogicalName="FancyToolAva.VideoPixels.%(Filename)%(Extension)" />
     <EmbeddedResource Include="AudioEnhancement/Coefficients/Assets/dsp-tables.bin" LogicalName="FancyToolAva.AudioEnhancement.Coefficients.dsp-tables.bin" />
   </ItemGroup>

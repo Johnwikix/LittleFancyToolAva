@@ -49,10 +49,28 @@ internal static partial class Program
         if (args.Contains("--hdr-capabilities")) return RunHdrCapabilities();
         if (args.Contains("--hdr-only")) return RunHdrCases(svc, workDir);
         if (args.Contains("--pipeline-benchmark")) return RunVideoPipelineBenchmark(workDir, args);
+        if (args.Contains("--pipeline-cuda")) return RunCudaVideoTests(workDir);
         if (args.Contains("--pipeline-cpu")) return RunVideoPipelineCpuTests(workDir);
         if (args.Contains("--pipeline-adapters")) return RunVideoGpuAdapters(workDir, args);
         if (args.Contains("--pipeline-pixel-stages")) return RunGpuPixelStages(workDir);
+        if (args.Contains("--pipeline-cuda-fallback"))
+        {
+            string unsupported = Path.Combine(workDir, "h264-444.mp4");
+            svc.TranscodeAsync(sample, unsupported, new VideoTranscodeOptions { HardwareBackend = HardwareBackend.Nvidia, Preset = PresetLevel.Ultrafast }).GetAwaiter().GetResult();
+            return RunVideoPipelineIntegration(unsupported, workDir);
+        }
+        if (args.Contains("--pipeline-cuda-integration"))
+        {
+            string compressed = Path.Combine(workDir, "nvdec-input.mp4");
+            string source420 = Path.Combine(workDir, "source420.mp4");
+            // MPEG4 仅提供 4:2:0，将 BGR AVI 变成可复现的 8 位 H.264/NVDEC 输入。
+            svc.TranscodeAsync(sample, source420, new VideoTranscodeOptions { VideoCodec = VideoCodec.Mpeg4, Preset = PresetLevel.Ultrafast }).GetAwaiter().GetResult();
+            svc.TranscodeAsync(source420, compressed, new VideoTranscodeOptions { Preset = PresetLevel.Ultrafast, HardwareBackend = HardwareBackend.Nvidia }).GetAwaiter().GetResult();
+            Environment.SetEnvironmentVariable("FANCYTOOL_VIDEO_PROFILE", Path.Combine(workDir, "native-profiles"));
+            return RunVideoPipelineIntegration(compressed, workDir);
+        }
         if (args.Contains("--pipeline-integration")) return RunVideoPipelineIntegration(sample, workDir);
+        if (args.Contains("--pipeline-quality")) return RunPipelineQuality(workDir, args);
         if (args.Contains("--pipeline-compare")) return CompareVideoPipeline(workDir, args);
         if (args.Contains("--gpu-pixel-experiment")) return RunGpuPixelExperiment(workDir);
         if (args.Contains("--gpu-pixel-batch")) return RunGpuPixelBatchExperiment(workDir);

@@ -109,17 +109,18 @@ public sealed unsafe partial class VideoTranscodeService
         private readonly IProgress<VideoPreviewFrame>? _preview;
         private readonly VideoPipelineMetrics? _metrics;
         private ExceptionDispatchInfo? _failure;
+        internal bool UsesCudaFrames => _source == null;
         private bool _videoCompleted;
         private bool _disposed;
 
         internal QueuedVideoPipeline(VideoSrPipeline? sr, VideoInterpolationPipeline? interpolation, bool upscaleFirst,
             AVFilterContext* source, AVFilterContext* sink, AVCodecContext* encoder, AVFormatContext* output,
             AVStream* stream, double total, IProgress<double>? progress, PreviewConverter previewConverter,
-            IProgress<VideoPreviewFrame>? preview, double trimStart, CancellationToken ct)
+            IProgress<VideoPreviewFrame>? preview, double trimStart, CancellationToken ct, IVideoFrameStage[]? cudaStages = null, AVRational cudaTimeBase = default)
         {
             _stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            _stages = sr == null ? [interpolation!] : interpolation == null ? [sr]
-                : upscaleFirst ? [sr, interpolation] : [interpolation, sr];
+            _stages = cudaStages ?? (sr == null ? [interpolation!] : interpolation == null ? [sr]
+                : upscaleFirst ? [sr, interpolation] : [interpolation, sr]);
             _source = source;
             _sink = sink;
             _encoder = encoder;
@@ -129,12 +130,12 @@ public sealed unsafe partial class VideoTranscodeService
             _progress = progress;
             _previewConverter = previewConverter;
             // 单独超分沿用源帧预览；含插帧时预览最终处理帧。
-            _preview = interpolation == null ? null : preview;
+            _preview = interpolation != null || cudaStages?.Any(stage => stage is CudaRifeStage) == true ? preview : null;
             _trimStart = trimStart;
-            _timeBase = source->outputs[0]->time_base;
+            _timeBase = source == null ? cudaTimeBase : source->outputs[0]->time_base;
             _metrics = VideoPipelineMetrics.Current;
             // 每条队列最多保留约 64 MiB 的图像；超大帧仍允许一个在途引用以维持背压。
-            long bytes = Math.Max((long)source->outputs[0]->w * source->outputs[0]->h * 4,
+            long bytes = Math.Max(source == null ? 0 : (long)source->outputs[0]->w * source->outputs[0]->h * 4,
                 (long)encoder->width * encoder->height * 4);
             int capacity = (int)Math.Clamp(64L * 1024 * 1024 / Math.Max(1, bytes), 1, 4);
             _frames = new BlockingCollection<nint>[_stages.Length + 1];
@@ -243,16 +244,37 @@ public sealed unsafe partial class VideoTranscodeService
                 try
                 {
                     _previewConverter.Report(frame, _trimStart + frame->pts * ffmpeg.av_q2d(_timeBase), _preview);
-                    PushVideoFrame(_source, _sink, frame, _filterFrame, _encoder, _output, _stream, _packet, _total, _progress, this);
+                    if (_source == null) EncodeCuda(frame);
+                    else PushVideoFrame(_source, _sink, frame, _filterFrame, _encoder, _output, _stream, _packet, _total, _progress, this);
                 }
                 finally { ffmpeg.av_frame_free(&frame); }
             }
-            int result = ffmpeg.av_buffersrc_add_frame(_source, null);
-            if (result < 0) throw FFmpegNative.CreateException(result, LocalizationRegistry.Get("VideoTranscode.Msg_PipelineFailed", "av_buffersrc_add_frame/flush"));
+            if (_source != null)
+            {
+            int filterResult = ffmpeg.av_buffersrc_add_frame(_source, null);
+            if (filterResult < 0) throw FFmpegNative.CreateException(filterResult, "CUDA fallback filter flush");
             DrainSinkInto(_sink, _filterFrame, _encoder, _output, _stream, _packet, _total, _progress, this);
-            result = ffmpeg.avcodec_send_frame(_encoder, null);
+            }
+            int result = 0;
+            using (_source == null ? VideoGpuWorkGate.Enter(_stop.Token) : default)
+                result = ffmpeg.avcodec_send_frame(_encoder, null);
             if (result < 0) throw FFmpegNative.CreateException(result, LocalizationRegistry.Get("VideoTranscode.Msg_PipelineFailed", "avcodec_send_frame/flush"));
             DrainPackets(_encoder, _output, _stream, _packet, _encoder->time_base, this);
+        }
+
+        private void EncodeCuda(AVFrame* frame)
+        {
+            long stamp = VideoPipelineMetrics.Start();
+            SetFrameColor(frame, _encoder);
+            frame->pts = ffmpeg.av_rescale_q(frame->pts, _timeBase, _encoder->time_base);
+            if (frame->duration > 0) frame->duration = ffmpeg.av_rescale_q(frame->duration, _timeBase, _encoder->time_base);
+            int result;
+            using (VideoGpuWorkGate.Enter(_stop.Token)) result = ffmpeg.avcodec_send_frame(_encoder, frame);
+            if (result < 0) throw FFmpegNative.CreateException(result, "CUDA NVENC frame");
+            if (_total > 0) _progress?.Report(Math.Clamp(frame->pts * ffmpeg.av_q2d(_encoder->time_base) / _total, 0, 1));
+            DrainPackets(_encoder, _output, _stream, _packet, _encoder->time_base, this);
+            (_progress as EncodingProgress)?.ReportFrame();
+            VideoPipelineMetrics.Record(VideoPipelineMetrics.Phase.Encode, stamp);
         }
 
         internal void SendPacket(AVPacket* packet)

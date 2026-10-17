@@ -6,12 +6,14 @@ using System.Runtime.InteropServices;
 namespace FancyToolAva.Services;
 
 /// <summary>将通道转换、精度转换、量化与裁边交给 GPU；CPU 只保留有界字节缓冲。</summary>
-internal sealed unsafe class OrtBgraVideoFrameUpscaler : IVideoFrameUpscaler, IVideoFrameDestinationUpscaler
+internal sealed unsafe class OrtBgraVideoFrameUpscaler : IVideoFrameUpscaler, IVideoFrameDestinationUpscaler, IVideoCudaUpscaler
 {
     private readonly InferenceSession _session;
     private readonly VideoInferenceRunGuard _guard;
     private readonly byte[]? _input;
     private readonly int[]? _output;
+    private readonly VideoCudaTensor? _cuda;
+    public bool SupportsCuda => _cuda != null;
     private readonly VideoGpuHostMemory? _host;
     private readonly OrtMemoryAllocation? _hostInput, _hostOutput;
     private Span<byte> InputPixels => _hostInput is { } input
@@ -59,6 +61,8 @@ internal sealed unsafe class OrtBgraVideoFrameUpscaler : IVideoFrameUpscaler, IV
                 _inputs = [OrtValue.CreateTensorValueFromMemory(_input, [1, window, window, 4])];
                 _outputs = [OrtValue.CreateTensorValueFromMemory(_output, [1, _tile * 2, _tile * 2])];
             }
+            if (device.UsesTensorRt && Environment.GetEnvironmentVariable("FANCYTOOL_VIDEO_CUDA") != "0")
+                _cuda = new VideoCudaTensor(_session, device, window);
             _inputNames = [_session.InputNames.Single()];
             _outputNames = [_session.OutputNames.Single()];
             _run = new RunOptions();
@@ -130,6 +134,35 @@ internal sealed unsafe class OrtBgraVideoFrameUpscaler : IVideoFrameUpscaler, IV
         VideoPipelineMetrics.Record(VideoPipelineMetrics.Phase.SrPaste, stamp);
     }
 
+    public void UpscaleCuda(CudaVideoFrame source, CudaVideoFrame destination, int scale, CancellationToken ct)
+    {
+        if (scale != 2 || destination.Width != source.Width * 2 || destination.Height != source.Height * 2)
+            throw new ArgumentException("Invalid CUDA SR destination");
+        for (int y = 0; y < source.Height; y += _tile)
+        for (int x = 0; x < source.Width; x += _tile) ProcessCudaTile(source, destination, x, y, ct);
+    }
+
+    internal void ProcessCudaTile(CudaVideoFrame source, CudaVideoFrame result, int x, int y, CancellationToken ct)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        var cuda = _cuda ?? throw new NotSupportedException();
+        ct.ThrowIfCancellationRequested();
+        _run.Terminate = false;
+        using var registration = ct.Register(static state => ((RunOptions)state!).Terminate = true, _run);
+        long stamp = VideoPipelineMetrics.Start();
+        cuda.Pixels.Pad(source, cuda.Input, _window, _window, x - 32, y - 32);
+        VideoPipelineMetrics.Record(VideoPipelineMetrics.Phase.SrPrepare, stamp);
+        stamp = VideoPipelineMetrics.Start();
+        try { _guard.RunBinding(_session, _run, cuda.Binding, ct); }
+        catch (OnnxRuntimeException) when (ct.IsCancellationRequested) { throw new OperationCanceledException(ct); }
+        VideoPipelineMetrics.Record(VideoPipelineMetrics.Phase.SrNativeRun, stamp);
+        VideoPipelineMetrics.Record(VideoPipelineMetrics.Phase.SrRun, stamp);
+        stamp = VideoPipelineMetrics.Start();
+        cuda.Pixels.Paste(cuda.Output, _tile * 8, result, Math.Min(_tile, source.Width - x) * 2,
+            Math.Min(_tile, source.Height - y) * 2, x * 2, y * 2);
+        VideoPipelineMetrics.Record(VideoPipelineMetrics.Phase.SrPaste, stamp);
+    }
+
     public void Dispose()
     {
         if (_disposed) return;
@@ -146,6 +179,7 @@ internal sealed unsafe class OrtBgraVideoFrameUpscaler : IVideoFrameUpscaler, IV
         Release(_hostInput);
         Release(_hostOutput);
         Release(_host);
+        Release(_cuda);
         Release(_session);
         failure?.Throw();
     }

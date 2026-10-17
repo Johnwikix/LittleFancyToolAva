@@ -40,12 +40,20 @@ if ($BaselineCommit) {
     $files = @('VideoTranscodeService.cs', 'VideoTranscodeService.SuperResolution.cs',
         'VideoTranscodeService.Interpolation.cs', 'OrtVideoSrTileModel.cs',
         'VideoFrameUpscaler.cs', 'OrtVideoFrameInterpolator.cs',
-        'VideoSuperResolutionService.cs', 'VideoInterpolationService.cs')
+        'VideoSuperResolutionService.cs', 'VideoInterpolationService.cs', 'VideoTranscodeService.Preview.cs')
+    $baselinePaths = & git -C $repository ls-tree -r --name-only $BaselineCommit FancyTool/Services
+    if ($LASTEXITCODE -ne 0) { throw '无法读取基线目录。' }
+    $queuedBaseline = $baselinePaths -contains 'FancyTool/Services/VideoTranscodeService.Pipeline.cs'
+    if ($queuedBaseline) {
+        $files += @('VideoTranscodeService.Pipeline.cs', 'OrtBgraVideoFrameUpscaler.cs',
+            'OrtBgraVideoFrameInterpolator.cs', 'ParallelBgraVideoFrameUpscaler.cs',
+            'CascadedVideoFrameUpscaler.cs', 'VideoGpuPixelSession.cs', 'VideoInferenceRunGuard.cs')
+    }
     foreach ($file in $files) {
         $lines = & git -C $repository show "${BaselineCommit}:FancyTool/Services/$file"
         if ($LASTEXITCODE -ne 0) { throw "无法读取基线文件 $file" }
         $source = ($lines -join "`r`n") + "`r`n"
-        if ($file -eq 'VideoTranscodeService.cs') {
+        if ($file -eq 'VideoTranscodeService.cs' -and -not $source.Contains('VideoPipelineMetrics.Begin()')) {
             $marker = '            if (encodingProgress != null) progress = encodingProgress;'
             if (-not $source.Contains($marker)) { throw '基线计时插入点不匹配。' }
             $source = $source.Replace($marker, $marker + "`r`n            using var metrics = VideoPipelineMetrics.Begin();")
@@ -53,7 +61,7 @@ if ($BaselineCommit) {
         [IO.File]::WriteAllText((Join-Path $sources $file), $source, [Text.UTF8Encoding]::new($false))
     }
     $remove = ($files | ForEach-Object { "Services/$_" }) -join ';'
-    $remove += ';Services/VideoTranscodeService.Pipeline.cs'
+    if (-not $queuedBaseline) { $remove += ';Services/VideoTranscodeService.Pipeline.cs;Services/VideoTranscodeService.Cuda.cs' }
     $escapedSources = [Security.SecurityElement]::Escape($sources)
     $targets = @"
 <Project>

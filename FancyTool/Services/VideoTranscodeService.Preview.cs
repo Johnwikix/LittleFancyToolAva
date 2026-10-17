@@ -126,6 +126,8 @@ public sealed unsafe partial class VideoTranscodeService
     private sealed class PreviewConverter : IDisposable
     {
         private SwsContext* _scale;
+        private CudaVideoContext? _cudaPreview;
+        private CudaVideoContext.CudaBuffer? _cudaPreviewPixels;
         private long _lastReport;
         private byte[]? _pixels;
         private AVFrame* _lastFrame;
@@ -180,6 +182,7 @@ public sealed unsafe partial class VideoTranscodeService
 
         public VideoPreviewFrame Convert(AVFrame* frame, double position, bool reusable = false)
         {
+            if (frame->format == (int)AVPixelFormat.AV_PIX_FMT_CUDA) return ConvertCuda(frame, position, reusable);
             if (ReadColor(frame).IsHdr) frame = ToneMapPreview(frame);
             var (width, height) = PreviewSize(frame);
             _scale = ffmpeg.sws_getCachedContext(_scale, frame->width, frame->height, (AVPixelFormat)frame->format,
@@ -199,6 +202,29 @@ public sealed unsafe partial class VideoTranscodeService
                 int ret = ffmpeg.sws_scale(_scale, _source, _sourceStride, 0, frame->height, _target, _targetStride);
                 if (ret < 0) throw FFmpegNative.CreateException(ret, "Cannot scale preview frame");
             }
+            return new VideoPreviewFrame(pixels, width, height, position);
+        }
+
+        private VideoPreviewFrame ConvertCuda(AVFrame* frame, double position, bool reusable)
+        {
+            var (width, height) = PreviewSize(frame);
+            var context = (AVHWFramesContext*)frame->hw_frames_ctx->data;
+            if (context->sw_format is not (AVPixelFormat.AV_PIX_FMT_NV12 or AVPixelFormat.AV_PIX_FMT_BGRA))
+                throw new NotSupportedException("CUDA preview format");
+            _cudaPreview ??= new CudaVideoContext(0);
+            if (_cudaPreviewPixels == null || _cudaPreviewPixels.Frame.Width != width || _cudaPreviewPixels.Frame.Height != height)
+            {
+                _cudaPreviewPixels?.Dispose();
+                _cudaPreviewPixels = _cudaPreview.Allocate(width, height);
+            }
+            int length = checked(width * height * 4);
+            byte[] pixels = reusable ? _pixels?.Length == length ? _pixels : _pixels = new byte[length] : new byte[length];
+            var device = (CudaDeviceHeader*)context->device_ctx->hwctx;
+            _cudaPreview.WaitDecoder(device->Stream);
+            var color = ReadColor(frame);
+            _cudaPreview.Preview((nint)frame->data[0], (nint)frame->data[1], frame->linesize[0], frame->linesize[1],
+                frame->width, frame->height, _cudaPreviewPixels.Frame, context->sw_format == AVPixelFormat.AV_PIX_FMT_NV12,
+                color.Matrix == AVColorSpace.AVCOL_SPC_BT709, color.Range == AVColorRange.AVCOL_RANGE_JPEG, pixels);
             return new VideoPreviewFrame(pixels, width, height, position);
         }
 
@@ -222,6 +248,12 @@ public sealed unsafe partial class VideoTranscodeService
             _pixels = null;
             if (_scale != null) ffmpeg.sws_freeContext(_scale);
             _scale = null;
+            var pixels = _cudaPreviewPixels;
+            var cuda = _cudaPreview;
+            _cudaPreviewPixels = null;
+            _cudaPreview = null;
+            try { pixels?.Dispose(); }
+            finally { cuda?.Dispose(); }
         }
 
         private AVFrame* ToneMapPreview(AVFrame* frame)

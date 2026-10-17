@@ -53,6 +53,14 @@ internal static partial class Program
         {
             string unaligned = Path.Combine(workDir, "unaligned.avi");
             WriteTestAvi(unaligned, 170, 98, 10, 1);
+            if (Path.GetExtension(source).Equals(".mp4", StringComparison.OrdinalIgnoreCase))
+            {
+                string first = Path.Combine(workDir, "stride-420.mp4");
+                string compressed = Path.Combine(workDir, "stride-nvdec.mp4");
+                service.TranscodeAsync(unaligned, first, new VideoTranscodeOptions { VideoCodec = VideoCodec.Mpeg4, Preset = PresetLevel.Ultrafast }).GetAwaiter().GetResult();
+                service.TranscodeAsync(first, compressed, new VideoTranscodeOptions { HardwareBackend = HardwareBackend.Nvidia, Preset = PresetLevel.Ultrafast }).GetAwaiter().GetResult();
+                unaligned = compressed;
+            }
             foreach (var order in new[] { VideoFrameProcessingOrder.InterpolationThenUpscale, VideoFrameProcessingOrder.UpscaleThenInterpolation })
             {
                 var options = Options(); options.FrameProcessingOrder = order;
@@ -128,10 +136,19 @@ internal static partial class Program
         RunExtra("active tiled GPU cancellation joins workers before cached session reuse", () =>
         {
             string large = Path.Combine(workDir, "tiled-cancel.avi");
-            WriteTestAvi(large, 1280, 720, 4, .5);
+            bool cudaInput = Path.GetExtension(source).Equals(".mp4", StringComparison.OrdinalIgnoreCase);
+            WriteTestAvi(large, 1280, 720, 4, cudaInput ? 2 : .5);
+            if (cudaInput)
+            {
+                string first = Path.Combine(workDir, "tiled-420.mp4");
+                string compressed = Path.Combine(workDir, "tiled-nvdec.mp4");
+                service.TranscodeAsync(large, first, new VideoTranscodeOptions { VideoCodec = VideoCodec.Mpeg4, Preset = PresetLevel.Ultrafast }).GetAwaiter().GetResult();
+                service.TranscodeAsync(first, compressed, new VideoTranscodeOptions { HardwareBackend = HardwareBackend.Nvidia, Preset = PresetLevel.Ultrafast }).GetAwaiter().GetResult();
+                large = compressed;
+            }
             var options = Options();
             options.InterpolationMode = VideoInterpolationMode.None;
-            options.TrimStartSeconds = 0; options.TrimEndSeconds = .5;
+            options.TrimStartSeconds = 0; options.TrimEndSeconds = cudaInput ? 2 : .5;
             using var cancelled = new CancellationTokenSource();
             var cancelling = new VideoTranscodeService(NullLogger<VideoTranscodeService>.Instance, new FailingSrService(sr, cancelled));
             string output = Path.Combine(workDir, "active-tiled-cancel.mp4");
@@ -144,7 +161,7 @@ internal static partial class Program
             if (File.Exists(output) || Directory.GetFiles(workDir, "*active-tiled-cancel*.tmp*").Length != 0)
                 throw new InvalidOperationException("Tiled cancellation retained output");
             service.TranscodeAsync(large, output, options).GetAwaiter().GetResult();
-            AssertInterpolated(service, output, 4, 2, .5, true);
+            AssertInterpolated(service, output, 4, cudaInput ? 8 : 2, cudaInput ? 2 : .5, true);
         });
         RunExtra("deterministic repeated SR frames reuse pixels and preserve every timestamp", () =>
         {
@@ -234,7 +251,7 @@ internal static partial class Program
         public async Task<IVideoFrameUpscaler> CreateSessionAsync(VideoTranscodeOptions options, CancellationToken ct = default)
             => new FailingUpscaler(await inner.CreateSessionAsync(options, ct), cancel);
     }
-    private sealed class FailingUpscaler(IVideoFrameUpscaler inner, CancellationTokenSource? cancel = null) : IVideoFrameUpscaler
+    private sealed class FailingUpscaler(IVideoFrameUpscaler inner, CancellationTokenSource? cancel = null) : IVideoFrameUpscaler, IVideoCudaUpscaler
     {
         private int _calls;
         public VideoSrDevice Device => inner.Device;
@@ -244,6 +261,14 @@ internal static partial class Program
             if (cancel != null && call == 1) cancel.CancelAfter(10);
             if (cancel == null && call == 2) throw new InvalidDataException("pipeline-test-fault");
             return inner.Upscale(source, scale, ct);
+        }
+        public bool SupportsCuda => inner is IVideoCudaUpscaler { SupportsCuda: true };
+        public void UpscaleCuda(CudaVideoFrame source, CudaVideoFrame destination, int scale, CancellationToken ct)
+        {
+            int call = ++_calls;
+            if (cancel != null && call == 1) cancel.CancelAfter(1);
+            if (cancel == null && call == 2) throw new InvalidDataException("pipeline-test-fault");
+            ((IVideoCudaUpscaler)inner).UpscaleCuda(source, destination, scale, ct);
         }
         public void Dispose() => inner.Dispose();
     }

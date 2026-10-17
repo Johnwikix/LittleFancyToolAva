@@ -13,6 +13,9 @@ internal sealed unsafe class VideoGpuPixelSession : IDisposable
     private readonly InferenceSession _prepare, _network, _pack;
     private readonly OrtIoBinding _prepareBinding, _networkBinding, _packBinding;
     private readonly OrtMemoryAllocation _first, _second, _amount, _output;
+    private readonly OrtMemoryAllocation _prepared, _inferred;
+    private CudaVideoFrame _cudaFirst, _cudaSecond;
+    private readonly CudaVideoContext _cudaPixels;
     private readonly VideoInferenceRunGuard _guard;
     private readonly Action _bindPrepare;
     private readonly long[] _byteShape;
@@ -47,11 +50,12 @@ internal sealed unsafe class VideoGpuPixelSession : IDisposable
                 .GetMemoryInfo(OrtDeviceMemoryType.DEFAULT);
             var gpu = Own(new OrtAllocator(_network, memory));
             int plane = checked(width * height);
+            _cudaPixels = Own(new CudaVideoContext(deviceId));
             _first = Own(OrtAllocator.DefaultInstance.Allocate(checked((uint)plane * 4)));
             _second = Own(OrtAllocator.DefaultInstance.Allocate(checked((uint)plane * 4)));
             _amount = Own(OrtAllocator.DefaultInstance.Allocate(4));
-            var prepared = Own(gpu.Allocate(checked((uint)plane * 7 * 4)));
-            var inferred = Own(gpu.Allocate(checked((uint)plane * 3 * 4)));
+            _prepared = Own(gpu.Allocate(checked((uint)plane * 7 * 4)));
+            _inferred = Own(gpu.Allocate(checked((uint)plane * 3 * 4)));
             _output = Own(OrtAllocator.DefaultInstance.Allocate(checked((uint)plane * 4)));
             _prepareBinding = Own(_prepare.CreateIoBinding());
             _networkBinding = Own(_network.CreateIoBinding());
@@ -59,10 +63,10 @@ internal sealed unsafe class VideoGpuPixelSession : IDisposable
             _byteShape = [1, height, width, 4];
             long[] inputShape = [1, 7, height, width], outputShape = [1, 3, height, width];
             _bindPrepare = BindPrepare;
-            _prepareBinding.BindOutput(_prepare.OutputNames.Single(), TensorElementType.Float, inputShape, prepared);
-            _networkBinding.BindInput(_network.InputNames.Single(), TensorElementType.Float, inputShape, prepared);
-            _networkBinding.BindOutput(_network.OutputNames.Single(), TensorElementType.Float, outputShape, inferred);
-            _packBinding.BindInput(_pack.InputNames.Single(), TensorElementType.Float, outputShape, inferred);
+            _prepareBinding.BindOutput(_prepare.OutputNames.Single(), TensorElementType.Float, inputShape, _prepared);
+            _networkBinding.BindInput(_network.InputNames.Single(), TensorElementType.Float, inputShape, _prepared);
+            _networkBinding.BindOutput(_network.OutputNames.Single(), TensorElementType.Float, outputShape, _inferred);
+            _packBinding.BindInput(_pack.InputNames.Single(), TensorElementType.Float, outputShape, _inferred);
             _packBinding.BindOutput(_pack.OutputNames.Single(), TensorElementType.Int32, [1, height, width], _output);
             First.Clear();
             Second.Clear();
@@ -80,6 +84,33 @@ internal sealed unsafe class VideoGpuPixelSession : IDisposable
     private static Span<byte> Bytes(OrtMemoryAllocation allocation) => new((void*)allocation.DangerousGetHandle(), checked((int)allocation.Size));
     internal void SetAmount(float amount) => MemoryMarshal.Write(Bytes(_amount), in amount);
     internal void FramesChanged() => _framesDirty = true;
+
+    internal void SetCudaFrames(CudaVideoFrame first, CudaVideoFrame second, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        // 只借用像素；阶段持有两幅 AVFrame，所有采样同步完成后才释放或替换。
+        _cudaFirst = first;
+        _cudaSecond = second;
+    }
+
+    internal void RunCuda(float amount, CudaVideoFrame destination, CancellationToken ct)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (_cudaFirst.Data == 0 || _cudaSecond.Data == 0) throw new InvalidOperationException("CUDA RIFE frames were not set");
+        ct.ThrowIfCancellationRequested();
+        using var run = new RunOptions();
+        using var registration = ct.Register(static state => ((RunOptions)state!).Terminate = true, run);
+        long stamp = VideoPipelineMetrics.Start();
+        _cudaPixels.PrepareRife(_cudaFirst, _cudaSecond, _prepared.DangerousGetHandle(), (int)_byteShape[2], (int)_byteShape[1], amount);
+        VideoPipelineMetrics.Record(VideoPipelineMetrics.Phase.RifeGpuPrepare, stamp);
+        stamp = VideoPipelineMetrics.Start();
+        _guard.RunBinding(_network, run, _networkBinding, ct);
+        VideoPipelineMetrics.Record(VideoPipelineMetrics.Phase.RifeNetwork, stamp);
+        stamp = VideoPipelineMetrics.Start();
+        _cudaPixels.PackRife(_inferred.DangerousGetHandle(), (int)_byteShape[2], (int)_byteShape[1], destination);
+        VideoPipelineMetrics.Record(VideoPipelineMetrics.Phase.RifeGpuPack, stamp);
+        ct.ThrowIfCancellationRequested();
+    }
 
     private void BindPrepare()
     {
@@ -134,6 +165,8 @@ internal sealed class VideoGpuPixelSession : IDisposable
     internal VideoGpuPixelSession(string path, int width, int height, bool cudaGraph, CancellationToken ct) => throw Unsupported();
     internal void SetAmount(float amount) => throw Unsupported();
     internal void FramesChanged() => throw Unsupported();
+    internal void SetCudaFrames(CudaVideoFrame first, CudaVideoFrame second, CancellationToken ct) => throw Unsupported();
+    internal void RunCuda(float amount, CudaVideoFrame destination, CancellationToken ct) => throw Unsupported();
     internal void Run(CancellationToken ct) => throw Unsupported();
     public void Dispose() { }
 }

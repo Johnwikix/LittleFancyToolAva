@@ -131,11 +131,17 @@ public sealed class VideoSuperResolutionService(ModelDownloadService downloader,
         finally { _sessionGate.Release(); }
     }
 
-    private sealed class SessionLease(IVideoFrameUpscaler inner, SemaphoreSlim gate) : IVideoFrameUpscaler, IVideoFrameDestinationUpscaler, IVideoInferenceSessions, IVideoFrameReuseUpscaler
+    private sealed class SessionLease(IVideoFrameUpscaler inner, SemaphoreSlim gate) : IVideoFrameUpscaler, IVideoFrameDestinationUpscaler, IVideoCudaUpscaler, IVideoInferenceSessions, IVideoFrameReuseUpscaler
     {
         private int _released;
         /// <inheritdoc />
         public VideoSrDevice Device => inner.Device;
+        public bool SupportsCuda => inner is IVideoCudaUpscaler { SupportsCuda: true };
+        public void UpscaleCuda(CudaVideoFrame source, CudaVideoFrame destination, int scale, CancellationToken ct)
+        {
+            ObjectDisposedException.ThrowIf(Volatile.Read(ref _released) != 0, this);
+            ((IVideoCudaUpscaler)inner).UpscaleCuda(source, destination, scale, ct);
+        }
         public int Count => (inner as IVideoInferenceSessions)?.Count ?? 1;
         public int Reserved => (inner as IVideoInferenceSessions)?.Reserved ?? 1;
         /// <inheritdoc />

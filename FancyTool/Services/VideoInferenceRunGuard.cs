@@ -7,10 +7,11 @@ namespace FancyToolAva.Services;
 /// <summary>隔离本机 TensorRT RTX 并发 Run 的画面损坏，其他后端保留独立执行。</summary>
 internal sealed class VideoInferenceRunGuard(VideoSrDevice device)
 {
-    private static readonly ReaderWriterLockSlim RunGate = new();
+    private static readonly ReaderWriterLockSlim RunGate = VideoGpuWorkGate.Gate;
 
     // 本机 EP 在两个 CUDA Graph 会话并发时产生黑帧；组合任务关闭捕获以恢复安全并发。
-    internal static bool UseCudaGraph(VideoTranscodeOptions options) => !(options.SuperResolutionEnabled
+    internal static bool UseCudaGraph(VideoTranscodeOptions options) => !(options.HardwareBackend == HardwareBackend.Nvidia
+        && Environment.GetEnvironmentVariable("FANCYTOOL_VIDEO_CUDA") != "0") && !(options.SuperResolutionEnabled
         && options.InterpolationMode == VideoInterpolationMode.Rife
         && !VideoSrModelCatalog.Get(options.SuperResolutionModel).RequiresDirectMl);
 

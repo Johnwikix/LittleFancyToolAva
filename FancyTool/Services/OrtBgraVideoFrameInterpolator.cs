@@ -4,7 +4,7 @@ using SkiaSharp;
 namespace FancyToolAva.Services;
 
 /// <summary>GPU 完成 RIFE 的通道归一化、时间平面展开和输出量化。</summary>
-internal sealed class OrtBgraVideoFrameInterpolator : IVideoFrameInterpolator
+internal sealed class OrtBgraVideoFrameInterpolator : IVideoFrameInterpolator, IVideoCudaInterpolator
 {
     private readonly VideoGpuPixelSession _gpu;
     private readonly int _width, _height, _inputWidth, _inputHeight;
@@ -66,6 +66,25 @@ internal sealed class OrtBgraVideoFrameInterpolator : IVideoFrameInterpolator
         long stamp = VideoPipelineMetrics.Start();
         VideoBgraPixels.Paste(_gpu.Output, _inputWidth * 4, destination, 0, 0, _width, _height, ct);
         VideoPipelineMetrics.Record(VideoPipelineMetrics.Phase.RifeReadback, stamp);
+    }
+
+    public bool SupportsCuda => Device.UsesTensorRt;
+    public void SetCudaFrames(CudaVideoFrame first, CudaVideoFrame second, CancellationToken ct)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (first.Width != _width || first.Height != _height || second.Width != _width || second.Height != _height)
+            throw new ArgumentException("Invalid CUDA RIFE input");
+        _gpu.SetCudaFrames(first, second, ct);
+    }
+    public void InterpolateCuda(double amount, CudaVideoFrame destination, CancellationToken ct)
+    {
+        if (destination.Width != _width || destination.Height != _height || !double.IsFinite(amount) || amount <= 0 || amount >= 1)
+            throw new ArgumentException("Invalid CUDA RIFE output");
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        long stamp = VideoPipelineMetrics.Start();
+        try { _gpu.RunCuda((float)amount, destination, ct); }
+        catch (OnnxRuntimeException) when (ct.IsCancellationRequested) { throw new OperationCanceledException(ct); }
+        VideoPipelineMetrics.Record(VideoPipelineMetrics.Phase.RifeRun, stamp);
     }
 
     private void Validate(SKBitmap bitmap)

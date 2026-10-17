@@ -6,7 +6,7 @@ using SkiaSharp;
 namespace FancyToolAva.Services;
 
 /// <summary>每个并行块独占原生会话和张量，帧返回前等待所有块完成。</summary>
-internal sealed class ParallelBgraVideoFrameUpscaler : IVideoFrameUpscaler, IVideoFrameDestinationUpscaler, IVideoInferenceSessions
+internal sealed class ParallelBgraVideoFrameUpscaler : IVideoFrameUpscaler, IVideoFrameDestinationUpscaler, IVideoCudaUpscaler, IVideoInferenceSessions
 {
     private readonly int _window, _degree;
     private readonly List<OrtBgraVideoFrameUpscaler> _contexts;
@@ -103,6 +103,55 @@ internal sealed class ParallelBgraVideoFrameUpscaler : IVideoFrameUpscaler, IVid
             throw;
         }
         return true;
+    }
+
+    public bool SupportsCuda => _contexts.All(c => c.SupportsCuda);
+    public void UpscaleCuda(CudaVideoFrame source, CudaVideoFrame destination, int scale, CancellationToken ct)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        VideoFrameUpscaler.ValidateSize(source.Width, source.Height, scale);
+        if (scale != 2 || destination.Width != source.Width * 2 || destination.Height != source.Height * 2)
+            throw new ArgumentException("Invalid destination bitmap");
+        int tile = _window - 64, columns = (source.Width + tile - 1) / tile;
+        int total = columns * ((source.Height + tile - 1) / tile);
+        if (total < 8 || _contexts.Count == 1) { _contexts[0].UpscaleCuda(source, destination, scale, ct); return; }
+        using var stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        ExceptionDispatchInfo? failure = null;
+        var metrics = VideoPipelineMetrics.Current;
+        try
+        {
+            Parallel.For(0, total, new ParallelOptions { MaxDegreeOfParallelism = _contexts.Count, CancellationToken = stop.Token },
+                () =>
+                {
+                    var context = _available.Take(stop.Token);
+                    var previous = VideoPipelineMetrics.Current;
+                    VideoPipelineMetrics.Current = metrics;
+                    return (Context: context, Previous: previous);
+                }, (index, state, worker) =>
+                {
+                    try { worker.Context.ProcessCudaTile(source, destination, index % columns * tile, index / columns * tile, stop.Token); }
+                    catch (Exception error)
+                    {
+                        if (error is not OperationCanceledException || !stop.IsCancellationRequested)
+                            Interlocked.CompareExchange(ref failure, ExceptionDispatchInfo.Capture(error), null);
+                        try { stop.Cancel(); }
+                        catch (Exception cancellation) { Interlocked.CompareExchange(ref failure, ExceptionDispatchInfo.Capture(cancellation), null); }
+                        throw;
+                    }
+                    return worker;
+                }, worker =>
+                {
+                    VideoPipelineMetrics.Current = worker.Previous;
+                    _available.Add(worker.Context);
+                });
+        }
+        catch
+        {
+            failure?.Throw();
+            ct.ThrowIfCancellationRequested();
+            throw;
+        }
+        return;
     }
 
     public void Dispose()

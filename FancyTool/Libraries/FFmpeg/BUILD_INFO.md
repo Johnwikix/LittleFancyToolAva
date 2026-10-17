@@ -26,3 +26,14 @@
 目录通配符意味着升级 FFmpeg 解进新 DLL/so 会被静默带上包，需人工核对：
 版本仍须为 FFmpeg 9.0.x ABI（avcodec-63/avformat-63/avutil-61/swresample-7/swscale-10/avfilter-12），
 与 FFmpeg.AutoGen 9.0.1.1 绑定版本一致；升级 AutoGen 时需同步替换本目录并更新本文件。
+
+## NVDEC / CUDA / NVENC 管线验证（2026-10-17）
+
+未替换 FFmpeg 二进制。新增硬件解码、CUDA 帧池和 NVENC 硬件输入后，使用进程内真实转码路径验证：
+
+```powershell
+$env:FANCYTOOL_DATA_DIRECTORY = (Resolve-Path .qa/video-pipeline/data).Path
+pwsh -File FancyTool/_tools/FfmpegSmokeTest/ValidatePipeline.ps1 -OutputDirectory .qa/video-cuda/validation -DataDirectory .qa/video-pipeline/data
+```
+
+该入口包含 FFmpeg 全矩阵、普通队列及 CUDA 压缩输入集成验证；原始记录保留在已忽略的 `.qa/`。架构、回退边界、画质差异及测速结果见 [显存管线实测](../../docs/video-cuda-pipeline-2026-10-17.md)。

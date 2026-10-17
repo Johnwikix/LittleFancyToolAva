@@ -122,10 +122,21 @@ public sealed class VideoInterpolationService(ModelDownloadService downloader, I
         finally { _sessionGate.Release(); }
     }
 
-    private sealed class SessionLease(IVideoFrameInterpolator inner, SemaphoreSlim gate) : IVideoFrameInterpolator
+    private sealed class SessionLease(IVideoFrameInterpolator inner, SemaphoreSlim gate) : IVideoFrameInterpolator, IVideoCudaInterpolator
     {
         private int _released;
         public VideoSrDevice Device => inner.Device;
+        public bool SupportsCuda => inner is IVideoCudaInterpolator { SupportsCuda: true };
+        public void SetCudaFrames(CudaVideoFrame first, CudaVideoFrame second, CancellationToken ct)
+        {
+            ObjectDisposedException.ThrowIf(Volatile.Read(ref _released) != 0, this);
+            ((IVideoCudaInterpolator)inner).SetCudaFrames(first, second, ct);
+        }
+        public void InterpolateCuda(double amount, CudaVideoFrame destination, CancellationToken ct)
+        {
+            ObjectDisposedException.ThrowIf(Volatile.Read(ref _released) != 0, this);
+            ((IVideoCudaInterpolator)inner).InterpolateCuda(amount, destination, ct);
+        }
         public void SetFrames(SkiaSharp.SKBitmap first, SkiaSharp.SKBitmap second, CancellationToken ct)
         {
             ObjectDisposedException.ThrowIf(Volatile.Read(ref _released) != 0, this);

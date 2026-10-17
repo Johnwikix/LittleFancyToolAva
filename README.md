@@ -78,7 +78,7 @@
 
 视频超分提供 Anime4K CNN S/M、FSRCNNX s/m 和 RAVU Lite r2/r3 六档，模型随应用分发，可离线安装与校验，存放在模型管理目录的 `VideoSr` 子目录。仅使用 GPU，按模型自动选择已验证的后端，没有 CPU 回退。Anime4K / FSRCNNX 可选 FP16，使用厂商 GPU 加速（Intel 为 OpenVINO）；RAVU r2 使用 DirectML FP32，r3 使用厂商 GPU FP32。缺少兼容组件时可点击安装 GPU 加速。批量视频独占租用并复用已编译会话。2×运行一次，4×运行两次，耗时和内存更高。旧视频模型选择会迁移到 Anime4K S，图片超分仍保留原有模型。模型来源及许可见 [模型说明](FancyTool/Libraries/VideoSr/NOTICE.md)。
 
-超分和插帧使用有界流水线，让解码、推理、编码与封装处理不同的帧；NVIDIA 超分支持独立分块会话并发，RIFE 前处理、网络与打包之间使用 GPU 张量。像素转换尽量留在 GPU，CPU 仍负责解码、音频、调度和必要的字节复制；RAVU R2 同样支持 DirectML GPU 像素图，其他不支持的后端保留原有硬件张量路径。取消或失败会等待在途任务结束后再释放原生资源。设计与实测见 [管线设计](FancyTool/docs/adr/0010-bounded-video-processing-pipeline.md) 和 [RTX 5070 Ti 实测](FancyTool/docs/video-pipeline-2026-10-17.md)。
+超分和插帧使用有界流水线，让解码、推理、编码与封装处理不同的帧。Windows 的 NVIDIA 编码任务优先使用 NVDEC；标准 8 位 4:2:0 SDR 输入可经 CUDA 像素转换、超分、RIFE 直接交给 NVENC，整帧保留在显存。场景检测仅回读标志，预览先在 GPU 缩小；CPU 负责音频、调度和封装。特殊滤镜、色彩格式及 DirectML 等路径保留混合处理，硬件解码协商失败会完整重试软件解码。GPU 色彩转换与原 zscale 路径存在舍入和采样差异，不能宣称逐像素相同。设计及验证见 [显存管线设计](FancyTool/docs/adr/0011-gpu-resident-video-frames.md) 和 [RTX 5070 Ti 实测](FancyTool/docs/video-cuda-pipeline-2026-10-17.md)。
 
 现有超分模型处理 SDR 图像；HDR 素材启用超分时先映射为 SDR，再按输出选择转回 HDR。逆映射可扩展高光，但不能保证恢复 SDR 中已经丢失的细节。算法与模型目录说明见 [设计记录](FancyTool/docs/adr/0005-model-storage-and-hdr-output.md)。
 

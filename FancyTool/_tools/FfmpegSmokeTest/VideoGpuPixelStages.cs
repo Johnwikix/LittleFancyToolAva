@@ -7,7 +7,7 @@ namespace FfmpegSmokeTest;
 
 internal static partial class Program
 {
-    private static int RunGpuPixelStages(string workDir)
+    private static unsafe int RunGpuPixelStages(string workDir)
     {
         string source = Path.Combine(AppPaths.ModelsDirectory, "Interpolation/rife_v4.25_lite_v2.onnx");
         var paths = VideoPixelGraph.CreateStages(source, "rife", default);
@@ -29,6 +29,20 @@ internal static partial class Program
         using var result = OrtValue.CreateTensorValueFromMemory(output, [1, 1, width]);
         using var run = new RunOptions();
         session.Run(run, [session.InputNames.Single()], [tensor], [session.OutputNames.Single()], [result]);
+        var native = new int[width];
+        using (var cuda = new CudaVideoContext(device.TensorRtDeviceId!.Value))
+        using (var gpuInput = cuda.Allocate(width * 3, 1))
+        using (var gpuOutput = cuda.Allocate(width, 1))
+        {
+            using (cuda.Enter())
+            fixed (float* cpu = input) CudaVideoContext.Check(CudaUpload((ulong)gpuInput.Frame.Data, cpu, (nuint)(input.Length * 4)));
+            cuda.PackRife(gpuInput.Frame.Data, width, 1, gpuOutput.Frame);
+            using (cuda.Enter())
+            fixed (int* cpu = native) CudaVideoContext.Check(CudaDownload(cpu, (ulong)gpuOutput.Frame.Data, (nuint)(native.Length * 4)));
+        }
+        var nativeMismatches = Enumerable.Range(0, width).Where(i => native[i] != output[i]).ToArray();
+        if (nativeMismatches.Length != 0) throw new InvalidOperationException("CUDA quantizer differs from GPU graph: " + string.Join(",", nativeMismatches.Take(20)));
+        Console.WriteLine($"CUDA quantization: {width} values, {nativeMismatches.Length} mismatches");
         var mismatches = new List<object>();
         for (int i = 0; i < width; i++)
         {
@@ -38,7 +52,7 @@ internal static partial class Program
         }
         Console.WriteLine($"GPU quantization: {width} values, {mismatches.Count} mismatches; {device.Name}");
         foreach (var mismatch in mismatches.Take(20)) Console.WriteLine(JsonSerializer.Serialize(mismatch));
-        File.WriteAllText(Path.Combine(workDir, "quantizer.json"), JsonSerializer.Serialize(new { width, mismatches }));
+        File.WriteAllText(Path.Combine(workDir, "quantizer.json"), JsonSerializer.Serialize(new { width, mismatches, nativeMismatches }));
         return mismatches.Count == 0 ? 0 : 1;
     }
 }

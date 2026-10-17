@@ -1,5 +1,7 @@
 # RTX 5070 Ti 视频超分与补帧管线实测
 
+原始测试产物按仓库约定移至本地 `.qa/video-pipeline/git-evidence-previous/`，不再纳入 Git。以下是上一轮 CPU 帧边界优化结果，后续 NVDEC 显存管线见 [新报告](video-cuda-pipeline-2026-10-17.md)。
+
 日期：2026-10-16 至 2026-10-17。架构决策见 [ADR 0010](adr/0010-bounded-video-processing-pipeline.md)。
 
 原管线存在明显的 CPU 供料、像素转换与整帧复制空隙。修复后，在相同模型、精度、倍率、处理顺序和编码设置下，主要场景的端到端吞吐提升见下表。最终输出与原版完整解码后逐帧比较，像素和时间戳全部一致。RAVU R3 的特殊数值验证单独说明，不能混入逐字节一致的结论。
@@ -8,7 +10,7 @@
 
 - Intel i5-13600KF，14 核 / 20 逻辑处理器；RTX 5070 Ti，16303 MiB，驱动 617.14；Windows 11 专业版 10.0.26300。
 - .NET SDK 10.0.402，Windows ML 2.4.89，Avalonia 12.1.1；随仓库分发的 FFmpeg `n9.0.1-84-g946fcce07b-20260918` GPL shared。
-- 已加载 ORT 原生运行时 `1.27.20260711.1.7b7c0e2`；NVIDIA EP 框架 `2.30.49.0`，提供程序 DLL `0.4.0`，TensorRT RTX `1.6.1.120`。见 [锁定版本](data/video-pipeline-2026-10-17/provider-versions.json)和 [模型哈希](data/video-pipeline-2026-10-17/model-sha256.json)。
+- 已加载 ORT 原生运行时 `1.27.20260711.1.7b7c0e2`；NVIDIA EP 框架 `2.30.49.0`，提供程序 DLL `0.4.0`，TensorRT RTX `1.6.1.120`。见 [锁定版本](../../.qa/video-pipeline/git-evidence-previous/provider-versions.json)和 [模型哈希](../../.qa/video-pipeline/git-evidence-previous/model-sha256.json)。
 - 基线提交 `8fe63616fbe66426389ada61ef61b2c132965142`。基准脚本只在隔离构建中替换八个原始生产文件，并插入整段墙钟计时；未改写工作区或复制业务逻辑自证。
 - 1920×1080、24 fps、72 帧、3 秒的确定性 BGR24 AVI + PCM。FSRCNNX M FP16、超分 2×、RIFE 4.25 Lite 补帧 4×，NVENC H.264 p4 / Fast、QP 18、AAC，场景检测关闭，384 推理窗口。仅超分输出 72 帧；补帧和组合输出 288 帧。AVI 场景输出为 yuv444p，另测 H.264 yuv420p 输入输出。
 - 每个独立进程先运行一次，再重复三次，表格取重复运行中位数。首次运行仍可能命中已安装 EP 的编译缓存，不等于清空缓存的冷启动。
@@ -26,7 +28,7 @@
 | 仅 RIFE Lite 4× | 32.84 | 101.41 | 3.09× | 42.56 → 107.50 | 36.2% → 66.3% |
 | 先 RIFE Lite 4×，后超分 2× | 9.42 | 60.64 | 6.44× | 10.13 → 65.04 | 20.9% → 83.2% |
 
-[完整测量与阶段耗时](data/video-pipeline-2026-10-17/main/measurements.json)；[原版原始记录](data/video-pipeline-2026-10-17/main/baseline/measurements.json)；[优化版原始记录](data/video-pipeline-2026-10-17/main/candidate/measurements.json)。同目录保留每次 CSV、GPU 采样和日志。完整质量比较保留在验证目录。
+[完整测量与阶段耗时](../../.qa/video-pipeline/git-evidence-previous/main/measurements.json)；[原版原始记录](../../.qa/video-pipeline/git-evidence-previous/main/baseline/measurements.json)；[优化版原始记录](../../.qa/video-pipeline/git-evidence-previous/main/candidate/measurements.json)。同目录保留每次 CSV、GPU 采样和日志。完整质量比较保留在验证目录。
 
 组合的 60.64 fps 相当于约 15.16 源帧/秒；24→96 fps 的视频仍未达到实时生成速度。不得把吞吐提升解释为所有场景都已满载或实时。
 
@@ -38,7 +40,7 @@
 
 RIFE 的通道转换、归一化、时间平面展开、网络推理、量化与打包现在均在 GPU。CPU 仍处理视频解码、原帧及最终字节复制、场景切换检测、输出时间戳、音频、滤镜、队列和编码提交。输出仍需交给现有的编码路径。NVENC 使用独立编码引擎，计算利用率 100% 不是这条链路的必要条件。
 
-超分还逐字节检查上一帧输入，只对已知无状态模型复用完全相同像素的结果，逐帧更新时钟。快速采样只用于排除变化帧，命中必须完整比较；仅保留一个源帧和结果的引用。重复片段的组合从 78.71→110.70 fps，这是优化后管线“关闭/开启超分复用”的对照，不是原版串行管线对照。完整解码为零差异，见 [消融记录](data/video-pipeline-2026-10-17/repeated-frames/measurements.json)。
+超分还逐字节检查上一帧输入，只对已知无状态模型复用完全相同像素的结果，逐帧更新时钟。快速采样只用于排除变化帧，命中必须完整比较；仅保留一个源帧和结果的引用。重复片段的组合从 78.71→110.70 fps，这是优化后管线“关闭/开启超分复用”的对照，不是原版串行管线对照。完整解码为零差异，见 [消融记录](../../.qa/video-pipeline/git-evidence-previous/repeated-frames/measurements.json)。
 
 ## 其他模型、倍率与顺序
 
@@ -57,7 +59,7 @@ NVIDIA/AMD 光流的两组配置为环境不支持：此 FFmpeg 缺少相应插�
 | RAVU R3 FP32 / RIFE Lite | 新增可用：34.74 | 新增可用：40.03 | 新增可用：26.42 |
 | RAVU R2 FP32 / RIFE Lite | 8.51 → 23.82 | 6.11 → 25.78 | — |
 
-RAVU R2 的 DirectML 路径：仅超分 8.51→23.62 fps，组合 6.11→25.18 fps；双会话与四会话已接近，默认选双会话。RIFE Full 单独 1080p 的对应对照为 24.01→85.19 fps。详见 [额外 1080p 数据](data/video-pipeline-2026-10-17/models1080/measurements.json)、[矩阵](data/video-pipeline-2026-10-17/matrix/matrix.json)与 [DirectML 并发消融](data/video-pipeline-2026-10-17/experiments/ablations/measurements.json)。
+RAVU R2 的 DirectML 路径：仅超分 8.51→23.62 fps，组合 6.11→25.18 fps；双会话与四会话已接近，默认选双会话。RIFE Full 单独 1080p 的对应对照为 24.01→85.19 fps。详见 [额外 1080p 数据](../../.qa/video-pipeline/git-evidence-previous/models1080/measurements.json)、[矩阵](../../.qa/video-pipeline/git-evidence-previous/matrix/matrix.json)与 [DirectML 并发消融](../../.qa/video-pipeline/git-evidence-previous/experiments/ablations/measurements.json)。
 
 ## 收益平台与否决实验
 
@@ -78,9 +80,9 @@ RAVU R2 的 DirectML 路径：仅超分 8.51→23.62 fps，组合 6.11→25.18 f
 | rife-workers-2 | — | 94.35 | 51.94 |
 | rife-workers-4 | — | 90.36 | 48.18 |
 
-这些实验在相应实现阶段依次执行，并非同一时刻的成对测试；不能把相邻小幅差异当成稳定收益。单进程各场景先一次再重复三次；SR 并发 4/8 已出现平台，RIFE 2/4 会话整体下降，因此最终保留四个 SR 上下文和一个 RIFE 网络。原始 CSV、遥测、版本与快照见 [消融证据](data/video-pipeline-2026-10-17/experiments/ablations/measurements.json)。
+这些实验在相应实现阶段依次执行，并非同一时刻的成对测试；不能把相邻小幅差异当成稳定收益。单进程各场景先一次再重复三次；SR 并发 4/8 已出现平台，RIFE 2/4 会话整体下降，因此最终保留四个 SR 上下文和一个 RIFE 网络。原始 CSV、遥测、版本与快照见 [消融证据](../../.qa/video-pipeline/git-evidence-previous/experiments/ablations/measurements.json)。
 
-H.264 420 输入也进行了同样三次重复：原版/最终版仅超分为 14.47/64.94 fps、仅补帧 33.39/97.91 fps、组合 10.33/60.16 fps。该场景完整解码对照为零差异，见 [压缩输入原始数据](data/video-pipeline-2026-10-17/compressed420/measurements.json)。EP 主机内存之前的 384/576 对照另存于消融记录。
+H.264 420 输入也进行了同样三次重复：原版/最终版仅超分为 14.47/64.94 fps、仅补帧 33.39/97.91 fps、组合 10.33/60.16 fps。该场景完整解码对照为零差异，见 [压缩输入原始数据](../../.qa/video-pipeline/git-evidence-previous/compressed420/measurements.json)。EP 主机内存之前的 384/576 对照另存于消融记录。
 
 最终 EP 主机内存路径复核：四/八会话仅超分为 72.27/72.43 fps、组合 59.08/58.30 fps；576 窗口仅超分 69.20、组合 58.96 fps，没有稳定超过现有 384 窗口。因此保留现有块大小与四会话策略。
 
@@ -102,7 +104,7 @@ RIFE 采样缓存原型虽然通过数值验证，真实视频路径已有 `Same
 - 进程内 FFmpeg 矩阵 101 项，零失败；Intel QSV、AMD AMF 两项按环境跳过。另有 FSRCNNX M 两项完整 GPU 烟测。
 - Windows Release 与 Linux 交叉编译通过；Linux 保留原有 Satori 重复 PackageReference 两条警告，未升级 SDK。
 
-原始日志和命令见 [验证记录](data/video-pipeline-2026-10-17/validation/)。
+原始日志和命令见 [验证记录](../../.qa/video-pipeline/git-evidence-previous/validation/)。
 
 本轮未进行真实桌面长时交互验证，预览验证通过真实服务回调检查尺寸、最终帧和时钟；Linux 只进行编译验证，未声称其他设备、驱动和 EP 版本获得相同收益。
 

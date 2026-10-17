@@ -200,7 +200,20 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
                 {
                     _logger.LogInformation("FFmpeg in-process transcode: {Input} -> {Output} encoder={Enc} muxer={Fmt}",
                         inputPath, outputPath, encoderName, GetMuxerName(options.Container));
-                    ConvertOnce(inputPath, tmpPath, options, src.PixFmt, src.Probe.Fps, pass: 0, passLogFile: null, durationMs, progress, ct, preview, upscaler, statistics);
+                    try
+                    {
+                        ConvertOnce(inputPath, tmpPath, options, src.PixFmt, src.Probe.Fps, pass: 0, passLogFile: null,
+                            durationMs, progress, ct, preview, upscaler, statistics);
+                    }
+                    catch (CudaDecoderFallbackException)
+                    {
+                        // 部分编解码配置直到首帧才发现不受 NVDEC 支持。完整重启避免硬件/软件帧声明不一致，音频也从头重放。
+                        ct.ThrowIfCancellationRequested();
+                        _logger.LogInformation("NVDEC format negotiation selected software; restarting with software decoding");
+                        TryDelete(tmpPath);
+                        ConvertOnce(inputPath, tmpPath, options, src.PixFmt, src.Probe.Fps, pass: 0, passLogFile: null,
+                            durationMs, progress, ct, preview, upscaler, statistics, disableNvdec: true);
+                    }
                 }
 
                 if (File.Exists(outputPath)) File.Delete(outputPath);
@@ -219,7 +232,7 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
     /// <summary>单次完整管线执行（两通编码时 pass=1/2，pass=0 表示单通）。</summary>
     private void ConvertOnce(string inputPath, string outputPath, VideoTranscodeOptions o, string? sourcePixFmt,
         double sourceFps, int pass, string? passLogFile, long durationMs, IProgress<double>? progress, CancellationToken ct,
-        IProgress<VideoPreviewFrame>? preview, IVideoFrameUpscaler? upscaler, IProgress<VideoEncodingProgress>? statistics)
+        IProgress<VideoPreviewFrame>? preview, IVideoFrameUpscaler? upscaler, IProgress<VideoEncodingProgress>? statistics, bool disableNvdec = false)
     {
         ct.ThrowIfCancellationRequested();
 
@@ -249,6 +262,9 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
         VideoInterpolationPipeline? interpolationPipeline = null;
         bool upscaleFirst = false;
         QueuedVideoPipeline? queued = null;
+        CudaVideoPlan? cudaPlan = null;
+        CudaVideoContext? decodeCuda = null;
+        bool conversionFailed = false;
         VideoPipelineMetrics? metrics = null;
 
         try
@@ -271,7 +287,20 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
                 ? ffmpeg.av_find_best_stream(inFmt, AVMediaType.AVMEDIA_TYPE_AUDIO, -1, -1, null, 0)
                 : -1;
 
-            vDec = OpenDecoder(vInStream);
+            if (!disableNvdec && o.HardwareBackend == HardwareBackend.Nvidia && CanDecodeCuda(vInStream))
+            {
+                try
+                {
+                    decodeCuda = new CudaVideoContext(0);
+                    AVBufferRef* device = CreateCudaDevice(decodeCuda);
+                    try { vDec = OpenDecoder(vInStream, device); }
+                    finally { ffmpeg.av_buffer_unref(&device); }
+                    _logger.LogInformation("Video decoder: NVDEC (CUDA primary device 0)");
+                }
+                catch (Exception error) when (error is not OperationCanceledException)
+                { _logger.LogWarning(error, "NVDEC initialization unavailable; using software decoder"); }
+            }
+            if (vDec == null) vDec = OpenDecoder(vInStream);
             vDec->pkt_timebase = vInStream->time_base;
             var sourceColor = ReadColor(vDec);
             var outputColor = ResolveOutputColor(o, sourceColor);
@@ -305,77 +334,96 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
             else if (IsVaapiBackend(o.HardwareBackend) && outputColor.IsHdr) targetPixFmt = "p010le";
 
             // ── 3b. 视频滤镜图（缓冲源参数来自解码器上下文）──
-            graph = ffmpeg.avfilter_graph_alloc();
-            upscaleFirst = upscaler != null && UpscaleBeforeInterpolation(o, vDec);
-            if (upscaleFirst)
+            cudaPlan = CudaVideoPlan.TryCreate(vDec, vInStream, o, sourceFps, durationMs, upscaler, _interpolation, ct);
+            if (cudaPlan != null)
             {
-                srPipeline = new VideoSrPipeline(vDec, vInStream, o, upscaler!);
-                var format = srPipeline.OutputFormat;
-                var decoded = ProcessedDecoder(format->w * o.SuperResolutionScale, format->h * o.SuperResolutionScale, format->sample_aspect_ratio);
-                var decodedStream = new AVStream { time_base = format->time_base, avg_frame_rate = vInStream->avg_frame_rate };
-                interpolationPipeline = new VideoInterpolationPipeline(&decoded, &decodedStream, o, sourceFps, durationMs, _interpolation, ct, true);
+                _logger.LogInformation("Video frames: NVDEC → CUDA pixels/SR/RIFE → NVENC, GPU resident");
+                vEnc = ffmpeg.avcodec_alloc_context3(vCodecPtr);
+                if (vEnc == null) throw new OutOfMemoryException();
+                var outputLink = new AVFilterLink { w = cudaPlan.Width, h = cudaPlan.Height,
+                    format = (int)AVPixelFormat.AV_PIX_FMT_CUDA, sample_aspect_ratio = vDec->sample_aspect_ratio };
+                ConfigureVideoEncoder(vEnc, o, pass, passLogFile, &outputLink, null, ofmt, sourceFps, null);
+                vEnc->hw_frames_ctx = ffmpeg.av_buffer_ref(cudaPlan.EncoderPool.Frames);
+                if (vEnc->hw_frames_ctx == null) throw new OutOfMemoryException();
             }
-            else if (o.InterpolationMode != VideoInterpolationMode.None)
-                interpolationPipeline = new VideoInterpolationPipeline(vDec, vInStream, o, sourceFps, durationMs, _interpolation, ct);
-            if (upscaler != null && !upscaleFirst)
+            else
             {
-                if (interpolationPipeline != null)
+                var filterDecoder = *vDec;
+                if (vDec->hw_device_ctx != null) filterDecoder.pix_fmt = CudaDownloadFormat((AVPixelFormat)vInStream->codecpar->format);
+                AVCodecContext* filterInput = &filterDecoder;
+                graph = ffmpeg.avfilter_graph_alloc();
+                upscaleFirst = upscaler != null && UpscaleBeforeInterpolation(o, vDec);
+                if (upscaleFirst)
                 {
-                    var decoded = ProcessedDecoder(interpolationPipeline.Width, interpolationPipeline.Height, interpolationPipeline.Aspect);
-                    var decodedStream = new AVStream { time_base = interpolationPipeline.TimeBase,
-                        avg_frame_rate = new AVRational { num = interpolationPipeline.TimeBase.den, den = interpolationPipeline.TimeBase.num } };
-                    srPipeline = new VideoSrPipeline(&decoded, &decodedStream, o, upscaler, true);
+                    srPipeline = new VideoSrPipeline(filterInput, vInStream, o, upscaler!);
+                    var format = srPipeline.OutputFormat;
+                    var decoded = ProcessedDecoder(format->w * o.SuperResolutionScale, format->h * o.SuperResolutionScale, format->sample_aspect_ratio);
+                    var decodedStream = new AVStream { time_base = format->time_base, avg_frame_rate = vInStream->avg_frame_rate };
+                    interpolationPipeline = new VideoInterpolationPipeline(&decoded, &decodedStream, o, sourceFps, durationMs, _interpolation, ct, true);
                 }
-                else srPipeline = new VideoSrPipeline(vDec, vInStream, o, upscaler);
-            }
-            if (srPipeline != null && !upscaleFirst)
-            {
-                var format = srPipeline.OutputFormat;
-                srcCtx = CreateBufferSource(graph, vDec, vInStream, format->w * o.SuperResolutionScale,
-                    format->h * o.SuperResolutionScale, AVPixelFormat.AV_PIX_FMT_BGRA, format->time_base, format->sample_aspect_ratio);
-            }
-            else if (interpolationPipeline != null)
-                srcCtx = CreateBufferSource(graph, vDec, vInStream, interpolationPipeline.Width, interpolationPipeline.Height,
-                    AVPixelFormat.AV_PIX_FMT_BGRA, interpolationPipeline.TimeBase, interpolationPipeline.Aspect);
-            else srcCtx = CreateBufferSource(graph, vDec, vInStream);
-            sinkCtx = CreateBufferSink(graph);
+                else if (o.InterpolationMode != VideoInterpolationMode.None)
+                    interpolationPipeline = new VideoInterpolationPipeline(filterInput, vInStream, o, sourceFps, durationMs, _interpolation, ct);
+                if (upscaler != null && !upscaleFirst)
+                {
+                    if (interpolationPipeline != null)
+                    {
+                        var decoded = ProcessedDecoder(interpolationPipeline.Width, interpolationPipeline.Height, interpolationPipeline.Aspect);
+                        var decodedStream = new AVStream { time_base = interpolationPipeline.TimeBase,
+                            avg_frame_rate = new AVRational { num = interpolationPipeline.TimeBase.den, den = interpolationPipeline.TimeBase.num } };
+                        srPipeline = new VideoSrPipeline(&decoded, &decodedStream, o, upscaler, true);
+                    }
+                    else srPipeline = new VideoSrPipeline(filterInput, vInStream, o, upscaler);
+                }
+                if (srPipeline != null && !upscaleFirst)
+                {
+                    var format = srPipeline.OutputFormat;
+                    srcCtx = CreateBufferSource(graph, filterInput, vInStream, format->w * o.SuperResolutionScale,
+                        format->h * o.SuperResolutionScale, AVPixelFormat.AV_PIX_FMT_BGRA, format->time_base, format->sample_aspect_ratio);
+                }
+                else if (interpolationPipeline != null)
+                    srcCtx = CreateBufferSource(graph, filterInput, vInStream, interpolationPipeline.Width, interpolationPipeline.Height,
+                        AVPixelFormat.AV_PIX_FMT_BGRA, interpolationPipeline.TimeBase, interpolationPipeline.Aspect);
+                else srcCtx = CreateBufferSource(graph, filterInput, vInStream);
+                sinkCtx = CreateBufferSink(graph);
 
-            var outputFilters = o;
-            if (upscaler != null || interpolationPipeline != null)
-            {
-                outputFilters = o.WithTrim(0, null);
-                outputFilters.CropEnabled = false;
-                outputFilters.Deinterlace = DeinterlaceMode.None;
-                outputFilters.Denoise = DenoiseMode.None;
-                outputFilters.FpsMode = FpsMode.SameAsSource;
-                if (interpolationPipeline?.ScaleApplied == true) outputFilters.ScaleMode = ScaleMode.None;
-            }
-            string filterDesc = BuildFilterDescription(outputFilters, targetPixFmt,
-                BuildColorFilters(upscaler != null || interpolationPipeline != null ? VideoColor.SdrRgb : sourceColor, outputColor));
-            if (!BindGraphAndConfigure(graph, srcCtx, sinkCtx, filterDesc,
-                    IsVaapiBackend(o.HardwareBackend), "/dev/dri/renderD128", &hwDevice))
-                throw new InvalidOperationException($"滤镜图初始化失败: {filterDesc}");
+                var outputFilters = o;
+                if (upscaler != null || interpolationPipeline != null)
+                {
+                    outputFilters = o.WithTrim(0, null);
+                    outputFilters.CropEnabled = false;
+                    outputFilters.Deinterlace = DeinterlaceMode.None;
+                    outputFilters.Denoise = DenoiseMode.None;
+                    outputFilters.FpsMode = FpsMode.SameAsSource;
+                    if (interpolationPipeline?.ScaleApplied == true) outputFilters.ScaleMode = ScaleMode.None;
+                }
+                string filterDesc = BuildFilterDescription(outputFilters, targetPixFmt,
+                    BuildColorFilters(upscaler != null || interpolationPipeline != null ? VideoColor.SdrRgb : sourceColor, outputColor));
+                if (!BindGraphAndConfigure(graph, srcCtx, sinkCtx, filterDesc,
+                        IsVaapiBackend(o.HardwareBackend), "/dev/dri/renderD128", &hwDevice))
+                    throw new InvalidOperationException($"滤镜图初始化失败: {filterDesc}");
 
-            // hwupload 之后 sink 协商出 hw 帧格式：为 vaapi 编码器派生同源 hw_frames_ctx
-            if (hwDevice != null)
-            {
-                AVFilterLink* sinkLink = sinkCtx->inputs[0];
-                hwFrames = ffmpeg.av_hwframe_ctx_alloc(hwDevice);
-                AVHWFramesContext* fc = (AVHWFramesContext*)hwFrames->data;
-                fc->format = (AVPixelFormat)sinkLink->format;
-                fc->sw_format = outputColor.IsHdr ? AVPixelFormat.AV_PIX_FMT_P010LE : AVPixelFormat.AV_PIX_FMT_NV12;
-                fc->width = sinkLink->w;
-                fc->height = sinkLink->h;
-                if (ffmpeg.av_hwframe_ctx_init(hwFrames) < 0)
-                    throw new InvalidOperationException("VAAPI 硬件帧池初始化失败");
-            }
+                // hwupload 之后 sink 协商出 hw 帧格式：为 vaapi 编码器派生同源 hw_frames_ctx
+                if (hwDevice != null)
+                {
+                    AVFilterLink* sinkLink = sinkCtx->inputs[0];
+                    hwFrames = ffmpeg.av_hwframe_ctx_alloc(hwDevice);
+                    AVHWFramesContext* fc = (AVHWFramesContext*)hwFrames->data;
+                    fc->format = (AVPixelFormat)sinkLink->format;
+                    fc->sw_format = outputColor.IsHdr ? AVPixelFormat.AV_PIX_FMT_P010LE : AVPixelFormat.AV_PIX_FMT_NV12;
+                    fc->width = sinkLink->w;
+                    fc->height = sinkLink->h;
+                    if (ffmpeg.av_hwframe_ctx_init(hwFrames) < 0)
+                        throw new InvalidOperationException("VAAPI 硬件帧池初始化失败");
+                }
 
-            // ── 4. 视频编码器 ──
-            vEnc = ffmpeg.avcodec_alloc_context3(vCodecPtr);
-            ConfigureVideoEncoder(vEnc, o, pass, passLogFile,
-                sinkCtx->inputs[0], hwDevice != null ? hwFrames : null, ofmt, sourceFps, targetPixFmt, outputColor.IsHdr);
+                // ── 4. 视频编码器 ──
+                vEnc = ffmpeg.avcodec_alloc_context3(vCodecPtr);
+                ConfigureVideoEncoder(vEnc, o, pass, passLogFile,
+                    sinkCtx->inputs[0], hwDevice != null ? hwFrames : null, ofmt, sourceFps, targetPixFmt, outputColor.IsHdr);
+            }
             SetEncoderColor(vEnc, vInStream->codecpar, outputColor, outputColor.IsHdr && (!sourceColor.IsHdr || upscaler != null));
-            ret = ffmpeg.avcodec_open2(vEnc, vCodecPtr, null);
+            using (cudaPlan != null ? VideoGpuWorkGate.Enter(ct) : default)
+                ret = ffmpeg.avcodec_open2(vEnc, vCodecPtr, null);
             if (ret < 0) throw FFmpegNative.CreateException(ret, $"视频编码器打开失败 ({encoderName})");
 
             vOutStream = ffmpeg.avformat_new_stream(ofmt, null);
@@ -425,10 +473,10 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
                 ExactOutputFrameCount(vInStream->nb_frames, o));
             if (encodingProgress != null) progress = encodingProgress;
             metrics = VideoPipelineMetrics.Begin();
-            if (srPipeline != null || interpolationPipeline != null)
+            if (cudaPlan != null || srPipeline != null || interpolationPipeline != null)
             {
                 queued = new QueuedVideoPipeline(srPipeline, interpolationPipeline, upscaleFirst,
-                    srcCtx, sinkCtx, vEnc, ofmt, vOutStream, totalSec, progress, previewConverter, preview, timeline.Start, ct);
+                    srcCtx, sinkCtx, vEnc, ofmt, vOutStream, totalSec, progress, previewConverter, preview, timeline.Start, ct, cudaPlan?.Stages, cudaPlan?.TimeBase ?? default);
                 if (audioFeeder != null) audioFeeder.PacketQueue = queued;
             }
             while ((ret = ffmpeg.av_read_frame(inFmt, pkt)) >= 0)
@@ -436,17 +484,17 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
                 ct.ThrowIfCancellationRequested();
                 if (pkt->stream_index == vIdx)
                 {
-                    ret = ffmpeg.avcodec_send_packet(vDec, pkt);
+                    ret = SendVideoPacket(vDec, pkt);
                     if (ret == ErrEagain)
                     {
                         // 解码器输出满：先排空再重送一次（数据包不得丢弃）
-                        ProcessVideoFrames(vDec, decFrame, filtFrame, srcCtx, sinkCtx, vEnc, ofmt, vOutStream, encPkt, totalSec, progress, ref nextPts, frameStep, vInStream->time_base, timeline, previewConverter, preview, interpolationPipeline == null, ct, queued);
-                        ret = ffmpeg.avcodec_send_packet(vDec, pkt);
+                        ProcessVideoFrames(vDec, decFrame, filtFrame, srcCtx, sinkCtx, vEnc, ofmt, vOutStream, encPkt, totalSec, progress, ref nextPts, frameStep, vInStream->time_base, timeline, previewConverter, preview, interpolationPipeline == null && o.InterpolationMode == VideoInterpolationMode.None, ct, queued);
+                        ret = SendVideoPacket(vDec, pkt);
                     }
                     if (ret < 0 && ret != ErrEagain && ret != ffmpeg.AVERROR_EOF)
                         throw FFmpegNative.CreateException(ret, "视频解码失败");
                     ffmpeg.av_packet_unref(pkt);
-                    ProcessVideoFrames(vDec, decFrame, filtFrame, srcCtx, sinkCtx, vEnc, ofmt, vOutStream, encPkt, totalSec, progress, ref nextPts, frameStep, vInStream->time_base, timeline, previewConverter, preview, interpolationPipeline == null, ct, queued);
+                    ProcessVideoFrames(vDec, decFrame, filtFrame, srcCtx, sinkCtx, vEnc, ofmt, vOutStream, encPkt, totalSec, progress, ref nextPts, frameStep, vInStream->time_base, timeline, previewConverter, preview, interpolationPipeline == null && o.InterpolationMode == VideoInterpolationMode.None, ct, queued);
                 }
                 else if (aDec != null && pkt->stream_index == aIdx)
                 {
@@ -470,8 +518,8 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
             CheckReadError(ret, inputPath);
 
             // ── 8. 冲洗：解码器 → 滤镜图 → 音频 → 编码器 ──
-            ffmpeg.avcodec_send_packet(vDec, null);
-            ProcessVideoFrames(vDec, decFrame, filtFrame, srcCtx, sinkCtx, vEnc, ofmt, vOutStream, encPkt, totalSec, progress, ref nextPts, frameStep, vInStream->time_base, timeline, previewConverter, preview, interpolationPipeline == null, ct, queued);
+            SendVideoPacket(vDec, null);
+            ProcessVideoFrames(vDec, decFrame, filtFrame, srcCtx, sinkCtx, vEnc, ofmt, vOutStream, encPkt, totalSec, progress, ref nextPts, frameStep, vInStream->time_base, timeline, previewConverter, preview, interpolationPipeline == null && o.InterpolationMode == VideoInterpolationMode.None, ct, queued);
             if (queued != null) queued.CompleteVideo();
             else
             {
@@ -498,16 +546,30 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
         }
         catch
         {
+            conversionFailed = true;
             queued?.ThrowIfFailed();
             throw;
         }
         finally
         {
-            queued?.Dispose();
-            metrics?.Dispose();
-            audioFeeder?.Dispose();
-            srPipeline?.Dispose();
-            interpolationPipeline?.Dispose();
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo? cleanupFailure = null;
+            void Release(IDisposable? resource)
+            {
+                try { resource?.Dispose(); }
+                catch (Exception error)
+                {
+                    cleanupFailure ??= System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(error);
+                    _logger.LogWarning(error, "Video resource cleanup failed");
+                }
+            }
+            Release(queued);
+            Release(metrics);
+            Release(audioFeeder);
+            // 预览可能持有解码器的最后一个 CUDA 帧引用，须先于借用主上下文的拥有者释放。
+            Release(previewConverter);
+            Release(srPipeline);
+            Release(interpolationPipeline);
+            Release(cudaPlan);
             ffmpeg.av_frame_free(&swrFrame);
             ffmpeg.av_frame_free(&filtFrame);
             ffmpeg.av_frame_free(&decFrame);
@@ -518,7 +580,11 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
             if (hwDevice != null) ffmpeg.av_buffer_unref(&hwDevice);
             if (graph != null) ffmpeg.avfilter_graph_free(&graph);
             if (aEnc != null) ffmpeg.avcodec_free_context(&aEnc);
-            if (vEnc != null) ffmpeg.avcodec_free_context(&vEnc);
+            if (vEnc != null)
+            {
+                using var gpuWork = vEnc->pix_fmt == AVPixelFormat.AV_PIX_FMT_CUDA ? VideoGpuWorkGate.Enter() : default;
+                ffmpeg.avcodec_free_context(&vEnc);
+            }
             if (ofmt != null)
             {
                 if (outputOpened && ofmt->pb != null && (ofmt->oformat->flags & ffmpeg.AVFMT_NOFILE) == 0)
@@ -526,8 +592,14 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
                 ffmpeg.avformat_free_context(ofmt);
             }
             if (aDec != null) ffmpeg.avcodec_free_context(&aDec);
-            if (vDec != null) ffmpeg.avcodec_free_context(&vDec);
+            if (vDec != null)
+            {
+                using var gpuWork = vDec->hw_device_ctx != null ? VideoGpuWorkGate.Enter() : default;
+                ffmpeg.avcodec_free_context(&vDec);
+            }
+            Release(decodeCuda);
             if (inFmt != null) ffmpeg.avformat_close_input(&inFmt);
+            if (!conversionFailed) cleanupFailure?.Throw();
         }
     }
 
@@ -538,7 +610,22 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
             throw FFmpegNative.CreateException(ret, $"读取输入失败: {input}");
     }
 
-    private static AVCodecContext* OpenDecoder(AVStream* stream)
+    private static int ReceiveEncodedPacket(AVCodecContext* encoder, AVPacket* packet)
+    {
+        using var gpuWork = encoder->pix_fmt == AVPixelFormat.AV_PIX_FMT_CUDA ? VideoGpuWorkGate.Enter() : default;
+        return ffmpeg.avcodec_receive_packet(encoder, packet);
+    }
+
+    private static int SendVideoPacket(AVCodecContext* decoder, AVPacket* packet)
+    {
+        long stamp = VideoPipelineMetrics.Start();
+        using var gpuWork = decoder->hw_device_ctx != null ? VideoGpuWorkGate.Enter() : default;
+        int result = ffmpeg.avcodec_send_packet(decoder, packet);
+        VideoPipelineMetrics.Record(VideoPipelineMetrics.Phase.DecodeSubmit, stamp);
+        return result;
+    }
+
+    private static AVCodecContext* OpenDecoder(AVStream* stream, AVBufferRef* cudaDevice = null)
     {
         AVCodec* codec = ffmpeg.avcodec_find_decoder(stream->codecpar->codec_id);
         if (codec == null)
@@ -549,9 +636,17 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
         {
             int ret = ffmpeg.avcodec_parameters_to_context(ctx, stream->codecpar);
             if (ret < 0) throw FFmpegNative.CreateException(ret, "读取解码器参数失败");
-            ctx->thread_count = 0;
-            if (ffmpeg.avcodec_open2(ctx, codec, null) < 0)
-                throw new InvalidOperationException("解码器打开失败");
+            ctx->thread_count = cudaDevice == null ? 0 : 1;
+            if (cudaDevice != null)
+            {
+                ctx->hw_device_ctx = ffmpeg.av_buffer_ref(cudaDevice);
+                if (ctx->hw_device_ctx == null) throw new OutOfMemoryException();
+                ctx->get_format = CudaDecoderFormat;
+                ctx->extra_hw_frames = 12;
+            }
+            int opened;
+            using (cudaDevice != null ? VideoGpuWorkGate.Enter() : default) opened = ffmpeg.avcodec_open2(ctx, codec, null);
+            if (opened < 0) throw new InvalidOperationException("解码器打开失败");
             return ctx;
         }
         catch
@@ -572,34 +667,61 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
         bool previewSource, CancellationToken ct,
         QueuedVideoPipeline? queued = null)
     {
-        while (true)
+        AVFrame* software = null;
+        try
         {
-            long decodeStamp = VideoPipelineMetrics.Start();
-            int decoded = ffmpeg.avcodec_receive_frame(vDec, decFrame);
-            VideoPipelineMetrics.Record(VideoPipelineMetrics.Phase.Decode, decodeStamp);
-            if (decoded < 0) break;
-            if (decFrame->best_effort_timestamp != ffmpeg.AV_NOPTS_VALUE)
-                decFrame->pts = decFrame->best_effort_timestamp;
-            if (decFrame->pts == ffmpeg.AV_NOPTS_VALUE)
+            while (true)
             {
-                decFrame->pts = nextPts;
-                nextPts += frameStep;
-            }
-            else
-            {
-                nextPts = decFrame->pts + frameStep;
-            }
-            if (timeline.KeepVideo(decFrame, inputTimeBase, out double position))
-            {
-                if (previewSource) previewConverter.Report(decFrame, position, preview);
-                if (queued != null) queued.Send(decFrame);
+                long decodeStamp = VideoPipelineMetrics.Start();
+                int decoded;
+                using (vDec->hw_device_ctx != null ? VideoGpuWorkGate.Enter(ct) : default)
+                    decoded = ffmpeg.avcodec_receive_frame(vDec, decFrame);
+                VideoPipelineMetrics.Record(VideoPipelineMetrics.Phase.Decode, decodeStamp);
+                if (decoded >= 0 && decFrame->format == (int)AVPixelFormat.AV_PIX_FMT_CUDA)
+                    VideoPipelineMetrics.Record(VideoPipelineMetrics.Phase.CudaDecode, decodeStamp);
+                if (decoded is ErrEagain || decoded == ffmpeg.AVERROR_EOF) break;
+                if (decoded < 0) throw FFmpegNative.CreateException(decoded, "Receive decoded video frame");
+                if (vDec->hw_device_ctx != null && decFrame->format != (int)AVPixelFormat.AV_PIX_FMT_CUDA)
+                    throw new CudaDecoderFallbackException();
+                if (decFrame->best_effort_timestamp != ffmpeg.AV_NOPTS_VALUE)
+                    decFrame->pts = decFrame->best_effort_timestamp;
+                if (decFrame->pts == ffmpeg.AV_NOPTS_VALUE)
+                {
+                    decFrame->pts = nextPts;
+                    nextPts += frameStep;
+                }
                 else
                 {
-                    PushVideoFrame(srcCtx, sinkCtx, decFrame, filtFrame, vEnc, ofmt, stream, pkt, totalSec, progress);
+                    nextPts = decFrame->pts + frameStep;
                 }
+                if (timeline.KeepVideo(decFrame, inputTimeBase, out double position))
+                {
+                    var forward = decFrame;
+                    if (decFrame->format == (int)AVPixelFormat.AV_PIX_FMT_CUDA && queued?.UsesCudaFrames != true)
+                    {
+                        if (software == null) software = ffmpeg.av_frame_alloc();
+                        if (software == null) throw new OutOfMemoryException();
+                        ffmpeg.av_frame_unref(software);
+                        long transferStamp = VideoPipelineMetrics.Start();
+                        int transferred;
+                        using (VideoGpuWorkGate.Enter(ct)) transferred = ffmpeg.av_hwframe_transfer_data(software, decFrame, 0);
+                        if (transferred < 0) throw FFmpegNative.CreateException(transferred, "NVDEC frame download");
+                        transferred = ffmpeg.av_frame_copy_props(software, decFrame);
+                        if (transferred < 0) throw FFmpegNative.CreateException(transferred, "NVDEC frame properties");
+                        VideoPipelineMetrics.Record(VideoPipelineMetrics.Phase.DecodeDownload, transferStamp);
+                        forward = software;
+                    }
+                    if (previewSource) previewConverter.Report(forward, position, preview);
+                    if (queued != null) queued.Send(forward);
+                    else
+                    {
+                        PushVideoFrame(srcCtx, sinkCtx, forward, filtFrame, vEnc, ofmt, stream, pkt, totalSec, progress);
+                    }
+                }
+                ffmpeg.av_frame_unref(decFrame);
             }
-            ffmpeg.av_frame_unref(decFrame);
         }
+        finally { ffmpeg.av_frame_free(&software); }
     }
 
     private static void PushVideoFrame(AVFilterContext* srcCtx, AVFilterContext* sinkCtx, AVFrame* decFrame,
@@ -653,7 +775,7 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
     private static void DrainPackets(AVCodecContext* enc, AVFormatContext* ofmt, AVStream* stream,
         AVPacket* pkt, AVRational encTb, QueuedVideoPipeline? queued = null)
     {
-        while (ffmpeg.avcodec_receive_packet(enc, pkt) >= 0)
+        while (ReceiveEncodedPacket(enc, pkt) >= 0)
         {
             // Neural frames can arrive without a duration; preserve the final sample's length in the muxer.
             if (pkt->duration <= 0 && enc->codec_type == AVMediaType.AVMEDIA_TYPE_VIDEO && enc->framerate.num > 0 && enc->framerate.den > 0)
