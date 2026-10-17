@@ -342,7 +342,7 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
                 if (vEnc == null) throw new OutOfMemoryException();
                 var outputLink = new AVFilterLink { w = cudaPlan.Width, h = cudaPlan.Height,
                     format = (int)AVPixelFormat.AV_PIX_FMT_CUDA, sample_aspect_ratio = vDec->sample_aspect_ratio };
-                ConfigureVideoEncoder(vEnc, o, pass, passLogFile, &outputLink, null, ofmt, sourceFps, null);
+                ConfigureVideoEncoder(vEnc, o, pass, passLogFile, &outputLink, null, ofmt, sourceFps, null, outputColor.IsHdr);
                 vEnc->hw_frames_ctx = ffmpeg.av_buffer_ref(cudaPlan.EncoderPool.Frames);
                 if (vEnc->hw_frames_ctx == null) throw new OutOfMemoryException();
             }
@@ -421,7 +421,7 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
                 ConfigureVideoEncoder(vEnc, o, pass, passLogFile,
                     sinkCtx->inputs[0], hwDevice != null ? hwFrames : null, ofmt, sourceFps, targetPixFmt, outputColor.IsHdr);
             }
-            SetEncoderColor(vEnc, vInStream->codecpar, outputColor, outputColor.IsHdr && (!sourceColor.IsHdr || upscaler != null));
+            SetEncoderColor(vEnc, vInStream->codecpar, outputColor, outputColor.IsHdr && (!sourceColor.IsHdr || upscaler != null || interpolationPipeline != null || o.InterpolationMode != VideoInterpolationMode.None));
             using (cudaPlan != null ? VideoGpuWorkGate.Enter(ct) : default)
                 ret = ffmpeg.avcodec_open2(vEnc, vCodecPtr, null);
             if (ret < 0) throw FFmpegNative.CreateException(ret, $"视频编码器打开失败 ({encoderName})");

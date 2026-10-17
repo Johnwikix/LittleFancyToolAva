@@ -17,28 +17,28 @@ rows = ',\n'.join('    ' + ','.join(f'0x{struct.unpack("<I", struct.pack("<f", i
 code = code[:first] + '// normalize_lut_begin\n__device__ const unsigned normalizeLut[256]={\n' + rows + '\n};\n' + code[last:]
 source.write_text(code, encoding='utf-8', newline='\r\n')
 nvrtc = c.WinDLL(str(Path(args.nvrtc).resolve()))
-program = c.c_void_p()
-
 def check(code):
     if code:
         raise RuntimeError(f'NVRTC error {code}')
 
-check(nvrtc.nvrtcCreateProgram(c.byref(program), (assets / 'pixels.cu').read_bytes(), b'pixels.cu', 0, None, None))
-try:
-    options = (c.c_char_p * 2)(b'--gpu-architecture=compute_75', b'--fmad=false')
-    result = nvrtc.nvrtcCompileProgram(program, len(options), options)
-    size = c.c_size_t()
-    check(nvrtc.nvrtcGetProgramLogSize(program, c.byref(size)))
-    log = c.create_string_buffer(size.value)
-    check(nvrtc.nvrtcGetProgramLog(program, log))
-    if log.value:
-        print(log.value.decode())
-    check(result)
-    check(nvrtc.nvrtcGetPTXSize(program, c.byref(size)))
-    output = c.create_string_buffer(size.value)
-    check(nvrtc.nvrtcGetPTX(program, output))
-    ptx = '\n'.join(line.rstrip() for line in output.value.decode().splitlines()).rstrip() + '\n'
-    (assets / 'pixels.ptx').write_text(ptx, encoding='utf-8', newline='\r\n')
-    print(f'PTX: {size.value} bytes')
-finally:
-    check(nvrtc.nvrtcDestroyProgram(c.byref(program)))
+for source in (assets / 'pixels.cu', assets / 'hdr.cu'):
+    program = c.c_void_p()
+    check(nvrtc.nvrtcCreateProgram(c.byref(program), source.read_bytes(), source.name.encode(), 0, None, None))
+    try:
+        options = (c.c_char_p * 3)(b'--gpu-architecture=compute_75', b'--fmad=false', b'--std=c++14')
+        result = nvrtc.nvrtcCompileProgram(program, len(options), options)
+        size = c.c_size_t()
+        check(nvrtc.nvrtcGetProgramLogSize(program, c.byref(size)))
+        log = c.create_string_buffer(size.value)
+        check(nvrtc.nvrtcGetProgramLog(program, log))
+        if log.value:
+            print(log.value.decode())
+        check(result)
+        check(nvrtc.nvrtcGetPTXSize(program, c.byref(size)))
+        output = c.create_string_buffer(size.value)
+        check(nvrtc.nvrtcGetPTX(program, output))
+        ptx = '\n'.join(line.rstrip() for line in output.value.decode().splitlines()).rstrip() + '\n'
+        source.with_suffix('.ptx').write_text(ptx, encoding='utf-8', newline='\r\n')
+        print(f'{source.stem} PTX: {size.value} bytes')
+    finally:
+        check(nvrtc.nvrtcDestroyProgram(c.byref(program)))

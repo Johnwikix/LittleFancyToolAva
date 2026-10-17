@@ -8,7 +8,7 @@ internal sealed class VideoPipelineMetrics : IDisposable
 {
     internal enum Phase { Decode, Encode, SrPrepare, SrRun, SrPaste, RifePrepare, RifeRun, RifeReadback,
         DecodeQueueWrite, SrQueueRead, SrQueueWrite, RifeQueueRead, RifeQueueWrite, EncodeQueueRead,
-        SrTensorPrepare, SrNativeRun, SrTensorRead, FrameAllocate, FrameReuse, RifeGpuPrepare, RifeNetwork, RifeGpuPack, SrReuseCheck, SrFrameReuse, CudaDecode, CudaToBgra, CudaToNv12, DecodeDownload, DecodeSubmit }
+        SrTensorPrepare, SrNativeRun, SrTensorRead, FrameAllocate, FrameReuse, RifeGpuPrepare, RifeNetwork, RifeGpuPack, SrReuseCheck, SrFrameReuse, CudaDecode, CudaToBgra, CudaToNv12, DecodeDownload, DecodeSubmit, CudaHdrToneMap, CudaToP010, HdrLut }
     [ThreadStatic] internal static VideoPipelineMetrics? Current;
     private readonly long[] _ticks = new long[Enum.GetValues<Phase>().Length];
     private readonly long[] _calls = new long[Enum.GetValues<Phase>().Length];

@@ -47,6 +47,25 @@ internal static partial class Program
         Console.WriteLine($"load OK: {ffmpegSvc.VersionInfo} v={ffmpegSvc.AvailableVideoEncoders.Count} a={ffmpegSvc.AvailableAudioEncoders.Count}");
 
         if (args.Contains("--hdr-capabilities")) return RunHdrCapabilities();
+        if (args.Contains("--hdr-bars"))
+        {
+            WriteHlgFixture(Path.Combine(workDir, "bars.mp4"), 1024, 146, 24, 24, pq: true, colorBars: true);
+            return 0;
+        }
+        if (args.Contains("--hdr-evidence"))
+        {
+            string file = args[Array.IndexOf(args, "--hdr-evidence") + 1];
+            Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(ReadHdrEvidence(file)));
+            var preview = svc.GetPreviewAsync(file, 0).GetAwaiter().GetResult()!;
+            using var bitmap = new SkiaSharp.SKBitmap(preview.Width, preview.Height, SkiaSharp.SKColorType.Bgra8888, SkiaSharp.SKAlphaType.Opaque);
+            System.Runtime.InteropServices.Marshal.Copy(preview.Pixels, 0, bitmap.GetPixels(), preview.Pixels.Length);
+            using var image = SkiaSharp.SKImage.FromBitmap(bitmap);
+            using var encoded = image.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100);
+            using var output = File.Create(Path.Combine(workDir, "preview.png"));
+            encoded.SaveTo(output);
+            return 0;
+        }
+        if (args.Contains("--hdr-cuda")) return RunHdrCudaCases(workDir);
         if (args.Contains("--hdr-only")) return RunHdrCases(svc, workDir);
         if (args.Contains("--pipeline-benchmark")) return RunVideoPipelineBenchmark(workDir, args);
         if (args.Contains("--pipeline-cuda")) return RunCudaVideoTests(workDir);

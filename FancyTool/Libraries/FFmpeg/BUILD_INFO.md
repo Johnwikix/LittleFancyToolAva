@@ -37,3 +37,14 @@ pwsh -File FancyTool/_tools/FfmpegSmokeTest/ValidatePipeline.ps1 -OutputDirector
 ```
 
 该入口包含 FFmpeg 全矩阵、普通队列及 CUDA 压缩输入集成验证；原始记录保留在已忽略的 `.qa/`。架构、回退边界、画质差异及测速结果见 [显存管线实测](../../docs/video-cuda-pipeline-2026-10-17.md)。
+
+## 2026-10-17：HDR 显存管线追加验证
+
+FFmpeg DLL 未更新；新增 10 位 NVDEC/P010、GPU LUT 与 NVENC 交接使用本目录现有共享库。真实路径验证：
+
+```powershell
+& $exe .qa/video-hdr/hdr-check --hdr-cuda
+pwsh -File FancyTool/_tools/FfmpegSmokeTest/ValidatePipeline.ps1 -OutputDirectory .qa/video-hdr/validation -DataDirectory .qa/video-pipeline/data
+```
+
+`$exe` 指向 Release 的 FfmpegSmokeTest；需按 [HDR 实测报告](../../docs/video-hdr-cuda-2026-10-17.md) 设置隔离模型目录。57 项 HDR GPU 扩展、21 项插帧、101 项 FFmpeg 烟测及原矩阵结果见本地 `.qa/video-hdr/verification.json`，两项无对应设备的编码烟测跳过。

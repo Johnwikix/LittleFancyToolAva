@@ -1,5 +1,7 @@
 # 0011：NVDEC、CUDA 推理帧与 NVENC 的显存衔接
 
+> 2026-10-17 补充：HDR 显存管线与 RIFE 保留 HDR 输出见 [ADR 0012](0012-hdr-cuda-video-pipeline.md)。本文原有算法说明与历史验证范围保留，旧 HDR 管线限制由新 ADR 更新。
+
 日期：2026-10-17。承接 [ADR 0010](0010-bounded-video-processing-pipeline.md)。
 
 ## 背景与约束

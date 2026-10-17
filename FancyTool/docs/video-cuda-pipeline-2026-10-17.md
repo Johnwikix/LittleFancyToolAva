@@ -1,5 +1,7 @@
 # RTX 5070 Ti：NVDEC 到 NVENC 的显存管线实测
 
+> 后续 HDR 实现与测试见 [HDR 显存管线报告](video-hdr-cuda-2026-10-17.md)；本报告的数字仍仅代表当时的 SDR 场景。
+
 日期：2026-10-17。设计见 [ADR 0011](adr/0011-gpu-resident-video-frames.md)，上一轮 CPU 帧边界优化见 [原报告](video-pipeline-2026-10-17.md)。原始结果统一放本地 `.qa/video-cuda/`，不纳入 Git。
 
 ## 环境与测量边界

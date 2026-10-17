@@ -71,7 +71,7 @@ internal static partial class Program
                 AssertInterpolated(service, output, 40, 24, .6, true);
             });
         }
-        RunExtra("Intel NPU and explicit CPU execute actual interpolation", () =>
+        RunExtra("Preferred NPU uses available hardware; explicit CPU executes on CPU", () =>
         {
             foreach (var backend in new[] { VideoSrBackend.PreferNpu, VideoSrBackend.Cpu })
             {
@@ -83,8 +83,20 @@ internal static partial class Program
                     string output = Path.Combine(workDir, $"interpolation-device-{backend}.mp4");
                     service.TranscodeAsync(source, output, options).GetAwaiter().GetResult();
                     AssertInterpolated(service, output, 20, 6, .3, true);
-                    string expected = backend == VideoSrBackend.Cpu ? "CPU" : "NPU";
-                    if (devices.Count == 0 || !devices[^1].Name.StartsWith(expected)) throw new InvalidOperationException("Interpolation did not execute on " + expected);
+                    if (devices.Count == 0) throw new InvalidOperationException("Interpolation device was not reported");
+                    var actual = devices[^1];
+                    if (backend == VideoSrBackend.Cpu)
+                    {
+                        if (actual.IsHardware || !actual.Name.StartsWith("CPU", StringComparison.Ordinal))
+                            throw new InvalidOperationException("Explicit CPU interpolation did not use CPU");
+                    }
+                    else if (!actual.Name.StartsWith("NPU", StringComparison.Ordinal))
+                    {
+                        // PreferNpu 的既定语义允许无 NPU 时使用 GPU；本机 13600KF 没有 NPU。
+                        if (!actual.IsHardware || !actual.Name.StartsWith("GPU", StringComparison.Ordinal) || string.IsNullOrWhiteSpace(actual.FallbackReason))
+                            throw new InvalidOperationException("Preferred NPU did not report a valid hardware fallback");
+                        Console.WriteLine("    NPU unavailable; actual GPU fallback and reason verified");
+                    }
                 }
                 finally { interpolation.DeviceChanged -= devices.Add; }
             }
@@ -183,7 +195,7 @@ internal static partial class Program
             if (File.Exists(output) || Directory.GetFiles(workDir, "*" + Path.GetFileNameWithoutExtension(output) + "*.tmp*").Length != 0)
                 throw new InvalidOperationException("Canceled interpolation retained an output file");
         });
-        RunExtra("HDR requires explicit tone mapping before interpolation", () =>
+        RunExtra("RIFE maps HDR before inference and restores HDR output; other interpolation requires SDR", () =>
         {
             string hdr = Path.Combine(workDir, "interpolation-hdr.mp4");
             service.TranscodeAsync(source, hdr, new VideoTranscodeOptions { HdrOutput = VideoHdrOutput.ForceHdr,
@@ -192,8 +204,16 @@ internal static partial class Program
             {
                 string output = Path.Combine(workDir, $"interpolation-hdr-{mode}.mp4");
                 var options = Options(mode, 0, .3);
-                try { service.TranscodeAsync(hdr, output, options).GetAwaiter().GetResult(); throw new InvalidOperationException("HDR interpolation silently lost dynamic range"); }
-                catch (NotSupportedException) { }
+                if (mode == VideoInterpolationMode.Rife)
+                {
+                    service.TranscodeAsync(hdr, output, options).GetAwaiter().GetResult();
+                    AssertHdr(service.ProbeAsync(output).GetAwaiter().GetResult()!);
+                }
+                else
+                {
+                    try { service.TranscodeAsync(hdr, output, options).GetAwaiter().GetResult(); throw new InvalidOperationException("Unsupported HDR interpolation accepted"); }
+                    catch (NotSupportedException) { }
+                }
                 options.HdrOutput = VideoHdrOutput.ForceSdr;
                 service.TranscodeAsync(hdr, output, options).GetAwaiter().GetResult();
                 if (service.ProbeAsync(output).GetAwaiter().GetResult()!.IsHdr) throw new InvalidOperationException("Tone-mapped interpolation retained HDR tags");

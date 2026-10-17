@@ -128,6 +128,8 @@ public sealed unsafe partial class VideoTranscodeService
         private SwsContext* _scale;
         private CudaVideoContext? _cudaPreview;
         private CudaVideoContext.CudaBuffer? _cudaPreviewPixels;
+        private CudaColorLut? _cudaPreviewLut;
+        private VideoColor _cudaPreviewColor;
         private long _lastReport;
         private byte[]? _pixels;
         private AVFrame* _lastFrame;
@@ -209,7 +211,7 @@ public sealed unsafe partial class VideoTranscodeService
         {
             var (width, height) = PreviewSize(frame);
             var context = (AVHWFramesContext*)frame->hw_frames_ctx->data;
-            if (context->sw_format is not (AVPixelFormat.AV_PIX_FMT_NV12 or AVPixelFormat.AV_PIX_FMT_BGRA))
+            if (context->sw_format is not (AVPixelFormat.AV_PIX_FMT_NV12 or AVPixelFormat.AV_PIX_FMT_BGRA or AVPixelFormat.AV_PIX_FMT_P010LE))
                 throw new NotSupportedException("CUDA preview format");
             _cudaPreview ??= new CudaVideoContext(0);
             if (_cudaPreviewPixels == null || _cudaPreviewPixels.Frame.Width != width || _cudaPreviewPixels.Frame.Height != height)
@@ -222,7 +224,19 @@ public sealed unsafe partial class VideoTranscodeService
             var device = (CudaDeviceHeader*)context->device_ctx->hwctx;
             _cudaPreview.WaitDecoder(device->Stream);
             var color = ReadColor(frame);
-            _cudaPreview.Preview((nint)frame->data[0], (nint)frame->data[1], frame->linesize[0], frame->linesize[1],
+            if (color.IsHdr || context->sw_format == AVPixelFormat.AV_PIX_FMT_P010LE)
+            {
+                if (_cudaPreviewLut == null || color != _cudaPreviewColor)
+                {
+                    _cudaPreviewLut?.Dispose();
+                    _cudaPreviewLut = new(_cudaPreview, color, VideoColor.SdrRgb);
+                    _cudaPreviewColor = color;
+                }
+                _cudaPreview.HdrPreview((nint)frame->data[0], (nint)frame->data[1], frame->linesize[0], frame->linesize[1],
+                    frame->width, frame->height, CudaPixelKind(frame), CudaMatrix(color), color.Range == AVColorRange.AVCOL_RANGE_JPEG,
+                    _cudaPreviewLut.Get(frame), CudaColorLut.Size, _cudaPreviewPixels.Frame, pixels);
+            }
+            else _cudaPreview.Preview((nint)frame->data[0], (nint)frame->data[1], frame->linesize[0], frame->linesize[1],
                 frame->width, frame->height, _cudaPreviewPixels.Frame, context->sw_format == AVPixelFormat.AV_PIX_FMT_NV12,
                 color.Matrix == AVColorSpace.AVCOL_SPC_BT709, color.Range == AVColorRange.AVCOL_RANGE_JPEG, pixels);
             return new VideoPreviewFrame(pixels, width, height, position);
@@ -252,8 +266,14 @@ public sealed unsafe partial class VideoTranscodeService
             var cuda = _cudaPreview;
             _cudaPreviewPixels = null;
             _cudaPreview = null;
-            try { pixels?.Dispose(); }
-            finally { cuda?.Dispose(); }
+            var lut = _cudaPreviewLut;
+            _cudaPreviewLut = null;
+            try { lut?.Dispose(); }
+            finally
+            {
+                try { pixels?.Dispose(); }
+                finally { cuda?.Dispose(); }
+            }
         }
 
         private AVFrame* ToneMapPreview(AVFrame* frame)

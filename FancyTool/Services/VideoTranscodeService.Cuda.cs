@@ -35,9 +35,10 @@ public sealed unsafe partial class VideoTranscodeService
     private static bool CanDecodeCuda(AVStream* stream)
     {
         if (!OperatingSystem.IsWindows() || Environment.GetEnvironmentVariable("FANCYTOOL_VIDEO_NVDEC") == "0") return false;
-        // 高位深及特殊色度格式保留已验证的软件路径；本轮硬件下载验证覆盖 8 位 420/444。
+        // 8/10 位 4:2:0 尝试硬解；其他高位深或特殊色度继续使用软件路径。
         if ((AVPixelFormat)stream->codecpar->format is not (AVPixelFormat.AV_PIX_FMT_YUV420P or AVPixelFormat.AV_PIX_FMT_YUVJ420P
-            or AVPixelFormat.AV_PIX_FMT_NV12 or AVPixelFormat.AV_PIX_FMT_YUV444P or AVPixelFormat.AV_PIX_FMT_YUVJ444P)) return false;
+            or AVPixelFormat.AV_PIX_FMT_NV12 or AVPixelFormat.AV_PIX_FMT_YUV444P or AVPixelFormat.AV_PIX_FMT_YUVJ444P
+            or AVPixelFormat.AV_PIX_FMT_YUV420P10LE or AVPixelFormat.AV_PIX_FMT_P010LE)) return false;
         var codec = ffmpeg.avcodec_find_decoder(stream->codecpar->codec_id);
         if (codec == null) return false;
         for (int i = 0; ; i++)
@@ -52,10 +53,19 @@ public sealed unsafe partial class VideoTranscodeService
     {
         AVPixelFormat.AV_PIX_FMT_YUV420P or AVPixelFormat.AV_PIX_FMT_YUVJ420P => AVPixelFormat.AV_PIX_FMT_NV12,
         AVPixelFormat.AV_PIX_FMT_YUVJ444P => AVPixelFormat.AV_PIX_FMT_YUV444P,
+        AVPixelFormat.AV_PIX_FMT_YUV420P10LE => AVPixelFormat.AV_PIX_FMT_P010LE,
         _ => format
     };
 
     private static CudaVideoFrame CudaPixels(AVFrame* frame) => new((nint)frame->data[0], frame->width, frame->height, frame->linesize[0]);
+
+    private static void SetCudaColor(AVFrame* frame, VideoColor color)
+    {
+        frame->color_primaries = color.Primaries;
+        frame->color_trc = color.Transfer;
+        frame->colorspace = color.Matrix;
+        frame->color_range = color.Range;
+    }
 
     /// <summary>FFmpeg 硬件帧引用拥有显存；输出队列与 NVENC 持有引用期间不会复用像素。</summary>
     private sealed class CudaFramePool : IDisposable
@@ -185,6 +195,7 @@ public sealed unsafe partial class VideoTranscodeService
                 _lastInput = nextInput;
                 _lastOutput = nextOutput;
             }
+            SetCudaColor(frame, VideoColor.SdrRgb);
             frame->pts = input->pts;
             frame->duration = input->duration;
             frame->sample_aspect_ratio = input->sample_aspect_ratio;
@@ -291,6 +302,7 @@ public sealed unsafe partial class VideoTranscodeService
             _output->duration = 1;
             _output->time_base = TimeBase;
             _output->sample_aspect_ratio = _previous->sample_aspect_ratio;
+            SetCudaColor(_output, VideoColor.SdrRgb);
             return _output;
         }
         public void Dispose()
@@ -320,16 +332,22 @@ public sealed unsafe partial class VideoTranscodeService
                 || options.InterpolationMode is not (VideoInterpolationMode.None or VideoInterpolationMode.Rife)
                 || options.CropEnabled || options.Denoise != DenoiseMode.None || options.Deinterlace != DeinterlaceMode.None
                 || options.ScaleMode != ScaleMode.None || options.FpsMode != FpsMode.SameAsSource
-                || options.HdrOutput == VideoHdrOutput.ForceHdr || ReadColor(decoder).IsHdr
                 || decoder->chroma_sample_location is not (AVChromaLocation.AVCHROMA_LOC_UNSPECIFIED or AVChromaLocation.AVCHROMA_LOC_LEFT)
                 || ((decoder->width | decoder->height) & 1) != 0
-                || (AVPixelFormat)stream->codecpar->format is not (AVPixelFormat.AV_PIX_FMT_YUV420P or AVPixelFormat.AV_PIX_FMT_NV12)
+                || (AVPixelFormat)stream->codecpar->format is not (AVPixelFormat.AV_PIX_FMT_YUV420P or AVPixelFormat.AV_PIX_FMT_NV12
+                    or AVPixelFormat.AV_PIX_FMT_YUV420P10LE or AVPixelFormat.AV_PIX_FMT_P010LE)
                 || (upscaler != null && upscaler is not IVideoCudaUpscaler { SupportsCuda: true })) return null;
             if (upscaler != null) VideoFrameUpscaler.ValidateSize(decoder->width, decoder->height, options.SuperResolutionScale);
             var color = ReadColor(decoder);
             nint decoderStream = ((CudaDeviceHeader*)((AVHWDeviceContext*)decoder->hw_device_ctx->data)->hwctx)->Stream;
-            if (color.Matrix is not (AVColorSpace.AVCOL_SPC_BT709 or AVColorSpace.AVCOL_SPC_BT470BG or AVColorSpace.AVCOL_SPC_SMPTE170M)
-                || color.Primaries != AVColorPrimaries.AVCOL_PRI_BT709 || color.Transfer != AVColorTransferCharacteristic.AVCOL_TRC_BT709) return null;
+            var outputColor = ResolveOutputColor(options, color);
+            if (color.IsHdr)
+            {
+                if (color.Primaries != AVColorPrimaries.AVCOL_PRI_BT2020 || color.Matrix != AVColorSpace.AVCOL_SPC_BT2020_NCL) return null;
+            }
+            else if (color.Matrix is not (AVColorSpace.AVCOL_SPC_BT709 or AVColorSpace.AVCOL_SPC_BT470BG or AVColorSpace.AVCOL_SPC_SMPTE170M)
+                || color.Primaries != AVColorPrimaries.AVCOL_PRI_BT709 || color.Transfer != AVColorTransferCharacteristic.AVCOL_TRC_BT709
+                || (AVPixelFormat)stream->codecpar->format is AVPixelFormat.AV_PIX_FMT_YUV420P10LE or AVPixelFormat.AV_PIX_FMT_P010LE) return null;
             var plan = new CudaVideoPlan();
             try
             {
@@ -352,7 +370,8 @@ public sealed unsafe partial class VideoTranscodeService
                 if (rife != null || upscaler != null)
                 {
                     var rgb = plan.Own(new CudaFramePool(decoder->hw_device_ctx, width, height));
-                    stages.Add(new CudaConvertStage(cuda, rgb, false, color, decoderStream));
+                    if (color.IsHdr) stages.Add(plan.Own(new CudaHdrStage(cuda, rgb, color, VideoColor.SdrRgb, true, decoderStream)));
+                    else stages.Add(new CudaConvertStage(cuda, rgb, false, color, decoderStream));
                     void AddSr()
                     {
                         width *= options.SuperResolutionScale; height *= options.SuperResolutionScale;
@@ -369,9 +388,16 @@ public sealed unsafe partial class VideoTranscodeService
                     if (rife != null) AddRife();
                     if (upscaler != null && !srFirst) AddSr();
                 }
-                if (rife == null && upscaler == null) stages.Add(new CudaDecodeReadyStage(cuda, decoderStream));
-                plan.EncoderPool = plan.Own(new CudaFramePool(decoder->hw_device_ctx, width, height, AVPixelFormat.AV_PIX_FMT_NV12));
-                if (rife != null || upscaler != null) stages.Add(new CudaConvertStage(cuda, plan.EncoderPool, true, ResolveOutputColor(options, color)));
+                bool neural = rife != null || upscaler != null;
+                plan.EncoderPool = plan.Own(new CudaFramePool(decoder->hw_device_ctx, width, height,
+                    outputColor.IsHdr ? AVPixelFormat.AV_PIX_FMT_P010LE : AVPixelFormat.AV_PIX_FMT_NV12));
+                if (neural)
+                {
+                    if (outputColor.IsHdr) stages.Add(plan.Own(new CudaHdrStage(cuda, plan.EncoderPool, VideoColor.SdrRgb, outputColor, false)));
+                    else stages.Add(new CudaConvertStage(cuda, plan.EncoderPool, true, outputColor));
+                }
+                else if (color == outputColor) stages.Add(new CudaDecodeReadyStage(cuda, decoderStream));
+                else stages.Add(plan.Own(new CudaHdrStage(cuda, plan.EncoderPool, color, outputColor, false, decoderStream)));
                 plan.Stages = stages.ToArray();
                 plan.TimeBase = timeBase;
                 plan.Width = width;

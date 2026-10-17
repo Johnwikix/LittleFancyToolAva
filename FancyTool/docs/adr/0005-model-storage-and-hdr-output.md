@@ -1,5 +1,7 @@
 # Model storage and HDR output
 
+> 2026-10-17 补充：HDR 显存管线与 RIFE 保留 HDR 输出见 [ADR 0012](0012-hdr-cuda-video-pipeline.md)。本文原有算法说明与历史验证范围保留，旧 HDR 管线限制由新 ADR 更新。
+
 Settings owns the default model root. `ModelStorageDirectory` is saved immediately;
 `ApplicationHostService.LoadState` resolves it before constructing model consumers.
 Settings copies and hashes existing files before saving and publishing a new root.

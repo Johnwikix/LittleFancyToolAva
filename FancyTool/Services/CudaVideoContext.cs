@@ -19,7 +19,7 @@ internal interface IVideoCudaInterpolator
 }
 
 /// <summary>和 Windows ML 共用设备主上下文；内核只在自身流执行，同步后才交还借用缓冲。</summary>
-internal sealed unsafe class CudaVideoContext : IDisposable
+internal sealed unsafe partial class CudaVideoContext : IDisposable
 {
     private nint _context, _module, _stream;
     private readonly nint _pad, _paste, _nv12, _toNv12, _compare, _preview, _rifePrepare, _rifePack;
@@ -40,11 +40,7 @@ internal sealed unsafe class CudaVideoContext : IDisposable
         {
             using var scope = Enter();
             Check(cuStreamCreate(out _stream, 1));
-            using var resource = typeof(CudaVideoContext).Assembly.GetManifestResourceStream("FancyToolAva.VideoCuda.pixels.ptx")!;
-            using var bytes = new MemoryStream();
-            resource.CopyTo(bytes);
-            byte[] ptx = [.. bytes.ToArray(), 0];
-            fixed (byte* p = ptx) Check(cuModuleLoadData(out _module, p));
+            _module = LoadModule("pixels");
             Check(cuModuleGetFunction(out _pad, _module, "pad"));
             Check(cuModuleGetFunction(out _paste, _module, "paste"));
             Check(cuModuleGetFunction(out _nv12, _module, "nv12"));
@@ -211,13 +207,14 @@ internal sealed unsafe class CudaVideoContext : IDisposable
                 if (_stream != 0) Release(cuStreamSynchronize(_stream));
                 if (_comparison != 0) Release(cuMemFree(_comparison));
                 if (_comparisonHost != 0) Release(cuMemFreeHost(_comparisonHost));
+                if (_hdrModule != 0) Release(cuModuleUnload(_hdrModule));
                 if (_module != 0) Release(cuModuleUnload(_module));
                 if (_stream != 0) Release(cuStreamDestroy(_stream));
             }
             Release(cuDevicePrimaryCtxRelease(DeviceId));
         }
         _disposed = true;
-        _context = _module = _stream = 0;
+        _context = _module = _stream = _hdrModule = 0;
         _comparison = 0;
         if (failure != null) throw failure;
     }

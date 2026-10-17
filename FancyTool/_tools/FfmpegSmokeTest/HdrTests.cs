@@ -190,7 +190,7 @@ internal static partial class Program
         }
     }
 
-    private static unsafe void WriteHlgFixture(string path)
+    private static unsafe void WriteHlgFixture(string path, int width = 96, int height = 64, int count = 5, int fps = 5, bool pq = false, bool colorBars = false)
     {
         AVFormatContext* output = null;
         AVCodecContext* encoder = null;
@@ -201,12 +201,12 @@ internal static partial class Program
             ffmpeg.avformat_alloc_output_context2(&output, null, "matroska", path);
             var codec = ffmpeg.avcodec_find_encoder_by_name("libx265");
             encoder = ffmpeg.avcodec_alloc_context3(codec);
-            encoder->width = 96; encoder->height = 64;
-            encoder->time_base = new AVRational { num = 1, den = 5 };
-            encoder->framerate = new AVRational { num = 5, den = 1 };
+            encoder->width = width; encoder->height = height;
+            encoder->time_base = new AVRational { num = 1, den = fps };
+            encoder->framerate = new AVRational { num = fps, den = 1 };
             encoder->pix_fmt = AVPixelFormat.AV_PIX_FMT_YUV420P10LE;
             encoder->color_primaries = AVColorPrimaries.AVCOL_PRI_BT2020;
-            encoder->color_trc = AVColorTransferCharacteristic.AVCOL_TRC_ARIB_STD_B67;
+            encoder->color_trc = pq ? AVColorTransferCharacteristic.AVCOL_TRC_SMPTE2084 : AVColorTransferCharacteristic.AVCOL_TRC_ARIB_STD_B67;
             encoder->colorspace = AVColorSpace.AVCOL_SPC_BT2020_NCL;
             encoder->color_range = AVColorRange.AVCOL_RANGE_MPEG;
             encoder->flags |= ffmpeg.AV_CODEC_FLAG_GLOBAL_HEADER;
@@ -220,18 +220,44 @@ internal static partial class Program
             ffmpeg.avcodec_parameters_from_context(stream->codecpar, encoder);
             if (ffmpeg.avio_open(&output->pb, path, ffmpeg.AVIO_FLAG_WRITE) < 0 || ffmpeg.avformat_write_header(output, null) < 0)
                 throw new InvalidOperationException("Cannot write HLG fixture");
-            frame->width = 96; frame->height = 64; frame->format = (int)encoder->pix_fmt;
+            frame->width = width; frame->height = height; frame->format = (int)encoder->pix_fmt;
             frame->color_primaries = encoder->color_primaries; frame->color_trc = encoder->color_trc;
             frame->colorspace = encoder->colorspace; frame->color_range = encoder->color_range;
             if (ffmpeg.av_frame_get_buffer(frame, 32) < 0) throw new OutOfMemoryException();
-            for (int i = 0; i < 5; i++)
+            (double r, double g, double b) Bar(int x)
+            {
+                int patch = x * 16 / width;
+                double level = patch < 8 ? .75 : .9;
+                int bits = patch % 8;
+                return ((bits & 1) != 0 ? level : 0, (bits & 2) != 0 ? level : 0, (bits & 4) != 0 ? level : 0);
+            }
+            for (int i = 0; i < count; i++)
             {
                 ffmpeg.av_frame_make_writable(frame);
-                for (int y = 0; y < 64; y++)
-                    for (int x = 0; x < 96; x++) ((ushort*)(frame->data[0] + y * frame->linesize[0]))[x] = (ushort)(64 + 876 * x / 95);
+                for (int y = 0; y < height; y++)
+                    for (int x = 0; x < width; x++)
+                    {
+                        double level = 876d * x / (width - 1);
+                        if (colorBars)
+                        {
+                            var rgb = Bar(x);
+                            level = 876 * (.2627 * rgb.r + .6780 * rgb.g + .0593 * rgb.b);
+                        }
+                        ((ushort*)(frame->data[0] + y * frame->linesize[0]))[x] = (ushort)Math.Round(64 + level);
+                    }
                 for (uint plane = 1; plane <= 2; plane++)
-                    for (int y = 0; y < 32; y++)
-                        for (int x = 0; x < 48; x++) ((ushort*)(frame->data[plane] + y * frame->linesize[plane]))[x] = 512;
+                    for (int y = 0; y < height / 2; y++)
+                        for (int x = 0; x < width / 2; x++)
+                        {
+                            double chroma = 0;
+                            if (colorBars)
+                            {
+                                var rgb = Bar(x * 2);
+                                double luma = .2627 * rgb.r + .6780 * rgb.g + .0593 * rgb.b;
+                                chroma = plane == 1 ? (rgb.b - luma) / 1.8814 : (rgb.r - luma) / 1.4746;
+                            }
+                            ((ushort*)(frame->data[plane] + y * frame->linesize[plane]))[x] = (ushort)Math.Round(512 + 896 * chroma);
+                        }
                 frame->pts = i;
                 if (ffmpeg.avcodec_send_frame(encoder, frame) < 0) throw new InvalidOperationException("Cannot encode HLG fixture");
                 WriteFixturePackets(output, encoder, stream, packet);
@@ -252,6 +278,7 @@ internal static partial class Program
     {
         while (ffmpeg.avcodec_receive_packet(encoder, packet) >= 0)
         {
+            if (packet->duration <= 0) packet->duration = 1;
             ffmpeg.av_packet_rescale_ts(packet, encoder->time_base, stream->time_base);
             packet->stream_index = stream->index;
             if (ffmpeg.av_interleaved_write_frame(output, packet) < 0) throw new InvalidOperationException("Cannot mux HLG fixture");

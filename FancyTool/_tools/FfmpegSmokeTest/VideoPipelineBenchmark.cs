@@ -21,6 +21,15 @@ internal static partial class Program
             if (args.Contains("--repeat-source"))
                 FillAviFrames(input, (pixels, index) => pixels.Fill((index / 24 % 3) switch { 0 => (byte)30, 1 => (byte)180, _ => (byte)60 }));
         }
+        if (args.Contains("--hdr-fixture"))
+        {
+            var fixtureService = new VideoTranscodeService(NullLogger<VideoTranscodeService>.Instance);
+            string hdrInput = Path.Combine(workDir, "pipeline-hdr-source.mp4");
+            fixtureService.TranscodeAsync(input, hdrInput, new VideoTranscodeOptions
+            { HardwareBackend = HardwareBackend.Nvidia, VideoCodec = VideoCodec.H265,
+                HdrOutput = VideoHdrOutput.ForceHdr, Preset = PresetLevel.Fast, Crf = 12, AudioCodec = AudioCodec.Aac }).GetAwaiter().GetResult();
+            input = hdrInput;
+        }
         ffmpeg.av_log_set_level(ffmpeg.AV_LOG_ERROR);
         using var http = new HttpClient();
         var downloads = new ModelDownloadService(http, NullLogger<ModelDownloadService>.Instance);
@@ -32,6 +41,7 @@ internal static partial class Program
         sr.DeviceChanged += d => { srDevice = d; Console.WriteLine("SR DEVICE " + d + "; pixels=" + d.UsesGpuPixels); };
         interpolation.DeviceChanged += d => { rifeDevice = d; Console.WriteLine("RIFE DEVICE " + d + "; pixels=" + d.UsesGpuPixels); };
         var service = new VideoTranscodeService(NullLogger<VideoTranscodeService>.Instance, sr, interpolation);
+        var inputProbe = service.ProbeAsync(input).GetAwaiter().GetResult()!;
         var records = new List<object>();
         string[] modes = Arg("--modes", "sr,rife,both,both-reverse").Split(',');
         foreach (string mode in modes)
@@ -51,8 +61,8 @@ internal static partial class Program
                 InterpolationBackend = VideoSrBackend.Gpu, InterpolationMultiplier = int.Parse(Arg("--multiplier", "2")),
                 FrameProcessingOrder = mode == "both-reverse" ? VideoFrameProcessingOrder.UpscaleThenInterpolation : VideoFrameProcessingOrder.InterpolationThenUpscale,
                 InterpolationSceneDetection = args.Contains("--scene-detection"), AudioCodec = AudioCodec.Aac,
-                HardwareBackend = HardwareBackend.Nvidia, VideoCodec = VideoCodec.H264, Preset = PresetLevel.Fast,
-                HdrOutput = VideoHdrOutput.ForceSdr, Crf = 18, Profile = Arg("--profile", "")
+                HardwareBackend = HardwareBackend.Nvidia, VideoCodec = Enum.Parse<VideoCodec>(Arg("--codec", "H264")), Preset = PresetLevel.Fast,
+                HdrOutput = Enum.Parse<VideoHdrOutput>(Arg("--hdr-output", "ForceSdr")), Crf = 18, Profile = Arg("--profile", "")
             };
             using var deadline = new CancellationTokenSource(TimeSpan.FromMinutes(5));
             string output = Path.Combine(profile, "output.mp4");
@@ -74,9 +84,12 @@ internal static partial class Program
             var times = ReadVideoTimes(output);
             int expected = options.InterpolationMode == VideoInterpolationMode.None ? frames : frames * options.InterpolationMultiplier;
             int expectedScale = options.SuperResolutionEnabled ? options.SuperResolutionScale : 1;
-            if (times.Count != expected || !probe.HasAudio || probe.Width != width * expectedScale || probe.Height != height * expectedScale
+            if (times.Count != expected || probe.HasAudio != inputProbe.HasAudio || probe.Width != width * expectedScale || probe.Height != height * expectedScale
                 || times.Zip(times.Skip(1)).Any(t => t.Second <= t.First))
                 throw new InvalidOperationException($"Invalid output: {times.Count} frames, expected {expected}, audio={probe.HasAudio}");
+            bool expectedHdr = options.HdrOutput == VideoHdrOutput.ForceHdr || options.HdrOutput == VideoHdrOutput.SameAsSource && inputProbe.IsHdr;
+            if (probe.IsHdr != expectedHdr || expectedHdr && probe.BitDepth < 10)
+                throw new InvalidOperationException("HDR benchmark lost transfer or precision");
             var record = new { mode, iteration, repeatSource = args.Contains("--repeat-source"), startType = iteration == 0 ? "first" : "repeat", width, height,
                 model = options.SuperResolutionModel.ToString(), options.SuperResolutionUseFp16, options.SuperResolutionScale,
                 interpolation = options.InterpolationMode.ToString(), interpolationModel = options.InterpolationModel.ToString(), options.InterpolationMultiplier,
@@ -86,7 +99,7 @@ internal static partial class Program
                 srHostMemory = options.SuperResolutionEnabled && srDevice?.UsesGpuHostMemory == true,
                 rifeHostMemory = options.InterpolationMode == VideoInterpolationMode.Rife && rifeDevice?.UsesGpuHostMemory == true,
                 elapsedMs, outputFrames = times.Count, outputFps = times.Count * 1000 / elapsedMs,
-                allocatedBytes = allocations, outputWidth = probe.Width, outputHeight = probe.Height, probe.DurationMs, probe.PixelFormat, profile,
+                allocatedBytes = allocations, outputWidth = probe.Width, outputHeight = probe.Height, probe.DurationMs, probe.PixelFormat, probe.IsHdr, probe.BitDepth, probe.ColorTransfer, probe.ColorPrimaries, profile,
                 startUtc, endUtc, peakWorkingSetMiB = Process.GetCurrentProcess().PeakWorkingSet64 / 1048576d };
             records.Add(record);
             Console.WriteLine(JsonSerializer.Serialize(record));

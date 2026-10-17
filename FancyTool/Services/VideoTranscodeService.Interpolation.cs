@@ -19,7 +19,8 @@ public sealed unsafe partial class VideoTranscodeService
             throw new ArgumentException(LocalizationRegistry.Get("VideoTranscode.Interp_InvalidRate"));
         if (HardwareVideoInterpolation.IsHardware(options.InterpolationMode))
             HardwareVideoInterpolation.RequireSupport(options.InterpolationMode, options.InterpolationMultiplier);
-        if (source.IsHdr && options.HdrOutput != VideoHdrOutput.ForceSdr && options.Container != VideoContainer.Gif)
+        if (source.IsHdr && options.InterpolationMode != VideoInterpolationMode.Rife
+            && options.HdrOutput != VideoHdrOutput.ForceSdr && options.Container != VideoContainer.Gif)
             throw new NotSupportedException(LocalizationRegistry.Get("VideoTranscode.Interp_HdrUnsupported"));
     }
 

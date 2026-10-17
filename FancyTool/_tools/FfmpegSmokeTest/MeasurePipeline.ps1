@@ -15,6 +15,9 @@ param(
     [string]$BinaryPath,
     [string]$InputFile,
     [string]$Profile,
+    [string]$Codec = 'H264',
+    [string]$HdrOutput = 'ForceSdr',
+    [switch]$HdrFixture,
     [switch]$Fp32,
     [switch]$SceneDetection,
     [switch]$RepeatSource,
@@ -49,6 +52,19 @@ if ($BaselineCommit) {
             'OrtBgraVideoFrameInterpolator.cs', 'ParallelBgraVideoFrameUpscaler.cs',
             'CascadedVideoFrameUpscaler.cs', 'VideoGpuPixelSession.cs', 'VideoInferenceRunGuard.cs')
     }
+    $extraRemove = @()
+    $smokeConstants = ''
+    if ($baselinePaths -contains 'FancyTool/Services/VideoTranscodeService.Cuda.cs') {
+        $files += @('VideoTranscodeService.Cuda.cs', 'CudaVideoContext.cs', 'VideoTranscodeService.Hdr.cs')
+        if ($baselinePaths -contains 'FancyTool/Services/VideoTranscodeService.Hdr.Cuda.cs') {
+            $files += @('VideoTranscodeService.Hdr.Cuda.cs', 'CudaVideoContext.Hdr.cs')
+        }
+        else {
+            $extraRemove += @('Services/VideoTranscodeService.Hdr.Cuda.cs', 'Services/CudaVideoContext.Hdr.cs')
+            $smokeConstants = '<PropertyGroup Condition="''$(MSBuildProjectName)'' == ''FfmpegSmokeTest''"><DefineConstants>$(DefineConstants);FANCYTOOL_PRE_HDR_BASELINE</DefineConstants></PropertyGroup>'
+        }
+    }
+    elseif (-not $queuedBaseline) { $extraRemove += 'Services/VideoTranscodeService.Hdr.Cuda.cs' }
     foreach ($file in $files) {
         $lines = & git -C $repository show "${BaselineCommit}:FancyTool/Services/$file"
         if ($LASTEXITCODE -ne 0) { throw "无法读取基线文件 $file" }
@@ -62,9 +78,11 @@ if ($BaselineCommit) {
     }
     $remove = ($files | ForEach-Object { "Services/$_" }) -join ';'
     if (-not $queuedBaseline) { $remove += ';Services/VideoTranscodeService.Pipeline.cs;Services/VideoTranscodeService.Cuda.cs' }
+    if ($extraRemove.Count) { $remove += ";" + ($extraRemove -join ";") }
     $escapedSources = [Security.SecurityElement]::Escape($sources)
     $targets = @"
 <Project>
+    $smokeConstants
     <ItemGroup Condition="'`$(MSBuildProjectName)' == 'FancyToolAva'">
       <Compile Remove="$remove" />
       <Compile Include="$escapedSources/*.cs" />
@@ -116,7 +134,8 @@ try {
     $benchArgs = @($output, '--pipeline-benchmark', '--width', $Width, '--height', $Height,
         '--frames', $Frames, '--multiplier', $Multiplier, '--modes', $Modes, '--repeats', $Repeats,
         '--model', $Model, '--interpolation-model', $InterpolationModel, '--interpolation-mode', $InterpolationMode,
-        '--sr-scale', $SrScale, '--tile-index', $TileIndex)
+        '--sr-scale', $SrScale, '--tile-index', $TileIndex, '--codec', $Codec, '--hdr-output', $HdrOutput)
+    if ($HdrFixture) { $benchArgs += '--hdr-fixture' }
     if ($InputFile) { $benchArgs += @('--input', [IO.Path]::GetFullPath($InputFile)) }
     if ($Profile) { $benchArgs += @('--profile', $Profile) }
     if ($Fp32) { $benchArgs += '--fp32' }

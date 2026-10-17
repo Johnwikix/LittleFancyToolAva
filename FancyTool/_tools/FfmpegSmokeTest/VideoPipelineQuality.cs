@@ -11,10 +11,12 @@ internal static partial class Program
     {
         string Arg(string key) => args[Array.IndexOf(args, key) + 1];
         var results = new List<object>();
+        var json = new JsonSerializerOptions { WriteIndented = true,
+            NumberHandling = System.Text.Json.Serialization.JsonNumberHandling.AllowNamedFloatingPointLiterals };
         foreach (string mode in (args.Contains("--modes") ? Arg("--modes") : "sr,rife,both").Split(','))
         {
-            string before = Path.Combine(Arg("--before"), mode + "-3", "output.mp4");
-            string after = Path.Combine(Arg("--after"), mode + "-3", "output.mp4");
+            string before = Path.Combine(Arg("--before"), mode + "-" + (args.Contains("--before-iteration") ? Arg("--before-iteration") : "3"), "output.mp4");
+            string after = Path.Combine(Arg("--after"), mode + "-" + (args.Contains("--after-iteration") ? Arg("--after-iteration") : "3"), "output.mp4");
             string psnr = Path.Combine(workDir, mode + "-psnr.txt"), ssim = Path.Combine(workDir, mode + "-ssim.txt");
             string FilterPath(string path)
             {
@@ -52,13 +54,20 @@ internal static partial class Program
             var mse = Field(psnr, "mse_avg"); var similarities = Field(ssim, "All");
             var beforeTimes = ReadVideoTimes(before); var afterTimes = ReadVideoTimes(after);
             bool clock = beforeTimes.SequenceEqual(afterTimes) && frames == beforeTimes.Count;
-            double psnrDb = 10 * Math.Log10(255d * 255 / mse.Average());
-            bool passed = clock && similarities.Min() >= .98 && psnrDb >= 40;
-            var result = new { mode, frames, clock, passed, psnrDb, ssim = similarities.Average(), minSsim = similarities.Min(), minPsnr = 10 * Math.Log10(255d * 255 / mse.Max()) };
-            Console.WriteLine(JsonSerializer.Serialize(result)); results.Add(result);
+            var service = new VideoTranscodeService(Microsoft.Extensions.Logging.Abstractions.NullLogger<VideoTranscodeService>.Instance);
+            var beforeProbe = service.ProbeAsync(before).GetAwaiter().GetResult()!;
+            var afterProbe = service.ProbeAsync(after).GetAwaiter().GetResult()!;
+            double maximum = (1 << beforeProbe.BitDepth) - 1;
+            bool color = beforeProbe.BitDepth == afterProbe.BitDepth && beforeProbe.ColorTransfer == afterProbe.ColorTransfer
+                && beforeProbe.ColorPrimaries == afterProbe.ColorPrimaries && beforeProbe.IsHdr == afterProbe.IsHdr;
+            double psnrDb = 10 * Math.Log10(maximum * maximum / mse.Average());
+            bool passed = clock && color && similarities.Min() >= .98 && psnrDb >= 40;
+            var result = new { mode, frames, clock, color, beforeProbe.BitDepth, passed, psnrDb, ssim = similarities.Average(), minSsim = similarities.Min(), minPsnr = 10 * Math.Log10(maximum * maximum / mse.Max()) };
+            Console.WriteLine(JsonSerializer.Serialize(result, json)); results.Add(result);
+            File.WriteAllText(Path.Combine(workDir, "quality.json"), JsonSerializer.Serialize(results, json));
             if (!passed) throw new InvalidOperationException("CUDA quality regression: " + mode);
         }
-        File.WriteAllText(Path.Combine(workDir, "quality.json"), JsonSerializer.Serialize(results, new JsonSerializerOptions { WriteIndented = true }));
+        File.WriteAllText(Path.Combine(workDir, "quality.json"), JsonSerializer.Serialize(results, json));
         return 0;
     }
 }
