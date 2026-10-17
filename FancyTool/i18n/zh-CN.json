@@ -539,6 +539,8 @@
     "Subtitle": "选择片段、预览画面，再批量转码为视频或 GIF",
     "Label_Settings": "转码设置",
     "Sr_Enable": "AI 视频超分",
+    "Sr_HdrLossyTitle": "AI 超分会损失 HDR 信息",
+    "Sr_HdrLossyMessage": "HDR 素材会先映射到 SDR 再超分，原始高光与色域信息无法完整恢复。选择保留 HDR 输出也无法消除这些损失。",
     "Sr_Anime4KS": "Anime4K CNN S · 速度优先",
     "Sr_Anime4KM": "Anime4K CNN M · 更多计算",
     "Sr_FsrcnnxS": "FSRCNNX s · 轻量",

@@ -541,6 +541,8 @@
     "Subtitle": "Trim a clip, preview its frames, and batch convert to video or GIF",
     "Label_Settings": "Transcode settings",
     "Sr_Enable": "AI video upscaling",
+    "Sr_HdrLossyTitle": "AI upscaling is lossy for HDR",
+    "Sr_HdrLossyMessage": "HDR is tone-mapped to SDR. HDR output cannot fully restore original highlights or gamut.",
     "Sr_Anime4KS": "Anime4K CNN S · Speed",
     "Sr_Anime4KM": "Anime4K CNN M · More compute",
     "Sr_FsrcnnxS": "FSRCNNX s · Lightweight",

@@ -84,11 +84,11 @@ NanoVSR 还计算原生 4× 后缩至 2×，并且窗口内有真实的双向时
 背景纹理偏平滑，城市台阶和字幕边缘更硬。它们的更强锐化不等于更接近原片。
 NanoVSR 相对 Lanczos 仅提高约 0.11–0.18 dB，SSIM 反而略低，不应据此声称所有画质更好。
 
-![720p 人脸局部](data/real-video-sr-2026-10-16/720p-face.png)
+![720p 人脸局部](../../.qa/git-history-cleanup-2026-10-17/evidence/real-video-sr-2026-10-16/720p-face.png)
 
-![1080p 人脸局部](data/real-video-sr-2026-10-16/1080p-face.png)
+![1080p 人脸局部](../../.qa/git-history-cleanup-2026-10-17/evidence/real-video-sr-2026-10-16/1080p-face.png)
 
-![1080p 城市字幕与纹理](data/real-video-sr-2026-10-16/1080p-city-texture.png)
+![1080p 城市字幕与纹理](../../.qa/git-history-cleanup-2026-10-17/evidence/real-video-sr-2026-10-16/1080p-city-texture.png)
 
 ## 闪烁与切镜
 
@@ -116,13 +116,13 @@ NanoVSR 在四个 AI 模型中时间误差最低，但仍略高于 Lanczos。五
 四帧，未见明显的跨镜头轮廓残留或窗口切换时脸部突变。检查依据为连续帧、差异曲线和
 同步对照视频的导出；没有完成长片实时主观观看，不能保证所有片源没有闪烁、重影或接缝。
 
-![时序误差曲线](data/real-video-sr-2026-10-16/temporal-residuals.png)
+![时序误差曲线](../../.qa/git-history-cleanup-2026-10-17/evidence/real-video-sr-2026-10-16/temporal-residuals.png)
 
-![五帧边界连续裁图](data/real-video-sr-2026-10-16/1080p-window-boundary.png)
+![五帧边界连续裁图](../../.qa/git-history-cleanup-2026-10-17/evidence/real-video-sr-2026-10-16/1080p-window-boundary.png)
 
-![人为切镜](data/real-video-sr-2026-10-16/1080p-scene-cut-96.png)
+![人为切镜](../../.qa/git-history-cleanup-2026-10-17/evidence/real-video-sr-2026-10-16/1080p-scene-cut-96.png)
 
-![原片自然切镜](data/real-video-sr-2026-10-16/1080p-scene-cut-159.png)
+![原片自然切镜](../../.qa/git-history-cleanup-2026-10-17/evidence/real-video-sr-2026-10-16/1080p-scene-cut-159.png)
 
 所有画面对照图均由上述 CC BY 3.0 片源裁剪、缩放、超分及编码而来，署名 Blender Foundation。
 各格使用相同的解码帧编号与区域；不依赖 OpenCV 在无损 MKV 上不准确的随机定位。
@@ -142,7 +142,7 @@ python FancyTool/_tools/RealVideoSrBenchmark/run_benchmarks.py .qa/real-video-sr
   --models-directory .qa/nanovsr/data/Models
 python FancyTool/_tools/RealVideoSrBenchmark/analyze_quality.py .qa/real-video-sr/test
 python FancyTool/_tools/RealVideoSrBenchmark/export_results.py .qa/real-video-sr/test `
-  FancyTool/docs/data/real-video-sr-2026-10-16
+  .qa/git-history-cleanup-2026-10-17/evidence/real-video-sr-2026-10-16
 ```
 
 模型目录须先由应用或烟测安装四个模型，并通过应用的“安装加速组件”安装 NVIDIA 提供程序。
@@ -151,7 +151,7 @@ python FancyTool/_tools/RealVideoSrBenchmark/export_results.py .qa/real-video-sr
 不下载整个 6.7 GB 压缩包。不同 FFmpeg 版本的编码字节可能不同，输入 SHA-256 已归档。
 
 小型原始结果与逐帧时间误差保存在
-[measurements.json](data/real-video-sr-2026-10-16/measurements.json)，同目录包含整次 GPU
+[measurements.json](../../.qa/git-history-cleanup-2026-10-17/evidence/real-video-sr-2026-10-16/measurements.json)，同目录包含整次 GPU
 采样 CSV 与对照图。完整视频留在工作区 `.qa/real-video-sr/test`，不提交数百 MB 的片源：
 
 - `runs/<720或1080>p-<模型>/output.mp4`：各模型的完整 8 秒输出。

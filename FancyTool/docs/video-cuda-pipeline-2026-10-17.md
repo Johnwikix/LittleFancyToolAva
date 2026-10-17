@@ -9,7 +9,7 @@
 - i5-13600KF，14 核 / 20 线程；RTX 5070 Ti，16303 MiB，驱动 617.14；Windows 11 26300；.NET SDK 10.0.402，Windows ML 2.4.89，Avalonia 12.1.1。
 - 捆绑 FFmpeg `n9.0.1-84-g946fcce07b-20260918`；ORT 原生运行时 `1.27.20260711.1.7b7c0e2`，NVIDIA EP Framework `2.30.49.0`、提供程序 `0.4.0`、TensorRT RTX `1.6.1.120`。原始模型未修改，哈希保留在 `.qa/video-pipeline/git-evidence-previous/model-sha256.json`。
 - 同一 H.264 yuv420p + AAC 输入，1920×1080、24 fps、72 帧、3 秒；FSRCNNX M FP16 2×、RIFE 4.25 Lite 4×，先补帧后超分，NVENC H.264 p4/Fast、QP 18，场景检测关闭，384 推理窗口。
-- 基线为上轮生产代码 `5ff27272dfa99d110fa9aaf42297823bedae2412`（原 `8d92501` 移除历史测试产物后的等价源码），通过隔离源码覆盖构建，未在基线启用本轮 NVDEC/CUDA 路径。正式前后对照在用户停止 MAA 后重新执行；更早 MuMu/MAA 高负载下的数据仅作实验记录。
+- 基线为上轮生产代码 `a59fdaad87f42269194e15f21eba33a26f286014`（移除历史测试产物后的等价源码），通过隔离源码覆盖构建，未在基线启用本轮 NVDEC/CUDA 路径。正式前后对照在用户停止 MAA 后重新执行；更早 MuMu/MAA 高负载下的数据仅作实验记录。
 - 每种模式先运行一次，再重复三次，取重复中位数。计时包围真实 `TranscodeAsync`，含初始化、处理、收尾，不含输入生成和输出验证。已有模型/驱动编译缓存未清空；不把首次运行称为纯冷启动。
 - `nvidia-smi` 每 200 ms 采样。遥测属于整张设备；NVDEC、NVENC 与计算引擎不同，SM 利用率不是唯一速度指标。后台桌面/模拟器仍可能影响短片测速，结论只适用于本机本场景。
 
@@ -73,7 +73,7 @@ dotnet build FancyTool/_tools/FfmpegSmokeTest/FfmpegSmokeTest.csproj -c Release 
 $inputFile = '.qa/video-cuda/fixture420/plain-0/output.mp4'
 
 # 隔离构建上一轮源码，再测当前代码；不改写工作区生产文件
-pwsh -File FancyTool/_tools/FfmpegSmokeTest/MeasurePipeline.ps1 -OutputDirectory .qa/video-cuda/repro-baseline -DataDirectory .qa/video-pipeline/data -InputFile $inputFile -BaselineCommit 5ff27272dfa99d110fa9aaf42297823bedae2412
+pwsh -File FancyTool/_tools/FfmpegSmokeTest/MeasurePipeline.ps1 -OutputDirectory .qa/video-cuda/repro-baseline -DataDirectory .qa/video-pipeline/data -InputFile $inputFile -BaselineCommit a59fdaad87f42269194e15f21eba33a26f286014
 pwsh -File FancyTool/_tools/FfmpegSmokeTest/MeasurePipeline.ps1 -OutputDirectory .qa/video-cuda/repro-candidate -DataDirectory .qa/video-pipeline/data -InputFile $inputFile
 
 # 完整输出画质与真实代码路径回归

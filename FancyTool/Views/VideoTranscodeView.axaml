@@ -135,8 +135,12 @@
                                         <TextBlock Classes="Caption" Text="{lan:I18n VideoTranscode.Hdr_Hint}" TextWrapping="Wrap" />
                                     </StackPanel>
                                     <StackPanel Spacing="8" AutomationProperties.AutomationId="VideoSuperResolutionOptions">
-                                        <CheckBox IsChecked="{Binding IsVideoSrEnabled, Mode=TwoWay}" IsEnabled="{Binding !IsBusy}" Content="{lan:I18n VideoTranscode.Sr_Enable}" />
+                                        <CheckBox IsChecked="{Binding IsVideoSrEnabled, Mode=TwoWay}" IsCheckedChanged="OnSrEnabledChanged" IsEnabled="{Binding !IsBusy}" Content="{lan:I18n VideoTranscode.Sr_Enable}" AutomationProperties.AutomationId="VideoSrEnable" />
                                         <StackPanel IsVisible="{Binding IsVideoSrEnabled}" Spacing="8">
+                                            <fa:FAInfoBar x:Name="VideoSrHdrLossyWarning" IsOpen="True" IsClosable="False" Severity="Warning"
+                                                        Title="{lan:I18n VideoTranscode.Sr_HdrLossyTitle}"
+                                                        Message="{lan:I18n VideoTranscode.Sr_HdrLossyMessage}"
+                                                        AutomationProperties.AutomationId="VideoSrHdrLossyWarning" />
                                             <StackPanel IsEnabled="{Binding !IsBusy}" Spacing="8">
                                                 <ComboBox ItemsSource="{Binding VideoSrModelLabels}" SelectedIndex="{Binding VideoSrModelIndex, Mode=TwoWay}" HorizontalAlignment="Stretch" AutomationProperties.AutomationId="VideoSrModel">
                                                     <ComboBox.ItemTemplate>

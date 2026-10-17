@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using FancyToolAva.ViewModels;
 
 namespace FancyToolAva.Views;
@@ -110,6 +111,25 @@ public partial class VideoTranscodeView : UserControl
         }
         if (e.PropertyName == nameof(VideoTranscodeViewModel.SelectedContainer) || e.PropertyName == nameof(VideoTranscodeViewModel.IsGifMode))
             Avalonia.Threading.Dispatcher.UIThread.Post(SyncTabForContainer);
+    }
+
+    private void OnSrEnabledChanged(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (sender is not CheckBox { IsChecked: true, IsLoaded: true }) return;
+
+        // 窄窗口有两层滚动视口，逐层滚动并完成布局，让外层使用更新后的警告位置。
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (IsLoaded && this.FindControl<Control>("VideoSrHdrLossyWarning") is { IsEffectivelyVisible: true } warning)
+            {
+                foreach (var ancestor in warning.GetVisualAncestors())
+                {
+                    if (ancestor is Avalonia.Controls.Presenters.ScrollContentPresenter presenter
+                        && presenter.BringDescendantIntoView(warning, new Avalonia.Rect(warning.Bounds.Size)))
+                        presenter.UpdateLayout();
+                }
+            }
+        }, DispatcherPriority.Loaded);
     }
 
     private void SyncTabForContainer()

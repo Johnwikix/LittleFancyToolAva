@@ -45,8 +45,5 @@ of both the packaged executable and main DLL against the actual isolated build.
 The six FFmpeg runtime DLLs and runtimeconfig are present. The bundle's embedded
 MSIX hash matches the inspected standalone MSIX. No package was installed.
 
-Evidence is in [verification.json](../data/msix-build-2026-10-16/verification.json),
-[reproduced IDE failure](../data/msix-build-2026-10-16/ide-debug-before.log),
-[successful IDE build](../data/msix-build-2026-10-16/ide-debug-after.log), and
-[successful Release packaging](../data/msix-build-2026-10-16/package-release-final.log).
-Raw binlogs and intermediate failure logs remain in `.qa/msix-fix-2026-10-16`.
+已入库的验证摘要已迁至本地 [verification.json](../../../.qa/git-history-cleanup-2026-10-17/evidence/msix-build-2026-10-16/verification.json)。
+历史 IDE 失败、构建成功和 Release 打包日志及原始 binlog 保留在原验证机器的 `.qa/msix-fix-2026-10-16/`；这些日志从未入库，本机没有副本。

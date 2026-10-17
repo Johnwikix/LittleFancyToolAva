@@ -6,7 +6,7 @@
 
 本次“完全 GPU”限于模型推理图：明确选择 GPU 设备，设置 `session.disable_cpu_ep_fallback=1`，不使用 AUTO/HETERO 混合设备。CPU 仍参与会话编译、调度、像素转换及数据搬运；短视频验证使用软件编码。**不代表从解码到编码的整条链路完全运行在 GPU 上。**
 
-机器实际为 Core Ultra 7 255H / Intel Arc 140T 核显，驱动 32.0.101.8826，Windows 11 10.0.26300。应用使用 Microsoft.Windows.AI.MachineLearning 2.4.89；导出参考环境为 Python 3.14.6、PyTorch 2.14.1+cpu、ONNX 1.23.2、CPU ONNX Runtime 1.31.0。设备名称中的“15GB”是驱动报告字符串，不能视为独立显存容量。完整配置见 [原始证据](data/onnx-vsr-validation-2026-10-16/measurements.json)。
+机器实际为 Core Ultra 7 255H / Intel Arc 140T 核显，驱动 32.0.101.8826，Windows 11 10.0.26300。应用使用 Microsoft.Windows.AI.MachineLearning 2.4.89；导出参考环境为 Python 3.14.6、PyTorch 2.14.1+cpu、ONNX 1.23.2、CPU ONNX Runtime 1.31.0。设备名称中的“15GB”是驱动报告字符串，不能视为独立显存容量。完整配置见 [原始证据](../../.qa/git-history-cleanup-2026-10-17/evidence/onnx-vsr-validation-2026-10-16/measurements.json)。
 
 | 保留的模型变体 | 本机通过的 GPU 配置 | 360p→720p fps | 720p→1440p fps | 1080p→2160p fps |
 |---|---|---:|---:|---:|
@@ -57,6 +57,6 @@ EDVR 模型是原生4×，输入为五帧拼接的15通道，输出中心帧。�
 - EDVR 使用五张不同位移的合成邻帧。CPU参考中只改变一个邻帧就使中心输出 MAE变化约0.005289，确认依赖邻帧；未接入产品时序调度、边界补帧、切镜和长视频队列。现有 NanoVSR 五进五出契约不能直接替代它的五进一出契约。
 - 未测真实视频的PSNR/SSIM/VMAF、主观画质、时间闪烁、长时间功耗或多设备驱动覆盖。三个热样本只用于初筛；提高画质的选型还需要同素材盲比。FSRCNNX的训练权重许可与导出脚本许可不同，应保留上游许可来源；本次没有发布权重。
 
-产物包括 [完整测量](data/onnx-vsr-validation-2026-10-16/measurements.json)、[仅合格GPU配置](data/onnx-vsr-validation-2026-10-16/eligible-configurations.json) 和 [复现脚本说明](../_tools/OnnxCandidateValidation/README.md)。清单区分张量验证、位图验证与转码验证，未通过配置仍留在诊断数据中。新增代码只进入 `_tools/FfmpegSmokeTest` 的显式验证入口，产品模型菜单与默认推理策略未变。
+产物包括 [完整测量](../../.qa/git-history-cleanup-2026-10-17/evidence/onnx-vsr-validation-2026-10-16/measurements.json)、[仅合格GPU配置](../../.qa/git-history-cleanup-2026-10-17/evidence/onnx-vsr-validation-2026-10-16/eligible-configurations.json) 和 [复现脚本说明](../_tools/OnnxCandidateValidation/README.md)。清单区分张量验证、位图验证与转码验证，未通过配置仍留在诊断数据中。新增代码只进入 `_tools/FfmpegSmokeTest` 的显式验证入口，产品模型菜单与默认推理策略未变。
 
 环境操作记录：首次安装依赖受到本机全局pip的 `target=D:\pip` 配置影响，向共享目录增加了部分包。随后重建工作区隔离环境、显式指定安装target并使用Python `-I`，EDVR已在隔离环境重导出；没有为回滚而删除来源可能混杂的共享包。后续复现命令已规避该全局配置。

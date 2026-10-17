@@ -28,4 +28,4 @@ DirectML路径在创建原生会话前初始化OrtEnv并完成Windows ML已安�
 
 界面回归通过六档选择、FP16限制、旧状态迁移、中英文切换、宽/窄布局和两段视频独立裁剪批量转换；模型管理回归通过VideoSr子目录迁移、立即生效、恢复默认、重启、冲突回滚和取消。十个编译会话全部使用后的测试进程峰值工作集约2376 MiB，包含原生编译器、GPU运行时与位图，不是专用显存；日常只使用少数档位时不代表会达到该峰值。
 
-复现：运行 `_tools/OnnxCandidateValidation/package.py` 后构建FfmpegSmokeTest，再使用 `--sr-only --sr-reference-root .qa/onnx-candidates`。`--editing-ui --sr-ui` 验证界面，`--settings-only` 验证目录迁移；测试数据使用独立 `FANCYTOOL_DATA_DIRECTORY`。完整记录见 [生产回归数据](../data/video-sr-integration-2026-10-16/measurements.json)，初筛另见 [ONNX候选实测](../onnx-vsr-validation-2026-10-16.md)。
+复现：运行 `_tools/OnnxCandidateValidation/package.py` 后构建FfmpegSmokeTest，再使用 `--sr-only --sr-reference-root .qa/onnx-candidates`。`--editing-ui --sr-ui` 验证界面，`--settings-only` 验证目录迁移；测试数据使用独立 `FANCYTOOL_DATA_DIRECTORY`。完整记录见 [生产回归数据](../../../.qa/git-history-cleanup-2026-10-17/evidence/video-sr-integration-2026-10-16/measurements.json)，初筛另见 [ONNX候选实测](../onnx-vsr-validation-2026-10-16.md)。

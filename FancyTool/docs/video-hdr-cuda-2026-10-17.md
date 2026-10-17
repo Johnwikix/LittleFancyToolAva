@@ -8,7 +8,7 @@
 - 合成 BGR 图案与音频经原色彩实现生成 1920×1080、24 fps、72 帧、3 秒的 HEVC Main10 / PQ / BT.2020 素材；不是自然电影样本。FSRCNNX M FP16 2×、RIFE 4.25 Lite 4×、384 窗口、4 个 SR 会话、先补帧后超分，输出 NVENC H.265 p4/Fast、QP 18。场景检测关闭，速度测试不打开预览。
 - 每模式先运行一次，再重复三次，取重复中位数。每次计时包围真实 `TranscodeAsync`，包括初始化、LUT 上传、处理及收尾，排除输入生成和输出校验。进程内复用模型/曲线缓存，未清空驱动编译缓存；不是纯冷启动成绩。首次 LUT 烘焙使用 CPU，处理帧在 GPU 查表。
 - 同一模型与精度，参考路径仅通过 `FANCYTOOL_VIDEO_NVDEC=0` 保留软件解码、CPU 色彩和主机帧交接，**推理仍在 GPU**。整卡遥测每 200 ms 采样，短片及后台桌面/模拟器会产生波动，SM 利用率不是判定性能的唯一依据。
-- 原版 `2a23c0d`（生产源码与先前 `657ef41` 相同）的独立基线仅支持 HDR 转码/超分，分别约 203.41/25.94 fps，数据在 `baseline/`。原版拒绝保留 HDR 的 RIFE，因此下表 RIFE/组合列是本轮新增功能的等价 CPU 色彩参考，不能称为旧版 HDR 补帧成绩。先前等价提交的隔离构建在 `repro-657/` 验证；非测试源码一致性见 `baseline-code-equivalence.json`。
+- 原版 `4f18fc6`（历史清理后的等价生产源码）的独立基线仅支持 HDR 转码/超分，分别约 203.41/25.94 fps，数据在 `baseline/`。原版拒绝保留 HDR 的 RIFE，因此下表 RIFE/组合列是本轮新增功能的等价 CPU 色彩参考，不能称为旧版 HDR 补帧成绩。先前等价提交的隔离构建在 `repro-657/` 验证；非测试源码一致性见 `baseline-code-equivalence.json`。
 
 ## 正式速度
 
@@ -67,7 +67,7 @@ pwsh -File FancyTool/_tools/FfmpegSmokeTest/MeasurePipeline.ps1 -OutputDirectory
 & $exe .qa/video-hdr/repro-quality --pipeline-quality --before .qa/video-hdr/repro-reference --after .qa/video-hdr/repro-resident --modes plain,sr,rife,both
 pwsh -File FancyTool/_tools/FfmpegSmokeTest/ValidatePipeline.ps1 -OutputDirectory .qa/video-hdr/repro-validation -DataDirectory .qa/video-pipeline/data
 # 原版仅支持 HDR 转码/超分；不要把原版不支持的 HDR RIFE 当作速度基线
-pwsh -File FancyTool/_tools/FfmpegSmokeTest/MeasurePipeline.ps1 -OutputDirectory .qa/video-hdr/repro-original -DataDirectory .qa/video-pipeline/data -InputFile $inputFile -Codec H265 -HdrOutput SameAsSource -Multiplier 4 -Modes plain,sr -BaselineCommit 2a23c0d
+pwsh -File FancyTool/_tools/FfmpegSmokeTest/MeasurePipeline.ps1 -OutputDirectory .qa/video-hdr/repro-original -DataDirectory .qa/video-pipeline/data -InputFile $inputFile -Codec H265 -HdrOutput SameAsSource -Multiplier 4 -Modes plain,sr -BaselineCommit 4f18fc6
 ```
 
-模型与原生库沿用前述 SDR 报告的锁定版本；本次输入、CUDA 源码、PTX 及关键代码哈希见 `.qa/video-hdr/artifact-sha256.json`。Windows/Linux 构建日志、验证索引和失败实验均留在本地 `.qa/`，本次 Git 提交仅新增代码、简要变更记录与结论文档。此前一次 pull/rebase 将旧测试产物重新带入当前历史；本轮未重写该已发布历史或远端。
+模型与原生库沿用前述 SDR 报告的锁定版本；本次输入、CUDA 源码、PTX 及关键代码哈希见 `.qa/video-hdr/artifact-sha256.json`。Windows/Linux 构建日志、验证索引和失败实验均留在本地 `.qa/`，本次 Git 提交仅新增代码、简要变更记录与结论文档。2026-10-17 已按用户要求清理旧测试产物的本地及远端分支历史；原始证据与提交映射保存在 `.qa/git-history-cleanup-2026-10-17/`，复现基线已更新为清理后的等价提交。

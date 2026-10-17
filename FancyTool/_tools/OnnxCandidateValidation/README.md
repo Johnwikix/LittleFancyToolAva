@@ -13,7 +13,7 @@ $tools = 'FancyTool/_tools/OnnxCandidateValidation'
 py -3.14 -m venv "$work/venv"
 $python = "$work/venv/Scripts/python.exe"
 # 显式 target 覆盖本机全局 pip target；-I 排除全局 PYTHONPATH。
-& $python -I -m pip --isolated install --target "$work/venv/Lib/site-packages" --extra-index-url https://download.pytorch.org/whl/cpu -r FancyTool/docs/data/onnx-vsr-validation-2026-10-16/python-lock.txt
+& $python -I -m pip --isolated install --target "$work/venv/Lib/site-packages" --extra-index-url https://download.pytorch.org/whl/cpu -r .qa/git-history-cleanup-2026-10-17/evidence/onnx-vsr-validation-2026-10-16/python-lock.txt
 & $python -I "$tools/prepare.py" $work
 dotnet build FancyTool/_tools/FfmpegSmokeTest -c Release -p:PublishAot=false
 $runner = 'FancyTool/_tools/FfmpegSmokeTest/bin/Release/net10.0-windows10.0.19041.0/win-x64/FfmpegSmokeTest.exe'
@@ -41,7 +41,7 @@ foreach ($model in @('anime4k_upscale_cnn_s', 'fsrcnnx_s', 'edvrm_x4_128x128_fra
 foreach ($model in @('baseline_clearreality', 'baseline_liveaction')) {
     & $python -I "$tools/run.py" $work --runner $runner --model $model --gpu-only --results-subdir results-precision
 }
-& $python -I "$tools/summarize.py" $work FancyTool/docs/data/onnx-vsr-validation-2026-10-16
+& $python -I "$tools/summarize.py" $work .qa/git-history-cleanup-2026-10-17/evidence/onnx-vsr-validation-2026-10-16
 ```
 
 `run.py` 跳过目标目录中已存在的结果；需要重测时选择新的 `--results-subdir`，并在汇总脚本中加入该目录。根目录 `results.json` 仅是最近一次调用的进度，不是总报告。汇总读取四个约定目录中的完整记录；`eligible-configurations.json` 只包含 GPU 设备、三个数值样本全部通过且整个记录通过的候选。相同配置的张量验证与位图验证可能分别存在，需查看 `bitmapPathValidated` 和 `transcodeValidated`。

@@ -1,1 +1,4 @@
 .qa/
+
+# 原始验证产物统一保存在 .qa，防止旧目录再次入库。
+/FancyTool/docs/data/
