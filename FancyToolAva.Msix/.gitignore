@@ -10,6 +10,9 @@ obj/
 AppPackages/
 BundleArtifacts/
 
+## DesktopBridge 打包缓存：记录本机绝对路径（NuGet/输出），每次打包自动重建
+*.assets.cache
+
 ## Temp signing cert is committed (matches WinForms reference)
 !FancyToolAva.Msix_TemporaryKey.pfx
 
