@@ -12,6 +12,25 @@
   avformat→avcodec→avutil、avfilter→swscale→swresample→avutil；
   avdevice 未使用，不随包分发。exe（ffmpeg/ffprobe/ffplay）不分发。
 
+## 获取方式（仓库不收录二进制）
+
+2026-10-19 起 `win-x64/`、`linux-x64/` 不再入库：FFmpeg 六库单文件超过 GitHub 的 100 MB 限制，
+推送会被直接拒绝。首次构建或发布前按下方记录下载并校验：
+
+```powershell
+# 当前平台（或 -Platform all / win / linux）下载、解出六库并逐文件校验 SHA-256
+pwsh -File FancyTool/Libraries/FFmpeg/fetch-ffmpeg.ps1 -Platform all
+
+# 只校验本地已有文件的 SHA-256
+pwsh -File FancyTool/Libraries/FFmpeg/fetch-ffmpeg.ps1 -VerifyOnly
+
+# 离线：把上方 release 里的两个发布包放进同一目录后指定
+pwsh -File FancyTool/Libraries/FFmpeg/fetch-ffmpeg.ps1 -ArchiveDirectory D:\downloads
+```
+
+脚本从本文件读取 release tag、发布包名与 SHA-256（单一来源）；下载缓存与解包临时目录位于已忽略的
+`.qa/ffmpeg-fetch/`。缺少对应平台的库时 `FancyToolAva.csproj` 会以 `FT1001` 中断构建，避免产出装不上解码库的应用。
+
 ## 共享库 SHA-256
 
 ### win-x64
@@ -34,7 +53,8 @@
 
 ## 升级须知
 
-目录通配符意味着升级 FFmpeg 解进新 DLL/so 会被静默带上包，需人工核对：
+升级流程：先更新本文件的版本、发布包名与全部 SHA-256，再执行
+`pwsh -File FancyTool/Libraries/FFmpeg/fetch-ffmpeg.ps1 -Force` 重新获取（目录通配符会把解出的新库带上包，需人工核对）。
 六库 ABI 主版本必须保持兼容（avcodec-63/avformat-63/avutil-61/swresample-7/swscale-10/avfilter-12），
 当前 libavutil 61.14、avcodec 63.20、avformat 63.10、avfilter 12.5、swscale 10.2、swresample 7.3，保持 FFmpeg.AutoGen 9.0.1.1 的 ABI 主版本；不得只混换单个库，升级后必须执行完整转码、HDR 与 GPU 烟测。
 

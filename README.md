@@ -212,7 +212,7 @@ dotnet run -c Debug
 | [Avalonia.Skia](https://github.com/AvaloniaUI/Avalonia) | Skia 渲染层（Avalonia Desktop 传递依赖） | MIT |
 | [SkiaSharp](https://github.com/mono/SkiaSharp) | 图片处理与格式转换（直接用于 ICO / PNG / JPEG / WebP / HEIF / GIF / BMP 编码） | MIT |
 | [HarfBuzzSharp](https://github.com/harfbuzz/harfbuzz-sharp) | 文字整形（Avalonia Desktop 传递依赖） | MIT |
-| [FFmpeg](https://ffmpeg.org/) | 视频/音频转码（FFmpeg GPL shared 库（固定 N-127579，六库 ABI 与 9.0 绑定兼容）随应用分发，进程内经 FFmpeg.AutoGen 直调，见 `FancyTool/Libraries/FFmpeg/BUILD_INFO.md`） | GPL-3.0 |
+| [FFmpeg](https://ffmpeg.org/) | 视频/音频转码（FFmpeg GPL shared 库（固定 N-127579，六库 ABI 与 9.0 绑定兼容）随应用分发，进程内经 FFmpeg.AutoGen 直调；二进制不入库，首次构建前运行 `FancyTool/Libraries/FFmpeg/fetch-ffmpeg.ps1`，见 `FancyTool/Libraries/FFmpeg/BUILD_INFO.md`） | GPL-3.0 |
 | [FFmpeg.AutoGen](https://github.com/Ruslan-B/FFmpeg.AutoGen) | FFmpeg C API 的 .NET 绑定 | MIT |
 | [Packaging.Targets](https://github.com/qmfrederik/dotnet-packaging) | Linux `.deb` 包打包（`CreateDeb` MSBuild 目标） | MIT |
 
@@ -222,6 +222,7 @@ dotnet run -c Debug
 
 视频转码功能捆绑分发 FFmpeg GPL shared 库（固定 N-127579，六库 ABI 与 9.0 绑定兼容）（含 libx264/libx265 等 GPL 组件，位于应用根目录，
 许可证文本随应用分发至 `Licenses/FFmpeg.txt`），因此本仓库自捆绑之日起由 MIT 变更为 GPL-3.0。
+六库二进制不入库（单文件超过 GitHub 的 100 MB 限制），首次构建前运行 `pwsh -File FancyTool/Libraries/FFmpeg/fetch-ffmpeg.ps1` 获取并校验。
 
 ## 🗂️ 数据存储
 

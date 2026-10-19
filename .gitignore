@@ -5,3 +5,8 @@
 
 # 外部烟测误用当前目录时也不收录生成文件。
 /build/
+
+# FFmpeg shared 六库单文件超过 GitHub 的 100 MB 限制，不入库；用
+# FancyTool/Libraries/FFmpeg/fetch-ffmpeg.ps1 按 BUILD_INFO.md 的 SHA-256 获取。
+/FancyTool/Libraries/FFmpeg/win-x64/
+/FancyTool/Libraries/FFmpeg/linux-x64/

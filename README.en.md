@@ -204,7 +204,7 @@ dotnet run -c Debug
 | [Avalonia.Skia](https://github.com/AvaloniaUI/Avalonia) | Skia renderer (transitive via Avalonia Desktop) | MIT |
 | [SkiaSharp](https://github.com/mono/SkiaSharp) | Image processing & format conversion (directly drives ICO / PNG / JPEG / WebP / HEIF / GIF / BMP encoding) | MIT |
 | [HarfBuzzSharp](https://github.com/harfbuzz/harfbuzz-sharp) | Text shaping (transitive via Avalonia Desktop) | MIT |
-| [FFmpeg](https://ffmpeg.org/) | Video/audio transcoding (FFmpeg GPL shared libraries (pinned N-127579, compatible with the 9.0 binding ABI) bundled with the app, called in-process via FFmpeg.AutoGen; see `FancyTool/Libraries/FFmpeg/BUILD_INFO.md`) | GPL-3.0 |
+| [FFmpeg](https://ffmpeg.org/) | Video/audio transcoding (FFmpeg GPL shared libraries (pinned N-127579, compatible with the 9.0 binding ABI) bundled with the app, called in-process via FFmpeg.AutoGen; the binaries are not tracked — run `FancyTool/Libraries/FFmpeg/fetch-ffmpeg.ps1` before the first build, see `FancyTool/Libraries/FFmpeg/BUILD_INFO.md`) | GPL-3.0 |
 | [FFmpeg.AutoGen](https://github.com/Ruslan-B/FFmpeg.AutoGen) | .NET bindings for the FFmpeg C API | MIT |
 | [Packaging.Targets](https://github.com/qmfrederik/dotnet-packaging) | Linux `.deb` packaging (`CreateDeb` MSBuild target) | MIT |
 
@@ -215,6 +215,8 @@ This project is licensed under the [GPL-3.0 License](LICENSE).
 The video transcode feature bundles FFmpeg GPL shared libraries (pinned N-127579, compatible with the 9.0 binding ABI; these include GPL components such as
 libx264/libx265; placed next to the app executable, license text shipped as `Licenses/FFmpeg.txt`). Because of
 this bundling, the repository license changed from MIT to GPL-3.0.
+The six library binaries are not tracked (each exceeds GitHub's 100 MB limit); run
+`pwsh -File FancyTool/Libraries/FFmpeg/fetch-ffmpeg.ps1` before the first build to fetch and verify them.
 
 ## 🗂️ Data Storage
 
