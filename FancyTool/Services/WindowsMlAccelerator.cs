@@ -181,11 +181,23 @@ internal static class WindowsMlAccelerator
     }
 
     /// <summary>Installs compatible certified vendor providers through Microsoft's catalog when explicitly requested.</summary>
-    internal static async Task InstallAsync(Action<string>? progress, CancellationToken ct)
+    internal static Task InstallAsync(Action<string>? progress, CancellationToken ct)
     {
 #if WINDOWS
         if (!OperatingSystem.IsWindowsVersionAtLeast(10, 0, 26100))
             throw new PlatformNotSupportedException("Windows ML hardware providers require Windows 11 24H2 or later.");
+        // GetDefault/FindAllProviders 会同步枚举 GPU/NPU 驱动，TryRegister 会同步加载厂商 EP 的原生
+        // DLL，已安装组件的 EnsureReadyAsync 也常同步完成；而信号量空闲时 ConfigureAwait(false) 并
+        // 不会离开调用线程，导致整段同步代码落在 UI 线程上。必须整体移入线程池执行，
+        // 与上方 RegisterInstalledAsync 的 Task.Run 包装保持一致。
+        return Task.Run(() => InstallCoreAsync(progress, ct), ct);
+#else
+        return Task.FromException(new PlatformNotSupportedException("Windows ML requires Windows"));
+#endif
+    }
+#if WINDOWS
+    private static async Task InstallCoreAsync(Action<string>? progress, CancellationToken ct)
+    {
         await CatalogGate.WaitAsync(ct).ConfigureAwait(false);
         try
         {
@@ -203,9 +215,6 @@ internal static class WindowsMlAccelerator
             }
         }
         finally { CatalogGate.Release(); }
-#else
-        await Task.CompletedTask;
-        throw new PlatformNotSupportedException("Windows ML requires Windows");
-#endif
     }
+#endif
 }

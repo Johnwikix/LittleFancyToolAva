@@ -541,8 +541,9 @@ public partial class ImageConvertViewModel : ViewModelBase, IViewState, IFileIte
 
         // Return GPU/GL resources: destroy ONNX/DML sessions so their shared-memory
         // reservations are released back to the OS when the batch is done.
+        // ReleaseSessions 持推理锁并同步 Dispose 原生会话，移出 UI 线程执行。
         if (srEnabled)
-            _superResolutionService.ReleaseSessions();
+            await Task.Run(() => _superResolutionService.ReleaseSessions());
 
         // Return large (multi-GB) LOH allocations to the OS after the batch work is done.
         await Task.Run(() =>

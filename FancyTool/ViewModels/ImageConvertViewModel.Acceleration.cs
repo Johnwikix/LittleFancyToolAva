@@ -32,7 +32,8 @@ public partial class ImageConvertViewModel
         {
             SrDeviceText = LocalizationRegistry.Get("VideoTranscode.Sr_InstallingHardware");
             await _superResolutionService.InstallAccelerationAsync(cancellation.Token);
-            _superResolutionService.ReleaseSessions();
+            // ReleaseSessions 需持推理锁并同步 Dispose 原生 DML 会话，不能在 UI 线程执行。
+            await Task.Run(() => _superResolutionService.ReleaseSessions());
             SrDeviceText = LocalizationRegistry.Get("VideoTranscode.Sr_HardwareReady");
         }
         catch (OperationCanceledException) { SrDeviceText = LocalizationRegistry.Get("VideoTranscode.Sr_InstallCanceled"); }
