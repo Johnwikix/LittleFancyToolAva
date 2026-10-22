@@ -35,6 +35,23 @@
                 <StackPanel Spacing="4">
                     <Border Classes="ToolCard">
                         <StackPanel Classes="ToolCardContent" Spacing="4">
+                            <TextBlock Classes="SectionHeader" Text="{lan:I18n LinkTest.Label_Function}" />
+                            <Grid Classes="FormRow2" ColumnDefinitions="*,12,*">
+                                <RadioButton Grid.Column="0"
+                                             Content="{lan:I18n LinkTest.Mode_Debug}"
+                                             GroupName="TcpFunction"
+                                             IsChecked="{Binding FunctionIndex, Mode=TwoWay, Converter={StaticResource IntEq}, ConverterParameter=0}" />
+                                <RadioButton Grid.Column="2"
+                                             Content="{lan:I18n LinkTest.Mode_LinkTest}"
+                                             GroupName="TcpFunction"
+                                             IsChecked="{Binding FunctionIndex, Mode=TwoWay, Converter={StaticResource IntEq}, ConverterParameter=1}" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Classes="ToolCard"
+                            IsVisible="{Binding FunctionIndex, Converter={StaticResource IntEq}, ConverterParameter=0}">
+                        <StackPanel Classes="ToolCardContent" Spacing="4">
                             <TextBlock Classes="SectionHeader" Text="{lan:I18n Tcp.Group_ConnectMode}" />
                             <Grid Classes="FormRow2" ColumnDefinitions="*,12,*">
                                 <RadioButton Grid.Column="0"
@@ -65,7 +82,55 @@
                         </StackPanel>
                     </Border>
 
-                    <Border Classes="ToolCard">
+                    <Border Classes="ToolCard"
+                            IsVisible="{Binding FunctionIndex, Converter={StaticResource IntEq}, ConverterParameter=1}">
+                        <StackPanel Classes="ToolCardContent" Spacing="4">
+                            <TextBlock Classes="SectionHeader" Text="{lan:I18n LinkTest.Group_Settings}" />
+                            <Grid Classes="FormRow2" ColumnDefinitions="*,12,*">
+                                <RadioButton Grid.Column="0"
+                                             Content="{lan:I18n LinkTest.Role_Receiver}"
+                                             GroupName="TcpLinkRole"
+                                             IsChecked="{Binding LinkRoleIndex, Mode=TwoWay, Converter={StaticResource IntEq}, ConverterParameter=0}" />
+                                <RadioButton Grid.Column="2"
+                                             Content="{lan:I18n LinkTest.Role_Sender}"
+                                             GroupName="TcpLinkRole"
+                                             IsChecked="{Binding LinkRoleIndex, Mode=TwoWay, Converter={StaticResource IntEq}, ConverterParameter=1}" />
+                            </Grid>
+                            <TextBlock Classes="Caption"
+                                       IsVisible="{Binding LinkRoleIndex, Converter={StaticResource IntEq}, ConverterParameter=0}"
+                                       Text="{lan:I18n LinkTest.Hint_ReceiverEndpoint}" />
+                            <TextBlock Classes="Caption"
+                                       IsVisible="{Binding LinkRoleIndex, Converter={StaticResource IntEq}, ConverterParameter=1}"
+                                       Text="{lan:I18n LinkTest.Hint_SenderEndpoint}" />
+                            <Grid Classes="FormRow2" ColumnDefinitions="*,12,*">
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Classes="FieldLabel" Text="{lan:I18n Tcp.Label_Address}" />
+                                    <TextBox Text="{Binding Address, Mode=TwoWay}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Classes="FieldLabel" Text="{lan:I18n Tcp.Label_Port}" />
+                                    <TextBox Text="{Binding Port, Mode=TwoWay}" />
+                                </StackPanel>
+                            </Grid>
+                            <StackPanel Classes="FormRow">
+                                <TextBlock Classes="FieldLabel" Text="{lan:I18n LinkTest.Label_Duration}" />
+                                <NumericUpDown Minimum="1" Maximum="600" Value="{Binding LinkDurationSec, Mode=TwoWay}" />
+                            </StackPanel>
+                            <StackPanel Classes="FormRow">
+                                <TextBlock Classes="FieldLabel" Text="{lan:I18n LinkTest.Label_ChunkKB}" />
+                                <NumericUpDown Minimum="1" Maximum="4096" Value="{Binding LinkChunkKB, Mode=TwoWay}" />
+                            </StackPanel>
+                            <StackPanel Classes="ActionBar">
+                                <Button Command="{Binding StartLinkTestCommand}" Classes="Primary" Content="{lan:I18n LinkTest.Button_Start}"
+                                        IsEnabled="{Binding LinkTest.IsRunning, Converter={StaticResource Inv}}" />
+                                <Button Command="{Binding StopLinkTestCommand}" Classes="Danger" Content="{lan:I18n Common.Button_Stop}"
+                                        IsEnabled="{Binding LinkTest.IsRunning}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Classes="ToolCard"
+                            IsVisible="{Binding FunctionIndex, Converter={StaticResource IntEq}, ConverterParameter=0}">
                         <StackPanel Classes="ToolCardContent" Spacing="4">
                             <TextBlock Classes="SectionHeader" Text="{lan:I18n Tcp.Group_Options}" />
                             <CheckBox Content="{lan:I18n Tcp.Option_HexSend}" IsChecked="{Binding IsHexSend, Mode=TwoWay}" />
@@ -122,7 +187,8 @@
 
             <Grid Grid.Column="1" RowDefinitions="3*,8,2*" Margin="10,0,0,0">
 
-                <Border Grid.Row="0" Classes="ToolCard" Padding="0">
+                <Border Grid.Row="0" Classes="ToolCard" Padding="0"
+                        IsVisible="{Binding FunctionIndex, Converter={StaticResource IntEq}, ConverterParameter=0}">
                     <Grid RowDefinitions="Auto,*,Auto">
                         <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="16,12,16,8">
                             <TextBlock Classes="SectionHeader" Grid.Column="0" Text="{lan:I18n Tcp.Group_Log}" />
@@ -145,7 +211,70 @@
                     </Grid>
                 </Border>
 
-                <Border Grid.Row="2" Classes="ToolCard" Padding="0">
+                <Border Grid.Row="0" Classes="ToolCard" Padding="0"
+                        IsVisible="{Binding FunctionIndex, Converter={StaticResource IntEq}, ConverterParameter=1}">
+                    <Grid RowDefinitions="Auto,*" Margin="16,12,16,12">
+                        <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+                            <TextBlock Classes="SectionHeader" Grid.Column="0" Text="{lan:I18n LinkTest.Group_Stats}" />
+                            <TextBlock Classes="Caption" Grid.Column="1" VerticalAlignment="Center"
+                                       Text="{Binding LinkTest.StatusText}" />
+                        </Grid>
+                        <StackPanel Grid.Row="1" Spacing="12" VerticalAlignment="Center">
+                            <StackPanel Spacing="2">
+                                <TextBlock Classes="Caption" Text="{lan:I18n LinkTest.Label_CurrentSpeed}" />
+                                <TextBlock Text="{Binding LinkTest.CurrentSpeedText}"
+                                           FontSize="28" FontWeight="SemiBold"
+                                           FontFamily="{StaticResource MonoFontFamily}" />
+                            </StackPanel>
+                            <Grid ColumnDefinitions="*,12,*,12,*">
+                                <StackPanel Grid.Column="0" Spacing="2">
+                                    <TextBlock Classes="Caption" Text="{lan:I18n LinkTest.Label_AvgSpeed}" />
+                                    <TextBlock Text="{Binding LinkTest.AvgSpeedText}" Classes="Caption"
+                                               FontFamily="{StaticResource MonoFontFamily}" FontSize="{StaticResource MonoFontSize}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Spacing="2">
+                                    <TextBlock Classes="Caption" Text="{lan:I18n LinkTest.Label_TotalData}" />
+                                    <TextBlock Text="{Binding LinkTest.TotalDataText}" Classes="Caption"
+                                               FontFamily="{StaticResource MonoFontFamily}" FontSize="{StaticResource MonoFontSize}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="4" Spacing="2">
+                                    <TextBlock Classes="Caption" Text="{lan:I18n LinkTest.Label_Elapsed}" />
+                                    <TextBlock Text="{Binding LinkTest.ElapsedText}" Classes="Caption"
+                                               FontFamily="{StaticResource MonoFontFamily}" FontSize="{StaticResource MonoFontSize}" />
+                                </StackPanel>
+                            </Grid>
+                            <ProgressBar Minimum="0" Maximum="100"
+                                         Value="{Binding LinkTest.ProgressValue}"
+                                         IsVisible="{Binding LinkTest.IsSender}" />
+                            <Grid ColumnDefinitions="*,12,*,12,*,12,*"
+                                  IsVisible="{Binding LinkTest.HasLossStats}">
+                                <StackPanel Grid.Column="0" Spacing="2">
+                                    <TextBlock Classes="Caption" Text="{lan:I18n LinkTest.Label_PacketsSent}" />
+                                    <TextBlock Text="{Binding LinkTest.SentPacketsText}" Classes="Caption"
+                                               FontFamily="{StaticResource MonoFontFamily}" FontSize="{StaticResource MonoFontSize}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Spacing="2">
+                                    <TextBlock Classes="Caption" Text="{lan:I18n LinkTest.Label_PacketsReceived}" />
+                                    <TextBlock Text="{Binding LinkTest.ReceivedPacketsText}" Classes="Caption"
+                                               FontFamily="{StaticResource MonoFontFamily}" FontSize="{StaticResource MonoFontSize}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="4" Spacing="2">
+                                    <TextBlock Classes="Caption" Text="{lan:I18n LinkTest.Label_PacketsLost}" />
+                                    <TextBlock Text="{Binding LinkTest.LostPacketsText}" Classes="Caption"
+                                               FontFamily="{StaticResource MonoFontFamily}" FontSize="{StaticResource MonoFontSize}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="6" Spacing="2">
+                                    <TextBlock Classes="Caption" Text="{lan:I18n LinkTest.Label_LossRate}" />
+                                    <TextBlock Text="{Binding LinkTest.LossRateText}" Classes="Caption"
+                                               FontFamily="{StaticResource MonoFontFamily}" FontSize="{StaticResource MonoFontSize}" />
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <Border Grid.Row="2" Classes="ToolCard" Padding="0"
+                        IsVisible="{Binding FunctionIndex, Converter={StaticResource IntEq}, ConverterParameter=0}">
                     <Grid RowDefinitions="Auto,*,Auto">
                         <TextBlock Grid.Row="0" Classes="SectionHeader" Text="{lan:I18n Serial.Group_Send}" Margin="16,12,16,8" />
                         <TextBox Grid.Row="1"
@@ -155,6 +284,21 @@
                         <StackPanel Grid.Row="2" Classes="ActionBar" Margin="16,0,16,12">
                             <Button Command="{Binding SendCommand}" Classes="Primary" Content="{lan:I18n Common.Button_Send}" />
                         </StackPanel>
+                    </Grid>
+                </Border>
+
+                <Border Grid.Row="2" Classes="ToolCard" Padding="0"
+                        IsVisible="{Binding FunctionIndex, Converter={StaticResource IntEq}, ConverterParameter=1}">
+                    <Grid RowDefinitions="Auto,*,Auto">
+                        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="16,12,16,8">
+                            <TextBlock Classes="SectionHeader" Grid.Column="0" Text="{lan:I18n LinkTest.Group_Results}" />
+                            <Button Grid.Column="1" Classes="Quiet" Command="{Binding LinkTest.ClearResultsCommand}"
+                                    Content="{lan:I18n Common.Button_Clear}" />
+                        </Grid>
+                        <TextBox Grid.Row="1"
+                                 Classes="TerminalBoxReadOnly"
+                                 Margin="16,0,16,8"
+                                 Text="{Binding LinkTest.ResultLog}" />
                     </Grid>
                 </Border>
             </Grid>

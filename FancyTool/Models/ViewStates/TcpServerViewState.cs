@@ -13,4 +13,8 @@ public class TcpServerViewState
     public int PollInterval { get; set; } = 1000;
     public bool EnableSendCount { get; set; }
     public int SendCount { get; set; } = 1;
+    public int FunctionIndex { get; set; }
+    public int LinkRoleIndex { get; set; }
+    public int LinkDurationSec { get; set; } = 10;
+    public int LinkChunkKB { get; set; } = 64;
 }

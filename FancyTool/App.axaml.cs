@@ -155,6 +155,8 @@ namespace FancyToolAva
             services.AddSingleton<ISerialPortService, SerialPortService>();
             services.AddSingleton<ITcpServerService, TcpServerService>();
             services.AddSingleton<IUdpService, UdpService>();
+            services.AddSingleton<TcpLinkTestService>();
+            services.AddSingleton<UdpLinkTestService>();
 
             services.AddTransient<MainWindowViewModel>();
             services.AddTransient<HomeViewModel>();

@@ -16,6 +16,7 @@ namespace FancyToolAva.ViewModels
     public partial class TcpServerViewModel : ViewModelBase, IViewState, IViewLifecycle
     {
         private readonly ITcpServerService _tcpService;
+        private readonly TcpLinkTestService _linkTestService;
         private readonly INotificationService _notificationService;
         private readonly IViewStateService _viewStateService;
         private readonly IFileDialogService _fileDialogService;
@@ -34,6 +35,43 @@ namespace FancyToolAva.ViewModels
         public ObservableCollection<string> ConnectedClients => _tcpService.ConnectedClients;
 
         public LogBuffer Log { get; } = new();
+
+        /// <summary>链路测试（带宽）独立模式的呈现状态。</summary>
+        public LinkTestPresenter LinkTest { get; }
+
+        /// <summary>页面功能：0 = 通信调试，1 = 链路测试。</summary>
+        public int FunctionIndex
+        {
+            get;
+            set
+            {
+                if (SetProperty(ref field, value))
+                {
+                    OnFunctionIndexChanged(value);
+                }
+            }
+        }
+
+        /// <summary>链路测试角色：0 = 接收端（服务器），1 = 发送端（客户端）。</summary>
+        public int LinkRoleIndex
+        {
+            get;
+            set => SetProperty(ref field, value);
+        }
+
+        /// <summary>链路测试时长（秒）。</summary>
+        public int LinkDurationSec
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = 10;
+
+        /// <summary>链路测试发送块大小（KB）。</summary>
+        public int LinkChunkKB
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = 64;
 
         public int ModeIndex
         {
@@ -195,9 +233,11 @@ namespace FancyToolAva.ViewModels
 
         string IViewState.ViewName => "tcpServerView";
 
-        public TcpServerViewModel(ITcpServerService tcpService, INotificationService notificationService, IViewStateService viewStateService, IFileDialogService fileDialogService, AppObserveModel app)
+        public TcpServerViewModel(ITcpServerService tcpService, TcpLinkTestService linkTestService, INotificationService notificationService, IViewStateService viewStateService, IFileDialogService fileDialogService, AppObserveModel app)
         {
             _tcpService = tcpService;
+            _linkTestService = linkTestService;
+            LinkTest = new LinkTestPresenter(linkTestService);
             _notificationService = notificationService;
             _viewStateService = viewStateService;
             _fileDialogService = fileDialogService;
@@ -239,7 +279,11 @@ namespace FancyToolAva.ViewModels
             FrameBreakInterval = FrameBreakInterval,
             PollInterval = PollInterval,
             EnableSendCount = EnableSendCount,
-            SendCount = SendCount
+            SendCount = SendCount,
+            FunctionIndex = FunctionIndex,
+            LinkRoleIndex = LinkRoleIndex,
+            LinkDurationSec = LinkDurationSec,
+            LinkChunkKB = LinkChunkKB
         };
 
         void IViewState.RestoreState(object state)
@@ -257,6 +301,10 @@ namespace FancyToolAva.ViewModels
                 PollInterval = s.PollInterval;
                 EnableSendCount = s.EnableSendCount;
                 SendCount = s.SendCount;
+                LinkRoleIndex = s.LinkRoleIndex;
+                LinkDurationSec = s.LinkDurationSec;
+                LinkChunkKB = s.LinkChunkKB;
+                FunctionIndex = s.FunctionIndex; // 最后切换功能，避免中途触发互斥停止
             }
         }
 
@@ -615,6 +663,67 @@ namespace FancyToolAva.ViewModels
         private void StopPolling()
         {
             _pollCts?.Cancel();
+        }
+
+        [RelayCommand]
+        private async Task StartLinkTest()
+        {
+            if (LinkTest.IsRunning) return;
+            if (!int.TryParse(Port, out int portNum) || portNum < 1 || portNum > 65535)
+            {
+                _notificationService.ShowWarn(LocalizationRegistry.Get("Tcp.Msg_InvalidPort"));
+                return;
+            }
+
+            // 链路测试与通信调试不能同时占用同一端口：进入测试前先停通信
+            if (IsAnyActive) Stop();
+
+            bool isSender = LinkRoleIndex == 1;
+            LinkTest.Begin(isSender, LinkDurationSec, hasLossStats: false);
+            var options = new LinkTestOptions
+            {
+                DurationSec = LinkDurationSec,
+                ChunkSize = LinkChunkKB * 1024,
+                ConnectTimeoutSec = Math.Max(1, _app.Preferences.ConnectionTimeoutSec),
+            };
+
+            try
+            {
+                if (isSender)
+                {
+                    await _linkTestService.StartSenderAsync(Address, portNum, options);
+                }
+                else
+                {
+                    await _linkTestService.StartReceiverAsync(Address, portNum);
+                }
+            }
+            catch (Exception ex)
+            {
+                var failMsg = LocalizationRegistry.Get("LinkTest.Msg_StartFail", ex.Message);
+                LinkTest.Fail(failMsg);
+                _notificationService.ShowError(failMsg);
+            }
+        }
+
+        [RelayCommand]
+        private async Task StopLinkTest()
+        {
+            await _linkTestService.StopAsync();
+        }
+
+        private void OnFunctionIndexChanged(int value)
+        {
+            if (value == 1)
+            {
+                // 通信调试与链路测试共用端口配置，进入测试模式前停掉当前通信
+                if (IsAnyActive) Stop();
+            }
+            else
+            {
+                // 切回通信调试：停止在途测试
+                _ = _linkTestService.StopAsync();
+            }
         }
 
         private void OnFrameBreakIntervalChanged(int value)

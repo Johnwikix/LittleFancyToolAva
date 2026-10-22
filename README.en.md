@@ -53,8 +53,8 @@
 ### 🛰️ Communication Debug
 
 - 🛰️ **Serial Port Debug**: send / receive over COM ports via `System.IO.Ports`
-- 🌐 **TCP Server**: TCP server-side debug tool with connection management
-- 📡 **UDP Communication**: UDP send / receive debug with HEX / ASCII switching
+- 🌐 **TCP Server**: TCP server-side debug tool with connection management, plus an independent link-test mode for TCP bandwidth
+- 📡 **UDP Communication**: UDP send / receive debug with HEX / ASCII switching, plus an independent link-test mode for UDP bandwidth and packet loss
 
 ### 🔐 Encryption & Encoding
 

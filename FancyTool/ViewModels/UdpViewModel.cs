@@ -15,6 +15,7 @@ namespace FancyToolAva.ViewModels
     public partial class UdpViewModel : ViewModelBase, IViewState, IViewLifecycle
     {
         private readonly IUdpService _udpService;
+        private readonly UdpLinkTestService _linkTestService;
         private readonly INotificationService _notificationService;
         private readonly IViewStateService _viewStateService;
         private readonly IFileDialogService _fileDialogService;
@@ -29,6 +30,50 @@ namespace FancyToolAva.ViewModels
         private long _pendingTxCount;
 
         public LogBuffer Log { get; } = new();
+
+        /// <summary>链路测试（带宽 / 丢包率）独立模式的呈现状态。</summary>
+        public LinkTestPresenter LinkTest { get; }
+
+        /// <summary>页面功能：0 = 通信调试，1 = 链路测试。</summary>
+        public int FunctionIndex
+        {
+            get;
+            set
+            {
+                if (SetProperty(ref field, value))
+                {
+                    OnFunctionIndexChanged(value);
+                }
+            }
+        }
+
+        /// <summary>链路测试角色：0 = 接收端，1 = 发送端。</summary>
+        public int LinkRoleIndex
+        {
+            get;
+            set => SetProperty(ref field, value);
+        }
+
+        /// <summary>链路测试时长（秒）。</summary>
+        public int LinkDurationSec
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = 10;
+
+        /// <summary>链路测试 UDP 包大小（字节，含协议头）。</summary>
+        public int LinkPacketSize
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = 1400;
+
+        /// <summary>目标发送速率（Mbps）；0 = 不限速。</summary>
+        public int LinkRateMbps
+        {
+            get;
+            set => SetProperty(ref field, value);
+        } = 10;
 
         public int ModeIndex
         {
@@ -184,9 +229,11 @@ namespace FancyToolAva.ViewModels
 
         string IViewState.ViewName => "udpView";
 
-        public UdpViewModel(IUdpService udpService, INotificationService notificationService, IViewStateService viewStateService, IFileDialogService fileDialogService, AppObserveModel app)
+        public UdpViewModel(IUdpService udpService, UdpLinkTestService linkTestService, INotificationService notificationService, IViewStateService viewStateService, IFileDialogService fileDialogService, AppObserveModel app)
         {
             _udpService = udpService;
+            _linkTestService = linkTestService;
+            LinkTest = new LinkTestPresenter(linkTestService);
             _notificationService = notificationService;
             _viewStateService = viewStateService;
             _fileDialogService = fileDialogService;
@@ -224,7 +271,12 @@ namespace FancyToolAva.ViewModels
             FrameBreakInterval = FrameBreakInterval,
             PollInterval = PollInterval,
             EnableSendCount = EnableSendCount,
-            SendCount = SendCount
+            SendCount = SendCount,
+            FunctionIndex = FunctionIndex,
+            LinkRoleIndex = LinkRoleIndex,
+            LinkDurationSec = LinkDurationSec,
+            LinkPacketSize = LinkPacketSize,
+            LinkRateMbps = LinkRateMbps
         };
 
         void IViewState.RestoreState(object state)
@@ -245,6 +297,11 @@ namespace FancyToolAva.ViewModels
                 PollInterval = s.PollInterval;
                 EnableSendCount = s.EnableSendCount;
                 SendCount = s.SendCount;
+                LinkRoleIndex = s.LinkRoleIndex;
+                LinkDurationSec = s.LinkDurationSec;
+                LinkPacketSize = s.LinkPacketSize;
+                LinkRateMbps = s.LinkRateMbps;
+                FunctionIndex = s.FunctionIndex; // 最后切换功能，避免中途触发互斥停止
             }
         }
 
@@ -562,6 +619,80 @@ namespace FancyToolAva.ViewModels
         private void StopPolling()
         {
             _pollCts?.Cancel();
+        }
+
+        [RelayCommand]
+        private async Task StartLinkTest()
+        {
+            if (LinkTest.IsRunning) return;
+            bool isSender = LinkRoleIndex == 1;
+
+            // 发送端校验目标地址端口，接收端校验本地绑定端口
+            string portText = isSender ? RemotePort : LocalPort;
+            if (!int.TryParse(portText, out int portNum) || portNum < 1 || portNum > 65535)
+            {
+                _notificationService.ShowWarn(isSender
+                    ? LocalizationRegistry.Get("Udp.Msg_InvalidRemotePort")
+                    : LocalizationRegistry.Get("Udp.Msg_InvalidLocalPort"));
+                return;
+            }
+            if (LinkPacketSize < LinkTestUdpProtocol.MinPacketSize || LinkPacketSize > LinkTestUdpProtocol.MaxPacketSize)
+            {
+                _notificationService.ShowWarn(LocalizationRegistry.Get(
+                    "LinkTest.Msg_InvalidPacketSize",
+                    LinkTestUdpProtocol.MinPacketSize,
+                    LinkTestUdpProtocol.MaxPacketSize));
+                return;
+            }
+
+            // 链路测试与通信调试不能同时占用同一端口：进入测试前先停通信
+            if (IsRunning) Stop();
+
+            LinkTest.Begin(isSender, LinkDurationSec, hasLossStats: true);
+            var options = new LinkTestOptions
+            {
+                DurationSec = LinkDurationSec,
+                ChunkSize = LinkPacketSize,
+                RateLimitBps = LinkRateMbps <= 0 ? 0 : (long)Math.Round(LinkRateMbps * 1_000_000.0 / 8.0),
+            };
+
+            try
+            {
+                if (isSender)
+                {
+                    await _linkTestService.StartSenderAsync(RemoteAddress, portNum, options);
+                }
+                else
+                {
+                    await _linkTestService.StartReceiverAsync(LocalAddress, portNum);
+                }
+            }
+            catch (Exception ex)
+            {
+                var failMsg = LocalizationRegistry.Get("LinkTest.Msg_StartFail", ex.Message);
+                LinkTest.Fail(failMsg);
+                _notificationService.ShowError(failMsg);
+            }
+        }
+
+        [RelayCommand]
+        private async Task StopLinkTest()
+        {
+            await _linkTestService.StopAsync();
+        }
+
+        private void OnFunctionIndexChanged(int value)
+        {
+            if (value == 1)
+            {
+                // 通信调试与链路测试共用端口配置，进入测试模式前停掉当前通信
+                if (IsRunning) Stop();
+            }
+            else
+            {
+                // 切回通信调试：停止在途测试
+                _ = _linkTestService.StopAsync();
+            }
         }
 
         private void OnFrameBreakIntervalChanged(int value)
