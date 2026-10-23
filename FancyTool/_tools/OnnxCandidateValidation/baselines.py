@@ -12,8 +12,7 @@ def main():
     path = args.work / 'manifest.json'
     manifest = json.loads(path.read_text(encoding='utf-8-sig'))
     manifest['models'] = [model for model in manifest['models'] if model['family'] != 'baseline']
-    for name, filename, scale in [('baseline_clearreality', '4x-ClearRealityV1_fp16.onnx', 4),
-                                   ('baseline_liveaction', '2xLiveActionV1_SPAN.onnx', 2)]:
+    for name, filename, scale in [('baseline_clearreality', '4x-ClearRealityV1_fp16.onnx', 4)]:
         model_path = (args.models / filename).resolve(strict=True)
         manifest['models'].append({'name': name, 'family': 'baseline', 'path': str(model_path),
                                    'rgbPath': str(model_path), 'channels': 3, 'nativeScale': scale,

@@ -34,11 +34,11 @@ foreach ($model in @('anime4k_upscale_cnn_s', 'fsrcnnx_s', 'edvrm_x4_128x128_fra
 }
 ```
 
-可选基线使用本地已有的 `4x-ClearRealityV1_fp16.onnx` 和 `2xLiveActionV1_SPAN.onnx`，仅测速与转码，不作新的数值资格认证：
+可选基线使用本地已有的 `4x-ClearRealityV1_fp16.onnx`，仅测速与转码，不作新的数值资格认证：
 
 ```powershell
 & $python -I "$tools/baselines.py" $work .qa/video-sr/models
-foreach ($model in @('baseline_clearreality', 'baseline_liveaction')) {
+foreach ($model in @('baseline_clearreality')) {
     & $python -I "$tools/run.py" $work --runner $runner --model $model --gpu-only --results-subdir results-precision
 }
 & $python -I "$tools/summarize.py" $work .qa/git-history-cleanup-2026-10-17/evidence/onnx-vsr-validation-2026-10-16

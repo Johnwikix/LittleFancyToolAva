@@ -87,6 +87,26 @@ internal static partial class Program
                 passed &= changed.max == 0;
                 records.Add(new { model = model.ToString(), width, height, phase = "changed-pixel", changed.max,
                     changed.mean, changed.different, passed = changed.max == 0 });
+                if (width == 1920)
+                {
+                    using var canceled = new CancellationTokenSource();
+                    canceled.CancelAfter(2);
+                    try
+                    {
+                        // 单次执行可能先于系统定时器完成；持续执行真实 GPU 调用，直到取消送达。
+                        for (int attempt = 0; attempt < 1000; attempt++)
+                            adapted.Interpolate(.5, after, canceled.Token);
+                        throw new InvalidOperationException("Active GPU RIFE cancellation was ignored");
+                    }
+                    catch (OperationCanceledException) when (canceled.IsCancellationRequested) { }
+                    // 同一上下文再次执行，验证 Terminate 复位和原生同步完成后的结果。
+                    adapted.Interpolate(.5, after, default);
+                    var recovered = PixelDifference(before, after);
+                    passed &= recovered.max == 0;
+                    records.Add(new { model = model.ToString(), width, height, phase = "active-cancel-retry",
+                        recovered.max, recovered.mean, recovered.different, passed = recovered.max == 0 });
+                    Console.WriteLine($"GPU RIFE active cancellation/retry: {model}, max={recovered.max}");
+                }
             }
             finally { foreach (var frame in frames) frame.Dispose(); }
         }

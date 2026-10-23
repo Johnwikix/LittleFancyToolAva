@@ -19,6 +19,7 @@ internal sealed unsafe class VideoGpuPixelSession : IDisposable
     private readonly VideoInferenceRunGuard _guard;
     private readonly Action _bindPrepare;
     private readonly long[] _byteShape;
+    private readonly RunOptions _run;
     private bool _framesDirty = true;
     private bool _disposed;
     internal VideoSrDevice Device { get; }
@@ -30,6 +31,7 @@ internal sealed unsafe class VideoGpuPixelSession : IDisposable
     {
         try
         {
+            _run = Own(new RunOptions());
             var parts = VideoPixelGraph.CreateStages(path, "rife", ct);
             _prepare = Own(WindowsMlAccelerator.CreateSession(parts.Before, VideoSrBackend.VendorGpu, width, height,
                 ct, out var prepareDevice, true, useCudaGraph: false));
@@ -98,7 +100,9 @@ internal sealed unsafe class VideoGpuPixelSession : IDisposable
         ObjectDisposedException.ThrowIf(_disposed, this);
         if (_cudaFirst.Data == 0 || _cudaSecond.Data == 0) throw new InvalidOperationException("CUDA RIFE frames were not set");
         ct.ThrowIfCancellationRequested();
-        using var run = new RunOptions();
+        // 上层独占租约保证同一上下文串行；上一轮取消回调已随注册释放，再复位供下一帧使用。
+        var run = _run;
+        run.Terminate = false;
         using var registration = ct.Register(static state => ((RunOptions)state!).Terminate = true, run);
         long stamp = VideoPipelineMetrics.Start();
         _cudaPixels.PrepareRife(_cudaFirst, _cudaSecond, _prepared.DangerousGetHandle(), (int)_byteShape[2], (int)_byteShape[1], amount);
@@ -127,7 +131,9 @@ internal sealed unsafe class VideoGpuPixelSession : IDisposable
     internal void Run(CancellationToken ct)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        using var run = new RunOptions();
+        ct.ThrowIfCancellationRequested();
+        var run = _run;
+        run.Terminate = false;
         using var registration = ct.Register(static state => ((RunOptions)state!).Terminate = true, run);
         long stamp = VideoPipelineMetrics.Start();
         _guard.RunBinding(_prepare, run, _prepareBinding, ct, _bindPrepare);

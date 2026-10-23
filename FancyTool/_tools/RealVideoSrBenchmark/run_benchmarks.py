@@ -12,7 +12,7 @@ import time
 
 import numpy as np
 
-MODELS = ["NanoVsr644K", "SpanClearRealityV1", "LiveActionSpanX2", "RealEsrganGeneralX4V3"]
+MODELS = ["NanoVsr644K", "SpanClearRealityV1", "RealEsrganGeneralX4V3"]
 FIELDS = ["timestamp", "utilization.gpu", "utilization.memory", "utilization.encoder", "utilization.decoder",
           "memory.used", "power.draw", "clocks.current.sm", "temperature.gpu"]
 

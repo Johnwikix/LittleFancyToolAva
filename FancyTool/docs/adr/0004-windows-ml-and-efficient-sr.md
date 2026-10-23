@@ -1,5 +1,7 @@
 # Shared Windows ML acceleration and efficient super-resolution
 
+> 图片模型选择已由 [ADR 0015：移除非商业图片模型](0015-remove-noncommercial-image-models.md) 部分取代：UltraSharp 与 LiveAction 已从当前功能和下载清单移除。下文保留历史决策与实验数据。
+
 Windows builds use `Microsoft.Windows.AI.MachineLearning` 2.4.89, including ONNX Runtime 1.27.1 and DirectML. Image and video inference share provider discovery, hardware selection and reusable tile runners. The old separately bundled OpenVINO C API, DLLs and licenses are removed. Vendor OpenVINO is acquired and registered by Windows ML; it is not another app-owned inference runtime.
 
 Windows builds target `net10.0-windows10.0.19041.0` with minimum OS build 18362. Linux remains `net10.0` with CPU ONNX Runtime. Publish scripts, smoke projects and MSIX content paths use the corresponding TFM. Do not install another ONNX native/managed package alongside Windows ML in the Windows build. Initialize the app-local `OrtEnv` before WinRT provider registration: otherwise Windows ML may resolve the older inbox ONNX Runtime and fail during provider registration.

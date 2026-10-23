@@ -70,6 +70,10 @@
 - 🖼️ **图片转 Base64**：将图片转换为 Base64 编码字符串
 - 🖼️ **图片转换**：图片格式批量转换（jpg / png / bmp / webp / tiff / dds / jxl / heic / ico，基于 SkiaSharp）
 
+图片超分提供 RealESRGAN x4plus、x4plus anime、general x4v3 和 ClearReality V1 四款模型，支持 2× / 4×，默认使用 ClearReality。已移除采用非商业许可的模型；旧版本中选择这些模型的设置会回退到 ClearReality，其他模型选择和有效倍率保持不变。详见[模型移除决策](FancyTool/docs/adr/0015-remove-noncommercial-image-models.md)。
+
+透明图片的像素转换与透明度合成支持 SIMD 加速。保留模型的真实 GPU 复测、输出一致性和性能边界见[图片 / 视频验证报告](FancyTool/docs/gpu-inference-validation-2026-10-23.md)。
+
 ### 视频转码
 
 “滤镜”页支持 RIFE AI 插帧和无需模型的 CPU 运动补偿插帧，可选择 2×、4× 或 6× 源帧率，保持原时长和音画同步，并默认启用场景切换保护。AI 插帧提供 RIFE 4.25 Lite（默认）与 4.25，沿用 Windows ML 的 GPU/NPU 加速和 DirectML GPU 回退；模型按需下载至统一模型目录的 `Interpolation` 子目录，支持校验和目录迁移。开启插帧后，GIF 同样使用所选倍率；RIFE 可对 HDR 输入映射后补帧并输出 10 位 HDR；其他插帧方式仍需选择“强制 SDR”。与超分同时启用时自动选择处理顺序，也可手动选择先插帧或先超分；未开启超分的降分辨率输出会先缩小画面，以降低插帧计算量。NPU 首次编译大画面可能较慢，速度优先推荐 GPU。
@@ -78,7 +82,7 @@ NVIDIA 光流使用 `fruc_vulkan`，要求驱动暴露 `VK_NV_optical_flow` 等�
 
 “画质”页集中显示 AI 视频超分和 HDR 输出选项。HDR 输出可选“与源一致”“强制 HDR”“强制 SDR”：强制 HDR 将 SDR 经 BT.2446 逆映射转换为 1000 尼特目标的 10 位 PQ / BT.2020；强制 SDR 对 HDR 做亮度映射并输出 BT.709。与源一致保留 SDR、PQ 或 HLG 类型，GIF 始终输出 SDR。不支持 10 位 HDR 的编码器或档次会提示调整设置。
 
-视频超分提供 Anime4K CNN S/M、FSRCNNX s/m 和 RAVU Lite r2/r3 六档，模型随应用分发，可离线安装与校验，存放在模型管理目录的 `VideoSr` 子目录。仅使用 GPU，按模型自动选择已验证的后端，没有 CPU 回退。Anime4K / FSRCNNX 可选 FP16，使用厂商 GPU 加速（Intel 为 OpenVINO）；RAVU r2 使用 DirectML FP32，r3 使用厂商 GPU FP32。缺少兼容组件时可点击安装 GPU 加速。批量视频独占租用并复用已编译会话。2×运行一次，4×运行两次，耗时和内存更高。旧视频模型选择会迁移到 Anime4K S，图片超分仍保留原有模型。模型来源及许可见 [模型说明](FancyTool/Libraries/VideoSr/NOTICE.md)。
+视频超分提供 Anime4K CNN S/M、FSRCNNX s/m 和 RAVU Lite r2/r3 六档，模型随应用分发，可离线安装与校验，存放在模型管理目录的 `VideoSr` 子目录。仅使用 GPU，按模型自动选择已验证的后端，没有 CPU 回退。Anime4K / FSRCNNX 可选 FP16，使用厂商 GPU 加速（Intel 为 OpenVINO）；RAVU r2 使用 DirectML FP32，r3 使用厂商 GPU FP32。缺少兼容组件时可点击安装 GPU 加速。批量视频独占租用并复用已编译会话。2×运行一次，4×运行两次，耗时和内存更高。旧视频模型选择会迁移到 Anime4K S。模型来源及许可见 [模型说明](FancyTool/Libraries/VideoSr/NOTICE.md)。
 
 超分和插帧使用有界流水线，让解码、推理、编码与封装处理不同的帧。Windows 的 NVIDIA 编码任务优先使用 NVDEC；常见 8 位 SDR 和 10 位 4:2:0 PQ/HLG 输入可经 CUDA 像素转换、色调映射、超分、RIFE 直接交给 NVENC，HDR 使用 P010 硬件帧，整帧保留在显存。场景检测仅回读标志，预览先在 GPU 缩小；CPU 负责音频、调度和封装。特殊滤镜、色彩格式及 DirectML 等路径保留混合处理，硬件解码协商失败会完整重试软件解码。GPU 色彩转换与原 zscale 路径存在舍入和采样差异，不能宣称逐像素相同。设计及验证见 [显存管线设计](FancyTool/docs/adr/0011-gpu-resident-video-frames.md) 和 [RTX 5070 Ti 实测](FancyTool/docs/video-cuda-pipeline-2026-10-17.md)。
 

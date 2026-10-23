@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using System.Buffers;
 using FancyToolAva.Models;
 using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
@@ -261,14 +262,17 @@ public sealed class SuperResolutionService : ISuperResolutionService
 
                     if (hasAlpha)
                     {
+                        long alphaStamp = VideoPipelineMetrics.Start();
                         var alphaInfo = new SKImageInfo(windowSize * modelScale, windowSize * modelScale, SKColorType.Bgra8888, SKAlphaType.Premul);
                         using var alphaTile = new SKBitmap(alphaInfo);
                         UpsampleAlphaChannel(srcBitmap, alphaTile, windowX, windowY, windowSize, windowSize);
                         MergeAlphaIntoRgb(srTile, alphaTile);
+                        VideoPipelineMetrics.Record(VideoPipelineMetrics.Phase.ImageAlpha, alphaStamp);
                     }
 
                     if (targetScale < modelScale)
                     {
+                        long resizeStamp = VideoPipelineMetrics.Start();
                         using var canvas = new SKCanvas(destBitmap);
                         using var paint = new SKPaint
                         {
@@ -282,6 +286,7 @@ public sealed class SuperResolutionService : ISuperResolutionService
                                 (TilePad + tileW) * modelScale, (TilePad + tileH) * modelScale),
                             new SKRect(x * 2, y * 2, (x + tileW) * 2, (y + tileH) * 2),
                             paint);
+                        VideoPipelineMetrics.Record(VideoPipelineMetrics.Phase.ImageResize, resizeStamp);
                     }
                     else
                     {
@@ -399,7 +404,7 @@ public sealed class SuperResolutionService : ISuperResolutionService
         using var inputBitmap = SKBitmap.FromImage(tile);
         int window = tile.Width;
         var tensor = new DenseTensor<float>(new[] { 1, 3, window, window });
-        FillRgbTensor(inputBitmap, tensor, window, window);
+        FillRgbTensor(inputBitmap, tensor.Buffer.Span, window, window);
         var input = tensor.Buffer.ToArray();
         var output = new float[input.Length * scale * scale];
         npu.Infer(input, output, ct);
@@ -430,10 +435,9 @@ public sealed class SuperResolutionService : ISuperResolutionService
         var inputPins = new List<System.Runtime.InteropServices.GCHandle>();
         try
         {
-            var (inputOrt, pinHandle) = CreateInputOrt(model, srcBitmap, w, h);
-            inputOrtValues.Add(inputOrt);
-            if (pinHandle.HasValue) inputPins.Add(pinHandle.Value);
-            inputs[inputName] = inputOrt;
+            long stamp = VideoPipelineMetrics.Start();
+            using var input = CreateInputOrt(model, srcBitmap, w, h);
+            inputs[inputName] = input.Value;
 
             if (_extraInputs.TryGetValue(model, out var extras))
             {
@@ -448,7 +452,10 @@ public sealed class SuperResolutionService : ISuperResolutionService
 
             using var runOptions = new RunOptions();
             using var registration = ct.Register(() => runOptions.Terminate = true);
+            VideoPipelineMetrics.Record(VideoPipelineMetrics.Phase.SrTensorPrepare, stamp);
+            stamp = VideoPipelineMetrics.Start();
             using var outputs = session.Run(runOptions, inputs, new[] { outputName });
+            VideoPipelineMetrics.Record(VideoPipelineMetrics.Phase.SrNativeRun, stamp);
             ct.ThrowIfCancellationRequested();
             var outputValue = outputs[0];
 
@@ -460,21 +467,27 @@ public sealed class SuperResolutionService : ISuperResolutionService
             var outputInfo = new SKImageInfo(outW, outH, SKColorType.Bgra8888, SKAlphaType.Premul);
             var outBitmap = new SKBitmap(outputInfo);
 
-            if (_outputElementTypes.TryGetValue(model, out var outType) && outType == TensorElementType.Float16)
-                ReadOutputToBitmapHalf(outputValue, outBitmap, outW, outH, outChannels);
-            else
-                ReadOutputToBitmap(outputValue, outBitmap, outW, outH, outChannels);
-            return outBitmap;
+            try
+            {
+                stamp = VideoPipelineMetrics.Start();
+                if (_outputElementTypes.TryGetValue(model, out var outType) && outType == TensorElementType.Float16)
+                    ReadOutputToBitmapHalf(outputValue, outBitmap, outW, outH, outChannels);
+                else
+                    ReadOutputToBitmap(outputValue, outBitmap, outW, outH, outChannels);
+                VideoPipelineMetrics.Record(VideoPipelineMetrics.Phase.SrTensorRead, stamp);
+                return outBitmap;
+            }
+            catch { outBitmap.Dispose(); throw; }
         }
         finally
         {
-            foreach (var p in inputPins)
-            {
-                try { p.Free(); } catch { }
-            }
             foreach (var o in inputOrtValues)
             {
                 try { o.Dispose(); } catch { }
+            }
+            foreach (var p in inputPins)
+            {
+                try { p.Free(); } catch { }
             }
         }
     }
@@ -505,38 +518,67 @@ public sealed class SuperResolutionService : ISuperResolutionService
         }
     }
 
-    private (OrtValue Ort, System.Runtime.InteropServices.GCHandle? Pin) CreateInputOrt(SuperResolutionModel model, SKBitmap src, int w, int h)
+    private struct ImageInputLease(OrtValue value, GCHandle pin, Half[]? half, float[]? single) : IDisposable
     {
-        TensorElementType inputType = _inputElementTypes.TryGetValue(model, out var t) ? t : TensorElementType.Float;
-        if (inputType == TensorElementType.Float16)
+        private OrtValue? _value = value;
+        internal readonly OrtValue Value => _value ?? throw new ObjectDisposedException(nameof(ImageInputLease));
+
+        public void Dispose()
         {
-            var halfTensor = new DenseTensor<Half>(new[] { 1, 3, h, w });
-            FillRgbTensorHalf(src, halfTensor, w, h);
-            if (!System.Runtime.InteropServices.MemoryMarshal.TryGetArray<Half>(halfTensor.Buffer, out var seg) || seg.Array == null)
-                throw new InvalidOperationException("Half tensor buffer unavailable.");
-            var handle = System.Runtime.InteropServices.GCHandle.Alloc(seg.Array, System.Runtime.InteropServices.GCHandleType.Pinned);
-            return (
-                OrtValue.CreateTensorValueWithData(
-                    OrtMemoryInfo.DefaultInstance,
-                    TensorElementType.Float16,
-                    new long[] { 1, 3, h, w },
-                    handle.AddrOfPinnedObject(),
-                    seg.Count * 2L),
-                handle);
-        }
-        else
-        {
-            var tensor = new DenseTensor<float>(new[] { 1, 3, h, w });
-            FillRgbTensor(src, tensor, w, h);
-            return (
-                OrtValue.CreateTensorValueFromMemory(OrtMemoryInfo.DefaultInstance, tensor.Buffer, new long[] { 1, 3, h, w }),
-                null);
+            var owned = _value;
+            if (owned == null) return;
+            _value = null;
+            // 原生执行同步返回且 OrtValue 释放后才解除固定并归还；下一次使用会覆写有效区。
+            try { owned.Dispose(); }
+            finally
+            {
+                try { if (pin.IsAllocated) pin.Free(); }
+                finally
+                {
+                    if (half != null) ArrayPool<Half>.Shared.Return(half);
+                    if (single != null) ArrayPool<float>.Shared.Return(single);
+                }
+            }
         }
     }
 
-    private static void FillRgbTensor(SKBitmap src, DenseTensor<float> tensor, int w, int h)
+    private ImageInputLease CreateInputOrt(SuperResolutionModel model, SKBitmap src, int w, int h)
     {
-        var span = tensor.Buffer.Span;
+        TensorElementType inputType = _inputElementTypes.TryGetValue(model, out var t) ? t : TensorElementType.Float;
+        int length = checked(3 * w * h);
+        if (inputType == TensorElementType.Float16)
+        {
+            var buffer = ArrayPool<Half>.Shared.Rent(length);
+            GCHandle handle = default;
+            try
+            {
+                FillRgbTensorHalf(src, buffer.AsSpan(0, length), w, h);
+                handle = GCHandle.Alloc(buffer, GCHandleType.Pinned);
+                return new ImageInputLease(OrtValue.CreateTensorValueWithData(OrtMemoryInfo.DefaultInstance,
+                    TensorElementType.Float16, [1, 3, h, w], handle.AddrOfPinnedObject(), length * 2L), handle, buffer, null);
+            }
+            catch
+            {
+                try { if (handle.IsAllocated) handle.Free(); }
+                finally { ArrayPool<Half>.Shared.Return(buffer); }
+                throw;
+            }
+        }
+        else
+        {
+            var buffer = ArrayPool<float>.Shared.Rent(length);
+            try
+            {
+                FillRgbTensor(src, buffer.AsSpan(0, length), w, h);
+                return new ImageInputLease(OrtValue.CreateTensorValueFromMemory(OrtMemoryInfo.DefaultInstance,
+                    buffer.AsMemory(0, length), [1, 3, h, w]), default, null, buffer);
+            }
+            catch { ArrayPool<float>.Shared.Return(buffer); throw; }
+        }
+    }
+
+    private static void FillRgbTensor(SKBitmap src, Span<float> span, int w, int h)
+    {
         int stride = w * 4;
         var pixels = src.GetPixelSpan();
 
@@ -563,39 +605,10 @@ public sealed class SuperResolutionService : ISuperResolutionService
     }
 
     private static void ReadOutputToBitmap(OrtValue outputValue, SKBitmap dst, int w, int h, int channels)
+        => ImageTensorPixels.ReadFloat(outputValue.GetTensorDataAsSpan<float>(), dst, w, h, channels);
+
+    private static void FillRgbTensorHalf(SKBitmap src, Span<Half> span, int w, int h)
     {
-        var span = outputValue.GetTensorDataAsSpan<float>();
-
-        int channelSize = w * h;
-        int rOff = 0;
-        int gOff = channels >= 2 ? channelSize : 0;
-        int bOff = channels >= 3 ? channelSize * 2 : 0;
-
-        var pixels = dst.GetPixelSpan();
-        int stride = w * 4;
-
-        for (int y = 0; y < h; y++)
-        {
-            int row = y * w;
-            for (int x = 0; x < w; x++)
-            {
-                int p = row + x;
-                float r = Math.Clamp(span[rOff + p], 0f, 1f);
-                float g = Math.Clamp(span[gOff + p], 0f, 1f);
-                float b = Math.Clamp(span[bOff + p], 0f, 1f);
-
-                int dp = y * stride + x * 4;
-                pixels[dp]     = (byte)(b * 255f);
-                pixels[dp + 1] = (byte)(g * 255f);
-                pixels[dp + 2] = (byte)(r * 255f);
-                pixels[dp + 3] = 255;
-            }
-        }
-    }
-
-    private static void FillRgbTensorHalf(SKBitmap src, DenseTensor<Half> tensor, int w, int h)
-    {
-        var span = tensor.Buffer.Span;
         int stride = w * 4;
         var pixels = src.GetPixelSpan();
 
@@ -622,35 +635,7 @@ public sealed class SuperResolutionService : ISuperResolutionService
     }
 
     private static void ReadOutputToBitmapHalf(OrtValue outputValue, SKBitmap dst, int w, int h, int channels)
-    {
-        var span = outputValue.GetTensorDataAsSpan<Float16>();
-
-        int channelSize = w * h;
-        int rOff = 0;
-        int gOff = channels >= 2 ? channelSize : 0;
-        int bOff = channels >= 3 ? channelSize * 2 : 0;
-
-        var pixels = dst.GetPixelSpan();
-        int stride = w * 4;
-
-        for (int y = 0; y < h; y++)
-        {
-            int row = y * w;
-            for (int x = 0; x < w; x++)
-            {
-                int p = row + x;
-                float r = Math.Clamp(span[rOff + p].ToFloat(), 0f, 1f);
-                float g = Math.Clamp(span[gOff + p].ToFloat(), 0f, 1f);
-                float b = Math.Clamp(span[bOff + p].ToFloat(), 0f, 1f);
-
-                int dp = y * stride + x * 4;
-                pixels[dp]     = (byte)(b * 255f);
-                pixels[dp + 1] = (byte)(g * 255f);
-                pixels[dp + 2] = (byte)(r * 255f);
-                pixels[dp + 3] = 255;
-            }
-        }
-    }
+        => ImageTensorPixels.ReadHalf(MemoryMarshal.Cast<Float16, Half>(outputValue.GetTensorDataAsSpan<Float16>()), dst, w, h, channels);
 
     private static void PasteTileInterior(SKBitmap dst, SKBitmap srcTile, int dstX, int dstY, int srcX, int srcY, int width, int height)
     {
@@ -668,18 +653,7 @@ public sealed class SuperResolutionService : ISuperResolutionService
     }
 
     private static void MergeAlphaIntoRgb(SKBitmap rgb, SKBitmap alpha)
-    {
-        var rgbPixels = rgb.GetPixelSpan();
-        var alphaPixels = alpha.GetPixelSpan();
-        for (int i = 0; i < rgbPixels.Length; i += 4)
-        {
-            byte a = alphaPixels[i + 3];
-            rgbPixels[i]     = (byte)(rgbPixels[i]     * a / 255);
-            rgbPixels[i + 1] = (byte)(rgbPixels[i + 1] * a / 255);
-            rgbPixels[i + 2] = (byte)(rgbPixels[i + 2] * a / 255);
-            rgbPixels[i + 3] = a;
-        }
-    }
+        => ImageTensorPixels.MergeAlpha(rgb, alpha);
 
     private static void UpsampleAlphaChannel(SKBitmap src, SKBitmap dst, int srcX, int srcY, int srcW, int srcH)
     {
