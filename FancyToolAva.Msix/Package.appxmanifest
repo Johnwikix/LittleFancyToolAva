@@ -7,11 +7,15 @@
 
   <Identity
     Name="FancyTool.FancyTool"
-    Publisher="CN=00000000-0000-0000-0000-000000000000"
-    Version="1.1.0.0" />
+    Publisher="CN=CF259542-70C0-4852-9523-066A80212473"
+    Version="1.1.1.0" />
 
   <Properties>
-    <DisplayName>FancyTool</DisplayName>
+    <!-- 商店保留名：签名打包时 Microsoft.Build.AppxPackage 会校验 Properties/DisplayName
+         必须是 Package.StoreAssociation.xml 中为本 Identity 预留的名字，否则报
+         "Properties 元素的 DisplayName 元素必须具有应用程序名称值"。取第一条预留名，
+         与 1.1.0.0 打包成功时的取值一致。开始菜单显示的是 uap:VisualElements/DisplayName。 -->
+    <DisplayName>妙妙小工具---串口、modbus、网络调试、图像转换、文本文件加密解密工具</DisplayName>
     <PublisherDisplayName>FancyTool</PublisherDisplayName>
     <Logo>Images\StoreLogo.png</Logo>
   </Properties>

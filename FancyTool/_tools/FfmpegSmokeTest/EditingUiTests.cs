@@ -233,12 +233,11 @@ internal static partial class Program
             if (srOptions)
             {
                 var imageVm = ((App)Application.Current!).TryGetService<ImageConvertViewModel>()!;
-                if (imageVm.AvailableSuperResolutionModels.Count != 6)
-                    throw new InvalidOperationException("Temporal model leaked into image-only model choices");
+                if (imageVm.AvailableSuperResolutionModels.Count != 4)
+                    throw new InvalidOperationException("Unexpected image model choices");
                 imageVm.IsSuperResolutionEnabled = true;
-                imageVm.SelectedSrModelIndex = (int)SuperResolutionModel.LiveActionSpanX2;
-                if (imageVm.AvailableSrScaleLabels.Count != 1 || imageVm.SelectedSrScaleIndex != 0) throw new InvalidOperationException("Native 2x image scale choice incorrect");
-                imageVm.SelectedSrModelIndex = (int)SuperResolutionModel.SpanClearRealityV1;
+                imageVm.SelectedSrModelIndex = imageVm.AvailableSuperResolutionModels.IndexOf(SuperResolutionModel.SpanClearRealityV1);
+                if (imageVm.AvailableSrScaleLabels.Count != 2) throw new InvalidOperationException("Image scale choices incorrect");
                 imageVm.PreferSrNpu = true;
                 var imageView = new ImageConvertView { DataContext = imageVm, Background = Brushes.WhiteSmoke };
                 window.Width = 1100;

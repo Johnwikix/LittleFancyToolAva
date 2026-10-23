@@ -519,7 +519,6 @@
     "SrModel_RealEsrganX4": "通用 (RealESRGAN x4)",
     "SrModel_RealEsrganX4Anime": "动漫 (RealESRGAN x4 Anime)",
     "SrModel_RealEsrganGeneralX4v3": "轻量 (RealESRGAN general v3)",
-    "SrModel_UltraSharpX4": "极清 (UltraSharp x4 fp16)",
     "SrModel_SpanClearRealityV1": "极速 (ClearReality SPAN fp16)",
     "Hint_ModelMissing": "所选模型文件缺失，重启应用将自动下载。",
     "Msg_SrTooLarge": "超分后输出尺寸 {0}×{1} 超过上限 {2}px，请先缩小原图或改用 2x 放大",
@@ -538,9 +537,7 @@
     "Picker_ImageFile": "图片文件",
     "Picker_SelectImage": "选择图片",
     "Picker_SelectImageFolder": "选择图片文件夹",
-    "Picker_SelectOutputDir": "选择输出目录",
-    "SrModel_LiveActionSpanX2": "实拍 2× · LiveAction SPAN",
-    "Sr_ModelLicense": "LiveAction SPAN 仅支持 2×，采用 CC BY-NC-SA 4.0 非商业许可。"
+    "Picker_SelectOutputDir": "选择输出目录"
   },
   "VideoTranscode": {
     "Interp_OrderAuto": "自动：兼顾速度与内存",

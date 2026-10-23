@@ -24,19 +24,19 @@ public static class ModelManifest
             "https://hf-mirror.com/universonic/RealESRGAN/resolve/main/realesr-general-x4v3_fp16.onnx",
             "CE89B494B6ADAD237792C31D1012D28604BB22D6CD06B8B5903713D4ED636117"),
         new ModelManifestEntry(
-            "4x-UltraSharp_fp16.onnx",
-            "https://huggingface.co/Kim2091/UltraSharp/resolve/main/ONNX/4x-UltraSharp-fp16-opset17.onnx",
-            "https://hf-mirror.com/Kim2091/UltraSharp/resolve/main/ONNX/4x-UltraSharp-fp16-opset17.onnx",
-            "7295B39B71F1D5882FEC1AE02F55227F7CA6516F92EAE6920AB2A28A39CADE73"),
-        new ModelManifestEntry(
             "4x-ClearRealityV1_fp16.onnx",
             "https://huggingface.co/Kim2091/ClearRealityV1/resolve/main/ONNX/fp16/4x-ClearRealityV1-fp16-opset17.onnx",
             "https://hf-mirror.com/Kim2091/ClearRealityV1/resolve/main/ONNX/fp16/4x-ClearRealityV1-fp16-opset17.onnx",
             "5D710126F970A66166553C9D69A6E04ECAA5AF60A343B9D7B1736B407E84961A"),
-        new ModelManifestEntry(
-            "2xLiveActionV1_SPAN.onnx",
-            "https://raw.githubusercontent.com/jcj83429/upscaling/9332e7d5b07747ff347e5abdc43f8144364de9f7/2xLiveActionV1_SPAN/2xLiveActionV1_SPAN_490000.onnx",
-            "https://raw.githubusercontent.com/jcj83429/upscaling/9332e7d5b07747ff347e5abdc43f8144364de9f7/2xLiveActionV1_SPAN/2xLiveActionV1_SPAN_490000.onnx",
-            "BFA72F3C6347076AED140D0836CEE30C27EA434C047BEEAF9466469483836ECC", 2),
+    };
+
+    // 模型编号不再连续，不能将持久化编号直接用作下载清单下标。
+    public static ModelManifestEntry GetImageModel(SuperResolutionModel model) => model switch
+    {
+        SuperResolutionModel.RealEsrganX4Plus => RealEsrgan[0],
+        SuperResolutionModel.RealEsrganX4PlusAnime => RealEsrgan[1],
+        SuperResolutionModel.RealEsrganGeneralX4V3 => RealEsrgan[2],
+        SuperResolutionModel.SpanClearRealityV1 => RealEsrgan[3],
+        _ => throw new ArgumentOutOfRangeException(nameof(model))
     };
 }

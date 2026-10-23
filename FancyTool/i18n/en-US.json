@@ -521,7 +521,6 @@
     "SrModel_RealEsrganX4": "General (RealESRGAN x4)",
     "SrModel_RealEsrganX4Anime": "Anime (RealESRGAN x4 Anime)",
     "SrModel_RealEsrganGeneralX4v3": "Lightweight (RealESRGAN general v3)",
-    "SrModel_UltraSharpX4": "UltraSharp (4x UltraSharp fp16)",
     "SrModel_SpanClearRealityV1": "Fast (ClearReality SPAN fp16)",
     "Hint_ModelMissing": "Model file missing. Restart the app to download automatically.",
     "Msg_SrTooLarge": "Super-resolution output {0}x{1} exceeds the {2}px limit. Downscale the source or use 2x.",
@@ -540,9 +539,7 @@
     "Picker_ImageFile": "Image Files",
     "Picker_SelectImage": "Select Image",
     "Picker_SelectImageFolder": "Select Image Folder",
-    "Picker_SelectOutputDir": "Select Output Directory",
-    "SrModel_LiveActionSpanX2": "Live action 2× · LiveAction SPAN",
-    "Sr_ModelLicense": "LiveAction SPAN supports 2× only and uses the noncommercial CC BY-NC-SA 4.0 license."
+    "Picker_SelectOutputDir": "Select Output Directory"
   },
   "VideoTranscode": {
     "Interp_OrderAuto": "Auto: balance speed and memory",

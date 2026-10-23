@@ -9,6 +9,7 @@ public class ImageConvertViewState
     public int SelectedFilterIndex { get; set; }
     public int SelectedSizeIndex { get; set; } = 2;
     public bool IsSuperResolutionEnabled { get; set; }
+    // 保留历史字段名；值为 SuperResolutionModel 的稳定编号，不是当前下拉框索引。
     public int SelectedSrModelIndex { get; set; } = 4;
     public int SelectedSrScaleIndex { get; set; }
 }

@@ -131,24 +131,19 @@ public partial class ImageConvertViewModel : ViewModelBase, IViewState, IFileIte
         {
             if (SetProperty(ref field, value))
             {
-                if (value == (int)SuperResolutionModel.LiveActionSpanX2) SelectedSrScaleIndex = 0;
-                OnPropertyChanged(nameof(AvailableSrScaleLabels));
-                OnPropertyChanged(nameof(IsSrNonCommercialModel));
                 OnPropertyChanged(nameof(IsSuperResolutionReady));
             }
         }
-    } = 4;
+    } = 3;
 
     public int SelectedSrScaleIndex
     {
         get => field;
-        set { if (value >= 0) SetProperty(ref field, Math.Clamp(value, 0, SelectedSrModelIndex == (int)SuperResolutionModel.LiveActionSpanX2 ? 0 : 1)); }
+        set { if (value >= 0) SetProperty(ref field, Math.Clamp(value, 0, 1)); }
     } = 0;
 
     public List<int> AvailableSrScales { get; } = [2, 4];
-    public List<string> AvailableSrScaleLabels => SelectedSrModelIndex == (int)SuperResolutionModel.LiveActionSpanX2 ? ["2x"] : ["2x", "4x"];
-    /// <summary>Gets whether the selected model has a noncommercial license.</summary>
-    public bool IsSrNonCommercialModel => SelectedSrModelIndex == (int)SuperResolutionModel.LiveActionSpanX2;
+    public List<string> AvailableSrScaleLabels { get; } = ["2x", "4x"];
 
     public List<string> AvailableSrModelLabels { get; } = [];
 
@@ -262,9 +257,7 @@ public partial class ImageConvertViewModel : ViewModelBase, IViewState, IFileIte
         AvailableSrModelLabels.Add(LocalizationRegistry.Get("ImageConvert.SrModel_RealEsrganX4"));
         AvailableSrModelLabels.Add(LocalizationRegistry.Get("ImageConvert.SrModel_RealEsrganX4Anime"));
         AvailableSrModelLabels.Add(LocalizationRegistry.Get("ImageConvert.SrModel_RealEsrganGeneralX4v3"));
-        AvailableSrModelLabels.Add(LocalizationRegistry.Get("ImageConvert.SrModel_UltraSharpX4"));
         AvailableSrModelLabels.Add(LocalizationRegistry.Get("ImageConvert.SrModel_SpanClearRealityV1"));
-        AvailableSrModelLabels.Add(LocalizationRegistry.Get("ImageConvert.SrModel_LiveActionSpanX2"));
         _superResolutionService.DownloadProgressChanged += OnDownloadProgressChanged;
         _superResolutionService.IsDownloadingChanged += OnIsDownloadingChanged;
         _superResolutionService.DeviceChanged += device => Dispatcher.UIThread.Post(() =>
@@ -310,7 +303,10 @@ public partial class ImageConvertViewModel : ViewModelBase, IViewState, IFileIte
         SelectedFilterIndex = SelectedFilterIndex,
         SelectedSizeIndex = SelectedSizeIndex,
         IsSuperResolutionEnabled = IsSuperResolutionEnabled,
-        SelectedSrModelIndex = SelectedSrModelIndex,
+        // JSON 字段沿用旧名，但保存稳定模型编号，兼容旧版本的六项索引。
+        SelectedSrModelIndex = SelectedSrModelIndex >= 0 && SelectedSrModelIndex < AvailableSuperResolutionModels.Count
+            ? (int)AvailableSuperResolutionModels[SelectedSrModelIndex]
+            : (int)SuperResolutionModel.SpanClearRealityV1,
         SelectedSrScaleIndex = SelectedSrScaleIndex
     };
 
@@ -324,10 +320,11 @@ public partial class ImageConvertViewModel : ViewModelBase, IViewState, IFileIte
             DownscalePercent = s.DownscalePercent is > 10 and <= 100 ? s.DownscalePercent : 100;
             SelectedFilterIndex = s.SelectedFilterIndex;
             SelectedSizeIndex = s.SelectedSizeIndex;
-            SelectedSrModelIndex = s.SelectedSrModelIndex >= 0 && s.SelectedSrModelIndex < AvailableSuperResolutionModels.Count
-                ? s.SelectedSrModelIndex
-                : 4;
-            SelectedSrScaleIndex = SelectedSrModelIndex != (int)SuperResolutionModel.LiveActionSpanX2 && s.SelectedSrScaleIndex is 0 or 1 ? s.SelectedSrScaleIndex : 0;
+            int modelIndex = AvailableSuperResolutionModels.IndexOf((SuperResolutionModel)s.SelectedSrModelIndex);
+            SelectedSrModelIndex = modelIndex >= 0
+                ? modelIndex
+                : AvailableSuperResolutionModels.IndexOf(SuperResolutionModel.SpanClearRealityV1);
+            SelectedSrScaleIndex = s.SelectedSrScaleIndex is 0 or 1 ? s.SelectedSrScaleIndex : 0;
             // Always restore the SR checkbox. If the model isn't ready yet (still
             // downloading or download failed), IsSuperResolutionReady / the
             // download-progress UI / ShowModelMissingHint already convey that.

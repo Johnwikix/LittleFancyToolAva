@@ -7,10 +7,8 @@ public enum SuperResolutionModel
     RealEsrganX4Plus = 0,
     RealEsrganX4PlusAnime = 1,
     RealEsrganGeneralX4V3 = 2,
-    UltraSharpX4 = 3,
+    // 编号用于历史页面状态；移除模型后保留空位，避免旧设置指向其他模型。
     SpanClearRealityV1 = 4,
-    /// <summary>Uses the native 2× live-action SPAN model under its noncommercial license.</summary>
-    LiveActionSpanX2 = 5,
 }
 
 public interface ISuperResolutionService : IDisposable

@@ -128,9 +128,7 @@ public sealed class SuperResolutionService : ISuperResolutionService
         "RealESRGAN_x4plus",
         "RealESRGAN_x4plus_anime",
         "realesr-general-x4v3_fp16",
-        "4x-UltraSharp_fp16",
-        "4x-ClearRealityV1_fp16",
-        "2xLiveActionV1_SPAN"
+        "4x-ClearRealityV1_fp16"
     };
 
     public bool IsModelAvailable(SuperResolutionModel model)
@@ -151,7 +149,7 @@ public sealed class SuperResolutionService : ISuperResolutionService
 
         if (targetScale != 2 && targetScale != 4)
             throw new ArgumentOutOfRangeException(nameof(targetScale), "Target scale must be 2x or 4x.");
-        int modelScale = ModelManifest.RealEsrgan[(int)model].NativeScale;
+        int modelScale = ModelManifest.GetImageModel(model).NativeScale;
         if (targetScale > modelScale) throw new ArgumentOutOfRangeException(nameof(targetScale), "This model supports 2× output only");
 
         if (!IsModelAvailable(model))
@@ -334,11 +332,11 @@ public sealed class SuperResolutionService : ISuperResolutionService
                 {
                     if (!_npuSessions.TryGetValue(key, out var npu))
                     {
-                        npu = SrTileFactory.Create(Path.Combine(_modelsDirectory, GetFileName(model)), VideoSrBackend.PreferNpu, tile.Width, ct, out var npuDevice, ModelManifest.RealEsrgan[(int)model].NativeScale);
+                        npu = SrTileFactory.Create(Path.Combine(_modelsDirectory, GetFileName(model)), VideoSrBackend.PreferNpu, tile.Width, ct, out var npuDevice, ModelManifest.GetImageModel(model).NativeScale);
                         _npuSessions.Add(key, npu);
                         _npuDevices[key] = npuDevice;
                     }
-                    var result = RunNpuTile(npu, tile, ct, ModelManifest.RealEsrgan[(int)model].NativeScale);
+                    var result = RunNpuTile(npu, tile, ct, ModelManifest.GetImageModel(model).NativeScale);
                     ReportDevice(_npuDevices[key]);
                     return result;
                 }
@@ -743,16 +741,7 @@ public sealed class SuperResolutionService : ISuperResolutionService
         return OperatingSystem.IsWindows();
     }
 
-    private static string GetFileName(SuperResolutionModel model) => model switch
-    {
-        SuperResolutionModel.RealEsrganX4Plus => "RealESRGAN_x4plus.onnx",
-        SuperResolutionModel.RealEsrganX4PlusAnime => "RealESRGAN_x4plus_anime.onnx",
-        SuperResolutionModel.RealEsrganGeneralX4V3 => "realesr-general-x4v3_fp16.onnx",
-        SuperResolutionModel.UltraSharpX4 => "4x-UltraSharp_fp16.onnx",
-        SuperResolutionModel.SpanClearRealityV1 => "4x-ClearRealityV1_fp16.onnx",
-        SuperResolutionModel.LiveActionSpanX2 => "2xLiveActionV1_SPAN.onnx",
-        _ => throw new ArgumentOutOfRangeException(nameof(model))
-    };
+    private static string GetFileName(SuperResolutionModel model) => ModelManifest.GetImageModel(model).FileName;
 
     private void ThrowIfDisposed()
     {

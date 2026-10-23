@@ -8,7 +8,10 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <Platforms>AnyCPU;x64</Platforms>
-    <RuntimeIdentifiers>win-x64;linux-x64</RuntimeIdentifiers>
+    <!-- Satori SDK 按 "$(RuntimeIdentifier);$(RuntimeIdentifiers)" 组合每个 RID 的包引用，
+         且其 KeepDuplicates 对展开的项列表不生效：只要 RuntimeIdentifier 同时出现在
+         RuntimeIdentifiers 中，同一个 PackageReference 就会被引用两次（NU1504）。
+         这里只保留单个 RuntimeIdentifier（按平台给默认值），避免 RID 集合重叠。 -->
     <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == '' AND $([MSBuild]::IsOSPlatform('windows'))">win-x64</RuntimeIdentifier>
     <ApplicationIcon>Assets\storeIcon.ico</ApplicationIcon>
     <NoWarn>$(NoWarn);NU1701;CS8767;CS8625;CS8602;CS8600;CS8604;CS0618</NoWarn>
@@ -32,6 +35,18 @@
     <None Include="Libraries/VideoSr/*.onnx;Libraries/VideoSr/models.json;Libraries/VideoSr/NOTICE.md;Libraries/VideoSr/Licenses/*" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <None Include="Libraries/InterpolationModels/LICENSE.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Link="Licenses/RIFE.txt" />
     <None Include="Libraries/InterpolationModels/NOTICE.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Link="Licenses/RIFE-NOTICE.md" />
+  </ItemGroup>
+
+  <!-- Satori 运行时包（自包含托管发布用）：SDK 只在 PublishAot != true 时引用
+       PublishWithSatoriGC.Runtime.$(RuntimeIdentifier)，一旦某次还原是在 PublishAot=true
+       下完成的（MSIX 打包时 DesktopBridge 会自行还原入口工程，并不带 FancyToolMsixBuild），
+       还原结果里就只有 AotSdk 包；随后的托管发布阶段按 Runtime 包去找运行时，
+       就会报 "Restore the Satori Runtime pack with the same RID used for publish."。
+       这里在 PublishAot=true 时显式补上 Runtime 包：包引用写在工程文件里，
+       任何一次还原（无论由谁、用什么属性触发）都会带上与 RID 一致的 Satori 运行时，
+       托管发布因此总能取到它。PublishAot=false 时由 SDK 自己引用，不重复声明。 -->
+  <ItemGroup Condition="'$(PublishAot)' == 'true' and '$(RuntimeIdentifier)' != '' and '$(SatoriPackageVersion)' != ''">
+    <PackageReference Include="PublishWithSatoriGC.Runtime.$(RuntimeIdentifier)" Version="[$(SatoriPackageVersion)]" PrivateAssets="all" IncludeAssets="build" />
   </ItemGroup>
 
   <!-- FFmpeg GPL shared（兼容 9.0 绑定 ABI） 库（进程内经 FFmpeg.AutoGen 调用，随应用分发，用户无需下载）：
