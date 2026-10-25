@@ -15,6 +15,9 @@ public sealed class SuperResolutionService : ISuperResolutionService
     private readonly ILogger<SuperResolutionService> _logger;
     private readonly ModelDownloadService _downloader;
     private readonly SynchronizationContext _uiContext;
+    private readonly ILicenseService _license;
+    private readonly object _warmupGate = new();
+    private bool _warmupStopped;
     private string _modelsDirectory => AppPaths.ModelsDirectory;
     private string? _sessionDirectory;
     private readonly Dictionary<SuperResolutionModel, InferenceSession> _sessions = new();
@@ -57,7 +60,14 @@ public sealed class SuperResolutionService : ISuperResolutionService
     public event Action<ModelDownloadProgress>? DownloadProgressChanged;
     public event EventHandler<bool>? IsDownloadingChanged;
 
-    public Task WarmupTask => _warmupTask ?? Task.CompletedTask;
+    public Task WarmupTask
+    {
+        get
+        {
+            TryStartWarmup();
+            lock (_warmupGate) return _warmupTask ?? Task.CompletedTask;
+        }
+    }
 
     private bool _isDownloading;
     public bool IsDownloading
@@ -67,7 +77,7 @@ public sealed class SuperResolutionService : ISuperResolutionService
         {
             if (_isDownloading == value) return;
             _isDownloading = value;
-            IsDownloadingChanged?.Invoke(this, value);
+            _uiContext.Post(_ => IsDownloadingChanged?.Invoke(this, value), null);
         }
     }
 
@@ -76,29 +86,44 @@ public sealed class SuperResolutionService : ISuperResolutionService
     public SuperResolutionService(
         ILogger<SuperResolutionService> logger,
         AppPreferences preferences,
-        ModelDownloadService downloader)
+        ModelDownloadService downloader,
+        ILicenseService? licenseService = null)
     {
         _logger = logger;
         _preferences = preferences;
         _downloader = downloader;
+        _license = licenseService ?? LicenseService.Unrestricted;
         _uiContext = SynchronizationContext.Current ?? new SynchronizationContext();
-        _warmupTask = StartWarmupAsync();
+        _license.StateChanged += OnLicenseChanged;
+        TryStartWarmup();
     }
 
-    private async Task StartWarmupAsync()
+    private void OnLicenseChanged() => TryStartWarmup();
+
+    private void TryStartWarmup()
     {
-        // Defer to a background thread so the UI thread isn't blocked on the
-        // first read of each file (33 MB ONNX IO + SHA256 is non-trivial).
-        await Task.Yield();
-        IsDownloading = true;
-        OnDownloadProgress(new ModelDownloadProgress(
-            string.Empty, ModelDownloadStage.Connecting, 0, null, "正在准备…"));
+        lock (_warmupGate)
+        {
+            // Store 初查和受限期间不下载；恢复许可后沿用同一个服务启动首次预热。
+            if (_warmupStopped || _warmupTask != null || !_license.CanUseFeature(LicenseFeature.ImageSuperResolution)) return;
+            _warmupCts = new CancellationTokenSource();
+            CancellationToken ct = _warmupCts.Token;
+            _warmupTask = Task.Run(() => StartWarmupAsync(ct));
+        }
+    }
+
+    private async Task StartWarmupAsync(CancellationToken ct)
+    {
+        // 调用方在线程池执行，缓存文件的同步 SHA-256 校验也不阻塞购买恢复后的 UI。
         try
         {
-            _warmupCts = new CancellationTokenSource();
+            ct.ThrowIfCancellationRequested();
+            IsDownloading = true;
+            OnDownloadProgress(new ModelDownloadProgress(
+                string.Empty, ModelDownloadStage.Connecting, 0, null, "正在准备…"));
             var progress = new Progress<ModelDownloadProgress>(OnDownloadProgress);
             await _downloader
-                .UseModelsAsync(ModelManifest.RealEsrgan, () => AppPaths.ModelsDirectory, _ => true, progress, _warmupCts.Token)
+                .UseModelsAsync(ModelManifest.RealEsrgan, () => AppPaths.ModelsDirectory, _ => true, progress, ct)
                 .ConfigureAwait(false);
             _lastDownloadError = null;
             _logger.LogInformation("All super-resolution models are ready in {Dir}", _modelsDirectory);
@@ -147,6 +172,8 @@ public sealed class SuperResolutionService : ISuperResolutionService
         CancellationToken ct = default)
     {
         ThrowIfDisposed();
+        await _license.EnsureFeatureAsync(LicenseFeature.ImageSuperResolution, ct).ConfigureAwait(false);
+        ThrowIfDisposed();
 
         if (targetScale != 2 && targetScale != 4)
             throw new ArgumentOutOfRangeException(nameof(targetScale), "Target scale must be 2x or 4x.");
@@ -182,6 +209,7 @@ public sealed class SuperResolutionService : ISuperResolutionService
             lock (_inferenceGate)
             {
                 using var storage = ModelStorage.Acquire(ct);
+                _license.ThrowIfRestricted(LicenseFeature.ImageSuperResolution);
                 RefreshSessionDirectory();
                 ThrowIfDisposed();
                 var backends = Environment.GetEnvironmentVariable("SR_FORCE_CPU") == "1"
@@ -258,7 +286,7 @@ public sealed class SuperResolutionService : ISuperResolutionService
                     }
 
                     using var tileImage = SKImage.FromBitmap(tileBitmap);
-                    using var srTile = RunModelTile(model, tileImage, ct);
+                    using var srTile = RunModelTile(model, tileImage, ct, checkLicense: tileIndex == 0);
 
                     if (hasAlpha)
                     {
@@ -317,14 +345,16 @@ public sealed class SuperResolutionService : ISuperResolutionService
 
     private static int CeilDiv(int a, int b) => (a + b - 1) / b;
 
-    private SKBitmap RunModelTile(SuperResolutionModel model, SKImage tile, CancellationToken ct)
+    private SKBitmap RunModelTile(SuperResolutionModel model, SKImage tile, CancellationToken ct, bool checkLicense)
     {
-        lock (_inferenceGate) return RunModelTileSerial(model, tile, ct);
+        lock (_inferenceGate) return RunModelTileSerial(model, tile, ct, checkLicense);
     }
 
-    private SKBitmap RunModelTileSerial(SuperResolutionModel model, SKImage tile, CancellationToken ct)
+    private SKBitmap RunModelTileSerial(SuperResolutionModel model, SKImage tile, CancellationToken ct, bool checkLicense)
     {
         using var storage = ModelStorage.Acquire(ct);
+        // 只在图像首块实际获得推理/模型存储锁时复查；不突断已开始的原生作业。
+        if (checkLicense) _license.ThrowIfRestricted(LicenseFeature.ImageSuperResolution);
         RefreshSessionDirectory();
         ct.ThrowIfCancellationRequested();
         string? npuFailure = null;
@@ -731,9 +761,13 @@ public sealed class SuperResolutionService : ISuperResolutionService
     }
 
     /// <inheritdoc />
-    public Task InstallAccelerationAsync(CancellationToken ct = default) => WindowsMlAccelerator.InstallAsync(
-        name => _uiContext.Post(_ => DownloadProgressChanged?.Invoke(new ModelDownloadProgress(name, ModelDownloadStage.Connecting, 0, null,
-            LocalizationRegistry.Get("VideoTranscode.Sr_InstallingHardware") + " · " + name)), null), ct);
+    public async Task InstallAccelerationAsync(CancellationToken ct = default)
+    {
+        await _license.EnsureFeatureAsync(LicenseFeature.ImageSuperResolution, ct).ConfigureAwait(false);
+        await WindowsMlAccelerator.InstallAsync(
+            name => _uiContext.Post(_ => DownloadProgressChanged?.Invoke(new ModelDownloadProgress(name, ModelDownloadStage.Connecting, 0, null,
+                LocalizationRegistry.Get("VideoTranscode.Sr_InstallingHardware") + " · " + name)), null), ct).ConfigureAwait(false);
+    }
 
     private void RefreshSessionDirectory()
     {
@@ -772,8 +806,13 @@ public sealed class SuperResolutionService : ISuperResolutionService
 
     public void Dispose()
     {
-        try { _warmupCts?.Cancel(); } catch { }
-        _warmupCts?.Dispose();
+        _license.StateChanged -= OnLicenseChanged;
+        lock (_warmupGate)
+        {
+            _warmupStopped = true;
+            try { _warmupCts?.Cancel(); } catch { }
+            _warmupCts?.Dispose();
+        }
         lock (_inferenceGate)
         {
             ReleaseSessionsCore();

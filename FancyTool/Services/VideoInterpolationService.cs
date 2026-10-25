@@ -4,8 +4,10 @@ using Microsoft.Extensions.Logging;
 namespace FancyToolAva.Services;
 
 /// <summary>共享模型校验与 Windows ML 安装入口，通过独占租约复用当前插帧上下文。</summary>
-public sealed class VideoInterpolationService(ModelDownloadService downloader, ILogger<VideoInterpolationService> logger) : IVideoInterpolationService, IDisposable
+public sealed class VideoInterpolationService(ModelDownloadService downloader, ILogger<VideoInterpolationService> logger,
+    ILicenseService? licenseService = null) : IVideoInterpolationService, IDisposable
 {
+    private readonly ILicenseService _license = licenseService ?? LicenseService.Unrestricted;
     private readonly SemaphoreSlim _sessionGate = new(1, 1);
     private (string Path, int Width, int Height, VideoSrBackend Backend, bool AllowCpu, bool CudaGraph)? _cachedKey;
     private IVideoFrameInterpolator? _cached;
@@ -30,22 +32,32 @@ public sealed class VideoInterpolationService(ModelDownloadService downloader, I
     /// <inheritdoc />
     public bool IsModelAvailable(VideoInterpolationModel model) => File.Exists(Path.Combine(DirectoryPath, GetModel(model).FileName));
     /// <inheritdoc />
-    public Task EnsureModelAsync(VideoInterpolationModel model, CancellationToken ct = default) => Task.Run(() =>
-        downloader.UseModelsAsync([GetModel(model)], () => DirectoryPath, _ => true, DownloadProgress(), ct), ct);
+    public async Task EnsureModelAsync(VideoInterpolationModel model, CancellationToken ct = default)
+    {
+        await _license.EnsureFeatureAsync(LicenseFeature.AiFrameInterpolation, ct).ConfigureAwait(false);
+        await Task.Run(() => downloader.UseModelsAsync([GetModel(model)], () => DirectoryPath, _ => true, DownloadProgress(), ct), ct).ConfigureAwait(false);
+    }
     /// <inheritdoc />
-    public Task InstallAccelerationAsync(CancellationToken ct = default) => WindowsMlAccelerator.InstallAsync(
-        name => DownloadProgressChanged?.Invoke(new ModelDownloadProgress(name, ModelDownloadStage.Connecting, 0, null,
-            LocalizationRegistry.Get("VideoTranscode.Sr_InstallingHardware") + " · " + name)), ct);
+    public async Task InstallAccelerationAsync(CancellationToken ct = default)
+    {
+        await _license.EnsureFeatureAsync(LicenseFeature.AiFrameInterpolation, ct).ConfigureAwait(false);
+        await WindowsMlAccelerator.InstallAsync(
+            name => DownloadProgressChanged?.Invoke(new ModelDownloadProgress(name, ModelDownloadStage.Connecting, 0, null,
+                LocalizationRegistry.Get("VideoTranscode.Sr_InstallingHardware") + " · " + name)), ct).ConfigureAwait(false);
+    }
 
     /// <inheritdoc />
     public async Task<IVideoFrameInterpolator> CreateSessionAsync(VideoTranscodeOptions options, int width, int height, CancellationToken ct = default)
     {
+        await _license.EnsureFeatureAsync(LicenseFeature.AiFrameInterpolation, ct).ConfigureAwait(false);
         await _sessionGate.WaitAsync(ct).ConfigureAwait(false);
         try
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
+            _license.ThrowIfRestricted(LicenseFeature.AiFrameInterpolation);
             var session = await Task.Run(() => downloader.UseModelsAsync<IVideoFrameInterpolator>([GetModel(options.InterpolationModel)], () => DirectoryPath, root =>
             {
+                _license.ThrowIfRestricted(LicenseFeature.AiFrameInterpolation);
                 string path = Path.Combine(root, GetModel(options.InterpolationModel).FileName);
                 bool cudaGraph = VideoInferenceRunGuard.UseCudaGraph(options);
                 var key = (path, width, height, options.InterpolationBackend, options.InterpolationAllowCpuFallback, cudaGraph);

@@ -17,6 +17,7 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
     private readonly ILogger<VideoTranscodeService> _logger;
     private readonly IVideoSuperResolutionService? _superResolution;
     private readonly IVideoInterpolationService? _interpolation;
+    private readonly ILicenseService _license;
 
     private const int ProbeTimeoutSec = 15;
     private static readonly int[] OpusRates = [8000, 12000, 16000, 24000, 48000];
@@ -24,11 +25,12 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
     private const int ErrEagain = -11;
 
     public VideoTranscodeService(ILogger<VideoTranscodeService> logger, IVideoSuperResolutionService? superResolution = null,
-        IVideoInterpolationService? interpolation = null)
+        IVideoInterpolationService? interpolation = null, ILicenseService? licenseService = null)
     {
         _logger = logger;
         _superResolution = superResolution;
         _interpolation = interpolation;
+        _license = licenseService ?? LicenseService.Unrestricted;
     }
 
     // ══════════════════════════════ 探测 ══════════════════════════════
@@ -146,9 +148,13 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
         IProgress<double>? progress = null, CancellationToken ct = default, IProgress<VideoPreviewFrame>? preview = null,
         IProgress<VideoEncodingProgress>? statistics = null)
     {
-        if (!File.Exists(inputPath)) throw new FileNotFoundException(inputPath);
         return Task.Run(() =>
         {
+            var features = (options.SuperResolutionEnabled ? LicenseFeature.VideoSuperResolution : LicenseFeature.None)
+                | (options.InterpolationMode == VideoInterpolationMode.Rife ? LicenseFeature.AiFrameInterpolation : LicenseFeature.None);
+            // unsafe 原生工作在线程池执行；许可必须先就绪，再探测源文件或创建输出。
+            if (features != LicenseFeature.None) _license.EnsureFeatureAsync(features, ct).GetAwaiter().GetResult();
+            if (!File.Exists(inputPath)) throw new FileNotFoundException(inputPath);
             if (!FFmpegNative.TryLoad(out Exception? loadError))
                 throw new InvalidOperationException(LocalizationRegistry.Get("VideoTranscode.Msg_FfmpegLoadFailed", loadError!.Message));
             ct.ThrowIfCancellationRequested();

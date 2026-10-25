@@ -31,6 +31,8 @@ internal static partial class Program
         string sample10bit = Path.Combine(workDir, "sample10bit.mkv");
         string sample422 = Path.Combine(workDir, "sample422.mkv");
         Directory.CreateDirectory(workDir);
+        if (args.Contains("--license-navigation-only")) return RunLicenseUiCases(workDir, false, navigationOnly: true);
+        if (args.Contains("--license-ui")) return RunLicenseUiCases(workDir, args.Contains("--inspect"));
         if (args.Contains("--image-pixels-only")) return RunImagePixelCases();
         if (args.Contains("--image-gpu")) return RunImageGpuBenchmark(workDir, args);
         if (args.Contains("--image-models-only")) return RunImageModelCases(workDir, args.Contains("--inspect"));

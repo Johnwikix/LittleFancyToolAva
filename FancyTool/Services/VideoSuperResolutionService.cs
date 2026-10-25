@@ -5,8 +5,10 @@ using Microsoft.Extensions.Logging;
 namespace FancyToolAva.Services;
 
 /// <summary>Installs packaged models and leases reusable GPU-only sessions exclusively to each video.</summary>
-public sealed class VideoSuperResolutionService(ModelDownloadService downloader, ILogger<VideoSuperResolutionService> logger, AppPreferences? preferences = null) : IVideoSuperResolutionService, IDisposable
+public sealed class VideoSuperResolutionService(ModelDownloadService downloader, ILogger<VideoSuperResolutionService> logger,
+    AppPreferences? preferences = null, ILicenseService? licenseService = null) : IVideoSuperResolutionService, IDisposable
 {
+    private readonly ILicenseService _license = licenseService ?? LicenseService.Unrestricted;
     private readonly SemaphoreSlim _sessionGate = new(1, 1);
     private readonly Dictionary<(string Path, int Window, VideoSrBackend Backend, bool Half, bool CudaGraph, int Degree), IVideoFrameUpscaler> _sessions = new();
     private volatile bool _disposed;
@@ -19,22 +21,28 @@ public sealed class VideoSuperResolutionService(ModelDownloadService downloader,
     public bool IsModelAvailable(VideoSrModel model) => File.Exists(Path.Combine(AppPaths.ModelsDirectory, "VideoSr", VideoSrModelCatalog.Get(model).FullPrecision.FileName));
 
     /// <inheritdoc />
-    public Task EnsureModelAsync(VideoSrModel model, CancellationToken ct = default)
+    public async Task EnsureModelAsync(VideoSrModel model, CancellationToken ct = default)
     {
+        await _license.EnsureFeatureAsync(LicenseFeature.VideoSuperResolution, ct).ConfigureAwait(false);
         var definition = VideoSrModelCatalog.Get(model);
         ModelManifestEntry[] graphs = definition.HalfPrecision is { } half ? [definition.FullPrecision, half] : [definition.FullPrecision];
-        return Task.Run(() => downloader.UseModelsAsync(graphs, () => Path.Combine(AppPaths.ModelsDirectory, "VideoSr"), _ => true,
-            new Progress<ModelDownloadProgress>(p => DownloadProgressChanged?.Invoke(p)), ct), ct);
+        await Task.Run(() => downloader.UseModelsAsync(graphs, () => Path.Combine(AppPaths.ModelsDirectory, "VideoSr"), _ => true,
+            new Progress<ModelDownloadProgress>(p => DownloadProgressChanged?.Invoke(p)), ct), ct).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
-    public Task InstallAccelerationAsync(CancellationToken ct = default) => WindowsMlAccelerator.InstallAsync(
-        name => DownloadProgressChanged?.Invoke(new ModelDownloadProgress(name, ModelDownloadStage.Connecting, 0, null,
-            LocalizationRegistry.Get("VideoTranscode.Sr_InstallingHardware") + " · " + name)), ct);
+    public async Task InstallAccelerationAsync(CancellationToken ct = default)
+    {
+        await _license.EnsureFeatureAsync(LicenseFeature.VideoSuperResolution, ct).ConfigureAwait(false);
+        await WindowsMlAccelerator.InstallAsync(
+            name => DownloadProgressChanged?.Invoke(new ModelDownloadProgress(name, ModelDownloadStage.Connecting, 0, null,
+                LocalizationRegistry.Get("VideoTranscode.Sr_InstallingHardware") + " · " + name)), ct).ConfigureAwait(false);
+    }
 
     /// <inheritdoc />
     public async Task<IVideoFrameUpscaler> CreateSessionAsync(VideoTranscodeOptions options, CancellationToken ct = default)
     {
+        await _license.EnsureFeatureAsync(LicenseFeature.VideoSuperResolution, ct).ConfigureAwait(false);
         if (options.SuperResolutionScale is not (2 or 4)) throw new ArgumentOutOfRangeException(nameof(options));
         if (options.SuperResolutionBackend is not (VideoSrBackend.Auto or VideoSrBackend.Gpu or VideoSrBackend.DirectMl))
             throw new NotSupportedException(LocalizationRegistry.Get("VideoTranscode.Sr_GpuRequired"));
@@ -46,10 +54,13 @@ public sealed class VideoSuperResolutionService(ModelDownloadService downloader,
         try
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
+            // 排队期间许可可能失效；复用已有缓存同样要重新确认。
+            _license.ThrowIfRestricted(LicenseFeature.VideoSuperResolution);
             var session = await downloader.UseModelsAsync<IVideoFrameUpscaler>([graph],
                 () => Path.Combine(AppPaths.ModelsDirectory, "VideoSr"), directory =>
             {
                 ct.ThrowIfCancellationRequested();
+                _license.ThrowIfRestricted(LicenseFeature.VideoSuperResolution);
                 int window = new[] { 192, 288, 384, 576 }[Math.Clamp(preferences?.SuperResolutionTileSizeIndex ?? 2, 0, 3)];
                 if (definition.RequiresDirectMl) window = Math.Max(window, 384);
                 var backend = definition.RequiresDirectMl ? VideoSrBackend.DirectMl : VideoSrBackend.VendorGpu;

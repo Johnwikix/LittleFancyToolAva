@@ -1,0 +1,26 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:FancyToolAva.ViewModels"
+             xmlns:fa="using:FluentAvalonia.UI.Controls"
+             x:Class="FancyToolAva.Views.Controls.LicenseNotice"
+             x:DataType="vm:LicenseViewModel"
+             IsVisible="{Binding IsNoticeVisible}"
+             AutomationProperties.AutomationId="AiLicenseNotice">
+    <fa:FAInfoBar IsOpen="True" IsClosable="False" Severity="Informational"
+                  Title="{Binding TitleText}" Message="{Binding StatusText}">
+        <StackPanel Spacing="{StaticResource StackSpacing}">
+            <TextBlock Text="{Binding ScopeText}" TextWrapping="Wrap"
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+            <ProgressBar IsVisible="{Binding IsChecking}" IsIndeterminate="True" Height="4" />
+            <TextBlock IsVisible="{Binding HasError}" Text="{Binding ErrorText}" TextWrapping="Wrap"
+                       Foreground="{DynamicResource SystemFillColorCriticalBrush}" />
+            <WrapPanel>
+                <Button IsVisible="{Binding ShowPurchase}" Command="{Binding PurchaseCommand}"
+                        Content="{Binding PurchaseLabel}" Classes="Primary" Margin="0,0,8,4"
+                        AutomationProperties.AutomationId="AiLicensePurchase" />
+                <Button Command="{Binding RefreshCommand}" Content="{Binding RefreshLabel}" Margin="0,0,0,4"
+                        AutomationProperties.AutomationId="AiLicenseRefresh" />
+            </WrapPanel>
+        </StackPanel>
+    </fa:FAInfoBar>
+</UserControl>

@@ -15,6 +15,7 @@
             <ScrollViewer Grid.Column="0">
                 <Border Classes="ToolCard">
                     <StackPanel Classes="ToolCardContent" Spacing="12">
+                        <controls:LicenseNotice DataContext="{Binding License}" />
                         <StackPanel Classes="FormRow">
                             <TextBlock Classes="FieldLabel" Text="{lan:I18n ImageConvert.Label_OutputDir}" />
                             <Grid ColumnDefinitions="*,8,Auto,8,Auto">
@@ -59,7 +60,7 @@
                             <TextBlock Classes="FieldLabel" Text="{lan:I18n ImageConvert.Label_SuperResolution}" />
                             <StackPanel Spacing="8">
                                 <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">
-                                    <CheckBox Grid.Column="0" IsChecked="{Binding IsSuperResolutionEnabled}" Content="{lan:I18n ImageConvert.Option_Enable}" />
+                                    <CheckBox Grid.Column="0" IsChecked="{Binding IsSuperResolutionEnabled}" IsEnabled="{Binding CanToggleImageSr}" Content="{lan:I18n ImageConvert.Option_Enable}" />
                                     <TextBlock Grid.Column="2"
                                                IsVisible="{Binding ShowModelMissingHint}"
                                                FontSize="11"

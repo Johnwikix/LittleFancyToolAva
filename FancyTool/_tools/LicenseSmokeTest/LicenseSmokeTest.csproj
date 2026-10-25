@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">win-x64</RuntimeIdentifier>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <Import Project="../../WindowsInference.props" />
+  <ItemGroup>
+    <ProjectReference Include="../../FancyToolAva.csproj">
+      <!-- SDK 的 GetTargetFrameworks 探测会移除 TFM/RID。Linux 已知为单目标，显式指定并跳过宿主机探测。 -->
+      <SkipGetTargetFrameworkProperties Condition="'$(RuntimeIdentifier)' == 'linux-x64'">true</SkipGetTargetFrameworkProperties>
+      <SetTargetFramework Condition="'$(RuntimeIdentifier)' == 'linux-x64'">TargetFramework=net10.0</SetTargetFramework>
+      <AdditionalProperties Condition="'$(RuntimeIdentifier)' == 'linux-x64'">TargetFramework=net10.0;RuntimeIdentifier=linux-x64</AdditionalProperties>
+    </ProjectReference>
+  </ItemGroup>
+</Project>

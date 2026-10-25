@@ -32,6 +32,11 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
     private readonly INotificationService _notificationService;
     private readonly IViewStateService _viewStateService;
     private readonly AppPreferences _preferences;
+    private readonly ILicenseService _licenseService;
+    private readonly bool _ownsLicense;
+
+    /// <summary>与图片转换及设置页共享的授权状态和购买命令。</summary>
+    public LicenseViewModel License { get; }
     private CancellationTokenSource? _cts;
     private volatile bool _stopRequested;
     private int _completedCountField;
@@ -731,6 +736,7 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
         }
         void DoInvalidateAll()
         {
+            OnPropertyChanged(nameof(CanToggleVideoSr));
             AddFilesCommand.NotifyCanExecuteChanged();
             AddFolderCommand.NotifyCanExecuteChanged();
             ClearListCommand.NotifyCanExecuteChanged();
@@ -739,6 +745,10 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
             StartTranscodeCommand.NotifyCanExecuteChanged();
             TogglePauseCommand.NotifyCanExecuteChanged();
             StopTranscodeCommand.NotifyCanExecuteChanged();
+            InstallVideoSrModelCommand.NotifyCanExecuteChanged();
+            InstallVideoSrAccelerationCommand.NotifyCanExecuteChanged();
+            InstallInterpolationModelCommand.NotifyCanExecuteChanged();
+            InstallInterpolationAccelerationCommand.NotifyCanExecuteChanged();
         }
     }
 
@@ -785,7 +795,9 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
         AppPreferences preferences,
         ILogger<VideoTranscodeViewModel>? logger = null,
         IVideoSuperResolutionService? videoSrService = null,
-        IVideoInterpolationService? interpolationService = null)
+        IVideoInterpolationService? interpolationService = null,
+        ILicenseService? licenseService = null,
+        LicenseViewModel? license = null)
     {
         _videoService = videoService;
         _ffmpegService = ffmpegService;
@@ -793,6 +805,10 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
         _notificationService = notificationService;
         _viewStateService = viewStateService;
         _preferences = preferences;
+        _licenseService = licenseService ?? license?.Service ?? LicenseService.Unrestricted;
+        _ownsLicense = license == null;
+        License = license ?? new LicenseViewModel(_licenseService);
+        _licenseService.StateChanged += OnLicenseStateChanged;
         _videoSrService = videoSrService;
         _interpolationService = interpolationService;
         if (interpolationService != null)
@@ -813,6 +829,32 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
         UpdateStatusText();
         _ = CheckHardwareInterpolationAsync();
     }
+
+    private void OnLicenseStateChanged() => Dispatcher.UIThread.Post(() =>
+    {
+        if (_isDisposed) return;
+        OnPropertyChanged(nameof(CanToggleVideoSr));
+        RefreshSrState();
+        RefreshInterpolationState();
+    });
+
+    private async Task<bool> EnsureAiAccessAsync(LicenseFeature feature)
+    {
+        try
+        {
+            await _licenseService.EnsureFeatureAsync(feature);
+            return !_isDisposed;
+        }
+        catch (Exception ex)
+        {
+            if (!_isDisposed) _notificationService.ShowWarn(ex.Message);
+            return false;
+        }
+    }
+
+    private LicenseFeature SelectedAiFeatures =>
+        (IsVideoSrEnabled ? LicenseFeature.VideoSuperResolution : LicenseFeature.None)
+        | (IsAiInterpolation ? LicenseFeature.AiFrameInterpolation : LicenseFeature.None);
 
     private void OnFfmpegAvailabilityChanged(object? sender, bool available)
     {
@@ -1302,6 +1344,9 @@ private async Task AddPathsAsync(IEnumerable<string> paths)
     [RelayCommand(CanExecute = nameof(CanStartTranscode))]
     private async Task StartTranscode()
     {
+        if (_isDisposed || IsBusy || IsSrInstalling || IsInterpolationInstalling) return;
+        if (SelectedAiFeatures != LicenseFeature.None && !await EnsureAiAccessAsync(SelectedAiFeatures)) return;
+        if (_isDisposed || IsBusy || IsSrInstalling || IsInterpolationInstalling) return;
         if (!_ffmpegService.IsAvailable)
         {
             Dispatcher.UIThread.Post(() => _notificationService.ShowError(LocalizationRegistry.Get("VideoTranscode.Msg_FfmpegNotAvailable")));
@@ -1320,144 +1365,157 @@ private async Task AddPathsAsync(IEnumerable<string> paths)
         if (FileItems.Count == 0) return;
 
         _cts?.Cancel();
-        _cts = new CancellationTokenSource();
-        _stopRequested = false;
-        IsPaused = false;
-        IsBusy = true;
-        TotalCount = FileItems.Count;
-        CompletedCount = 0;
-        FailedCount = 0;
-        _completedCountField = 0;
-        _failedCountField = 0;
-        ConversionProgress = 0;
-        UpdateStatusText();
-        RefreshBatchProgressText();
-
-        var options = BuildOptions();
-        _loggerField.LogInformation("批量视频转码开始：{Count} 个文件，编码 {Codec}，输出目录 {Dir}",
-            TotalCount, MapVideoCodecName(options.VideoCodec, options.HardwareBackend), useSourceDir ? "(源文件目录)" : OutputFolder);
-
-        // Validate encoder availability
-        string vCodecName = MapVideoCodecName(options.VideoCodec, options.HardwareBackend);
-        if (!_ffmpegService.ValidateEncoder(vCodecName) && vCodecName != "gif")
+        using var cancellation = _cts = new CancellationTokenSource();
+        try
         {
-            // Still allow try, but warn
-            _loggerField.LogWarning("Video encoder {Codec} not in available list, will still try", vCodecName);
-        }
+            _stopRequested = false;
+            IsPaused = false;
+            IsBusy = true;
+            TotalCount = FileItems.Count;
+            CompletedCount = 0;
+            FailedCount = 0;
+            _completedCountField = 0;
+            _failedCountField = 0;
+            ConversionProgress = 0;
+            UpdateStatusText();
+            RefreshBatchProgressText();
 
-        foreach (var item in FileItems) item.Status = FileStatus.Pending;
+            var options = BuildOptions();
+            _loggerField.LogInformation("批量视频转码开始：{Count} 个文件，编码 {Codec}，输出目录 {Dir}",
+                TotalCount, MapVideoCodecName(options.VideoCodec, options.HardwareBackend), useSourceDir ? "(源文件目录)" : OutputFolder);
 
-        // 路径规划含逐文件 File.Exists/建目录磁盘 IO，上千文件时移出 UI 线程
-        var snapshot = FileItems.ToArray();
-        var plan = await Task.Run(() =>
-        {
-            // 并行执行前统一规划输出路径：文件夹添加的文件镜像源目录结构到输出目录，
-            // 单独添加的文件平铺；同名文件在批内与磁盘上去重，避免并发写冲突。
-            var taken = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
-            var result = new List<(VideoFileItem, string)>(snapshot.Length);
-            foreach (var item in snapshot)
+            // Validate encoder availability
+            string vCodecName = MapVideoCodecName(options.VideoCodec, options.HardwareBackend);
+            if (!_ffmpegService.ValidateEncoder(vCodecName) && vCodecName != "gif")
             {
-                string sourceDir = Path.GetDirectoryName(item.FilePath) ?? Path.GetTempPath();
-                string outputDir = useSourceDir ? sourceDir
-                    : OutputPathPlanner.ResolveOutputDir(commonOutputDir!, item.FilePath, item.RootFolder);
-                string outputPath = OutputPathPlanner.PlanUniquePath(outputDir,
-                    Path.GetFileNameWithoutExtension(item.FileName), ContainerExtension(options.Container), useSourceDir, taken);
-                result.Add((item, outputPath));
+                // Still allow try, but warn
+                _loggerField.LogWarning("Video encoder {Codec} not in available list, will still try", vCodecName);
             }
-            return result;
-        }).ConfigureAwait(false);
 
-        // 软件编码器（x264/x265 等）内部已多线程，批级并行取小值避免过度订阅
-        int dop = options.SuperResolutionEnabled ? 1 : Math.Clamp(Environment.ProcessorCount / 4, 1, 4);
-        await Parallel.ForEachAsync(plan, new ParallelOptions { MaxDegreeOfParallelism = dop }, async (entry, _) =>
-        {
-            var (item, outputPath) = entry;
-            // 暂停：不再启动新任务（进行中的跑完为止）；终止：直接返回不再排队
-            while (IsPaused && !_cts.Token.IsCancellationRequested)
-                await Task.Delay(200).ConfigureAwait(false);
-            if (_cts.Token.IsCancellationRequested) return;
+            foreach (var item in FileItems) item.Status = FileStatus.Pending;
 
-            Dispatcher.UIThread.Post(() =>
+            // 路径规划含逐文件 File.Exists/建目录磁盘 IO，上千文件时移出 UI 线程
+            var snapshot = FileItems.ToArray();
+            var plan = await Task.Run(() =>
             {
-                item.Status = FileStatus.Converting;
-                item.Progress = 0;
-                item.UpdateEncodingStatistics(null);
-                if (SelectedFileItem?.Status != FileStatus.Converting) SelectedFileItem = item;
-            });
-            var progress = new Progress<double>(p => Dispatcher.UIThread.Post(() => item.Progress = p));
-            var statistics = new EncodingStatisticsReporter(item);
+                // 并行执行前统一规划输出路径：文件夹添加的文件镜像源目录结构到输出目录，
+                // 单独添加的文件平铺；同名文件在批内与磁盘上去重，避免并发写冲突。
+                var taken = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+                var result = new List<(VideoFileItem, string)>(snapshot.Length);
+                foreach (var item in snapshot)
+                {
+                    string sourceDir = Path.GetDirectoryName(item.FilePath) ?? Path.GetTempPath();
+                    string outputDir = useSourceDir ? sourceDir
+                        : OutputPathPlanner.ResolveOutputDir(commonOutputDir!, item.FilePath, item.RootFolder);
+                    string outputPath = OutputPathPlanner.PlanUniquePath(outputDir,
+                        Path.GetFileNameWithoutExtension(item.FileName), ContainerExtension(options.Container), useSourceDir, taken);
+                    result.Add((item, outputPath));
+                }
+                return result;
+            }).ConfigureAwait(false);
 
-            bool itemFailed = false;
-            try
+            // 软件编码器（x264/x265 等）内部已多线程，批级并行取小值避免过度订阅
+            int dop = options.SuperResolutionEnabled ? 1 : Math.Clamp(Environment.ProcessorCount / 4, 1, 4);
+            await Parallel.ForEachAsync(plan, new ParallelOptions { MaxDegreeOfParallelism = dop }, async (entry, _) =>
             {
-                // Every file owns its clip range; shared encoding settings are snapshotted for the batch.
-                var itemOptions = options.WithTrim(item.TrimStartSeconds, item.TrimEndSeconds);
-                await _videoService.TranscodeAsync(item.FilePath, outputPath, itemOptions, progress, _cts.Token, CreateProgressPreview(item), statistics).ConfigureAwait(false);
-                Dispatcher.UIThread.Post(() => { item.Progress = 1.0; item.Status = FileStatus.Completed; });
-            }
-            catch (OperationCanceledException)
-            {
-                Dispatcher.UIThread.Post(() => item.Status = FileStatus.Pending);
-            }
-            catch (Exception ex)
-            {
-                itemFailed = true;
-                string msg = ex.Message.Split('\n').FirstOrDefault() ?? ex.Message;
-                // 失败明细落日志文件（logs/tool-*.log）：哪个文件、因为什么
-                _loggerField.LogError(ex, "视频转码失败: {File} -> {Output}", item.FilePath, outputPath);
-                Dispatcher.UIThread.Post(() => { item.Status = FileStatus.Failed; item.ErrorMessage = msg.Length > 200 ? msg[..200] : msg; });
-            }
-            finally
-            {
-                // itemFailed is set synchronously in catch; item.Status is posted async to the UI thread
-                // and must NOT be read here (would race and report success despite failures).
-                if (itemFailed) Interlocked.Increment(ref _failedCountField);
-                int processed = Interlocked.Increment(ref _completedCountField);
-                int failed = Volatile.Read(ref _failedCountField);
+                var (item, outputPath) = entry;
+                // 暂停：不再启动新任务（进行中的跑完为止）；终止：直接返回不再排队
+                while (IsPaused && !cancellation.IsCancellationRequested)
+                    await Task.Delay(200).ConfigureAwait(false);
+                if (cancellation.IsCancellationRequested) return;
+
                 Dispatcher.UIThread.Post(() =>
                 {
-                    CompletedCount = processed - failed;
-                    FailedCount = failed;
-                    ConversionProgress = (double)processed / TotalCount;
-                    UpdateStatusText();
-                    RefreshBatchProgressText();
-                    if (ReferenceEquals(SelectedFileItem, item))
-                    {
-                        var active = FileItems.FirstOrDefault(x => x.Status == FileStatus.Converting);
-                        if (active != null) SelectedFileItem = active;
-                    }
+                    item.Status = FileStatus.Converting;
+                    item.Progress = 0;
+                    item.UpdateEncodingStatistics(null);
+                    if (SelectedFileItem?.Status != FileStatus.Converting) SelectedFileItem = item;
                 });
-            }
-        }).ConfigureAwait(false);
+                var progress = new Progress<double>(p => Dispatcher.UIThread.Post(() => item.Progress = p));
+                var statistics = new EncodingStatisticsReporter(item);
 
-        IsBusy = false;
+                bool itemFailed = false;
+                try
+                {
+                    // Every file owns its clip range; shared encoding settings are snapshotted for the batch.
+                    var itemOptions = options.WithTrim(item.TrimStartSeconds, item.TrimEndSeconds);
+                    await _videoService.TranscodeAsync(item.FilePath, outputPath, itemOptions, progress, cancellation.Token, CreateProgressPreview(item), statistics).ConfigureAwait(false);
+                    Dispatcher.UIThread.Post(() => { item.Progress = 1.0; item.Status = FileStatus.Completed; });
+                }
+                catch (OperationCanceledException)
+                {
+                    Dispatcher.UIThread.Post(() => item.Status = FileStatus.Pending);
+                }
+                catch (Exception ex)
+                {
+                    itemFailed = true;
+                    string msg = ex.Message.Split('\n').FirstOrDefault() ?? ex.Message;
+                    // 失败明细落日志文件（logs/tool-*.log）：哪个文件、因为什么
+                    _loggerField.LogError(ex, "视频转码失败: {File} -> {Output}", item.FilePath, outputPath);
+                    Dispatcher.UIThread.Post(() => { item.Status = FileStatus.Failed; item.ErrorMessage = msg.Length > 200 ? msg[..200] : msg; });
+                }
+                finally
+                {
+                    // itemFailed is set synchronously in catch; item.Status is posted async to the UI thread
+                    // and must NOT be read here (would race and report success despite failures).
+                    if (itemFailed) Interlocked.Increment(ref _failedCountField);
+                    int processed = Interlocked.Increment(ref _completedCountField);
+                    int failed = Volatile.Read(ref _failedCountField);
+                    Dispatcher.UIThread.Post(() =>
+                    {
+                        CompletedCount = processed - failed;
+                        FailedCount = failed;
+                        ConversionProgress = (double)processed / TotalCount;
+                        UpdateStatusText();
+                        RefreshBatchProgressText();
+                        if (ReferenceEquals(SelectedFileItem, item))
+                        {
+                            var active = FileItems.FirstOrDefault(x => x.Status == FileStatus.Converting);
+                            if (active != null) SelectedFileItem = active;
+                        }
+                    });
+                }
+            }).ConfigureAwait(false);
 
-        await Task.Run(() =>
-        {
-            GC.Collect(2, GCCollectionMode.Forced, blocking: true, compacting: true);
-            GC.WaitForPendingFinalizers();
-            GC.Collect(2, GCCollectionMode.Forced, blocking: true, compacting: true);
-        });
+            if (_isDisposed) return;
 
-        int finalFailed = Volatile.Read(ref _failedCountField);
-        int finalTotal = TotalCount;
-        int finalProcessed = Volatile.Read(ref _completedCountField);
-        int finalDone = finalProcessed - finalFailed;
-        Dispatcher.UIThread.Post(() =>
-        {
-            // Ensure UI counters reflect final values before notification
-            FailedCount = finalFailed;
-            CompletedCount = finalDone;
-            if (_stopRequested)
+            await Task.Run(() =>
             {
-                _loggerField.LogWarning("批量视频转码已终止：完成 {Done}/{Total}，失败 {Failed}", finalDone, finalTotal, finalFailed);
-                _notificationService.ShowInfo(LocalizationRegistry.Get("VideoTranscode.Msg_Stopped", finalDone, finalTotal, finalFailed));
-            }
-            else if (finalFailed == 0)
-                _notificationService.ShowSuccess(LocalizationRegistry.Get("VideoTranscode.Msg_AllDone", finalTotal));
-            else
-                _notificationService.ShowWarn(LocalizationRegistry.Get("VideoTranscode.Msg_PartialFail", finalFailed, finalTotal));
-        });
+                GC.Collect(2, GCCollectionMode.Forced, blocking: true, compacting: true);
+                GC.WaitForPendingFinalizers();
+                GC.Collect(2, GCCollectionMode.Forced, blocking: true, compacting: true);
+            });
+
+            int finalFailed = Volatile.Read(ref _failedCountField);
+            int finalTotal = TotalCount;
+            int finalProcessed = Volatile.Read(ref _completedCountField);
+            int finalDone = finalProcessed - finalFailed;
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (_isDisposed) return;
+                // Ensure UI counters reflect final values before notification
+                FailedCount = finalFailed;
+                CompletedCount = finalDone;
+                if (_stopRequested)
+                {
+                    _loggerField.LogWarning("批量视频转码已终止：完成 {Done}/{Total}，失败 {Failed}", finalDone, finalTotal, finalFailed);
+                    _notificationService.ShowInfo(LocalizationRegistry.Get("VideoTranscode.Msg_Stopped", finalDone, finalTotal, finalFailed));
+                }
+                else if (finalFailed == 0)
+                    _notificationService.ShowSuccess(LocalizationRegistry.Get("VideoTranscode.Msg_AllDone", finalTotal));
+                else
+                    _notificationService.ShowWarn(LocalizationRegistry.Get("VideoTranscode.Msg_PartialFail", finalFailed, finalTotal));
+            });
+        }
+        finally
+        {
+            // 导航离开只发出取消；所有工作结束后才释放令牌并发布空闲状态。
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                if (ReferenceEquals(_cts, cancellation)) _cts = null;
+                IsBusy = false;
+            });
+        }
     }
 
     private void RefreshBatchProgressText()
@@ -1467,7 +1525,8 @@ private async Task AddPathsAsync(IEnumerable<string> paths)
             : string.Empty;
     }
 
-    private bool CanStartTranscode() => !IsBusy && !IsSrInstalling && !IsInterpolationInstalling
+    private bool CanStartTranscode() => !_isDisposed && !IsBusy && !IsSrInstalling && !IsInterpolationInstalling
+        && _licenseService.CanUseFeature(SelectedAiFeatures)
         && !(IsCheckingInterpolationHardware && _pendingHardwareModeIndex.HasValue)
         && InterpolationModes[InterpolationModeIndex].IsEnabled && InterpolationRates[InterpolationRateIndex].IsEnabled
         && FileItems.Count > 0 && _ffmpegService.IsAvailable;
@@ -1688,10 +1747,10 @@ private async Task AddPathsAsync(IEnumerable<string> paths)
     {
         if (_isDisposed) return;
         _isDisposed = true;
+        _licenseService.StateChanged -= OnLicenseStateChanged;
         _ffmpegService.AvailabilityChanged -= OnFfmpegAvailabilityChanged;
         try { I18nManager.Instance.CultureChanged -= OnCultureChanged; } catch { }
         _cts?.Cancel();
-        _cts?.Dispose();
         _srInstallCts?.Cancel();
         _interpolationInstallCts?.Cancel();
         if (_interpolationService != null)
@@ -1711,5 +1770,6 @@ private async Task AddPathsAsync(IEnumerable<string> paths)
             _videoSrService.DeviceChanged -= OnSrDeviceChanged;
         }
         _viewStateService.Unregister(this);
+        if (_ownsLicense) License.Dispose();
     }
 }

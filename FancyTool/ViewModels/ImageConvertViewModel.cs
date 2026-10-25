@@ -10,7 +10,7 @@ using FancyToolAva.Utils;
 
 namespace FancyToolAva.ViewModels;
 
-public partial class ImageConvertViewModel : ViewModelBase, IViewState, IFileItemOwner
+public partial class ImageConvertViewModel : ViewModelBase, IViewState, IFileItemOwner, IDisposable
 {
     private static readonly HashSet<string> ImageExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -19,6 +19,16 @@ public partial class ImageConvertViewModel : ViewModelBase, IViewState, IFileIte
 
     private readonly IImageConversionService _imageConversionService;
     private readonly ISuperResolutionService _superResolutionService;
+    private readonly ILicenseService _licenseService;
+    private readonly bool _ownsLicense;
+    private bool _isDisposed;
+
+    /// <summary>与视频转换及设置页共享的授权状态和购买命令。</summary>
+    public LicenseViewModel License { get; }
+
+    /// <summary>受限时仍允许取消已保存的勾选，以便继续普通图片转换。</summary>
+    public bool CanToggleImageSr => !IsBusy && (IsSuperResolutionEnabled
+        || _licenseService.CanUseFeature(LicenseFeature.ImageSuperResolution));
 
     /// <summary>Gets or sets whether image super-resolution prefers Intel NPU inference.</summary>
     public bool PreferSrNpu
@@ -62,7 +72,10 @@ public partial class ImageConvertViewModel : ViewModelBase, IViewState, IFileIte
         set
         {
             if (SetProperty(ref field, value))
+            {
                 OnPropertyChanged(nameof(IsIcoMode));
+                StartConvertCommand.NotifyCanExecuteChanged();
+            }
         }
     }
 
@@ -118,6 +131,8 @@ public partial class ImageConvertViewModel : ViewModelBase, IViewState, IFileIte
                 }
                 OnPropertyChanged(nameof(IsDownscaleEnabled));
                 OnPropertyChanged(nameof(IsSuperResolutionReady));
+                OnPropertyChanged(nameof(CanToggleImageSr));
+                StartConvertCommand.NotifyCanExecuteChanged();
             }
         }
     }
@@ -156,6 +171,7 @@ public partial class ImageConvertViewModel : ViewModelBase, IViewState, IFileIte
 
     public bool ShowModelMissingHint =>
         IsSuperResolutionEnabled
+        && _licenseService.CanUseFeature(LicenseFeature.ImageSuperResolution)
         && !IsSuperResolutionReady
         && !IsSuperResolutionDownloading
         && string.IsNullOrEmpty(_superResolutionService.LastDownloadError);
@@ -200,6 +216,7 @@ public partial class ImageConvertViewModel : ViewModelBase, IViewState, IFileIte
                 OpenOutputFolderCommand.NotifyCanExecuteChanged();
                 StartConvertCommand.NotifyCanExecuteChanged();
                 InstallSrAccelerationCommand.NotifyCanExecuteChanged();
+                OnPropertyChanged(nameof(CanToggleImageSr));
             }
         }
     }
@@ -245,35 +262,74 @@ public partial class ImageConvertViewModel : ViewModelBase, IViewState, IFileIte
         ISuperResolutionService superResolutionService,
         IFileDialogService fileDialogService,
         INotificationService notificationService,
-        IViewStateService viewStateService)
+        IViewStateService viewStateService,
+        ILicenseService? licenseService = null,
+        LicenseViewModel? license = null)
     {
         _imageConversionService = imageConversionService;
         _superResolutionService = superResolutionService;
         _fileDialogService = fileDialogService;
         _notificationService = notificationService;
         _viewStateService = viewStateService;
+        _licenseService = licenseService ?? license?.Service ?? LicenseService.Unrestricted;
+        _ownsLicense = license == null;
+        License = license ?? new LicenseViewModel(_licenseService);
+        _licenseService.StateChanged += OnLicenseStateChanged;
         _viewStateService.Register(this);
-        FileItems.CollectionChanged += (_, _) => StartConvertCommand.NotifyCanExecuteChanged();
+        FileItems.CollectionChanged += OnFileItemsChanged;
         AvailableSrModelLabels.Add(LocalizationRegistry.Get("ImageConvert.SrModel_RealEsrganX4"));
         AvailableSrModelLabels.Add(LocalizationRegistry.Get("ImageConvert.SrModel_RealEsrganX4Anime"));
         AvailableSrModelLabels.Add(LocalizationRegistry.Get("ImageConvert.SrModel_RealEsrganGeneralX4v3"));
         AvailableSrModelLabels.Add(LocalizationRegistry.Get("ImageConvert.SrModel_SpanClearRealityV1"));
         _superResolutionService.DownloadProgressChanged += OnDownloadProgressChanged;
         _superResolutionService.IsDownloadingChanged += OnIsDownloadingChanged;
-        _superResolutionService.DeviceChanged += device => Dispatcher.UIThread.Post(() =>
-            SrDeviceText = device.Name + (device.FallbackReason != null ? " · " + LocalizationRegistry.Get("VideoTranscode.Sr_Fallback") : string.Empty));
+        _superResolutionService.DeviceChanged += OnDeviceChanged;
         UpdateStatusText();
     }
 
-    private void OnIsDownloadingChanged(object? sender, bool downloading)
+    private void OnFileItemsChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+        => StartConvertCommand.NotifyCanExecuteChanged();
+
+    private void OnDeviceChanged(VideoSrDevice device) => Dispatcher.UIThread.Post(() =>
     {
+        if (!_isDisposed)
+            SrDeviceText = device.Name + (device.FallbackReason != null ? " · " + LocalizationRegistry.Get("VideoTranscode.Sr_Fallback") : string.Empty);
+    });
+
+    private void OnLicenseStateChanged() => Dispatcher.UIThread.Post(() =>
+    {
+        if (_isDisposed) return;
+        OnPropertyChanged(nameof(CanToggleImageSr));
+        OnPropertyChanged(nameof(ShowModelMissingHint));
+        StartConvertCommand.NotifyCanExecuteChanged();
+        InstallSrAccelerationCommand.NotifyCanExecuteChanged();
+    });
+
+    private async Task<bool> EnsureAiAccessAsync()
+    {
+        try
+        {
+            await _licenseService.EnsureFeatureAsync(LicenseFeature.ImageSuperResolution);
+            return !_isDisposed;
+        }
+        catch (Exception ex)
+        {
+            if (!_isDisposed) _notificationService.ShowWarn(ex.Message);
+            return false;
+        }
+    }
+
+    private void OnIsDownloadingChanged(object? sender, bool downloading) => Dispatcher.UIThread.Post(() =>
+    {
+        if (_isDisposed) return;
         OnPropertyChanged(nameof(IsSuperResolutionDownloading));
         OnPropertyChanged(nameof(IsSuperResolutionReady));
         OnPropertyChanged(nameof(ShowModelMissingHint));
-    }
+    });
 
-    private void OnDownloadProgressChanged(ModelDownloadProgress p)
+    private void OnDownloadProgressChanged(ModelDownloadProgress p) => Dispatcher.UIThread.Post(() =>
     {
+        if (_isDisposed) return;
         ModelDownloadHasError = p.Stage == ModelDownloadStage.Failed;
         if (p.Stage == ModelDownloadStage.Failed)
         {
@@ -292,7 +348,7 @@ public partial class ImageConvertViewModel : ViewModelBase, IViewState, IFileIte
         OnPropertyChanged(nameof(IsSuperResolutionReady));
         OnPropertyChanged(nameof(IsSuperResolutionDownloading));
         OnPropertyChanged(nameof(ShowModelMissingHint));
-    }
+    });
 
     object IViewState.CaptureState() => new ImageConvertViewState
     {
@@ -417,6 +473,9 @@ public partial class ImageConvertViewModel : ViewModelBase, IViewState, IFileIte
     [RelayCommand(CanExecute = nameof(CanStartConvert))]
     private async Task StartConvert()
     {
+        if (_isDisposed || IsBusy || IsHardwareInstalling) return;
+        if (IsSuperResolutionEnabled && !IsIcoMode && !await EnsureAiAccessAsync()) return;
+        if (_isDisposed || IsBusy || IsHardwareInstalling || FileItems.Count == 0) return;
         if (string.IsNullOrEmpty(OutputFolder))
         {
             string? folder = await _fileDialogService.PickFolderAsync(LocalizationRegistry.Get("ImageConvert.Picker_SelectOutputDir"));
@@ -424,22 +483,13 @@ public partial class ImageConvertViewModel : ViewModelBase, IViewState, IFileIte
             OutputFolder = folder;
         }
 
+        if (_isDisposed || IsBusy || IsHardwareInstalling) return;
+
         if (!Directory.Exists(OutputFolder))
         {
             _notificationService.ShowError(LocalizationRegistry.Get("ImageConvert.Msg_OutputDirMissing"));
             return;
         }
-
-        _cts?.Cancel();
-        _cts = new CancellationTokenSource();
-        IsBusy = true;
-        TotalCount = FileItems.Count;
-        CompletedCount = 0;
-        FailedCount = 0;
-        _completedCountField = 0;
-        _failedCountField = 0;
-        ConversionProgress = 0;
-        UpdateStatusText();
 
         string format = AvailableFormats[FormatIndex];
 
@@ -452,6 +502,17 @@ public partial class ImageConvertViewModel : ViewModelBase, IViewState, IFileIte
         SuperResolutionModel? srModel = srEnabled ? AvailableSuperResolutionModels[SelectedSrModelIndex] : null;
         int srScale = AvailableSrScales[SelectedSrScaleIndex];
 
+        _cts?.Cancel();
+        using var cancellation = _cts = new CancellationTokenSource();
+        IsBusy = true;
+        TotalCount = FileItems.Count;
+        CompletedCount = 0;
+        FailedCount = 0;
+        _completedCountField = 0;
+        _failedCountField = 0;
+        ConversionProgress = 0;
+        UpdateStatusText();
+
         // Super-resolution runs one image at a time: the DML session (and its
         // multi-GB shared-memory reservation) must never be shared across items.
         int parallelDegree = srEnabled ? 1 : Environment.ProcessorCount;
@@ -459,88 +520,100 @@ public partial class ImageConvertViewModel : ViewModelBase, IViewState, IFileIte
         foreach (var item in FileItems)
             item.Status = FileStatus.Pending;
 
-        await Parallel.ForEachAsync(FileItems,
-            new ParallelOptions
-            {
-                MaxDegreeOfParallelism = parallelDegree,
-                CancellationToken = _cts.Token
-            },
-            async (item, ct) =>
-            {
-                item.Status = FileStatus.Converting;
-                item.Progress = 0;
-                var progress = new ThrottledProgress<double>(p =>
+        try
+        {
+            await Parallel.ForEachAsync(FileItems,
+                new ParallelOptions
                 {
-                    item.Progress = p;
-                }, TimeSpan.FromMilliseconds(50));
-                try
+                    MaxDegreeOfParallelism = parallelDegree,
+                    CancellationToken = cancellation.Token
+                },
+                async (item, ct) =>
                 {
-                    if (format == "ico")
+                    item.Status = FileStatus.Converting;
+                    item.Progress = 0;
+                    var progress = new ThrottledProgress<double>(p =>
                     {
-                        int size = AvailableSizes[SelectedSizeIndex];
-                        string outputPath = GetUniqueOutputPath(OutputFolder!, item.FileName, "ico");
-                        await _imageConversionService.SaveAsIcoAsync(item.FilePath, outputPath, size, ct);
+                        item.Progress = p;
+                    }, TimeSpan.FromMilliseconds(50));
+                    try
+                    {
+                        if (format == "ico")
+                        {
+                            int size = AvailableSizes[SelectedSizeIndex];
+                            string outputPath = GetUniqueOutputPath(OutputFolder!, item.FileName, "ico");
+                            await _imageConversionService.SaveAsIcoAsync(item.FilePath, outputPath, size, ct);
+                        }
+                        else
+                        {
+                            string? filter = IsDownscaleEnabled ? AvailableFilters[SelectedFilterIndex] : null;
+                            int? scalePct = IsDownscaleEnabled && DownscalePercent < 100 ? DownscalePercent : null;
+                            string outputPath = GetUniqueOutputPath(OutputFolder!, item.FileName, format);
+                            await _imageConversionService.ConvertImageFormatAsync(
+                                item.FilePath,
+                                outputPath,
+                                format,
+                                ct,
+                                null,
+                                filter,
+                                progress,
+                                scalePercent: scalePct,
+                                superResolutionModel: srModel,
+                                superResolutionScale: srScale,
+                                superResolutionService: srEnabled ? _superResolutionService : null);
+                        }
+                        item.Progress = 1.0;
+                        item.Status = FileStatus.Completed;
                     }
-                    else
+                    catch (SuperResolutionOutputTooLargeException ex)
                     {
-                        string? filter = IsDownscaleEnabled ? AvailableFilters[SelectedFilterIndex] : null;
-                        int? scalePct = IsDownscaleEnabled && DownscalePercent < 100 ? DownscalePercent : null;
-                        string outputPath = GetUniqueOutputPath(OutputFolder!, item.FileName, format);
-                        await _imageConversionService.ConvertImageFormatAsync(
-                            item.FilePath,
-                            outputPath,
-                            format,
-                            ct,
-                            null,
-                            filter,
-                            progress,
-                            scalePercent: scalePct,
-                            superResolutionModel: srModel,
-                            superResolutionScale: srScale,
-                            superResolutionService: srEnabled ? _superResolutionService : null);
+                        item.Status = FileStatus.Failed;
+                        item.ErrorMessage = LocalizationRegistry.Get(
+                            "ImageConvert.Msg_SrTooLarge", ex.OutputWidth, ex.OutputHeight, ex.MaxDimension);
                     }
-                    item.Progress = 1.0;
-                    item.Status = FileStatus.Completed;
-                }
-                catch (SuperResolutionOutputTooLargeException ex)
-                {
-                    item.Status = FileStatus.Failed;
-                    item.ErrorMessage = LocalizationRegistry.Get(
-                        "ImageConvert.Msg_SrTooLarge", ex.OutputWidth, ex.OutputHeight, ex.MaxDimension);
-                }
-                catch (OperationCanceledException)
-                {
-                    item.Status = FileStatus.Pending;
-                }
-                catch (Exception ex)
-                {
-                    item.Status = FileStatus.Failed;
-                    item.ErrorMessage = ex.Message;
-                }
-                finally
-                {
-                    bool isFailed = item.Status == FileStatus.Failed;
-                    if (isFailed)
-                        Interlocked.Increment(ref _failedCountField);
-                    int processed = Interlocked.Increment(ref _completedCountField);
-                    int failed = Volatile.Read(ref _failedCountField);
-                    Dispatcher.UIThread.Post(() =>
+                    catch (OperationCanceledException)
                     {
-                        CompletedCount = processed - failed;
-                        FailedCount = failed;
-                        ConversionProgress = (double)processed / TotalCount;
-                        UpdateStatusText();
-                    });
-                }
-            });
-
-        IsBusy = false;
+                        item.Status = FileStatus.Pending;
+                    }
+                    catch (Exception ex)
+                    {
+                        item.Status = FileStatus.Failed;
+                        item.ErrorMessage = ex.Message;
+                    }
+                    finally
+                    {
+                        bool isFailed = item.Status == FileStatus.Failed;
+                        if (isFailed)
+                            Interlocked.Increment(ref _failedCountField);
+                        int processed = Interlocked.Increment(ref _completedCountField);
+                        int failed = Volatile.Read(ref _failedCountField);
+                        Dispatcher.UIThread.Post(() =>
+                        {
+                            CompletedCount = processed - failed;
+                            FailedCount = failed;
+                            ConversionProgress = (double)processed / TotalCount;
+                            UpdateStatusText();
+                        });
+                    }
+                });
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        {
+            // 导航离开时取消队列，等待真实转换收尾后再归还令牌资源。
+        }
+        finally
+        {
+            if (ReferenceEquals(_cts, cancellation)) _cts = null;
+            IsBusy = false;
+        }
 
         // Return GPU/GL resources: destroy ONNX/DML sessions so their shared-memory
         // reservations are released back to the OS when the batch is done.
         // ReleaseSessions 持推理锁并同步 Dispose 原生会话，移出 UI 线程执行。
         if (srEnabled)
             await Task.Run(() => _superResolutionService.ReleaseSessions());
+
+        if (_isDisposed || cancellation.IsCancellationRequested) return;
 
         // Return large (multi-GB) LOH allocations to the OS after the batch work is done.
         await Task.Run(() =>
@@ -556,7 +629,8 @@ public partial class ImageConvertViewModel : ViewModelBase, IViewState, IFileIte
             _notificationService.ShowWarn(LocalizationRegistry.Get("ImageConvert.Msg_PartialFail", FailedCount, TotalCount));
     }
 
-    private bool CanStartConvert() => !IsBusy && !IsHardwareInstalling && FileItems.Count > 0;
+    private bool CanStartConvert() => !_isDisposed && !IsBusy && !IsHardwareInstalling && FileItems.Count > 0
+        && (!IsSuperResolutionEnabled || IsIcoMode || _licenseService.CanUseFeature(LicenseFeature.ImageSuperResolution));
 
     private static string GetUniqueOutputPath(string folder, string fileName, string extension)
     {
@@ -579,5 +653,21 @@ public partial class ImageConvertViewModel : ViewModelBase, IViewState, IFileIte
         StatusText = FileItems.Count == 0
             ? LocalizationRegistry.Get("ImageConvert.Status_Files")
             : LocalizationRegistry.Get("ImageConvert.Status_FileCount", FileItems.Count);
+    }
+
+    public void Dispose()
+    {
+        if (_isDisposed) return;
+        _isDisposed = true;
+        // 仅发出取消，不在 UI 线程等待持有原生会话的批处理。
+        _cts?.Cancel();
+        _hardwareInstallCts?.Cancel();
+        _licenseService.StateChanged -= OnLicenseStateChanged;
+        _superResolutionService.DownloadProgressChanged -= OnDownloadProgressChanged;
+        _superResolutionService.IsDownloadingChanged -= OnIsDownloadingChanged;
+        _superResolutionService.DeviceChanged -= OnDeviceChanged;
+        FileItems.CollectionChanged -= OnFileItemsChanged;
+        _viewStateService.Unregister(this);
+        if (_ownsLicense) License.Dispose();
     }
 }

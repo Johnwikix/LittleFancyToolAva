@@ -21,11 +21,14 @@ public partial class ImageConvertViewModel
         }
     }
 
-    private bool CanInstallSrAcceleration() => !IsBusy && !IsHardwareInstalling;
+    private bool CanInstallSrAcceleration() => !_isDisposed && !IsBusy && !IsHardwareInstalling
+        && _licenseService.CanUseFeature(LicenseFeature.ImageSuperResolution);
 
     [RelayCommand(CanExecute = nameof(CanInstallSrAcceleration))]
     private async Task InstallSrAcceleration()
     {
+        if (_isDisposed || IsBusy || IsHardwareInstalling || !await EnsureAiAccessAsync()) return;
+        if (_isDisposed || IsBusy || IsHardwareInstalling) return;
         IsHardwareInstalling = true;
         using var cancellation = _hardwareInstallCts = new CancellationTokenSource(TimeSpan.FromMinutes(15));
         try
@@ -37,7 +40,7 @@ public partial class ImageConvertViewModel
             SrDeviceText = LocalizationRegistry.Get("VideoTranscode.Sr_HardwareReady");
         }
         catch (OperationCanceledException) { SrDeviceText = LocalizationRegistry.Get("VideoTranscode.Sr_InstallCanceled"); }
-        catch (Exception ex) { SrDeviceText = ex.Message; _notificationService.ShowError(ex.Message); }
+        catch (Exception ex) { if (!_isDisposed) { SrDeviceText = ex.Message; _notificationService.ShowError(ex.Message); } }
         finally { _hardwareInstallCts = null; IsHardwareInstalling = false; }
     }
 

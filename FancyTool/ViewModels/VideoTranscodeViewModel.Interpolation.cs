@@ -149,7 +149,8 @@ public partial class VideoTranscodeViewModel
         }
     }
 
-    private bool CanInstallInterpolation() => !IsBusy && !IsInterpolationInstalling && _interpolationService != null;
+    private bool CanInstallInterpolation() => !_isDisposed && !IsBusy && !IsInterpolationInstalling && _interpolationService != null
+        && _licenseService.CanUseFeature(LicenseFeature.AiFrameInterpolation);
 
     [RelayCommand(CanExecute = nameof(CanInstallInterpolation))]
     private Task InstallInterpolationModel() => InstallInterpolation(false);
@@ -159,7 +160,9 @@ public partial class VideoTranscodeViewModel
 
     private async Task InstallInterpolation(bool hardware)
     {
-        if (_interpolationService == null) return;
+        if (_interpolationService == null || _isDisposed || IsBusy || IsInterpolationInstalling
+            || !await EnsureAiAccessAsync(LicenseFeature.AiFrameInterpolation)) return;
+        if (_isDisposed || IsBusy || IsInterpolationInstalling) return;
         IsInterpolationInstalling = true;
         IsInterpolationHardwareInstalling = hardware;
         using var cancellation = _interpolationInstallCts = new CancellationTokenSource(TimeSpan.FromMinutes(15));

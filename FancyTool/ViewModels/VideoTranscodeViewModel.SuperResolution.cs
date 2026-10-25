@@ -18,6 +18,9 @@ public partial class VideoTranscodeViewModel
         get => field;
         set { if (IsBusy) return; if (SetProperty(ref field, value)) RefreshSrState(); }
     }
+    /// <summary>受限时保留已保存选项，并允许取消勾选以继续普通转码。</summary>
+    public bool CanToggleVideoSr => !IsBusy && (IsVideoSrEnabled
+        || _licenseService.CanUseFeature(LicenseFeature.VideoSuperResolution));
     /// <summary>Gets the localized video model choices.</summary>
     public IReadOnlyList<LocalizedOption> VideoSrModelLabels { get; } = VideoSrModelCatalog.Models.Select(model => new LocalizedOption(model.LabelKey)).ToArray();
     /// <summary>Gets the localized accelerator preferences.</summary>
@@ -84,6 +87,7 @@ public partial class VideoTranscodeViewModel
 
     private void RefreshSrState()
     {
+        OnPropertyChanged(nameof(CanToggleVideoSr));
         OnPropertyChanged(nameof(ShowInterpolationOrder));
         OnPropertyChanged(nameof(IsVideoSrModelReady));
         OnPropertyChanged(nameof(SrInstallLabel));
@@ -91,12 +95,15 @@ public partial class VideoTranscodeViewModel
         InstallVideoSrAccelerationCommand.NotifyCanExecuteChanged();
         StartTranscodeCommand.NotifyCanExecuteChanged();
     }
-    private bool CanInstallVideoSr() => !IsBusy && !IsSrInstalling && _videoSrService != null;
+    private bool CanInstallVideoSr() => !_isDisposed && !IsBusy && !IsSrInstalling && _videoSrService != null
+        && _licenseService.CanUseFeature(LicenseFeature.VideoSuperResolution);
 
     [RelayCommand(CanExecute = nameof(CanInstallVideoSr))]
     private async Task InstallVideoSrModel()
     {
-        if (_videoSrService == null) return;
+        if (_videoSrService == null || _isDisposed || IsBusy || IsSrInstalling
+            || !await EnsureAiAccessAsync(LicenseFeature.VideoSuperResolution)) return;
+        if (_isDisposed || IsBusy || IsSrInstalling) return;
         IsSrInstalling = true;
         using var cancellation = _srInstallCts = new CancellationTokenSource();
         try
@@ -112,7 +119,9 @@ public partial class VideoTranscodeViewModel
     [RelayCommand(CanExecute = nameof(CanInstallVideoSr))]
     private async Task InstallVideoSrAcceleration()
     {
-        if (_videoSrService == null) return;
+        if (_videoSrService == null || _isDisposed || IsBusy || IsSrInstalling
+            || !await EnsureAiAccessAsync(LicenseFeature.VideoSuperResolution)) return;
+        if (_isDisposed || IsBusy || IsSrInstalling) return;
         IsSrHardwareInstalling = IsSrInstalling = true;
         using var cancellation = _srInstallCts = new CancellationTokenSource(TimeSpan.FromMinutes(15));
         try

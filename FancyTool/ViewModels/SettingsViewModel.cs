@@ -9,11 +9,16 @@ using FancyToolAva.Services;
 
 namespace FancyToolAva.ViewModels
 {
-    public partial class SettingsViewModel : ViewModelBase
+    public partial class SettingsViewModel : ViewModelBase, IDisposable
     {
         private readonly AppObserveModel _app;
         private readonly IFileDialogService _fileDialogService;
         private readonly FileService _fileService;
+        private readonly bool _ownsLicense;
+        private bool _isDisposed;
+
+        /// <summary>与图片和视频转换页共享的授权状态和购买命令。</summary>
+        public LicenseViewModel License { get; }
 
         public AppObserveModel App => _app;
 
@@ -117,17 +122,28 @@ namespace FancyToolAva.ViewModels
             }
         }
 
-        public SettingsViewModel(AppObserveModel app, IFileDialogService fileDialogService, FileService fileService)
+        public SettingsViewModel(AppObserveModel app, IFileDialogService fileDialogService, FileService fileService,
+            ILicenseService? licenseService = null, LicenseViewModel? license = null)
         {
             _app = app;
             _fileDialogService = fileDialogService;
             _fileService = fileService;
+            _ownsLicense = license == null;
+            License = license ?? new LicenseViewModel(licenseService ?? LicenseService.Unrestricted);
             _app.Preferences.PropertyChanged += OnPreferencesPropertyChanged;
             var currentCulture = I18nManager.Instance.Culture?.Name ?? "en-US";
             SelectedLanguage = AvailableLanguages.FirstOrDefault(l => l.Culture == currentCulture)
                             ?? AvailableLanguages[0];
             RefreshBackdropOptions();
             RefreshSrTileOptions();
+        }
+
+        public void Dispose()
+        {
+            if (_isDisposed) return;
+            _isDisposed = true;
+            _app.Preferences.PropertyChanged -= OnPreferencesPropertyChanged;
+            if (_ownsLicense) License.Dispose();
         }
 
         private void OnPreferencesPropertyChanged(object? sender, PropertyChangedEventArgs e)

@@ -8,6 +8,18 @@
     "FatalError": "Fatal Error",
     "UnknownError": "Unknown Error"
   },
+  "License": {
+    "Title": "AI feature license",
+    "Scope": "Covers image and video upscaling and RIFE interpolation. Standard conversion and non-AI interpolation remain available.",
+    "Checking": "Checking your Microsoft Store license…",
+    "FullLicense": "Purchased. All AI features are available.",
+    "TrialActive": "All AI features are available during your trial.",
+    "TrialDays": "{0} trial days remaining. All AI features are available.",
+    "TrialLastDay": "Less than 1 trial day remaining. All AI features are available.",
+    "Required": "AI features are locked. Purchase or refresh your existing license to continue.",
+    "Purchase": "Unlock AI features",
+    "Refresh": "Refresh license"
+  },
   "Common": {
     "Button_OK": "OK",
     "Button_Cancel": "Cancel",

@@ -74,6 +74,8 @@ Image enhancement offers four models: RealESRGAN x4plus, x4plus anime, general x
 
 Transparent image conversion and alpha compositing use SIMD acceleration. See the [image / video GPU validation report](FancyTool/docs/gpu-inference-validation-2026-10-23.md) for hardware tests, output comparisons, and performance limits.
 
+The Microsoft Store build gates image upscaling, video upscaling, and RIFE through the app's paid / trial license. Active trials and purchased licenses allow access; inactive licenses show purchase and refresh actions. Ordinary Windows builds and Linux are unrestricted. Standard conversion, motion compensation, and model-free optical flow remain available. See the [license decision](FancyTool/docs/adr/0016-msix-ai-feature-license.md) for channel rules, query failure policy, and validation limits.
+
 ### Video transcoding
 
 The Filters tab offers RIFE AI interpolation and model-free CPU motion compensation, with 2×, 4×, or 6× the source frame rate. Playback duration and audio sync are preserved, with scene-cut protection enabled by default. RIFE 4.25 Lite (default) and 4.25 use Windows ML GPU/NPU providers with DirectML GPU fallback. Models download on demand into the shared model directory's `Interpolation` subfolder and support verification and directory migration. With interpolation enabled, GIF uses the selected multiplier too; RIFE can tone-map HDR input and produce 10-bit HDR output; other interpolation modes require Force SDR. The combined processing order is automatic or can be selected manually. When upscaling is disabled, output downscaling runs before interpolation to reduce processing cost. NPU compilation may take longer for large frames; GPU is recommended for speed.

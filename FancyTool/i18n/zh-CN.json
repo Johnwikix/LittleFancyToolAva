@@ -6,6 +6,18 @@
     "Title": "妙妙工具",
     "Subtitle": "妙妙工具"
   },
+  "License": {
+    "Title": "AI 功能授权",
+    "Scope": "适用于图片超分、视频超分和 RIFE 补帧。普通转换和非 AI 补帧可直接使用。",
+    "Checking": "正在检查 Microsoft Store 授权…",
+    "FullLicense": "已购买，可使用全部 AI 功能。",
+    "TrialActive": "试用期内可使用全部 AI 功能。",
+    "TrialDays": "试用剩余 {0} 天，期间可使用全部 AI 功能。",
+    "TrialLastDay": "试用剩余不足 1 天，期间可使用全部 AI 功能。",
+    "Required": "AI 功能尚未解锁。请购买或刷新已有授权。",
+    "Purchase": "购买解锁 AI",
+    "Refresh": "刷新授权"
+  },
   "Common": {
     "Button_OK": "确定",
     "Button_Cancel": "取消",

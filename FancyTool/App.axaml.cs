@@ -75,9 +75,19 @@ namespace FancyToolAva
                     DataContext = _serviceProvider.GetRequiredService<MainWindowViewModel>(),
                 };
 
-                // Touch the super-resolution service so its constructor runs and
-                // the background model warmup kicks off even before the user
-                // navigates to the image-convert page.
+                var license = _serviceProvider.GetRequiredService<ILicenseService>();
+                desktop.MainWindow.Opened += async (_, _) =>
+                {
+                    try
+                    {
+                        // Avalonia 主窗口建立 HWND 后才初始化 Store，购买弹窗绑定同一个窗口。
+                        await license.InitializeAsync(desktop.MainWindow.TryGetPlatformHandle()?.Handle ?? 0);
+                    }
+                    catch (Exception ex) { Log.Warning(ex, "初始化应用商店许可失败"); }
+                };
+                desktop.MainWindow.Activated += (_, _) => _ = license.RefreshAsync();
+
+                // 非商店渠道仍预热；MSIX 必须等许可就绪，失效许可不触发后台模型下载。
                 _ = _serviceProvider.GetRequiredService<ISuperResolutionService>();
                 // Touch the FFmpeg validator so the bundled in-process libraries
                 // are probed (and encoders enumerated) before the user opens the page.
@@ -144,6 +154,8 @@ namespace FancyToolAva
             services.AddSingleton<ApplicationHostService>();
             services.AddSingleton<NavigationService>();
             services.AddSingleton<NavigationFactory>();
+            services.AddSingleton<ILicenseService, LicenseService>();
+            services.AddSingleton<LicenseViewModel>();
 
             services.AddKeyedSingleton<IEncryptionSymmetric, AESEncryption>("AES");
             services.AddKeyedSingleton<IEncryptionSymmetric, DESEncryption>("DES");
@@ -172,16 +184,23 @@ namespace FancyToolAva
             services.AddSingleton<IFileEncryptionService, FileEncryptionService>();
             services.AddSingleton<IFolderCompareService, FolderCompareService>();
             services.AddHttpClient<ModelDownloadService>();
-            services.AddSingleton<IVideoSuperResolutionService, VideoSuperResolutionService>();
-            services.AddSingleton<IVideoInterpolationService, VideoInterpolationService>();
+            services.AddSingleton<IVideoSuperResolutionService>(sp => new VideoSuperResolutionService(
+                sp.GetRequiredService<ModelDownloadService>(), sp.GetRequiredService<ILogger<VideoSuperResolutionService>>(),
+                sp.GetRequiredService<AppPreferences>(), sp.GetRequiredService<ILicenseService>()));
+            services.AddSingleton<IVideoInterpolationService>(sp => new VideoInterpolationService(
+                sp.GetRequiredService<ModelDownloadService>(), sp.GetRequiredService<ILogger<VideoInterpolationService>>(),
+                sp.GetRequiredService<ILicenseService>()));
             services.AddSingleton<ISuperResolutionService>(sp => new SuperResolutionService(
                 sp.GetRequiredService<ILogger<SuperResolutionService>>(),
                 sp.GetRequiredService<AppPreferences>(),
-                sp.GetRequiredService<ModelDownloadService>()));
+                sp.GetRequiredService<ModelDownloadService>(),
+                sp.GetRequiredService<ILicenseService>()));
             services.AddSingleton<IImageConversionService, ImageConversionService>();
 
             services.AddSingleton<IFfmpegService, FfmpegService>();
-            services.AddSingleton<IVideoTranscodeService, VideoTranscodeService>();
+            services.AddSingleton<IVideoTranscodeService>(sp => new VideoTranscodeService(
+                sp.GetRequiredService<ILogger<VideoTranscodeService>>(), sp.GetRequiredService<IVideoSuperResolutionService>(),
+                sp.GetRequiredService<IVideoInterpolationService>(), sp.GetRequiredService<ILicenseService>()));
             services.AddSingleton<AudioEnhancement.IAudioUpsamplingBackend, AudioEnhancement.ManagedDspUpsamplingBackend>();
             services.AddSingleton<AudioEnhancement.AudioUpsamplingBackendRegistry>();
             services.AddSingleton<IAudioConvertService, AudioConvertService>();
