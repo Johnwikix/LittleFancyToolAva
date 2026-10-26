@@ -54,10 +54,9 @@
     <TargetPlatformVersion>10.0.26100.0</TargetPlatformVersion>
     <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
     <DefaultLanguage>zh-CN</DefaultLanguage>
-    <AppxPackageSigningEnabled>True</AppxPackageSigningEnabled>
+    <AppxPackageSigningEnabled>False</AppxPackageSigningEnabled>
     <!-- Unsigned packages must not request cleanup of a certificate that was never created. -->
     <GenerateTemporaryStoreCertificate>$(AppxPackageSigningEnabled)</GenerateTemporaryStoreCertificate>
-    <PackageCertificateThumbprint>0002A085EDBAA55E2DD16A09CF752756DA371596</PackageCertificateThumbprint>
     <NoWarn>$(NoWarn);NU1702;NU1701</NoWarn>
     <GenerateAppInstallerFile>false</GenerateAppInstallerFile>
     <AppxPackageSigningTimestampDigestAlgorithm>SHA256</AppxPackageSigningTimestampDigestAlgorithm>
