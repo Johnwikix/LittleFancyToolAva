@@ -40,15 +40,15 @@
                                          IsChecked="{Binding App.Preferences.ThemeIndex, Mode=TwoWay, Converter={StaticResource IntEq}, ConverterParameter=2}" />
                         </StackPanel>
                     </Grid>
-                    <Grid ColumnDefinitions="200,*,Auto" Margin="0,8,0,4" IsEnabled="{Binding CanUseBackdrop}">
+                    <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,8,0,4" IsEnabled="{Binding CanUseBackdrop}">
                         <StackPanel Grid.Column="0">
                             <TextBlock FontWeight="SemiBold" Text="{Binding LabelBackdrop}" />
-                            <TextBlock Classes="Caption" Text="{Binding CaptionBackdrop}" />
+                            <TextBlock Classes="Caption" Text="{Binding CaptionBackdrop}" TextWrapping="Wrap" />
                         </StackPanel>
                         <ComboBox Grid.Column="2"
                                   Width="220" VerticalAlignment="Center"
                                   ItemsSource="{Binding BackdropOptions}"
-                                  SelectedIndex="{Binding App.Preferences.BackdropIndex, Mode=TwoWay}" />
+                                  SelectedIndex="{Binding BackdropOptionIndex, Mode=TwoWay}" />
                     </Grid>
                     <Grid ColumnDefinitions="200,*,Auto" Margin="0,4" IsEnabled="{Binding CanCustomizeAcrylic}">
                         <StackPanel Grid.Column="0">
@@ -61,7 +61,7 @@
                                   SelectedIndex="{Binding App.Preferences.AcrylicTintIndex, Mode=TwoWay}" />
                     </Grid>
                     <Grid ColumnDefinitions="200,*,Auto" Margin="0,4" IsEnabled="{Binding CanCustomizeAcrylic}">
-                        <StackPanel Grid.Column="0">
+                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
                             <TextBlock FontWeight="SemiBold" Text="{Binding LabelTintOpacity}" />
                         </StackPanel>
                         <Slider Grid.Column="2"
@@ -71,7 +71,7 @@
                                 Value="{Binding App.Preferences.AcrylicTintOpacity, Mode=TwoWay}" />
                     </Grid>
                     <Grid ColumnDefinitions="200,*,Auto" Margin="0,4" IsEnabled="{Binding CanCustomizeAcrylic}">
-                        <StackPanel Grid.Column="0">
+                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
                             <TextBlock FontWeight="SemiBold" Text="{Binding LabelMaterialOpacity}" />
                         </StackPanel>
                         <Slider Grid.Column="2"

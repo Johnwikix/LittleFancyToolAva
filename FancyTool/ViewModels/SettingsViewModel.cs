@@ -90,8 +90,23 @@ namespace FancyToolAva.ViewModels
             CanUseBackdrop && App.Preferences.Backdrop == BackdropMode.CustomAcrylic;
 
         private IReadOnlyList<string> _backdropOptions = [];
+        private BackdropMode[] _backdropModes = [];
 
         public IReadOnlyList<string> BackdropOptions => _backdropOptions;
+
+        public int BackdropOptionIndex
+        {
+            get
+            {
+                int index = Array.IndexOf(_backdropModes, App.Preferences.Backdrop);
+                return index >= 0 ? index : 0;
+            }
+            set
+            {
+                if (value >= 0 && value < _backdropModes.Length)
+                    App.Preferences.Backdrop = _backdropModes[value];
+            }
+        }
 
         private IReadOnlyList<string> _tintOptions = [];
 
@@ -138,20 +153,20 @@ namespace FancyToolAva.ViewModels
                 ResetModelsDirectoryCommand.NotifyCanExecuteChanged();
             }
             if (e.PropertyName == nameof(AppPreferences.BackdropIndex))
+            {
+                OnPropertyChanged(nameof(BackdropOptionIndex));
                 OnPropertyChanged(nameof(CanCustomizeAcrylic));
+            }
             if (e.PropertyName == nameof(AppPreferences.SuperResolutionTileSizeIndex))
                 OnPropertyChanged(nameof(SelectedSrTileSizeIndex));
         }
 
         public void RefreshBackdropOptions()
         {
-            _backdropOptions =
-            [
-                LocalizationStrings.Current["Settings.Backdrop_Mica"],
-                LocalizationStrings.Current["Settings.Backdrop_Acrylic"],
-                LocalizationStrings.Current["Settings.Backdrop_CustomAcrylic"],
-                LocalizationStrings.Current["Settings.Backdrop_Transparent"]
-            ];
+            _backdropModes = BackdropService.SupportsMica
+                ? [BackdropMode.Mica, BackdropMode.Acrylic, BackdropMode.CustomAcrylic, BackdropMode.Transparent]
+                : [BackdropMode.Acrylic, BackdropMode.CustomAcrylic, BackdropMode.Transparent];
+            _backdropOptions = _backdropModes.Select(mode => LocalizationStrings.Current[$"Settings.Backdrop_{mode}"]).ToArray();
             _tintOptions =
             [
                 LocalizationStrings.Current["Settings.Tint_FollowTheme"],
@@ -162,6 +177,7 @@ namespace FancyToolAva.ViewModels
                 LocalizationStrings.Current["Settings.Tint_Red"]
             ];
             OnPropertyChanged(nameof(BackdropOptions));
+            OnPropertyChanged(nameof(BackdropOptionIndex));
             OnPropertyChanged(nameof(TintOptions));
             OnPropertyChanged(nameof(LabelBackdrop));
             OnPropertyChanged(nameof(CaptionBackdrop));

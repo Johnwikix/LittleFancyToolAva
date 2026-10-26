@@ -2,11 +2,11 @@ namespace FancyToolAva.Models
 {
     /// <summary>
     /// 系统级窗口背景效果（仅 Windows 实际生效，其它平台回退 <see cref="None"/>）。
-    /// 取值顺序即设置页下拉框顺序，持久化为索引；默认 Mica。
+    /// 枚举值用于持久化；设置页仅展示当前系统支持的模式，默认 Mica 在 Win10 回退亚克力。
     /// </summary>
     public enum BackdropMode
     {
-        /// <summary>云母：系统取桌面壁纸主色绘制底色（Win11 22H2+，旧系统自动回退纯色）。</summary>
+        /// <summary>云母：系统取桌面壁纸主色绘制底色（Win11+，Win10 自动回退亚克力）。</summary>
         Mica = 0,
 
         /// <summary>系统亚克力：DWM 模糊 + 跟随主题的着色。</summary>

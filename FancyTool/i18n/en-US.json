@@ -134,7 +134,7 @@
     "Theme_Light": "Light",
     "Theme_Dark": "Dark",
     "Label_Backdrop": "Window Backdrop",
-    "Caption_Backdrop": "Mica / Acrylic system window backdrops, Windows only; falls back to solid on older systems",
+    "Caption_Backdrop": "Mica / Acrylic system window backdrops, Windows only; Windows 10 uses Acrylic automatically",
     "Backdrop_Mica": "Mica",
     "Backdrop_Acrylic": "Acrylic",
     "Backdrop_CustomAcrylic": "Custom Acrylic",

@@ -32,6 +32,8 @@ namespace FancyToolAva.Services
 
         internal static int TintPresetCount => TintPresets.Length;
 
+        internal static bool SupportsMica => OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000);
+
         private readonly AppObserveModel _app;
         private Window? _window;
         private Panel? _layerHost;
@@ -84,8 +86,15 @@ namespace FancyToolAva.Services
             }
         }
 
-        private BackdropMode EffectiveMode =>
-            OperatingSystem.IsWindows() ? _app.Preferences.Backdrop : BackdropMode.None;
+        private BackdropMode EffectiveMode
+        {
+            get
+            {
+                if (!OperatingSystem.IsWindows()) return BackdropMode.None;
+                var mode = _app.Preferences.Backdrop;
+                return mode == BackdropMode.Mica && !SupportsMica ? BackdropMode.Acrylic : mode;
+            }
+        }
 
         private void Apply()
         {

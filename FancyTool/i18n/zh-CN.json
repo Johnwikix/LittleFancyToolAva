@@ -132,7 +132,7 @@
     "Theme_Light": "浅色",
     "Theme_Dark": "深色",
     "Label_Backdrop": "窗口背景效果",
-    "Caption_Backdrop": "Mica / 亚克力等系统窗口背景，仅 Windows 下可用，旧系统自动回退纯色",
+    "Caption_Backdrop": "Mica / 亚克力等系统窗口背景，仅 Windows 下可用，Windows 10 自动使用亚克力",
     "Backdrop_Mica": "云母 Mica",
     "Backdrop_Acrylic": "亚克力",
     "Backdrop_CustomAcrylic": "自定义亚克力",
