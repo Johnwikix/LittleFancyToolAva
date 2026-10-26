@@ -64,12 +64,8 @@
   <!-- 仓库不收录 FFmpeg shared 六库（单文件超过 GitHub 的 100 MB 限制）：缺失时明确
        报错，避免产出装不上解码库的应用。获取方式见 Libraries\FFmpeg\BUILD_INFO.md。 -->
   <Target Name="EnsureFFmpegSharedLibraries" BeforeTargets="BeforeBuild" Condition="'$(DesignTimeBuild)' != 'true'">
-    <Error Condition="('$(RuntimeIdentifier)' == 'win-x64' or ('$(RuntimeIdentifier)' == '' and $([MSBuild]::IsOSPlatform('windows')))) and !Exists('$(MSBuildProjectDirectory)\Libraries\FFmpeg\win-x64\avcodec-63.dll')"
-           Code="FT1001"
-           Text="缺少 FFmpeg shared 库 Libraries\FFmpeg\win-x64\avcodec-63.dll。仓库不收录这些二进制，请先运行：pwsh -File FancyTool/Libraries/FFmpeg/fetch-ffmpeg.ps1 -Platform win（来源与 SHA-256 见 Libraries/FFmpeg/BUILD_INFO.md）" />
-    <Error Condition="'$(RuntimeIdentifier)' == 'linux-x64' and !Exists('$(MSBuildProjectDirectory)\Libraries\FFmpeg\linux-x64\libavcodec.so.63')"
-           Code="FT1001"
-           Text="缺少 FFmpeg shared 库 Libraries\FFmpeg\linux-x64\libavcodec.so.63。仓库不收录这些二进制，请先运行：pwsh -File FancyTool/Libraries/FFmpeg/fetch-ffmpeg.ps1 -Platform linux（来源与 SHA-256 见 Libraries/FFmpeg/BUILD_INFO.md）" />
+    <Error Condition="('$(RuntimeIdentifier)' == 'win-x64' or ('$(RuntimeIdentifier)' == '' and $([MSBuild]::IsOSPlatform('windows')))) and !Exists('$(MSBuildProjectDirectory)\Libraries\FFmpeg\win-x64\avcodec-63.dll')" Code="FT1001" Text="缺少 FFmpeg shared 库 Libraries\FFmpeg\win-x64\avcodec-63.dll。仓库不收录这些二进制，请先运行：pwsh -File FancyTool/Libraries/FFmpeg/fetch-ffmpeg.ps1 -Platform win（来源与 SHA-256 见 Libraries/FFmpeg/BUILD_INFO.md）" />
+    <Error Condition="'$(RuntimeIdentifier)' == 'linux-x64' and !Exists('$(MSBuildProjectDirectory)\Libraries\FFmpeg\linux-x64\libavcodec.so.63')" Code="FT1001" Text="缺少 FFmpeg shared 库 Libraries\FFmpeg\linux-x64\libavcodec.so.63。仓库不收录这些二进制，请先运行：pwsh -File FancyTool/Libraries/FFmpeg/fetch-ffmpeg.ps1 -Platform linux（来源与 SHA-256 见 Libraries/FFmpeg/BUILD_INFO.md）" />
   </Target>
   <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows10.0.19041.0'">
     <None Include="$(NuGetPackageRoot)/microsoft.windows.ai.machinelearning/2.4.89/license.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Link="Licenses/WindowsML.txt" />

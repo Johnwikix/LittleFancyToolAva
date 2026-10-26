@@ -67,3 +67,5 @@
 
 - 修复 Windows 10 默认 Mica 导致窗口异常透明：Mica 仅在 Windows 11 及更新版本显示，Windows 10 将已有或默认 Mica 偏好映射为亚克力且不覆盖原偏好；设置页选项索引改为按可见模式映射，说明文字支持换行并同步中英文回退说明。
 - 验证：`dotnet build FancyTool/FancyToolAva.csproj -c Debug` 0 错误；隔离应用数据启动 Windows 11 实机，确认设置页说明完整换行且默认仍选中 Mica，截图保存在 `.qa/settings-backdrop-2026-10-26/`。Windows 10 实机回退与隐藏 Mica 尚未验证。
+- 修复 Visual Studio 文件夹发布配置：`FolderProfile.pubxml` 的无版本 `net10.0-windows` 会把 `TargetPlatformVersion` 推导为 7.0，覆盖 WindowsInference.props 的完整 TFM；现统一为 `net10.0-windows10.0.19041.0`，并移除主项目重复设置的 `SupportedOSPlatformVersion`，保留 10.0.18362.0 最低系统版本。该无凭据发布配置通过 .gitignore 例外纳入版本控制。
+- 验证：MSBuild 属性求值确认目标/最低平台版本分别为 10.0.19041.0 / 10.0.18362.0；`dotnet publish FancyTool/FancyToolAva.csproj -c Release -p:PublishProfile=FolderProfile` 发布成功，仅既有 Satori 实验性与 Avalonia 裁剪/AOT 分析警告。
