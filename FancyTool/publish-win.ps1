@@ -1,4 +1,4 @@
-# Publish Windows x64 Release (self-contained managed; NativeAOT disabled - FFmpeg.AutoGen uses reflection-based dynamic bindings)
+# Publish Windows x64 Release (self-contained NativeAOT; FFmpeg.AutoGen binds via static P/Invoke to shared DLLs shipped with the app)
 param(
     [string]$Configuration = "Release",
     [string]$Output

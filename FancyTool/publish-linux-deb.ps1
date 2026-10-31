@@ -1,4 +1,6 @@
-# Cross-publish from Windows to Linux x64 (self-contained, no AOT) and
+# Cross-publish from Windows to Linux x64 (self-contained; no PublishAot override, so the
+# csproj default (true) applies — cross-OS AOT needs the target toolchain, use
+# -p:PublishAot=false for a managed self-contained build) and
 # create a Debian (.deb) package via the CreateDeb MSBuild target provided
 # by the Packaging.Targets NuGet package (dotnet-packaging).
 #

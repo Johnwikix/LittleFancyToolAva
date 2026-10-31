@@ -10,7 +10,7 @@
 
   <h4>
     基于 Avalonia 12 + FluentAvalonia 构建的轻量级桌面工具集<br>
-    面向 Windows 与 Linux 平台，集成常用加密、通讯与图片处理工具
+    面向 Windows 与 Linux 平台，集成通信调试、加密、文件、图片与音视频处理工具
   </h4>
   <div>
     <a href="https://github.com/Johnwikix/LittleFancyToolAva/releases/latest"><img src="https://img.shields.io/github/downloads/Johnwikix/LittleFancyToolAva/total?label=%E4%B8%8B%E8%BD%BD%E9%87%8F" alt="下载量"></a>
@@ -74,7 +74,9 @@
 
 透明图片的像素转换与透明度合成支持 SIMD 加速。保留模型的真实 GPU 复测、输出一致性和性能边界见[图片 / 视频验证报告](FancyTool/docs/gpu-inference-validation-2026-10-23.md)。
 
-### 视频转码
+### 🎬 视频转码
+
+视频转码基于进程内 FFmpeg（随应用分发的 GPL shared 库），批量转换常见容器 × 视频/音频编码组合，支持 GIF 导出；“滤镜”与“画质”页提供以下增强能力：
 
 “滤镜”页支持 RIFE AI 插帧和无需模型的 CPU 运动补偿插帧，可选择 2×、4× 或 6× 源帧率，保持原时长和音画同步，并默认启用场景切换保护。AI 插帧提供 RIFE 4.25 Lite（默认）与 4.25，沿用 Windows ML 的 GPU/NPU 加速和 DirectML GPU 回退；模型按需下载至统一模型目录的 `Interpolation` 子目录，支持校验和目录迁移。开启插帧后，GIF 同样使用所选倍率；RIFE 可对 HDR 输入映射后补帧并输出 10 位 HDR；其他插帧方式仍需选择“强制 SDR”。与超分同时启用时自动选择处理顺序，也可手动选择先插帧或先超分；未开启超分的降分辨率输出会先缩小画面，以降低插帧计算量。NPU 首次编译大画面可能较慢，速度优先推荐 GPU。
 
@@ -88,33 +90,17 @@ NVIDIA 光流使用 `fruc_vulkan`，要求驱动暴露 `VK_NV_optical_flow` 等�
 
 现有超分与 RIFE 模型处理 SDR 图像；HDR 素材会先映射为 SDR，再按输出选择生成 1000 尼特目标的 HDR。逆映射可扩展高光，但不能保证恢复 SDR 中已经丢失的细节。算法与模型目录说明见 [设计记录](FancyTool/docs/adr/0005-model-storage-and-hdr-output.md)，GPU 实现与边界见 [HDR 管线设计](FancyTool/docs/adr/0012-hdr-cuda-video-pipeline.md) 和 [HDR 实测](FancyTool/docs/video-hdr-cuda-2026-10-17.md)。
 
-### 歌词与字幕提取
+### 🎵 音频转码
 
-“音视频处理 → 歌词与字幕提取”支持文件夹递归扫描、拖放、批量队列、暂停、取消、失败重试及队列恢复。使用 Qwen3-ASR 1.7B 和独立的 Qwen3-ForcedAligner 0.6B 时间对齐器，复用已有 ONNX Runtime 与进程内 FFmpeg，无需 Python。可识别中文、英语、日语、韩语、法语、西班牙语、俄语、德语、葡萄牙语等语言；逐词对齐覆盖上述九种语言以及意大利语、粤语。其他识别语言保留分块时间，逐词格式会提示需要对齐。
-
-默认 INT4，识别与对齐都优先使用 Windows DirectML GPU 加速。所有档位默认开启“优先使用 GPU 加速”，GPU 加载或推理失败时自动改用 CPU 重试相应步骤，结果会显示实际后端、回退提示和底层诊断原因；也可关闭该选项强制使用 CPU。DirectML 对 INT4 解码器的 MatMulNBits 可能只做部分卸载，想让解码器完整使用 GPU 请选高精度 FP32。非 Windows 平台使用 CPU。自动语言会先参考音频标签和文件名中的文字脚本；没有脚本提示时，复用同一个 Qwen3-ASR 会话，对中文、英语、日语、韩语、法语、西班牙语、俄语、德语、葡萄牙语做强制语言评分和文字特征投票，最多采样开头与结尾两个 8 秒窗口，锁定歌曲主语言，避免日文歌曲被翻译为 English，同时保留实际英语片段；混合语言仍建议复核。节省资源档减少线程与分块长度，高精度档使用同一识别模型的 FP32 权重。当前 INT4 导出的识别编码器仍为 FP32，模型合计下载约 5 GB；此前 CPU 测试的进程峰值约 5.3 GB，建议至少 12–16 GB 系统内存。GPU 另需显存或共享内存，具体用量随驱动和分块长度变化。FP32 额外下载约 10 GB，建议至少 24 GB 内存。若某个 GPU 或驱动的识别结果异常，可关闭 GPU 选项后重新识别。
-
-导出 LRC、ELRC、KRC、QRC、YRC、SRT、VTT、ASS、TXT 与 JSON，并保留 `.fancylyrics.json` 校正项目。所有生成格式均为可直接打开的 UTF-8 文本：KRC 保留逐词时间标签，不加入厂商压缩/加密外层；QRC 输出明文 XML。优先读取有效的内嵌同步歌词与同名歌词文件；未同步标签回退到识别。输出目录留空时，歌词/字幕写在各自源音频旁边。支持预览、文本校正、重新对齐和整体时间偏移。歌曲长音、伴奏与合唱仍可能造成识别或对齐偏差，零时长词会显示复核提示。
-
-默认模型保存在模型管理目录的 `Qwen3Lyrics` 子目录。设置页的“模型管理”可选择图像、视频超分与默认歌词模型的存储根目录，重启后生效，并提供打开目录和恢复默认；已有模型不自动搬迁，可手动复制到新目录继续使用。歌词高级设置中的独立目录仍然保留。下载采用固定版本及 SHA-256 校验，下载完成后可离线处理。新提取结果遇到同名文件自动加编号，不覆盖原歌词；校正后再次导出更新对应结果。恢复队列时，进行中的文件重新排队，完成的结果可继续预览；当前文件从头重试。
-
-歌词库使用本地音乐播放器中的 System.Text.Json 修改版，保留源生成序列化。许可证和分词来源见 `FancyTool/External/NOTICE-Lyrics.txt`。主项目原有的 FFmpeg 动态绑定仍不支持 NativeAOT，发布方式保持自包含托管应用。
-
-验证工程位于 `FancyTool/_tools/LyricsSmokeTest`。例如运行格式回读检查：
-
-```powershell
-dotnet run --project FancyTool/_tools/LyricsSmokeTest -- formats .qa/lyrics/formats
-```
-
-测试可用 `FANCYTOOL_DATA_DIRECTORY` 隔离应用数据，`FANCYTOOL_LYRICS_MODELS` 指定已有模型根目录，`FANCYTOOL_LYRICS_DATA` 隔离歌词队列。测试模型、音频缓存和输出放在已忽略的 `.qa/lyrics`，不随源码分发。网络歌词源只用于测试对照，不会覆盖 Qwen3-ASR 识别结果；可运行 `network .qa/lyrics/network D:\music\MP3\歌曲.mp3` 对比 Lyricify Helper 的网易云和 QQ 音乐结果，网络策略、源站限制或缺失元数据可能导致没有结果。
+音频转码同样基于进程内 FFmpeg，支持批量转换，标签与封面跟随写入：无损输出支持 FLAC / ALAC / WAV / AIFF（可选位深，Auto 按源推断 16/24/32bit 或 float），有损输出支持 MP3 / AAC / OGG / Opus / WMA / AC3 / MP2；采样率可跟随源并按编码器支持表自动对齐（如 MP3 上限 48 kHz、Opus 仅 8/12/16/24/48 kHz，DSD 源默认 176.4 kHz）。内置 DSP 升频：对 44.1/48 kHz 单/双声道 PCM 输入补全高频并提升采样率，倍率决定目标采样率，最高 192 kHz，仅无损输出可用。
 
 ## 📊 功能矩阵
 
 | 类别 | 工具 | 说明 | 算法 / 实现 | 主要依赖 |
 | :--- | :--- | :--- | :--- | :--- |
 | 通信 | 串口调试 | 串口收发与调试 | `System.IO.Ports` | System.IO.Ports |
-| 通信 | TCP 服务器 | TCP 服务端调试 | `TcpListener` / `Socket` | .NET BCL |
-| 通信 | UDP 通信 | UDP 收发调试 | `UdpClient` | .NET BCL |
+| 通信 | TCP 服务器 | TCP 服务端调试 + 链路测试（TCP 带宽） | `TcpListener` / `Socket` | .NET BCL |
+| 通信 | UDP 通信 | UDP 收发调试 + 链路测试（带宽与丢包率） | `UdpClient` | .NET BCL |
 | 对称加密 | DES | DES 加解密 | DES | BouncyCastle.Cryptography |
 | 对称加密 | AES | AES 加解密 | AES | BouncyCastle.Cryptography |
 | 对称加密 | SM4 | SM4 国密加解密 | SM4 | BouncyCastle.Cryptography |
@@ -128,6 +114,9 @@ dotnet run --project FancyTool/_tools/LyricsSmokeTest -- formats .qa/lyrics/form
 | 文件 | 文件加解密 | 文件级加密 / 解密 | AES / SM4 等（可扩展） | BouncyCastle.Cryptography |
 | 图片 | 图片转 Base64 | 图片 → Base64 | 字节流编码 | .NET BCL |
 | 图片 | 图片转换 | 图片格式批量转换（jpg / png / bmp / webp / tiff / dds / jxl / heic / ico） | SKBitmap 解码 + 多格式编码 + ICO 多尺寸封装 | SkiaSharp |
+| 图片 | 图片超分 | AI 图片超分辨率（2× / 4×，GPU 加速） | RealESRGAN / ClearReality 等（ONNX 推理） | ONNX Runtime / Windows ML |
+| 音视频 | 视频转码 | 批量视频转码与 GIF 导出，支持 HDR 输出、AI 超分与插帧 | FFmpeg 滤镜图 + 显存管线（NVDEC/NVENC）+ 超分/插帧模型 | FFmpeg.AutoGen / ONNX Runtime |
+| 音视频 | 音频转码 | 批量音频转换与 DSP 升频（最高 192 kHz） | FFmpeg 编码 + 托管 DSP 升采样 | FFmpeg.AutoGen |
 
 ## 🖼️ 软件截图
 
@@ -137,6 +126,8 @@ dotnet run --project FancyTool/_tools/LyricsSmokeTest -- formats .qa/lyrics/form
 <img src="FancyTool/docs/img/zh/7.png" width="50%"><img src="FancyTool/docs/img/zh/8.png" width="50%">
 <img src="FancyTool/docs/img/zh/9.png" width="50%"><img src="FancyTool/docs/img/zh/10.png" width="50%">
 <img src="FancyTool/docs/img/zh/11.png" width="50%"><img src="FancyTool/docs/img/zh/12.png" width="50%">
+<img src="FancyTool/docs/img/zh/13.png" width="50%"><img src="FancyTool/docs/img/zh/14.png" width="50%">
+<img src="FancyTool/docs/img/zh/15.png" width="50%"><img src="FancyTool/docs/img/zh/16.png" width="50%">
 
 ## 🧱 技术架构
 
@@ -147,7 +138,7 @@ dotnet run --project FancyTool/_tools/LyricsSmokeTest -- formats .qa/lyrics/form
 - **状态持久化**：`IViewStateService` 序列化各工具页面状态；`AppPreferences` 持久化主题、动画、阴影、通知位置等设置；`ApplicationHostService` 在启动时 `LoadState` / `LoadViewStates`，退出时 `SaveState`
 - **日志**：`Serilog` 4 + `Serilog.Extensions.Logging` 桥接 `Microsoft.Extensions.Logging`；按天滚动写入 `{AppBaseDirectory}\logs\tool-.log`，单文件上限 50 MB，保留 30 天
 - **稳定性**：`Program.cs` 注册 `AppDomain.UnhandledException` 与 `TaskScheduler.UnobservedTaskException`；启动失败时通过 `MessageBoxW` 兜底提示
-- **发布**：因 FFmpeg 动态绑定使用自包含托管发布（`PublishAot=false`）；`FolderProfile.pubxml` 提供 `SelfContained` + `PublishSingleFile` 文件夹发布；仓库根目录提供两个 PowerShell 脚本作为入口——`publish-win.ps1`（Windows x64 自包含发布）与 `publish-linux-deb.ps1`（基于 `Packaging.Targets` 的 `.deb` 打包），均封装了 `dotnet` 子进程调用
+- **发布**：自包含 NativeAOT 发布（`csproj` 默认 `PublishAot=true`；FFmpeg shared 库以静态 P/Invoke 绑定随应用分发，兼容 AOT）；MSIX 打包路径使用托管发布（`FancyToolMsixBuild=true` 时 `PublishAot=false`，入口工程需要普通 apphost）；`FolderProfile.pubxml` 提供 `SelfContained` + `PublishSingleFile` 文件夹发布；`FancyTool` 目录提供两个 PowerShell 脚本作为入口——`publish-win.ps1`（Windows x64 自包含 NativeAOT 发布）与 `publish-linux-deb.ps1`（基于 `Packaging.Targets` 的 `.deb` 打包），均封装了 `dotnet` 子进程调用
 
 ## 🛠️ 构建
 
@@ -160,18 +151,18 @@ dotnet run --project FancyTool/_tools/LyricsSmokeTest -- formats .qa/lyrics/form
 
 ### 从源码构建
 
-仓库根目录提供 PowerShell 构建脚本（默认 `Release` / `win-x64`，启用 NativeAOT）：
+`FancyTool` 目录提供 PowerShell 构建脚本（默认 `Release` / `win-x64`，NativeAOT 随 `csproj` 默认启用）：
 
 ```powershell
 # Windows PowerShell 5.1+ 或 PowerShell 7+
-pwsh -File .\publish-win.ps1
+pwsh -File .\FancyTool\publish-win.ps1
 ```
 
 可选参数：
 
 ```powershell
 # 自定义配置与输出目录
-pwsh -File .\publish-win.ps1 -Configuration Debug -Output .\out\debug
+pwsh -File .\FancyTool\publish-win.ps1 -Configuration Debug -Output .\out\debug
 ```
 
 产物默认位于 `bin\Release\net10.0-windows10.0.19041.0\win-x64\publish\win-x64\`，直接运行 `FancyToolAva.exe` 即可。
@@ -186,8 +177,8 @@ dotnet run -c Debug
 
 ### 跨平台分发
 
-- Linux x64 `.deb` 包：在仓库根目录执行 `pwsh -File .\publish-linux-deb.ps1`，产物落在 `dist\`
-- Windows MSIX 包：在仓库根目录执行 `pwsh -File .\publish-msix.ps1`，脚本会先用 `FancyTool/Assets/icon.png` 重采样生成 7 张必需图标，再调用 MSBuild 生成带自签名证书的 `.msix`；产物位于 `FancyToolAva.Msix\bin\x64\Release\FancyToolAva.Msix_1.0.0.0_x64.msix`，首次安装需将 `FancyToolAva.Msix\FancyToolAva.Msix_TemporaryKey.pfx` 导入本机 `TrustedPeople` 存储
+- Linux x64 `.deb` 包：在 `FancyTool` 目录执行 `pwsh -File .\publish-linux-deb.ps1`，产物落在 `FancyTool\dist\`；脚本未覆盖 `PublishAot`，跨平台交叉 AOT 需要目标平台工具链，可用 `-p:PublishAot=false` 回退托管自包含
+- Windows MSIX 包：通过 `FancyToolAva.Msix` 项目打包（`FancyToolMsixBuild=true` 时使用独立输出目录 `bin/msix` / `obj/msix`），图标重采样脚本位于 `FancyToolAva.Msix/generate-msix-icons.ps1`；生成与验证方式见 [ADR 0009](FancyTool/docs/adr/0009-msix-entry-point-output-metadata.md)
 - 任意 RID 自包含发布：`dotnet publish -c Release -r <RID> -p:PublishSelfContained=true`（亦可经由 `Properties\PublishProfiles\FolderProfile.pubxml`：`dotnet publish -c Release -p:PublishProfile=FolderProfile`）
 
 > ⚠️ **注意**：Linux 版本未充分验证，可能存在兼容性问题。
@@ -236,7 +227,7 @@ dotnet run -c Debug
 - 日志子目录：`logs\`，按天滚动，单文件 ≤ 50 MB，保留 30 天
 - 工具页面状态：通过 `IViewStateService` 在应用退出时序列化，启动时还原
 - 应用偏好：由 `AppPreferences` 管理
-- **超分模型**：`Models\` 子目录，首次启动时**自动从 HuggingFace 下载**（国内走 `hf-mirror.com`，失败回退官方源），下载一次后保留供离线运行；不再随安装包分发
+- **模型目录**：设置页「模型管理」可选择统一模型根目录（重启生效，可打开目录或恢复默认）。图像超分模型在首次启动时**自动从 HuggingFace 后台下载**（国内走 `hf-mirror.com`，失败回退官方源），下载一次后离线可用；RIFE 插帧模型（`Interpolation` 子目录）按固定版本 + SHA-256 校验按需下载；视频超分模型（`VideoSr` 子目录）随应用分发，可离线校验
   - 海外/高级用户可通过设置系统环境变量 `HF_ENDPOINT` 自定义镜像站
   - 旧版本若把 `preferences.json` 放在 EXE 旁，首次启动会自动迁移到 `%LocalAppData%\FancyTool\`
 

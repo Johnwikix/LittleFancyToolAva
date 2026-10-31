@@ -1,5 +1,15 @@
 # 变更记录
 
+## 2026-10-31
+
+- 商店文案二次修订（仓库外 `H:\download\listingData-9P543GHQQKVK-1152921505702283998.csv`）：Description 尾段移除「基于 MIT 协议开源 / 可自由用于个人与企业场景」宣称，保留源代码与问题反馈地址；README 与项目本身不变。回读校验 454 行不变、仅 Description 中英两处变更。
+- 重新截取 README 软件截图（`FancyTool/docs/img/{zh,en}/1-16.png`，各 16 张，覆盖导航全部页面并新增 TCP/UDP 链路测试模式截图）：构建 Debug 版并用 lvt（UIA）驱动导航、Win32 PrintWindow 干净截窗，应用数据经 `FANCYTOOL_DATA_DIRECTORY` 隔离在 `.qa/readme-shots/data`；截图自动化脚本保留在 `.qa/readme-shots/`（shot.py / drive.py）。
+- 更新 README.md 与 README.en.md 过时描述：头部简介补音视频；新增「音频转码」小节并规范「视频转码 / 歌词与字幕提取」标题；功能矩阵补图片超分、视频转码、音频转码、歌词与字幕提取行，TCP/UDP 行补链路测试；歌词章节移除「FFmpeg 动态绑定不支持 NativeAOT、保持托管发布」过时表述；「技术架构-发布」改为自包含 NativeAOT（MSIX 路径例外托管）；构建脚本路径由「仓库根目录」更正为 `FancyTool/` 目录；跨平台分发移除不存在的 `publish-msix.ps1` 流程，改为 `FancyToolAva.Msix` 项目 + ADR 0009，`.deb` 产物路径更正为 `FancyTool\dist\`；数据存储的模型目录说明对齐现行模型管理（图像超分启动后台下载、RIFE/歌词按需校验下载、视频超分随应用分发）。截图区扩展为 16 张（新增音视频处理与链路测试页面）。
+- 歌词功能已废弃（用户确认）：README.md / README.en.md 移除「歌词与字幕提取」整节、功能矩阵歌词行与数据存储中歌词模型（`Qwen3Lyrics`）说明；商店 CSV（仓库外）移除 Description 歌词段落、ShortDescription / ReleaseNotes 歌词字样，Feature11-13 重排为文件夹比较、Base64 与图片转 Base64、空。回读校验 CSV 454 行不变、中英文全文歌词关键词为 0；代码本身未动（`LyricsExtractionEnabled = false` 维持入口关闭）。
+- 更正发布形态记录：NativeAOT 已启用（`csproj` 默认 `PublishAot=true`，FFmpeg shared 库经静态 P/Invoke 随应用分发，加载引导见 `Services/FFmpegNative.cs`，兼容 AOT）。AGENTS.md 原文「自包含托管应用，NativeAOT 关闭」与「NativeAOT 与单文件发布不使用于正式发布」更正为「自包含 NativeAOT 发布，MSIX 打包路径（`FancyToolMsixBuild=true`）例外走托管发布」；同步修正 `publish-win.ps1` 与 `publish-linux-deb.ps1` 过时的首行注释（后者注明未覆盖 `PublishAot`，跨 OS AOT 需目标平台工具链，可用 `-p:PublishAot=false` 回退托管发布）。
+- 更新 Microsoft Store 商店文案（仓库外 `H:\download\listingData-9P543GHQQKVK-1152921505702283998.csv`，原文件备份为同目录 `*_backup.csv`）：ReleaseNotes 移除 modbus 字样并改为本次功能说明；Description / ShortDescription 在保留原有正确内容与 AOT 宣称的基础上，补充图片 AI 超分（RealESRGAN / ClearReality）、视频/音频转码（HDR、AI 视频超分、RIFE 与 NVIDIA/AMD 光流插帧、DSP 升频）、歌词与字幕提取（Qwen3-ASR）以及 TCP/UDP 链路测试；新增 Feature7-13 与中英文 SearchTerm7。功能表述与 README 及导航结构逐一核对，未宣称未实现的能力。
+- 验证：CSV 回读 454 行不变，仅 22 个目标单元格变更，Field/ID/Type/default 结构列与其它字段逐字节一致，UTF-8 BOM 与 CRLF 记录分隔保持，全文 modbus 为 0；AGENTS.md 与两个脚本为纯注释/文档修改，无行为变更。
+
 ## 2026-10-22
 
 - TCP / UDP 调试页新增「链路测试」独立模式（页面功能切换）：TCP 带宽（默认 10s / 64KB 块，流尾 16 字节标记区分正常完成与中止）、UDP 带宽 + 丢包率（默认 1400 字节包、10 Mbps 目标速率，FIN/FIN-ACK 协议让两端都能看到丢包统计）；使用专属 Socket 服务（`TcpLinkTestService` / `UdpLinkTestService`），与通信调试互不占用，进入测试自动停止当前通信；参数与功能选择持久化到 ViewState，i18n 双语言 52 键同步。

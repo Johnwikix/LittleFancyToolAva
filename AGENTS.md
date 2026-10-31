@@ -39,7 +39,7 @@
 ## 平台与运行时差异
 
 - 主项目 TFM 由 `WindowsInference.props` 控制：Windows 使用 `net10.0-windows10.0.19041.0`（WinRT / Windows ML 投影），Linux 保留 `net10.0`。新增 Windows 专属代码必须置于相应条件编译或 `OperatingSystem.IsWindows()` 守卫内，保证 Linux 构建仍是干净的平台无关代码。
-- 发布形态是**自包含托管应用，NativeAOT 关闭**（FFmpeg.AutoGen 使用反射式动态绑定，不能用 AOT）；`csproj` 中 `PublishAot=true` 仅作为默认属性，实际发布以脚本为准。
+- 发布形态是**自包含 NativeAOT 发布**：`csproj` 默认 `PublishAot=true`，FFmpeg shared 库以静态 P/Invoke 绑定随应用分发（加载引导见 `Services/FFmpegNative.cs`），兼容 AOT；MSIX 打包路径例外，`FancyToolMsixBuild=true` 时强制 `PublishAot=false` 走托管发布（入口工程需要普通 apphost）。
 - 不要重复引入 ONNX Runtime 或替换 Windows ML（`Microsoft.Windows.AI.MachineLearning`），冲突的 `onnxruntime.dll` 会静默移除硬件执行提供程序；GPU/后端策略（如 `session.disable_cpu_ep_fallback=1`）沿用 `Services/` 中已验证的组合，不私自放宽。
 - FFmpeg 为进程内 GPL shared 库（随应用分发，来源与校验见 `Libraries/FFmpeg/BUILD_INFO.md`）。两个平台目录不入库（单文件超过 GitHub 的 100 MB 限制），首次构建或发布前运行 `pwsh -File FancyTool/Libraries/FFmpeg/fetch-ffmpeg.ps1`（缺库时 csproj 以 `FT1001` 中断构建）。改动 FFmpeg 相关代码或库后，必须重新跑对应烟测并在文档中保留证据。
 
@@ -59,7 +59,7 @@
   # Inno Setup 安装包（内部先执行 publish-win）
   pwsh -File FancyTool\pack-win-installer.ps1
   ```
-- RID 在 `csproj` 中按 OS 自动选择（Windows→`win-x64`，其它→需显式指定）；`NativeAOT` 与单文件发布不使用于本仓库的正式发布。
+- RID 在 `csproj` 中按 OS 自动选择（Windows→`win-x64`，其它→需显式指定）；正式发布为自包含 NativeAOT（`publish-win.ps1` 与 `Properties/PublishProfiles/FolderProfile.pubxml` 均不覆盖 `PublishAot`，csproj 默认生效），仅 MSIX 打包路径为托管发布。
 - MSIX 打包使用独立输出目录（`FancyToolMsixBuild=true` → `bin/msix` / `obj/msix`），生成与验证方式见 `docs/adr/0009-msix-entry-point-output-metadata.md`；MSIX 下 `%LocalAppData%` 由系统重定向到包内 LocalCache。
 - 不要改动 `global.json` 固定的 .NET SDK 版本与 `rollForward` 策略；SDK 升级需要单独说明影响面。
 
