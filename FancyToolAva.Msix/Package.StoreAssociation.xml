@@ -1,10 +1,10 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <StoreAssociation xmlns="http://schemas.microsoft.com/appx/2010/storeassociation">
   <!-- 与 Package.appxmanifest 的 Identity/Publisher 保持一致：这些保留名是在
        CN=CF259542-70C0-4852-9523-066A80212473 名下预留的，占位 DN 会让商店侧
        认不出这些保留名。 -->
   <Publisher>CN=CF259542-70C0-4852-9523-066A80212473</Publisher>
-  <PublisherDisplayName>FancyTool</PublisherDisplayName>
+  <PublisherDisplayName>Sennpai Studio</PublisherDisplayName>
   <DeveloperAccountType>MSA</DeveloperAccountType>
   <GeneratePackageHash>http://www.w3.org/2001/04/xmlenc#sha256</GeneratePackageHash>
   <SupportedLocales>
