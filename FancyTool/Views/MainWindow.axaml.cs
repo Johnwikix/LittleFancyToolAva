@@ -1,5 +1,9 @@
 using Avalonia.Input;
 using FluentAvalonia.UI.Windowing;
+using Avalonia.Controls;
+using Avalonia.Media;
+using FluentAvalonia.UI.Controls;
+using Serilog;
 using FancyToolAva.Models;
 using FancyToolAva.Services;
 using FancyToolAva.ViewModels;
@@ -51,6 +55,36 @@ namespace FancyToolAva.Views
             base.OnApplyTemplate(e);
             TitleBar.ExtendsContentIntoTitleBar = true;
             TitleBar.Height = 48;
+        }
+
+        internal async Task ShowLicensePromptAsync(ILicenseService license)
+        {
+            if (DataContext is not MainWindowViewModel vm || license.CanUseApplication || !IsVisible) return;
+            var dialog = new FAContentDialog
+            {
+                Title = vm.License.TitleText,
+                Content = new TextBlock
+                {
+                    Text = vm.License.StatusText,
+                    TextWrapping = TextWrapping.Wrap,
+                    MaxWidth = 480
+                },
+                PrimaryButtonText = vm.License.ShowPurchase ? LocalizationRegistry.Get("License.Purchase") : string.Empty,
+                CloseButtonText = LocalizationRegistry.Get("Common.Button_Close"),
+                DefaultButton = FAContentDialogButton.Primary
+            };
+            void OnLicenseChanged()
+            {
+                if (license.CanUseApplication) dialog.Hide();
+            }
+            license.StateChanged += OnLicenseChanged;
+            try
+            {
+                if (await dialog.ShowAsync(this) == FAContentDialogResult.Primary)
+                    await vm.License.PurchaseCommand.ExecuteAsync(null);
+            }
+            catch (Exception ex) { Log.Warning(ex, "显示购买提示失败，工具保持锁定"); }
+            finally { license.StateChanged -= OnLicenseChanged; }
         }
 
         private void AppTitleBar_OnPointerPressed(object? sender, PointerPressedEventArgs e)

@@ -24,6 +24,7 @@
   <!-- DesktopBridge's ordinary output groups need a managed apphost during IDE
        Build as well as Publish; the native AOT executable exists only at Publish. -->
   <PropertyGroup Condition="'$(FancyToolMsixBuild)' == 'true'">
+    <DefineConstants>$(DefineConstants);FANCYTOOL_MSIX</DefineConstants>
     <PublishAot>false</PublishAot>
     <PublishTrimmed>false</PublishTrimmed>
     <PublishSingleFile>false</PublishSingleFile>
@@ -32,6 +33,7 @@
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="FfmpegSmokeTest" />
+    <InternalsVisibleTo Include="LicenseSmokeTest" />
     <None Include="Libraries/VideoSr/*.onnx;Libraries/VideoSr/models.json;Libraries/VideoSr/NOTICE.md;Libraries/VideoSr/Licenses/*" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <None Include="Libraries/InterpolationModels/LICENSE.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Link="Licenses/RIFE.txt" />
     <None Include="Libraries/InterpolationModels/NOTICE.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Link="Licenses/RIFE-NOTICE.md" />

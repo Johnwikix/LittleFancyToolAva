@@ -1,5 +1,7 @@
 # Build the isolated MSIX application and its dependencies
 
+> 2026-10-31 更正：本文后段将 `FancyTool.FancyTool` 视为商店包名的判断已被真实商品目录与已购许可实测推翻；实际应为 `SennpaiStudio.---modbus`。见 [ADR 0017](0017-store-package-identity.md)。其余输出隔离及构建依赖决策仍保留。
+
 On 2026-10-16 an actual Debug/x64 build with
 `BuildingInsideVisualStudio=true` reproduced the missing
 `EntryPointExe FancyToolAva.exe` error at DesktopBridge's package file collection.

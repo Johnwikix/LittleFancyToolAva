@@ -2,6 +2,13 @@
 
 ## 2026-10-31
 
+- 修复已购电脑在 VS MSIX Release 中仍被锁定：真实商品包身份是 `SennpaiStudio.---modbus`，清单及商店关联由错误的 `FancyTool.FancyTool` 更正；运行期核对 PFN，错误身份 / 查询异常不再误报为未购买。保留严格门控，无签名或调试放行。
+- 设置页新增当前授权状态、试用截止时间及非完整授权购买提醒，复用唯一许可服务并随授权 / 语言变化刷新。实际开发部署已取得 Store `IsActive=true, IsTrial=false` 并显示完整版；普通 / MSIX 各 23/23 回归通过，真实 MSIX 打包和 Linux 交叉编译通过。证据见 ADR 0017 与 `docs/license-owned-validation-2026-10-31.md`。
+
+- MSIX 新增全应用收费门控：参考已投入使用的 music_player Store 查询和购买流程，只有有效正式许可或未到期试用开放全部工具；初始化、身份、查询或监控失败均锁定，不保留签名例外、首次失败放行、旧权限回退或 DEBUG 覆盖。非 MSIX Windows / Linux 发布完全解锁。
+- 初查通过前延迟创建工具及后台服务；到期弹框购买，关闭提示仍锁定。运行中失去授权后结束旧工具进程并重新核验，保证通信与后台任务不会继续使用；在途输出可能不完整。锁定退出保留已有 ViewState，中英文资源同步。
+- 验证：普通与 MSIX 配置各 20/20 回归通过（含真实 App 依赖图和进程重启 / 原生句柄释放），MSIX Release 与 Linux 交叉编译通过，lvt 验证实际无包身份窗口的提示、关闭和重试仍锁定。隐藏窗口截图未成功；真实 Store 交易、签名安装包试用、GPU / 转码中途撤权未实测。见 ADR 0016 与 `docs/msix-license-validation-2026-10-31.md`。
+
 - 修复 README 中英文各 16 张截图的颜色通道和截取区域：在独立隐藏桌面采集完整窗口，不切换前台或操作用户鼠标键盘；设置页由仅调整启动页的隔离构建采集。已核对双语页面、链路测试和图片尺寸（2160×1350），脚本及联系表位于 `.qa/readme-shots-isolated/`。
 - 商店文案二次修订（仓库外 `H:\download\listingData-9P543GHQQKVK-1152921505702283998.csv`）：Description 尾段移除「基于 MIT 协议开源 / 可自由用于个人与企业场景」宣称，保留源代码与问题反馈地址；README 与项目本身不变。回读校验 454 行不变、仅 Description 中英两处变更。
 - 重新截取 README 软件截图（`FancyTool/docs/img/{zh,en}/1-16.png`，各 16 张，覆盖导航全部页面并新增 TCP/UDP 链路测试模式截图）：构建 Debug 版并用 lvt（UIA）驱动导航、Win32 PrintWindow 干净截窗，应用数据经 `FANCYTOOL_DATA_DIRECTORY` 隔离在 `.qa/readme-shots/data`；截图自动化脚本保留在 `.qa/readme-shots/`（shot.py / drive.py）。

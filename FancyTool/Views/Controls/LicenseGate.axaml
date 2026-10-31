@@ -1,0 +1,21 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:FancyToolAva.ViewModels"
+             xmlns:lan="clr-namespace:Lang.Avalonia.MarkupExtensions;assembly=Lang.Avalonia"
+             x:Class="FancyToolAva.Views.Controls.LicenseGate"
+             x:DataType="vm:LicenseViewModel"
+             AutomationProperties.AutomationId="LicenseGate">
+    <StackPanel Margin="{StaticResource PageMargin}" Spacing="{StaticResource CardSpacing}"
+                MaxWidth="560" HorizontalAlignment="Center" VerticalAlignment="Center">
+        <TextBlock Classes="PageTitle" Text="{Binding TitleText}" TextWrapping="Wrap" />
+        <TextBlock Text="{Binding StatusText}" TextWrapping="Wrap" FontSize="{StaticResource BodyFontSize}" />
+        <ProgressBar IsVisible="{Binding IsChecking}" IsIndeterminate="True" Height="4" />
+        <WrapPanel>
+            <Button Content="{lan:I18n License.Purchase}" Command="{Binding PurchaseCommand}"
+                    IsVisible="{Binding ShowPurchase}" Classes="Primary" Margin="0,0,8,4"
+                    AutomationProperties.AutomationId="LicensePurchase" />
+            <Button Content="{lan:I18n License.Refresh}" Command="{Binding RefreshCommand}" Margin="0,0,0,4"
+                    AutomationProperties.AutomationId="LicenseRefresh" />
+        </WrapPanel>
+    </StackPanel>
+</UserControl>

@@ -19,6 +19,25 @@
             <TextBlock Classes="PageTitle" Text="{lan:I18n Settings.Page_Title}" />
             <TextBlock Classes="PageSubtitle" Text="{lan:I18n Settings.Page_Subtitle}" />
 
+            <TextBlock Classes="GroupHeader" Text="{lan:I18n License.SettingsGroup}" />
+            <Border Classes="ToolCard" AutomationProperties.AutomationId="SettingsLicense">
+                <StackPanel Classes="ToolCardContent" Spacing="{StaticResource StackSpacing}">
+                    <TextBlock Text="{Binding License.StatusText}" FontWeight="SemiBold" TextWrapping="Wrap"
+                               AutomationProperties.AutomationId="SettingsLicenseStatus" />
+                    <TextBlock Text="{Binding License.TrialExpirationText}" IsVisible="{Binding License.ShowTrialExpiration}"
+                               Classes="Caption" TextWrapping="Wrap" />
+                    <TextBlock Text="{lan:I18n License.PurchaseReminder}" IsVisible="{Binding License.ShowPurchase}"
+                               TextWrapping="Wrap" />
+                    <WrapPanel>
+                        <Button Content="{lan:I18n License.Purchase}" Command="{Binding License.PurchaseCommand}"
+                                IsVisible="{Binding License.ShowPurchase}" Classes="Primary" Margin="0,0,8,4"
+                                AutomationProperties.AutomationId="SettingsLicensePurchase" />
+                        <Button Content="{lan:I18n License.Refresh}" Command="{Binding License.RefreshCommand}"
+                                IsVisible="{Binding License.ShowPurchase}" Margin="0,0,0,4" />
+                    </WrapPanel>
+                </StackPanel>
+            </Border>
+
             <TextBlock Classes="GroupHeader" Text="{Binding GroupAppearance}" />
 
             <Border Classes="ToolCard">

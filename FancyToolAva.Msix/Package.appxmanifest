@@ -6,7 +6,7 @@
   IgnorableNamespaces="uap rescap">
 
   <Identity
-    Name="FancyTool.FancyTool"
+    Name="SennpaiStudio.---modbus"
     Publisher="CN=CF259542-70C0-4852-9523-066A80212473"
     Version="1.1.1.0" />
 

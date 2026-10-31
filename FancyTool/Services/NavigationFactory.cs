@@ -32,6 +32,8 @@ namespace FancyToolAva.Services
 
         public Control GetPageFromObject(object target)
         {
+            if (App.Current is App app && app.TryGetService<ILicenseService>() is { CanUseApplication: false })
+                throw new InvalidOperationException(LocalizationRegistry.Get("License.Required"));
             if (_previousDataContext is IViewLifecycle lifecycle && _previousDataContext != target)
             {
                 lifecycle.OnNavigatedFrom();

@@ -46,6 +46,8 @@
 
 </div>
 
+The MSIX edition requires a valid full license or an unexpired Store trial. All tools are locked when the trial expires, the license is inactive, or verification fails. Expired trials offer a purchase option; verification errors explain the problem. Settings shows the current license status and trial expiration. Losing authorization during use ends the tool session and reopens the license screen; unfinished output files may be incomplete. Non-MSIX Windows and Linux releases remain fully unlocked. See the [license policy](FancyTool/docs/adr/0016-msix-application-license.md).
+
 <br>
 
 ## 🌟 Features

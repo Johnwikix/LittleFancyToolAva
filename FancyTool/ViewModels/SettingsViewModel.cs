@@ -132,8 +132,12 @@ namespace FancyToolAva.ViewModels
             }
         }
 
-        public SettingsViewModel(AppObserveModel app, IFileDialogService fileDialogService, FileService fileService)
+        public LicenseViewModel License { get; }
+
+        public SettingsViewModel(AppObserveModel app, IFileDialogService fileDialogService, FileService fileService,
+            LicenseViewModel license)
         {
+            License = license;
             _app = app;
             _fileDialogService = fileDialogService;
             _fileService = fileService;

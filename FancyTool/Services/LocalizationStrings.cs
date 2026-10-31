@@ -9,6 +9,18 @@ namespace FancyToolAva.Services
         private static Dictionary<string, string> _current = [];
         private static readonly string[] _keys =
         [
+            "License.Title",
+            "License.CheckingTitle",
+            "License.PackageMismatchTitle",
+            "License.VerificationTitle",
+            "License.Checking",
+            "License.Required",
+            "License.VerificationFailed",
+            "License.PackageMismatch",
+            "License.FullLicense",
+            "License.Unrestricted",
+            "License.TrialActive",
+            "License.TrialUntil",
             "Settings.Page_Title",
             "Settings.Page_Subtitle",
             "Settings.Group_Appearance",

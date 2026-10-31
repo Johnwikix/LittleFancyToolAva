@@ -2,6 +2,25 @@
   "language": "简体中文",
   "description": "简体中文资源",
   "cultureName": "zh-CN",
+  "License": {
+    "Title": "需要购买妙妙工具",
+    "CheckingTitle": "正在验证许可",
+    "PackageMismatchTitle": "应用包身份不匹配",
+    "VerificationTitle": "无法验证许可",
+    "PackageMismatch": "当前安装包与妙妙工具的商店商品身份不一致，无法验证已有许可。请从 Microsoft Store 安装正确的应用；已购买时无需重复购买。",
+    "SettingsGroup": "授权状态",
+    "FullLicense": "已购买完整版 · 全部功能已解锁",
+    "Unrestricted": "独立发行版 · 全部功能已解锁",
+    "TrialActive": "正在试用 · 全部功能暂时可用",
+    "TrialUntil": "试用到期时间：{0}",
+    "PurchaseReminder": "当前尚未获得完整授权。试用到期后将禁用全部工具，请购买完整版以继续使用。",
+    "Checking": "正在验证 Microsoft Store 许可，验证完成后才能使用工具。",
+    "Required": "试用已到期或当前许可无效，所有工具功能已禁用。请购买完整版，然后重新验证许可。关闭此提示不会解锁功能。",
+    "VerificationFailed": "无法验证 Microsoft Store 许可，所有工具功能暂不可用。请检查商店登录与网络连接，重新验证；尚未购买时，请购买完整版。",
+    "Purchase": "购买完整版",
+    "Refresh": "重新验证许可",
+    "StoreOpenFailed": "无法打开 Microsoft Store，请在商店中搜索妙妙工具并购买。"
+  },
   "App": {
     "Title": "妙妙工具",
     "Subtitle": "妙妙工具"

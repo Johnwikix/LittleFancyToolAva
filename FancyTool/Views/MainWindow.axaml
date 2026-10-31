@@ -3,6 +3,7 @@
                  xmlns:vm="using:FancyToolAva.ViewModels"
                  xmlns:models="using:FancyToolAva.Models"
                  xmlns:views="using:FancyToolAva.Views"
+                 xmlns:controls="using:FancyToolAva.Views.Controls"
                  xmlns:helpers="using:FancyToolAva.Helpers"
                  xmlns:ui="using:FluentAvalonia.UI.Controls"
                  xmlns:win="using:FluentAvalonia.UI.Windowing"
@@ -39,6 +40,8 @@
             </Grid>
 
             <ui:FANavigationView Grid.Row="1"
+                                 IsVisible="{Binding IsWorkspaceEnabled}"
+                                 IsEnabled="{Binding IsWorkspaceEnabled}"
                                  PaneDisplayMode="Auto"
                                  IsBackButtonVisible="False"
                                  IsSettingsVisible="False"
@@ -61,6 +64,13 @@
 
                 <ui:FAFrame Name="FrameView" />
             </ui:FANavigationView>
+            <ContentControl Grid.Row="1" IsVisible="{Binding License.IsLocked}" Content="{Binding License}">
+                <ContentControl.DataTemplates>
+                    <DataTemplate DataType="vm:LicenseViewModel">
+                        <controls:LicenseGate />
+                    </DataTemplate>
+                </ContentControl.DataTemplates>
+            </ContentControl>
         </Grid>
     </Panel>
 </win:FAAppWindow>

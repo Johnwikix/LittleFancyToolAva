@@ -17,6 +17,8 @@ namespace FancyToolAva.Services
 
         public void NavigateFromContext(object dataContext, FANavigationTransitionInfo? transition = null)
         {
+            if (App.Current is App app && app.TryGetService<ILicenseService>() is { CanUseApplication: false })
+                return;
             if (_frame == null)
                 return;
 

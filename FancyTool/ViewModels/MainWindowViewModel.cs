@@ -9,12 +9,22 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace FancyToolAva.ViewModels
 {
-    public partial class MainWindowViewModel : ViewModelBase
+    public partial class MainWindowViewModel : ViewModelBase, IDisposable
     {
         // 歌词字幕提取：本地模型效果不佳，暂时不开放入口；侧边栏导航与首页磁贴共用此开关
         private static readonly bool LyricsExtractionEnabled = false;
 
         public AppObserveModel AppObserveModel { get; }
+
+        private readonly IServiceProvider _serviceProvider;
+        private readonly ILicenseService _licenseService;
+        private bool _toolsStarted;
+        private bool _disposed;
+        private EventHandler<EventArgs>? _cultureChanged;
+        public LicenseViewModel License { get; }
+        public bool HasStartedTools => _toolsStarted;
+        public bool IsWorkspaceEnabled => _toolsStarted && _licenseService.CanUseApplication;
+        public event Action? WorkspaceRevoked;
 
         public ObservableCollection<PageNavigationItem> Pages { get; }
 
@@ -32,15 +42,33 @@ namespace FancyToolAva.ViewModels
             }
         }
 
-        public MainWindowViewModel(AppObserveModel appObserveModel, IServiceProvider serviceProvider)
+        public MainWindowViewModel(AppObserveModel appObserveModel, IServiceProvider serviceProvider,
+            ILicenseService licenseService, LicenseViewModel license)
         {
             AppObserveModel = appObserveModel;
-
+            _serviceProvider = serviceProvider;
+            _licenseService = licenseService;
+            License = license;
             Pages = new ObservableCollection<PageNavigationItem>();
-            FooterPages = new ObservableCollection<PageNavigationItem>
-            {
-                new PageNavigationItem(L.Localize("Nav.Settings"), FASymbol.Setting, serviceProvider.GetRequiredService<SettingsViewModel>())
-            };
+            FooterPages = new ObservableCollection<PageNavigationItem>();
+            _licenseService.StateChanged += OnLicenseStateChanged;
+            if (_licenseService.CanUseApplication) InitializeTools();
+        }
+
+        private void OnLicenseStateChanged()
+        {
+            if (_disposed) return;
+            if (_licenseService.CanUseApplication && !_toolsStarted) InitializeTools();
+            OnPropertyChanged(nameof(IsWorkspaceEnabled));
+            if (_toolsStarted && !_licenseService.CanUseApplication) WorkspaceRevoked?.Invoke();
+        }
+
+        private void InitializeTools()
+        {
+            // 唯一的延迟解析边界：MSIX 初查通过前不能构造工具 VM、启动通信或模型下载。
+            var serviceProvider = _serviceProvider;
+            FooterPages.Add(new PageNavigationItem(L.Localize("Nav.Settings"), FASymbol.Setting,
+                serviceProvider.GetRequiredService<SettingsViewModel>()));
 
             var commCategory = BuildCommCategory(serviceProvider);
             var encryptionCategory = BuildEncryptionCategory(serviceProvider);
@@ -73,7 +101,19 @@ namespace FancyToolAva.ViewModels
 
             SelectedPage = Pages[0];
 
-            I18nManager.Instance.CultureChanged += (_, _) => RebuildLabels(serviceProvider, homeItem, categories);
+            _cultureChanged = (_, _) => RebuildLabels(serviceProvider, homeItem, categories);
+            I18nManager.Instance.CultureChanged += _cultureChanged;
+            _toolsStarted = true;
+            OnPropertyChanged(nameof(IsWorkspaceEnabled));
+        }
+
+        public void Dispose()
+        {
+            if (_disposed) return;
+            _disposed = true;
+            _licenseService.StateChanged -= OnLicenseStateChanged;
+            if (_cultureChanged != null) I18nManager.Instance.CultureChanged -= _cultureChanged;
+            WorkspaceRevoked = null;
         }
 
         private void RebuildLabels(IServiceProvider sp, PageNavigationItem homeItem, PageNavigationItem[] categories)

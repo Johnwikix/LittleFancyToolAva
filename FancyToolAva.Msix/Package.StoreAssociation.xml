@@ -364,7 +364,7 @@
     <Language Code="zu-za" InMinimumRequirementSet="true" />
   </SupportedLocales>
   <ProductReservedInfo>
-    <MainPackageIdentityName>FancyTool.FancyTool</MainPackageIdentityName>
+    <MainPackageIdentityName>SennpaiStudio.---modbus</MainPackageIdentityName>
     <ReservedNames>
       <ReservedName>妙妙小工具---串口、modbus、网络调试、图像转换、文本文件加密解密工具</ReservedName>
       <ReservedName>妙妙串口通信和加密工具</ReservedName>
@@ -375,6 +375,7 @@
     </ReservedNames>
   </ProductReservedInfo>
   <AccountPackageIdentityNames>
+    <MainPackageIdentityName>SennpaiStudio.---modbus</MainPackageIdentityName>
     <MainPackageIdentityName>FancyTool.FancyTool</MainPackageIdentityName>
     <MainPackageIdentityName>FancyTool.FancyTool2</MainPackageIdentityName>
   </AccountPackageIdentityNames>

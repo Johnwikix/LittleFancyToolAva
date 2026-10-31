@@ -70,24 +70,32 @@ namespace FancyToolAva
 
                 RequestedThemeVariant = _appObserveModel.Preferences.ToAvalonia();
 
-                desktop.MainWindow = new MainWindow
+                var license = _serviceProvider.GetRequiredService<ILicenseService>();
+                var window = new MainWindow
                 {
                     DataContext = _serviceProvider.GetRequiredService<MainWindowViewModel>(),
                 };
+                desktop.MainWindow = window;
+                var mainViewModel = (MainWindowViewModel)window.DataContext;
+                mainViewModel.WorkspaceRevoked += () => LicenseSessionRestarter.Restart(() =>
+                {
+                    window.IsEnabled = false;
+                    window.Hide();
+                }, host.SaveState);
 
-                // Touch the super-resolution service so its constructor runs and
-                // the background model warmup kicks off even before the user
-                // navigates to the image-convert page.
-                _ = _serviceProvider.GetRequiredService<ISuperResolutionService>();
-                // Touch the FFmpeg validator so the bundled in-process libraries
-                // are probed (and encoders enumerated) before the user opens the page.
-                _ = _serviceProvider.GetRequiredService<IFfmpegService>();
+                window.Opened += async (_, _) =>
+                {
+                    await license.InitializeAsync(window.TryGetPlatformHandle()?.Handle ?? 0);
+                    if (!license.CanUseApplication) await window.ShowLicensePromptAsync(license);
+                };
+                window.Activated += (_, _) => _ = license.RefreshAsync();
 
                 desktop.Exit += async (_, _) =>
                 {
                     try
                     {
-                        host.SaveState();
+                        // 锁定启动没有注册任何页面，不能用空页面集合覆盖已保存的 ViewState。
+                        if (mainViewModel.HasStartedTools) host.SaveState();
                     }
                     catch (Exception ex)
                     {
@@ -144,6 +152,8 @@ namespace FancyToolAva
             services.AddSingleton<ApplicationHostService>();
             services.AddSingleton<NavigationService>();
             services.AddSingleton<NavigationFactory>();
+            services.AddSingleton<ILicenseService, LicenseService>();
+            services.AddSingleton<LicenseViewModel>();
 
             services.AddKeyedSingleton<IEncryptionSymmetric, AESEncryption>("AES");
             services.AddKeyedSingleton<IEncryptionSymmetric, DESEncryption>("DES");
