@@ -34,10 +34,9 @@
 		<PackageRequireLicenseAcceptance>True</PackageRequireLicenseAcceptance>
 	</PropertyGroup>
 
-	<ItemGroup>
-		<PackageReference Include="CHTCHSConv" Version="1.0.0" />
-		<PackageReference Include="SharpZipLib" Version="1.4.2" />
-	</ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="SharpZipLib" Version="1.4.2" />
+  </ItemGroup>
 
 	<ItemGroup>
 		<None Include="Resources\icon.png" Pack="true" PackagePath="" />

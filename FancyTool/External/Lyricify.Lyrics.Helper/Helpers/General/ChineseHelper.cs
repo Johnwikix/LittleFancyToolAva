@@ -9,16 +9,20 @@ namespace Lyricify.Lyrics.Helpers.General
     public static class ChineseHelper
     {
         /// <summary>
-        /// Simplified Chinese to Traditional Chinese
+        /// Simplified Chinese to Traditional Chinese（字符级字典转换）
         /// </summary>
+        /// <remarks>
+        /// 2026-10-31：上游此处调用 CHTCHSConv（Microsoft VS International Pack），
+        /// 其 EULA 禁止在非 Windows 平台分发、且禁止组件受 GPL 类许可约束，与本仓库
+        /// GPL-3.0 冲突，故改用本文件 ChineseConverter 的字典转换；词级一对多歧义由
+        /// <see cref="ToSC(bool)"/> force 分支的修正表部分覆盖。
+        /// </remarks>
         /// <param name="text">Input text</param>
         /// <returns></returns>
         public static string S2T(string text)
         {
             if (text == null) return string.Empty;
-            return Microsoft.International.Converters.TraditionalChineseToSimplifiedConverter.ChineseConverter.Convert(
-                text,
-                Microsoft.International.Converters.TraditionalChineseToSimplifiedConverter.ChineseConversionDirection.SimplifiedToTraditional);
+            return ChineseConverter.ConvertToTraditionalChinese(text);
         }
 
         /// <summary>
@@ -29,9 +33,7 @@ namespace Lyricify.Lyrics.Helpers.General
         public static string T2S(string text)
         {
             if (text == null) return string.Empty;
-            return Microsoft.International.Converters.TraditionalChineseToSimplifiedConverter.ChineseConverter.Convert(
-                text,
-                Microsoft.International.Converters.TraditionalChineseToSimplifiedConverter.ChineseConversionDirection.TraditionalToSimplified);
+            return ChineseConverter.ConvertToSimplifiedChinese(text);
         }
 
         /// <summary>

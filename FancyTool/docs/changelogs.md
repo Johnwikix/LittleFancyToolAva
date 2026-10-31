@@ -87,3 +87,9 @@
 - 验证：`dotnet build FancyTool/FancyToolAva.csproj -c Debug` 0 错误；隔离应用数据启动 Windows 11 实机，确认设置页说明完整换行且默认仍选中 Mica，截图保存在 `.qa/settings-backdrop-2026-10-26/`。Windows 10 实机回退与隐藏 Mica 尚未验证。
 - 修复 Visual Studio 文件夹发布配置：`FolderProfile.pubxml` 的无版本 `net10.0-windows` 会把 `TargetPlatformVersion` 推导为 7.0，覆盖 WindowsInference.props 的完整 TFM；现统一为 `net10.0-windows10.0.19041.0`，并移除主项目重复设置的 `SupportedOSPlatformVersion`，保留 10.0.18362.0 最低系统版本。该无凭据发布配置通过 .gitignore 例外纳入版本控制。
 - 验证：MSBuild 属性求值确认目标/最低平台版本分别为 10.0.19041.0 / 10.0.18362.0；`dotnet publish FancyTool/FancyToolAva.csproj -c Release -p:PublishProfile=FolderProfile` 发布成功，仅既有 Satori 实验性与 Avalonia 裁剪/AOT 分析警告。
+
+## 2026-10-31
+
+- 商用许可审计收尾两项修复：其一，移除 CHTCHSConv 1.0.0（微软 VS International Pack 的 ChineseConverter.dll，经 Lyricify.Lyrics.Helper 引入）——其 EULA 禁止在非 Windows 平台分发且禁止组件受 GPL 类许可约束，与本仓库 GPL-3.0 冲突；`ChineseHelper.S2T/T2S` 改用文件内 ChineseConverter 字典做字符级转换（词级歧义仍由 ToSC force 分支修正表覆盖），External/NOTICE-Lyrics.txt 记录移除原因。
+- 其二，补齐 FFmpeg GPLv3 第 6 条对应源码书面 offer：`Libraries/FFmpeg/LICENSE.txt` 头部新增中英文 offer（FFmpeg commit 5cb9fcd211 源码 + BtbN/FFmpeg-Builds autobuild-2026-10-16-13-04 构建脚本 + 失效时经仓库 issue 索取），GPL 全文保持不变；README 与 README.en 许可证段同步补对应源码指引。
+- 验证：`dotnet build -c Debug` 0 警告 0 错误；`obj/project.assets.json` 无 chtchsconv，bin（Debug 与 msix）输出无 ChineseConverter.dll（旧残留已清理）；`dotnet run --project FancyTool/_tools/LyricsSmokeTest -- formats .qa/lyrics/formats` 全部 PASS（10 项，覆盖 ToSC 匹配路径、GBK 与日文分词）。AI 模型许可同日复核：RIFE 4.25 系经上游 README 确认 MIT、Qwen3-ASR/Aligner ONNX 为 Apache-2.0、RealESRGAN BSD-3、ClearRealityV1 Apache-2.0，商用收费均无限制。

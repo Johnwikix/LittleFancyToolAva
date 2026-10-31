@@ -1,3 +1,43 @@
+FFmpeg Corresponding Source Offer — GPL-3.0, Section 6
+========================================================
+
+This application distributes the following FFmpeg shared libraries in
+object-code form. They were built from FFmpeg master commit 5cb9fcd211
+(N-127579-g5cb9fcd211) by the BtbN/FFmpeg-Builds release
+"autobuild-2026-10-16-13-04" (win64/linux64 "gpl-shared" variants):
+
+  win-x64:  avformat-63.dll, avcodec-63.dll, avutil-61.dll,
+            avfilter-12.dll, swscale-10.dll, swresample-7.dll
+  linux-x64: libavformat.so.63, libavcodec.so.63, libavutil.so.61,
+             libavfilter.so.12, libswscale.so.10, libswresample.so.7
+
+The Corresponding Source as defined by GPL-3.0 Section 6 is offered to
+anyone in possession of these libraries, for at least three years from
+the date of distribution of this application, at no charge beyond the
+cost of physically conveying it, through the following locations:
+
+  * FFmpeg source code, exact commit 5cb9fcd211:
+      https://github.com/FFmpeg/FFmpeg/commit/5cb9fcd211
+  * Full build scripts, Dockerfiles and compilation configuration used
+    to produce these binaries:
+      https://github.com/BtbN/FFmpeg-Builds
+    (release tag: autobuild-2026-10-16-13-04)
+  * Upstream binary release the libraries are taken from:
+      https://github.com/BtbN/FFmpeg-Builds/releases/tag/autobuild-2026-10-16-13-04
+
+Should any link above become unavailable, request the Corresponding
+Source at: https://github.com/Johnwikix/LittleFancyToolAva/issues
+
+对应源码获取说明（GPL-3.0 第 6 条书面 offer）：本应用以目标码形式分发
+上述六个 FFmpeg 共享库，构建来源为 FFmpeg master 提交 5cb9fcd211
+（N-127579）与 BtbN/FFmpeg-Builds autobuild-2026-10-16-13-04（gpl-shared）。
+完整对应源码（FFmpeg 源码及全部构建脚本与编译配置）可经上述链接免费获取；
+链接失效时可通过上述仓库 issue 页索取。
+
+---------------------------------------------------------------
+The text below is the verbatim GNU General Public License, Version 3,
+under which FFmpeg and the libraries above are distributed.
+
                     GNU GENERAL PUBLIC LICENSE
                        Version 3, 29 June 2007
 

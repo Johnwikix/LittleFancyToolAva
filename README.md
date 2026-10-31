@@ -220,6 +220,7 @@ dotnet run -c Debug
 视频转码功能捆绑分发 FFmpeg GPL shared 库（固定 N-127579，六库 ABI 与 9.0 绑定兼容）（含 libx264/libx265 等 GPL 组件，位于应用根目录，
 许可证文本随应用分发至 `Licenses/FFmpeg.txt`），因此本仓库自捆绑之日起由 MIT 变更为 GPL-3.0。
 六库二进制不入库（单文件超过 GitHub 的 100 MB 限制），首次构建前运行 `pwsh -File FancyTool/Libraries/FFmpeg/fetch-ffmpeg.ps1` 获取并校验。
+GPLv3 对应源码：FFmpeg 源码（提交 [5cb9fcd211](https://github.com/FFmpeg/FFmpeg/commit/5cb9fcd211)）与完整构建脚本（[BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds) tag `autobuild-2026-10-16-13-04`）；随包分发的 `Licenses/FFmpeg.txt` 头部含完整书面 offer，链接失效时经 [仓库 issue](https://github.com/Johnwikix/LittleFancyToolAva/issues) 索取。
 
 ## 🗂️ 数据存储
 

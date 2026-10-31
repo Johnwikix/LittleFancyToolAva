@@ -4,6 +4,11 @@ The local System.Text.Json / source-generated variant is retained.
 Upstream: https://github.com/WXRIW/Lyricify-Lyrics-Helper
 License: Apache-2.0; full license in Lyricify.Lyrics.Helper/LICENSE.
 Integration change: portable net10.0 target, without Windows-only RIDs.
+Integration change 2026-10-31: removed the CHTCHSConv (Microsoft Visual Studio
+International Pack) dependency together with Helpers/General/ChineseHelper.cs.
+The Microsoft EULA forbids distributing that component on non-Windows platforms
+and forbids it becoming subject to a copyleft license, which conflicts with
+this repository's GPL-3.0; no code in this repository referenced it.
 
 Qwen3-ASR and Qwen3-ForcedAligner
 Upstream: https://github.com/QwenLM/Qwen3-ASR (Apache-2.0).

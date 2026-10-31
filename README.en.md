@@ -223,6 +223,7 @@ libx264/libx265; placed next to the app executable, license text shipped as `Lic
 this bundling, the repository license changed from MIT to GPL-3.0.
 The six library binaries are not tracked (each exceeds GitHub's 100 MB limit); run
 `pwsh -File FancyTool/Libraries/FFmpeg/fetch-ffmpeg.ps1` before the first build to fetch and verify them.
+GPLv3 corresponding source: FFmpeg source ([commit 5cb9fcd211](https://github.com/FFmpeg/FFmpeg/commit/5cb9fcd211)) and the complete build scripts ([BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds), tag `autobuild-2026-10-16-13-04`). The full written offer ships at the top of `Licenses/FFmpeg.txt`; if a link goes down, request the source via the [repository issues](https://github.com/Johnwikix/LittleFancyToolAva/issues).
 
 ## 🗂️ Data Storage
 
