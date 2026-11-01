@@ -27,6 +27,9 @@ public sealed unsafe partial class VideoTranscodeService
             throw new ArgumentException(LocalizationRegistry.Get("VideoTranscode.Msg_ConcatEmpty"), nameof(segments));
         if (options.SuperResolutionEnabled || options.InterpolationMode != VideoInterpolationMode.None)
             throw new InvalidOperationException(LocalizationRegistry.Get("VideoTranscode.Msg_ConcatPipelineUnsupported"));
+        // 拼接是多段解码归一化到共享编码会话的管线，流复制与“逐段重编码统一参数”的语义冲突
+        if (options.VideoCodec == VideoCodec.Copy || options.AudioCodec == AudioCodec.Copy)
+            throw new InvalidOperationException(LocalizationRegistry.Get("VideoTranscode.Msg_CopyUnsupportedInConcat"));
         foreach (var segment in segments)
             if (!File.Exists(segment.FilePath)) throw new FileNotFoundException(segment.FilePath);
 

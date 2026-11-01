@@ -140,8 +140,12 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
 
     public bool IsGifMode => SelectedContainer == "GIF";
 
+    /// <summary>流复制（不重编码直通）：画质/滤镜/AI 增强与硬件后端均不可用，服务侧同样拒绝冲突组合。</summary>
+    public bool IsVideoCopyMode => SelectedVideoCodec == "Copy";
+    public bool IsAudioCopyMode => SelectedAudioCodec == "Copy";
+
     // Video codecs filtered
-    public List<string> AllVideoCodecLabels { get; } = ["H.264 (x264)", "H.265 (x265)", "AV1 (aom)", "AV1 (SVT)", "VP8", "VP9", "MPEG-4", "GIF"];
+    public List<string> AllVideoCodecLabels { get; } = ["H.264 (x264)", "H.265 (x265)", "AV1 (aom)", "AV1 (SVT)", "VP8", "VP9", "MPEG-4", "GIF", "Copy"];
     public List<VideoCodec> AllVideoCodecValues { get; } = Enum.GetValues<VideoCodec>().ToList();
 
     public List<string> FilteredVideoCodecs
@@ -207,25 +211,36 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
         }
     }
 
-    private static List<string> FilterVideoCodecsForContainer(VideoContainer c) => c switch
+    private List<string> FilterVideoCodecsForContainer(VideoContainer c)
     {
-        VideoContainer.Gif => ["GIF"],
-        VideoContainer.Mp4 => ["H.264 (x264)", "H.265 (x265)", "AV1 (aom)", "AV1 (SVT)", "MPEG-4"],
-        VideoContainer.Mkv => ["H.264 (x264)", "H.265 (x265)", "AV1 (aom)", "AV1 (SVT)", "VP8", "VP9", "MPEG-4"],
-        VideoContainer.Mov => ["H.264 (x264)", "H.265 (x265)", "MPEG-4"],
-        VideoContainer.Avi => ["H.264 (x264)", "MPEG-4"],
-        _ => ["H.264 (x264)", "H.265 (x265)", "AV1 (aom)"]
-    };
+        List<string> list = c switch
+        {
+            VideoContainer.Gif => ["GIF"],
+            VideoContainer.Mp4 => ["H.264 (x264)", "H.265 (x265)", "AV1 (aom)", "AV1 (SVT)", "MPEG-4"],
+            VideoContainer.Mkv => ["H.264 (x264)", "H.265 (x265)", "AV1 (aom)", "AV1 (SVT)", "VP8", "VP9", "MPEG-4"],
+            VideoContainer.Mov => ["H.264 (x264)", "H.265 (x265)", "MPEG-4"],
+            VideoContainer.Avi => ["H.264 (x264)", "MPEG-4"],
+            _ => ["H.264 (x264)", "H.265 (x265)", "AV1 (aom)"]
+        };
+        // 流复制：非 GIF 容器且未开启拼接（拼接是多段归一化重编码管线，copy 语义不成立）
+        if (c != VideoContainer.Gif && !IsConcatMode) list.Add("Copy");
+        return list;
+    }
 
-    private static List<string> FilterAudioCodecsForContainer(VideoContainer c) => c switch
+    private List<string> FilterAudioCodecsForContainer(VideoContainer c)
     {
-        VideoContainer.Gif => ["None"],
-        VideoContainer.Mp4 => ["AAC", "MP3", "AC3", "Opus", "None"],
-        VideoContainer.Mkv => ["AAC", "MP3", "Opus", "Vorbis", "FLAC", "AC3", "None"],
-        VideoContainer.Mov => ["AAC", "MP3", "AC3", "None"],
-        VideoContainer.Avi => ["MP3", "AAC", "AC3", "None"],
-        _ => ["AAC", "MP3", "Opus", "None"]
-    };
+        List<string> list = c switch
+        {
+            VideoContainer.Gif => ["None"],
+            VideoContainer.Mp4 => ["AAC", "MP3", "AC3", "Opus", "None"],
+            VideoContainer.Mkv => ["AAC", "MP3", "Opus", "Vorbis", "FLAC", "AC3", "None"],
+            VideoContainer.Mov => ["AAC", "MP3", "AC3", "None"],
+            VideoContainer.Avi => ["MP3", "AAC", "AC3", "None"],
+            _ => ["AAC", "MP3", "Opus", "None"]
+        };
+        if (c != VideoContainer.Gif && !IsConcatMode) list.Add("Copy");
+        return list;
+    }
 
     public string? SelectedVideoCodec
     {
@@ -235,6 +250,8 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
             if (SetProperty(ref field, value))
             {
                 OnPropertyChanged(nameof(VideoCodecIndex));
+                OnPropertyChanged(nameof(IsVideoCopyMode));
+                OnPropertyChanged(nameof(ShowTwoPass));
                 ResetPresetToCustom();
             }
         }
@@ -248,6 +265,7 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
             if (SetProperty(ref field, value))
             {
                 OnPropertyChanged(nameof(AudioCodecIndex));
+                OnPropertyChanged(nameof(IsAudioCopyMode));
                 ResetPresetToCustom();
             }
         }
@@ -313,7 +331,7 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
 
     public bool IsCrfMode => SelectedRateControl == "CRF / Quality";
     public bool IsBitrateMode => SelectedRateControl == "Bitrate";
-    public bool ShowTwoPass => IsBitrateMode && !IsGifMode && HardwareBackendIndex == 0;
+    public bool ShowTwoPass => IsBitrateMode && !IsGifMode && !IsVideoCopyMode && HardwareBackendIndex == 0;
     public bool IsTwoPassEnabled
     {
         get => field;
@@ -329,7 +347,7 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
         set => SetProperty(ref field, value);
     }
 
-    /// <summary>拼接模式：列表按当前顺序拼接为单个输出，每段可独立设置循环次数；不支持 AI 超分/插帧。</summary>
+    /// <summary>拼接模式：列表按当前顺序拼接为单个输出，每段可独立设置循环次数；不支持 AI 超分/插帧，也不支持流复制。</summary>
     public bool IsConcatMode
     {
         get => field;
@@ -338,6 +356,10 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
             if (SetProperty(ref field, value))
             {
                 OnPropertyChanged(nameof(ShowPauseButton));
+                // 拼接开关改变 Copy 是否可选，回落后 SelectedVideoCodec/AudioCodec setter 自行通知派生属性
+                OnPropertyChanged(nameof(FilteredVideoCodecs));
+                OnPropertyChanged(nameof(FilteredAudioCodecs));
+                EnsureCodecSelectionValid();
                 InvalidateAllCommands();
             }
         }
@@ -1704,6 +1726,10 @@ private async Task AddPathsAsync(IEnumerable<string> paths)
             vCodec = VideoCodec.Gif;
             aCodec = AudioCodec.None;
         }
+        // 流复制兜底：UI 已禁用互斥控件，这里保证 options 干净（保留用户参数值，仅构造时忽略）；
+        // 服务端入口还有一层校验，防止绕过 UI 的调用漏带冲突项
+        bool videoCopy = vCodec == VideoCodec.Copy;
+        bool audioCopy = aCodec == AudioCodec.Copy;
 
         var options = new VideoTranscodeOptions
         {
@@ -1749,13 +1775,26 @@ private async Task AddPathsAsync(IEnumerable<string> paths)
             GifDither = MapGifDitherByLabel(SelectedGifDither),
             GifLoop = GifLoop,
             GifStatsMode = SelectedGifStats == "single" ? "single" : "diff",
-            AudioGainDb = AudioGainDb
+            AudioGainDb = audioCopy ? 0 : AudioGainDb
         };
         if (IsConcatMode)
         {
             // 拼接管线是多段单编码会话，逐帧 AI 处理（超分/插帧）不可用；服务侧同样拒绝，此处保证选项干净
             options.SuperResolutionEnabled = false;
             options.InterpolationMode = VideoInterpolationMode.None;
+        }
+        if (videoCopy)
+        {
+            options.TwoPassEnabled = false;
+            options.HardwareBackend = HardwareBackend.Software;
+            options.HdrOutput = VideoHdrOutput.SameAsSource;
+            options.SuperResolutionEnabled = false;
+            options.InterpolationMode = VideoInterpolationMode.None;
+            options.ScaleMode = ScaleMode.None;
+            options.CropEnabled = false;
+            options.FpsMode = FpsMode.SameAsSource;
+            options.Deinterlace = DeinterlaceMode.None;
+            options.Denoise = DenoiseMode.None;
         }
         return options;
     }
@@ -1828,7 +1867,7 @@ private async Task AddPathsAsync(IEnumerable<string> paths)
         _ => GifDither.None
     };
 
-    private static VideoCodec MapFilteredVideoCodec(VideoContainer container, int filteredIndex)
+    private VideoCodec MapFilteredVideoCodec(VideoContainer container, int filteredIndex)
     {
         var labels = FilterVideoCodecsForContainer(container);
         if (filteredIndex < 0 || filteredIndex >= labels.Count) return VideoCodec.H264;
@@ -1843,11 +1882,12 @@ private async Task AddPathsAsync(IEnumerable<string> paths)
             "VP9" => VideoCodec.Vp9,
             "MPEG-4" => VideoCodec.Mpeg4,
             "GIF" => VideoCodec.Gif,
+            "Copy" => VideoCodec.Copy,
             _ => VideoCodec.H264
         };
     }
 
-    private static AudioCodec MapFilteredAudioCodec(VideoContainer container, int filteredIndex)
+    private AudioCodec MapFilteredAudioCodec(VideoContainer container, int filteredIndex)
     {
         var labels = FilterAudioCodecsForContainer(container);
         if (filteredIndex < 0 || filteredIndex >= labels.Count) return AudioCodec.Aac;
@@ -1861,6 +1901,7 @@ private async Task AddPathsAsync(IEnumerable<string> paths)
             "FLAC" => AudioCodec.Flac,
             "AC3" => AudioCodec.Ac3,
             "None" => AudioCodec.None,
+            "Copy" => AudioCodec.Copy,
             _ => AudioCodec.Aac
         };
     }
@@ -1875,6 +1916,7 @@ private async Task AddPathsAsync(IEnumerable<string> paths)
         "VP9" => VideoCodec.Vp9,
         "MPEG-4" => VideoCodec.Mpeg4,
         "GIF" => VideoCodec.Gif,
+        "Copy" => VideoCodec.Copy,
         _ => VideoCodec.H264
     };
 
@@ -1887,11 +1929,13 @@ private async Task AddPathsAsync(IEnumerable<string> paths)
         "FLAC" => AudioCodec.Flac,
         "AC3" => AudioCodec.Ac3,
         "None" => AudioCodec.None,
+        "Copy" => AudioCodec.Copy,
         _ => AudioCodec.Aac
     };
 
     private static string MapVideoCodecName(VideoCodec c, HardwareBackend hw = HardwareBackend.Software)
-        => VideoTranscodeService.MapVideoEncoderName(new VideoTranscodeOptions { VideoCodec = c, HardwareBackend = hw });
+        => c == VideoCodec.Copy ? "copy"
+        : VideoTranscodeService.MapVideoEncoderName(new VideoTranscodeOptions { VideoCodec = c, HardwareBackend = hw });
 
     private static string ContainerExtension(VideoContainer container) => container switch
     {

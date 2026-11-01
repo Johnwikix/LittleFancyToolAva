@@ -21,7 +21,8 @@ public enum VideoCodec
     Gif = 4,
     Vp8 = 5,        // libvpx
     Vp9 = 6,        // libvpx-vp9
-    Mpeg4 = 7       // mpeg4
+    Mpeg4 = 7,      // mpeg4
+    Copy = 8        // 不重编码，packet 直通（stream copy）
 }
 
 public enum HardwareBackend
@@ -40,7 +41,8 @@ public enum AudioCodec
     Vorbis = 3,
     Flac = 4,
     Ac3 = 5,
-    None = 6
+    None = 6,       // 丢弃音轨
+    Copy = 7        // 不重编码，packet 直通（stream copy）
 }
 
 public enum PresetLevel

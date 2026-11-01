@@ -164,11 +164,13 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
             string tmpPath = BuildTmpPath(outputPath);
             Directory.CreateDirectory(Path.GetDirectoryName(outputPath) ?? ".");
 
-            string encoderName = MapVideoEncoderName(options);
+            bool videoCopy = options.VideoCodec == VideoCodec.Copy && options.Container != VideoContainer.Gif;
+            string encoderName = videoCopy ? "(stream copy)" : MapVideoEncoderName(options);
             bool twoPass = options.TwoPassEnabled
                 && options.RateControl == RateControlMode.Bitrate
                 && options.Container != VideoContainer.Gif
                 && options.HardwareBackend == HardwareBackend.Software
+                && !videoCopy
                 && encoderName is "libx264" or "libx265";
 
             try
@@ -236,6 +238,19 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
     {
         ct.ThrowIfCancellationRequested();
 
+        // ── 0. 流复制（stream copy）模式：不解码不重编码，packet 直通 ──
+        // 冲突组合在入口整体拒绝，防止 UI 之外的调用绕过互斥约定（trim 除外：按关键帧近似裁剪）。
+        bool videoCopy = o.VideoCodec == VideoCodec.Copy && o.Container != VideoContainer.Gif;
+        if (videoCopy && (o.SuperResolutionEnabled || o.InterpolationMode != VideoInterpolationMode.None
+            || o.ScaleMode != ScaleMode.None || o.CropEnabled || o.FpsMode != FpsMode.SameAsSource
+            || o.Deinterlace != DeinterlaceMode.None || o.Denoise != DenoiseMode.None
+            || o.HdrOutput != VideoHdrOutput.SameAsSource || o.TwoPassEnabled
+            || o.HardwareBackend != HardwareBackend.Software))
+            throw new InvalidOperationException(LocalizationRegistry.Get("VideoTranscode.Msg_CopyConflictingOptions"));
+        bool audioCopy = o.AudioCodec == AudioCodec.Copy && o.Container != VideoContainer.Gif;
+        if (audioCopy && o.AudioGainDb != 0)
+            throw new InvalidOperationException(LocalizationRegistry.Get("VideoTranscode.Msg_CopyConflictingOptions"));
+
         AVFormatContext* inFmt = null;
         AVCodecContext* vDec = null;
         AVCodecContext* aDec = null;
@@ -286,25 +301,27 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
             int aIdx = wantAudio
                 ? ffmpeg.av_find_best_stream(inFmt, AVMediaType.AVMEDIA_TYPE_AUDIO, -1, -1, null, 0)
                 : -1;
+            audioCopy &= aIdx >= 0; // 源里没有音频流时无从复制，等同丢弃
 
-            if (!disableNvdec && o.HardwareBackend == HardwareBackend.Nvidia && CanDecodeCuda(vInStream))
+            if (!videoCopy)
             {
-                try
+                if (!disableNvdec && o.HardwareBackend == HardwareBackend.Nvidia && CanDecodeCuda(vInStream))
                 {
-                    decodeCuda = new CudaVideoContext(0);
-                    AVBufferRef* device = CreateCudaDevice(decodeCuda);
-                    try { vDec = OpenDecoder(vInStream, device); }
-                    finally { ffmpeg.av_buffer_unref(&device); }
-                    _logger.LogInformation("Video decoder: NVDEC (CUDA primary device 0)");
+                    try
+                    {
+                        decodeCuda = new CudaVideoContext(0);
+                        AVBufferRef* device = CreateCudaDevice(decodeCuda);
+                        try { vDec = OpenDecoder(vInStream, device); }
+                        finally { ffmpeg.av_buffer_unref(&device); }
+                        _logger.LogInformation("Video decoder: NVDEC (CUDA primary device 0)");
+                    }
+                    catch (Exception error) when (error is not OperationCanceledException)
+                    { _logger.LogWarning(error, "NVDEC initialization unavailable; using software decoder"); }
                 }
-                catch (Exception error) when (error is not OperationCanceledException)
-                { _logger.LogWarning(error, "NVDEC initialization unavailable; using software decoder"); }
+                if (vDec == null) vDec = OpenDecoder(vInStream);
+                vDec->pkt_timebase = vInStream->time_base;
             }
-            if (vDec == null) vDec = OpenDecoder(vInStream);
-            vDec->pkt_timebase = vInStream->time_base;
-            var sourceColor = ReadColor(vDec);
-            var outputColor = ResolveOutputColor(o, sourceColor);
-            if (aIdx >= 0) aDec = OpenAudioDecoderStream(inFmt->streams[aIdx]);
+            if (aIdx >= 0 && !audioCopy) aDec = OpenAudioDecoderStream(inFmt->streams[aIdx]);
 
             // ── 2. 输出封装 ──
             ffmpeg.avformat_alloc_output_context2(&ofmt, null, GetMuxerName(o.Container), outputPath);
@@ -312,7 +329,21 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
             if (o.Container == VideoContainer.Gif)
                 TrySetOpt(ofmt->priv_data, "loop", o.GifLoop <= 0 ? "0" : o.GifLoop.ToString());
 
+            if (videoCopy)
+            {
+                // ── 3. 视频流直通：codec 参数从输入流整体拷贝，不查询编码器 ──
+                vOutStream = ffmpeg.avformat_new_stream(ofmt, null);
+                EnsureCopyCodecSupported(ofmt, vInStream->codecpar->codec_id, o.Container);
+                int copyRet = ffmpeg.avcodec_parameters_copy(vOutStream->codecpar, vInStream->codecpar);
+                if (copyRet < 0) throw FFmpegNative.CreateException(copyRet, "视频流参数复制失败");
+                vOutStream->codecpar->codec_tag = 0; // 输入容器的 tag 对目标 muxer 未必合法（如 mp4a 进 Matroska）
+                vOutStream->time_base = vInStream->time_base;
+            }
+            else
+            {
             // ── 3. 视频编码器查询 + 像素格式对齐（需先于滤镜图：format 滤镜与编码器能力必须一致）──
+            var sourceColor = ReadColor(vDec);
+            var outputColor = ResolveOutputColor(o, sourceColor);
             string encoderName = MapVideoEncoderName(o);
             AVCodec* vCodecPtr = ffmpeg.avcodec_find_encoder_by_name(encoderName);
             if (vCodecPtr == null)
@@ -418,9 +449,20 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
             vOutStream = ffmpeg.avformat_new_stream(ofmt, null);
             vOutStream->time_base = vEnc->time_base;
             ffmpeg.avcodec_parameters_from_context(vOutStream->codecpar, vEnc);
+            }
 
             // ── 5. 音频编码器 ──
-            if (aDec != null)
+            if (audioCopy)
+            {
+                AVStream* aInStream = inFmt->streams[aIdx];
+                aOutStream = ffmpeg.avformat_new_stream(ofmt, null);
+                EnsureCopyCodecSupported(ofmt, aInStream->codecpar->codec_id, o.Container);
+                int copyRet = ffmpeg.avcodec_parameters_copy(aOutStream->codecpar, aInStream->codecpar);
+                if (copyRet < 0) throw FFmpegNative.CreateException(copyRet, "音频流参数复制失败");
+                aOutStream->codecpar->codec_tag = 0; // 同视频：tag 由目标 muxer 重选
+                aOutStream->time_base = aInStream->time_base;
+            }
+            else if (aDec != null)
             {
                 aEnc = SetupAudioEncoder(ofmt, aDec, o, out aOutStream, out swr);
                 audioFeeder = new EncoderFrameFeeder(aEnc, ofmt, aOutStream, encPkt);
@@ -437,7 +479,12 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
             if (ret < 0) throw FFmpegNative.CreateException(ret, "写入文件头失败");
 
             // ── 7. 主循环：解复用 → 解码 → 滤镜 → 编码 → 封装 ──
-            var timeline = new TrimTimeline(inFmt, vInStream, o, durationMs, aDec != null);
+            var timeline = new TrimTimeline(inFmt, vInStream, o, durationMs, aDec != null || audioCopy);
+            // 流复制窗口：视频等 seek 落点后的首个关键帧，音频从 seek 点起整段直通，起点均按首包平移到 0；
+            // 终点用源时间轴绝对秒（含 Origin 偏移），进度分母沿用 trim 窗口长度
+            bool copyVideoStarted = false, copyVideoEnded = false, copyAudioStarted = false, copyAudioEnded = false;
+            long copyVideoOrigin = ffmpeg.AV_NOPTS_VALUE, copyAudioOrigin = ffmpeg.AV_NOPTS_VALUE;
+            double copyEndAbsoluteSec = double.IsFinite(timeline.End) ? timeline.Origin + timeline.End : double.PositiveInfinity;
             double totalSec = double.IsFinite(timeline.End) ? timeline.End - timeline.Start : 0;
             // 无 pts 的解码帧按源帧率推算（帧时间戳统一用输入流 time_base，直通解码器）
             double srcFps = ffmpeg.av_q2d(vInStream->avg_frame_rate);
@@ -458,10 +505,10 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
             if (aIdx >= 0) timeline.NextAudioPts = (long)Math.Round(decodeStart / ffmpeg.av_q2d(audioTimeBase));
 
             var encodingProgress = statistics == null ? null : new EncodingProgress(progress, statistics,
-                totalSec, ffmpeg.av_q2d(vEnc->framerate), pass == 0 ? 1 : pass, pass == 0 ? 1 : 2,
+                totalSec, videoCopy ? srcFps : ffmpeg.av_q2d(vEnc->framerate), pass == 0 ? 1 : pass, pass == 0 ? 1 : 2,
                 ExactOutputFrameCount(vInStream->nb_frames, o));
             if (encodingProgress != null) progress = encodingProgress;
-            metrics = VideoPipelineMetrics.Begin();
+            if (!videoCopy) metrics = VideoPipelineMetrics.Begin();
             if (cudaPlan != null || srPipeline != null || interpolationPipeline != null)
             {
                 queued = new QueuedVideoPipeline(srPipeline, interpolationPipeline, upscaleFirst,
@@ -473,6 +520,14 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
                 ct.ThrowIfCancellationRequested();
                 if (pkt->stream_index == vIdx)
                 {
+                    if (videoCopy)
+                    {
+                        if (WriteCopiedPacket(pkt, vInStream, vOutStream, ofmt, copyEndAbsoluteSec, totalSec, requireKeyframe: true,
+                                ref copyVideoStarted, ref copyVideoEnded, ref copyVideoOrigin, progress))
+                            (progress as EncodingProgress)?.ReportFrame();
+                    }
+                    else
+                    {
                     ret = SendVideoPacket(vDec, pkt);
                     if (ret == ErrEagain)
                     {
@@ -484,9 +539,17 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
                         throw FFmpegNative.CreateException(ret, "视频解码失败");
                     ffmpeg.av_packet_unref(pkt);
                     ProcessVideoFrames(vDec, decFrame, filtFrame, srcCtx, sinkCtx, vEnc, ofmt, vOutStream, encPkt, totalSec, progress, ref nextPts, frameStep, vInStream->time_base, timeline, previewConverter, preview, interpolationPipeline == null && o.InterpolationMode == VideoInterpolationMode.None, ct, queued);
+                    }
                 }
-                else if (aDec != null && pkt->stream_index == aIdx)
+                else if (pkt->stream_index == aIdx && (aDec != null || audioCopy))
                 {
+                    if (audioCopy)
+                    {
+                        WriteCopiedPacket(pkt, inFmt->streams[aIdx], aOutStream, ofmt, copyEndAbsoluteSec, totalSec, requireKeyframe: false,
+                            ref copyAudioStarted, ref copyAudioEnded, ref copyAudioOrigin, progress);
+                    }
+                    else
+                    {
                     ret = ffmpeg.avcodec_send_packet(aDec, pkt);
                     if (ret == ErrEagain)
                     {
@@ -497,25 +560,31 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
                         throw FFmpegNative.CreateException(ret, "音频解码失败");
                     ffmpeg.av_packet_unref(pkt);
                     ProcessAudioFrames(aDec, decFrame, swrFrame, aEnc, swr, audioFeeder!, o.AudioGainDb, audioTimeBase, timeline);
+                    }
                 }
                 else
                 {
                     ffmpeg.av_packet_unref(pkt);
                 }
-                if (timeline.VideoEnded && timeline.AudioEnded) break;
+                bool copyAnyVideoEnded = videoCopy ? copyVideoEnded : timeline.VideoEnded;
+                bool copyAnyAudioEnded = audioCopy ? copyAudioEnded : timeline.AudioEnded;
+                if (copyAnyVideoEnded && copyAnyAudioEnded) break;
             }
             CheckReadError(ret, inputPath);
 
-            // ── 8. 冲洗：解码器 → 滤镜图 → 音频 → 编码器 ──
-            SendVideoPacket(vDec, null);
-            ProcessVideoFrames(vDec, decFrame, filtFrame, srcCtx, sinkCtx, vEnc, ofmt, vOutStream, encPkt, totalSec, progress, ref nextPts, frameStep, vInStream->time_base, timeline, previewConverter, preview, interpolationPipeline == null && o.InterpolationMode == VideoInterpolationMode.None, ct, queued);
-            if (queued != null) queued.CompleteVideo();
-            else
+            // ── 8. 冲洗：解码器 → 滤镜图 → 音频 → 编码器（流复制无编码器，仅音频链路可能存在）──
+            if (!videoCopy)
             {
-                ffmpeg.av_buffersrc_add_frame(srcCtx, null); // 通知 EOF，滤镜图内部冲刷
-                DrainSink(sinkCtx, filtFrame, vEnc, ofmt, vOutStream, encPkt, totalSec, progress);
-                ffmpeg.avcodec_send_frame(vEnc, null);
-                DrainPackets(vEnc, ofmt, vOutStream, encPkt, vEnc->time_base);
+                SendVideoPacket(vDec, null);
+                ProcessVideoFrames(vDec, decFrame, filtFrame, srcCtx, sinkCtx, vEnc, ofmt, vOutStream, encPkt, totalSec, progress, ref nextPts, frameStep, vInStream->time_base, timeline, previewConverter, preview, interpolationPipeline == null && o.InterpolationMode == VideoInterpolationMode.None, ct, queued);
+                if (queued != null) queued.CompleteVideo();
+                else
+                {
+                    ffmpeg.av_buffersrc_add_frame(srcCtx, null); // 通知 EOF，滤镜图内部冲刷
+                    DrainSink(sinkCtx, filtFrame, vEnc, ofmt, vOutStream, encPkt, totalSec, progress);
+                    ffmpeg.avcodec_send_frame(vEnc, null);
+                    DrainPackets(vEnc, ofmt, vOutStream, encPkt, vEnc->time_base);
+                }
             }
 
             if (aDec != null)
@@ -773,6 +842,56 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
                 ConvertAudioFrame(decFrame, swrFrame, aEnc, swr, feeder, gainDb);
             ffmpeg.av_frame_unref(decFrame);
         }
+    }
+
+    /// <summary>流复制（stream copy）路径：窗口过滤 → 起点平移到 0 → 时间戳换算 → 直写 muxer。
+    /// 视频等首个关键帧（trim 时 seek 已落点在关键帧附近），音频从读到的首包开始，保持 A/V 起点一致。
+    /// 终点 endAbsoluteSec 用源时间轴绝对秒（trim End + Origin）；进度分母 spanSec 单独给（起点是 seek 落点关键帧，非 Start）。
+    /// 方法内部所有路径都会 unref 该包；返回 false 表示包落在窗口外被丢弃。</summary>
+    private static bool WriteCopiedPacket(AVPacket* pkt, AVStream* inStream, AVStream* outStream, AVFormatContext* ofmt,
+        double endAbsoluteSec, double spanSec, bool requireKeyframe, ref bool started, ref bool ended, ref long originTs,
+        IProgress<double>? progress)
+    {
+        try
+        {
+            if (ended) return false;
+            long ts = pkt->dts != ffmpeg.AV_NOPTS_VALUE ? pkt->dts : pkt->pts;
+            if (ts == ffmpeg.AV_NOPTS_VALUE) return false; // 无时间戳的包无法安全直通
+            AVRational inTb = inStream->time_base;
+            if (ts * ffmpeg.av_q2d(inTb) >= endAbsoluteSec - 0.000001)
+            {
+                ended = true;
+                return false;
+            }
+            if (!started)
+            {
+                if (requireKeyframe && (pkt->flags & ffmpeg.AV_PKT_FLAG_KEY) == 0) return false;
+                started = true;
+                originTs = ts;
+            }
+            if (pkt->pts != ffmpeg.AV_NOPTS_VALUE) pkt->pts -= originTs;
+            if (pkt->dts != ffmpeg.AV_NOPTS_VALUE) pkt->dts -= originTs;
+            ffmpeg.av_packet_rescale_ts(pkt, inTb, outStream->time_base);
+            pkt->stream_index = outStream->index;
+            pkt->pos = -1; // 源字节位置对输出无意义
+            int result = ffmpeg.av_interleaved_write_frame(ofmt, pkt);
+            if (result < 0) throw FFmpegNative.CreateException(result, LocalizationRegistry.Get("VideoTranscode.Msg_PipelineFailed", "av_interleaved_write_frame"));
+            double done = (ts - originTs) * ffmpeg.av_q2d(inTb);
+            progress?.Report(spanSec > 0 ? Math.Clamp(done / spanSec, 0, 1) : 0);
+            return true;
+        }
+        finally
+        {
+            ffmpeg.av_packet_unref(pkt); // write_frame 成功后接管并 unref，此处幂等兜底丢弃路径
+        }
+    }
+
+    /// <summary>流复制前预检 muxer 是否声明支持该编码（avformat_query_codec 返回 0 = 明确不支持；负值视为未知放行，交给 muxer 实际报错）。</summary>
+    private static void EnsureCopyCodecSupported(AVFormatContext* ofmt, AVCodecID codecId, VideoContainer container)
+    {
+        if (ffmpeg.avformat_query_codec(ofmt->oformat, codecId, ffmpeg.FF_COMPLIANCE_NORMAL) == 0)
+            throw new InvalidOperationException(LocalizationRegistry.Get("VideoTranscode.Msg_CopyCodecUnsupported",
+                ffmpeg.avcodec_get_name(codecId), container.ToString().ToUpperInvariant()));
     }
 
     private static void DrainPackets(AVCodecContext* enc, AVFormatContext* ofmt, AVStream* stream,
@@ -1175,6 +1294,8 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
             AudioCodec.Vorbis => (AVCodecID.AV_CODEC_ID_VORBIS, AVSampleFormat.AV_SAMPLE_FMT_FLTP),
             AudioCodec.Flac => (AVCodecID.AV_CODEC_ID_FLAC, AVSampleFormat.AV_SAMPLE_FMT_S32),
             AudioCodec.Ac3 => (AVCodecID.AV_CODEC_ID_AC3, AVSampleFormat.AV_SAMPLE_FMT_FLTP),
+            // Copy 由 ConvertOnce 的直通分支处理，None 根本不会创建音频链路；到达这里说明调用方绕过了守卫
+            AudioCodec.Copy or AudioCodec.None => throw new InvalidOperationException(LocalizationRegistry.Get("VideoTranscode.Msg_CopyConflictingOptions")),
             _ => (AVCodecID.AV_CODEC_ID_AAC, AVSampleFormat.AV_SAMPLE_FMT_FLTP)
         };
 
@@ -1650,6 +1771,8 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
             VideoCodec.Vp9 => "libvpx-vp9",
             VideoCodec.Mpeg4 => "mpeg4",
             VideoCodec.Gif => "gif",
+            // Copy 由 ConvertOnce 的直通分支处理；到达这里说明调用方绕过了守卫
+            VideoCodec.Copy => throw new InvalidOperationException(LocalizationRegistry.Get("VideoTranscode.Msg_CopyConflictingOptions")),
             _ => "libx264"
         };
     }
