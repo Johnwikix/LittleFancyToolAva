@@ -329,6 +329,27 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
         set => SetProperty(ref field, value);
     }
 
+    /// <summary>拼接模式：列表按当前顺序拼接为单个输出，每段可独立设置循环次数；不支持 AI 超分/插帧。</summary>
+    public bool IsConcatMode
+    {
+        get => field;
+        set
+        {
+            if (SetProperty(ref field, value))
+            {
+                OnPropertyChanged(nameof(IsReorderEnabled));
+                OnPropertyChanged(nameof(ShowPauseButton));
+                InvalidateAllCommands();
+            }
+        }
+    }
+
+    /// <summary>拼接模式下才允许拖拽调整顺序，且转码中锁定。</summary>
+    public bool IsReorderEnabled => IsConcatMode && !IsBusy;
+
+    /// <summary>拼接是单次编码会话，段间无暂停粒度，隐藏暂停按钮（停止仍可用）。</summary>
+    public bool ShowPauseButton => IsBusy && !IsConcatMode;
+
     public int CrfValue
     {
         get => field;
@@ -713,6 +734,8 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
             if (SetProperty(ref field, value))
             {
                 InvalidateAllCommands();
+                OnPropertyChanged(nameof(IsReorderEnabled));
+                OnPropertyChanged(nameof(ShowPauseButton));
                 if (Dispatcher.UIThread.CheckAccess()) RefreshEditingAvailability();
                 else Dispatcher.UIThread.Post(RefreshEditingAvailability);
             }
@@ -984,6 +1007,7 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
         AudioGainDb = AudioGainDb,
         SelectedPresetIndex = HandbrakePresetIndex,
         IncludeAllInFolderScan = IncludeAllInFolderScan,
+        IsConcatMode = IsConcatMode,
         IsVideoSrEnabled = IsVideoSrEnabled,
         VideoSrModelIndex = VideoSrModelIndex,
         VideoSrScaleIndex = VideoSrScaleIndex,
@@ -1153,6 +1177,7 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
                 else
                     HandbrakePresetIndex = Math.Clamp(s.SelectedPresetIndex, 0, HandbrakePresetLabels.Count - 1);
                 IncludeAllInFolderScan = s.IncludeAllInFolderScan;
+                IsConcatMode = s.IsConcatMode;
             }
             finally
             {
@@ -1201,6 +1226,20 @@ private async Task AddFolder()
         if (IsBusy) return;
         FileItems.Remove(item);
         UpdateStatusText();
+    }
+
+    void IVideoFileItemOwner.MoveUp(VideoFileItem item)
+    {
+        if (IsBusy) return;
+        int index = FileItems.IndexOf(item);
+        if (index > 0) FileItems.Move(index, index - 1);
+    }
+
+    void IVideoFileItemOwner.MoveDown(VideoFileItem item)
+    {
+        if (IsBusy) return;
+        int index = FileItems.IndexOf(item);
+        if (index >= 0 && index < FileItems.Count - 1) FileItems.Move(index, index + 1);
     }
 
 private async Task ProbeItemAsync(VideoFileItem item)
@@ -1347,6 +1386,12 @@ private async Task AddPathsAsync(IEnumerable<string> paths)
 
         foreach (var item in FileItems) item.Status = FileStatus.Pending;
 
+        if (IsConcatMode)
+        {
+            await RunConcatTranscodeAsync(options, useSourceDir, commonOutputDir).ConfigureAwait(false);
+            return;
+        }
+
         // 路径规划含逐文件 File.Exists/建目录磁盘 IO，上千文件时移出 UI 线程
         var snapshot = FileItems.ToArray();
         var plan = await Task.Run(() =>
@@ -1460,8 +1505,188 @@ private async Task AddPathsAsync(IEnumerable<string> paths)
         });
     }
 
+    /// <summary>
+    /// 拼接模式执行路径：把列表按当前顺序交给服务的单编码会话，输出一个文件。
+    /// 服务只汇报全局进度，这里按各段有效时长（裁剪后 × 循环次数）还原“当前段 + 段内进度”。
+    /// </summary>
+    private async Task RunConcatTranscodeAsync(VideoTranscodeOptions options, bool useSourceDir, string? commonOutputDir)
+    {
+        var snapshot = FileItems.ToArray();
+
+        // 拼接输出单文件：以第一段文件名 + "_merged" 为基础名，沿用批量路径规划的去重规则
+        var taken = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+        string firstDir = Path.GetDirectoryName(snapshot[0].FilePath) ?? Path.GetTempPath();
+        string outputDir = useSourceDir ? firstDir
+            : OutputPathPlanner.ResolveOutputDir(commonOutputDir!, snapshot[0].FilePath, snapshot[0].RootFolder);
+        string outputPath = await Task.Run(() => OutputPathPlanner.PlanUniquePath(outputDir,
+            Path.GetFileNameWithoutExtension(snapshot[0].FileName) + "_merged",
+            ContainerExtension(options.Container), useSourceDir, taken)).ConfigureAwait(false);
+
+        // 进度权重与服务侧的计算保持同构：min(裁剪终点, 时长) - 起点，乘循环次数；未探测到时长的项按 1 秒兜底
+        var segments = new VideoConcatSegment[snapshot.Length];
+        double totalSec = 0;
+        var cumulative = new double[snapshot.Length];
+        for (int i = 0; i < snapshot.Length; i++)
+        {
+            var item = snapshot[i];
+            int loops = Math.Clamp(item.LoopCount, 1, 99);
+            double duration = item.ProbeInfo is { DurationMs: > 0 } probe ? probe.DurationMs / 1000.0 : 1.0;
+            double end = Math.Min(item.TrimEndSeconds ?? duration, duration);
+            double span = Math.Max(0, end - item.TrimStartSeconds) * loops;
+            segments[i] = new VideoConcatSegment(item.FilePath, loops, item.TrimStartSeconds, item.TrimEndSeconds);
+            totalSec += span;
+            cumulative[i] = totalSec;
+        }
+
+        var statisticsRouter = new ConcatStatisticsRouter();
+        var previewRouter = new ConcatPreviewRouter();
+        int activeIndex = -1;
+
+        var progress = new Progress<double>(p =>
+        {
+            double sec = Math.Clamp(p, 0, 1) * totalSec;
+            int idx = 0;
+            while (idx < cumulative.Length - 1 && sec >= cumulative[idx]) idx++;
+            double segStart = idx == 0 ? 0 : cumulative[idx - 1];
+            double spanSec = cumulative[idx] - segStart;
+            double local = spanSec > 1e-9 ? Math.Clamp((sec - segStart) / spanSec, 0, 1) : 1;
+            if (idx != activeIndex)
+            {
+                activeIndex = idx;
+                var target = snapshot[idx];
+                statisticsRouter.SetItem(target);
+                previewRouter.SetSource(CreateProgressPreview(target));
+                Dispatcher.UIThread.Post(() =>
+                {
+                    // 进入新段：之前的段全部落定，当前段转为进行中并跟随选中
+                    for (int k = 0; k < idx; k++)
+                        if (snapshot[k].Status is FileStatus.Pending or FileStatus.Converting)
+                        {
+                            snapshot[k].Progress = 1;
+                            snapshot[k].Status = FileStatus.Completed;
+                        }
+                    target.Status = FileStatus.Converting;
+                    target.Progress = 0;
+                    target.UpdateEncodingStatistics(null);
+                    if (!ReferenceEquals(SelectedFileItem, target)) SelectedFileItem = target;
+                    CompletedCount = idx;
+                    UpdateStatusText();
+                });
+            }
+            var current = snapshot[idx];
+            Dispatcher.UIThread.Post(() =>
+            {
+                current.Progress = local;
+                ConversionProgress = Math.Clamp(p, 0, 1);
+                RefreshBatchProgressText();
+            });
+        });
+
+        int completedSegments = 0;
+        bool failed = false;
+        try
+        {
+            await _videoService.ConcatTranscodeAsync(segments, outputPath, options, progress, _cts!.Token, previewRouter, statisticsRouter)
+                .ConfigureAwait(false);
+            completedSegments = snapshot.Length;
+        }
+        catch (OperationCanceledException)
+        {
+            _loggerField.LogInformation("视频拼接已终止，输出未生成");
+        }
+        catch (Exception ex)
+        {
+            failed = true;
+            string msg = ex.Message.Split('\n').FirstOrDefault() ?? ex.Message;
+            if (msg.Length > 200) msg = msg[..200];
+            _loggerField.LogError(ex, "视频拼接失败: {Output}", outputPath);
+            Dispatcher.UIThread.Post(() =>
+            {
+                // 失败大概率来自当前激活段；尚未开始（activeIndex<0）时不点名任何条目
+                if (activeIndex >= 0 && activeIndex < snapshot.Length)
+                {
+                    snapshot[activeIndex].Status = FileStatus.Failed;
+                    snapshot[activeIndex].ErrorMessage = msg;
+                }
+                _notificationService.ShowError(LocalizationRegistry.Get("VideoTranscode.Msg_ConcatFailed", msg));
+            });
+        }
+        finally
+        {
+            IsBusy = false;
+            int done = completedSegments;
+            bool stopped = _stopRequested;
+            int active = activeIndex;
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (done > 0)
+                {
+                    foreach (var item in snapshot)
+                    {
+                        item.Progress = 1;
+                        item.Status = FileStatus.Completed;
+                    }
+                }
+                else if (stopped)
+                {
+                    foreach (var item in snapshot)
+                        if (item.Status == FileStatus.Converting) item.Status = FileStatus.Pending;
+                }
+                CompletedCount = failed ? Math.Max(0, active) : done;
+                FailedCount = failed ? 1 : 0;
+                ConversionProgress = done > 0 ? 1 : 0;
+                UpdateStatusText();
+                RefreshBatchProgressText();
+                if (failed) return; // 失败通知已在 catch 中弹出
+                if (stopped)
+                    _notificationService.ShowInfo(LocalizationRegistry.Get("VideoTranscode.Msg_Stopped",
+                        Math.Max(0, active), snapshot.Length, 0));
+                else
+                    _notificationService.ShowSuccess(LocalizationRegistry.Get("VideoTranscode.Msg_ConcatDone", done));
+            });
+        }
+
+        await Task.Run(() =>
+        {
+            GC.Collect(2, GCCollectionMode.Forced, blocking: true, compacting: true);
+            GC.WaitForPendingFinalizers();
+            GC.Collect(2, GCCollectionMode.Forced, blocking: true, compacting: true);
+        });
+    }
+
+    /// <summary>拼接期间把全局帧统计路由到当前激活段的列表项（切换段时更换目标，UI 线程发布）。</summary>
+    private sealed class ConcatStatisticsRouter : IProgress<VideoEncodingProgress>
+    {
+        private VideoFileItem? _current;
+        public void SetItem(VideoFileItem? item) => _current = item;
+        public void Report(VideoEncodingProgress value)
+        {
+            VideoFileItem? target = _current;
+            if (target == null) return;
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (ReferenceEquals(_current, target)) target.UpdateEncodingStatistics(value);
+            });
+        }
+    }
+
+    /// <summary>拼接期间把预览帧路由到当前激活段的预览缓冲。</summary>
+    private sealed class ConcatPreviewRouter : IProgress<VideoPreviewFrame>
+    {
+        private IProgress<VideoPreviewFrame>? _current;
+        public void SetSource(IProgress<VideoPreviewFrame>? source) => _current = source;
+        public void Report(VideoPreviewFrame value) => _current?.Report(value);
+    }
+
     private void RefreshBatchProgressText()
     {
+        if (IsConcatMode && IsBusy)
+        {
+            BatchProgressText = TotalCount > 0
+                ? LocalizationRegistry.Get("VideoTranscode.Status_ConcatProgress", CompletedCount, TotalCount, ConversionProgress)
+                : string.Empty;
+            return;
+        }
         BatchProgressText = TotalCount > 0
             ? LocalizationRegistry.Get("VideoTranscode.Status_BatchProgress", CompletedCount, TotalCount, ConversionProgress, FailedCount)
             : string.Empty;
@@ -1485,7 +1710,7 @@ private async Task AddPathsAsync(IEnumerable<string> paths)
             aCodec = AudioCodec.None;
         }
 
-        return new VideoTranscodeOptions
+        var options = new VideoTranscodeOptions
         {
             HdrOutput = container == VideoContainer.Gif ? VideoHdrOutput.ForceSdr : (VideoHdrOutput)HdrOutputIndex,
             SuperResolutionEnabled = IsVideoSrEnabled,
@@ -1531,6 +1756,13 @@ private async Task AddPathsAsync(IEnumerable<string> paths)
             GifStatsMode = SelectedGifStats == "single" ? "single" : "diff",
             AudioGainDb = AudioGainDb
         };
+        if (IsConcatMode)
+        {
+            // 拼接管线是多段单编码会话，逐帧 AI 处理（超分/插帧）不可用；服务侧同样拒绝，此处保证选项干净
+            options.SuperResolutionEnabled = false;
+            options.InterpolationMode = VideoInterpolationMode.None;
+        }
+        return options;
     }
 
     private static RateControlMode MapRateControlByLabel(string? label) => label switch

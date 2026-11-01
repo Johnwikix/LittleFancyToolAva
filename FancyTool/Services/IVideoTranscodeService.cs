@@ -35,4 +35,26 @@ public interface IVideoTranscodeService
         CancellationToken ct = default,
         IProgress<VideoPreviewFrame>? preview = null,
         IProgress<VideoEncodingProgress>? statistics = null);
+
+    /// <summary>
+    /// Decodes the segments in order (each repeated by its loop count) into one shared filter, encoder,
+    /// and muxer, producing a single concatenated output. Heterogeneous segments are normalized to the
+    /// first segment's frame format with aspect-preserving letterboxing.
+    /// </summary>
+    /// <param name="segments">The ordered segments with per-segment loop counts and trim ranges.</param>
+    /// <param name="outputPath">The destination file.</param>
+    /// <param name="options">The shared encoding settings; per-segment trims come from the segments.</param>
+    /// <param name="progress">The optional normalized progress reporter across the whole output.</param>
+    /// <param name="ct">The cancellation token.</param>
+    /// <param name="preview">The optional reporter for small source frames at the current position.</param>
+    /// <param name="statistics">The optional reporter for output frame counts and measured throughput.</param>
+    /// <returns>The task that completes after the output has been finalized.</returns>
+    Task ConcatTranscodeAsync(
+        IReadOnlyList<VideoConcatSegment> segments,
+        string outputPath,
+        VideoTranscodeOptions options,
+        IProgress<double>? progress = null,
+        CancellationToken ct = default,
+        IProgress<VideoPreviewFrame>? preview = null,
+        IProgress<VideoEncodingProgress>? statistics = null);
 }

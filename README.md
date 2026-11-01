@@ -80,6 +80,8 @@ MSIX 版需要有效正式许可或尚未到期的 Store 试用许可；试用�
 
 视频转码基于进程内 FFmpeg（随应用分发的 GPL shared 库），批量转换常见容器 × 视频/音频编码组合，支持 GIF 导出；“滤镜”与“画质”页提供以下增强能力：
 
+拼接模式：勾选后按列表顺序把多个视频合并为一个文件，可拖动条目调整顺序，每段可设置循环次数（该片段在成片中重复几次）并保留各自的裁剪范围。分辨率不一致的片段以第一个视频为基准等比缩放并加黑边，帧率保留各段原始时间戳；一次编码完成输出（无中间文件）。拼接模式下 AI 超分与插帧不可用。设计见 [ADR 0018](FancyTool/docs/adr/0018-concat-mode.md)。
+
 “滤镜”页支持 RIFE AI 插帧和无需模型的 CPU 运动补偿插帧，可选择 2×、4× 或 6× 源帧率，保持原时长和音画同步，并默认启用场景切换保护。AI 插帧提供 RIFE 4.25 Lite（默认）与 4.25，沿用 Windows ML 的 GPU/NPU 加速和 DirectML GPU 回退；模型按需下载至统一模型目录的 `Interpolation` 子目录，支持校验和目录迁移。开启插帧后，GIF 同样使用所选倍率；RIFE 可对 HDR 输入映射后补帧并输出 10 位 HDR；其他插帧方式仍需选择“强制 SDR”。与超分同时启用时自动选择处理顺序，也可手动选择先插帧或先超分；未开启超分的降分辨率输出会先缩小画面，以降低插帧计算量。NPU 首次编译大画面可能较慢，速度优先推荐 GPU。
 
 NVIDIA 光流使用 `fruc_vulkan`，要求驱动暴露 `VK_NV_optical_flow` 等所需能力，并通过应用的 2×/4×/6× 实际生成帧校验；RTX 5070 Ti 已验证。该路径通过上传/回读接入现有处理链，尚非 CUDA 全显存路径。CPU 运动补偿的 `minterpolate` 核心不支持切片多线程，总 CPU 占用低不代表单核没有饱和。
@@ -117,7 +119,7 @@ NVIDIA 光流使用 `fruc_vulkan`，要求驱动暴露 `VK_NV_optical_flow` 等�
 | 图片 | 图片转 Base64 | 图片 → Base64 | 字节流编码 | .NET BCL |
 | 图片 | 图片转换 | 图片格式批量转换（jpg / png / bmp / webp / tiff / dds / jxl / heic / ico） | SKBitmap 解码 + 多格式编码 + ICO 多尺寸封装 | SkiaSharp |
 | 图片 | 图片超分 | AI 图片超分辨率（2× / 4×，GPU 加速） | RealESRGAN / ClearReality 等（ONNX 推理） | ONNX Runtime / Windows ML |
-| 音视频 | 视频转码 | 批量视频转码与 GIF 导出，支持 HDR 输出、AI 超分与插帧 | FFmpeg 滤镜图 + 显存管线（NVDEC/NVENC）+ 超分/插帧模型 | FFmpeg.AutoGen / ONNX Runtime |
+| 音视频 | 视频转码 | 批量视频转码、拼接（拖拽排序 + 每段循环次数）与 GIF 导出，支持 HDR 输出、AI 超分与插帧 | FFmpeg 滤镜图 + 显存管线（NVDEC/NVENC）+ 超分/插帧模型 | FFmpeg.AutoGen / ONNX Runtime |
 | 音视频 | 音频转码 | 批量音频转换与 DSP 升频（最高 192 kHz） | FFmpeg 编码 + 托管 DSP 升采样 | FFmpeg.AutoGen |
 
 ## 🖼️ 软件截图

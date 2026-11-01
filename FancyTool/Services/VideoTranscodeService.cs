@@ -304,18 +304,7 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
             vDec->pkt_timebase = vInStream->time_base;
             var sourceColor = ReadColor(vDec);
             var outputColor = ResolveOutputColor(o, sourceColor);
-            if (aIdx >= 0)
-            {
-                aDec = OpenDecoder(inFmt->streams[aIdx]);
-                aDec->pkt_timebase = inFmt->streams[aIdx]->time_base;
-                // WAV/PCM 解码器常给出 UNSPEC 顺序布局；规范化成默认布局，swr 配置比较才不会报 INPUT_CHANGED
-                if (aDec->ch_layout.order == AVChannelOrder.AV_CHANNEL_ORDER_UNSPEC)
-                {
-                    int channels = Math.Max(1, aDec->ch_layout.nb_channels);
-                    ffmpeg.av_channel_layout_uninit(&aDec->ch_layout);
-                    ffmpeg.av_channel_layout_default(&aDec->ch_layout, channels);
-                }
-            }
+            if (aIdx >= 0) aDec = OpenAudioDecoderStream(inFmt->streams[aIdx]);
 
             // ── 2. 输出封装 ──
             ffmpeg.avformat_alloc_output_context2(&ofmt, null, GetMuxerName(o.Container), outputPath);
@@ -654,6 +643,20 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
             ffmpeg.avcodec_free_context(&ctx);
             throw;
         }
+    }
+
+    /// <summary>打开音频解码器并规范化声道布局（WAV/PCM 解码器常给出 UNSPEC 顺序布局，规范化后 swr 配置比较才不会报 INPUT_CHANGED）。</summary>
+    private static AVCodecContext* OpenAudioDecoderStream(AVStream* stream)
+    {
+        AVCodecContext* ctx = OpenDecoder(stream);
+        ctx->pkt_timebase = stream->time_base;
+        if (ctx->ch_layout.order == AVChannelOrder.AV_CHANNEL_ORDER_UNSPEC)
+        {
+            int channels = Math.Max(1, ctx->ch_layout.nb_channels);
+            ffmpeg.av_channel_layout_uninit(&ctx->ch_layout);
+            ffmpeg.av_channel_layout_default(&ctx->ch_layout, channels);
+        }
+        return ctx;
     }
 
     // ── 帧/包流动 ──
@@ -1360,6 +1363,9 @@ public sealed unsafe partial class VideoTranscodeService : IVideoTranscodeServic
 
         /// <summary>Preserves an initial audio offset relative to the clipped video timeline.</summary>
         public void SetStartSeconds(double seconds) => _nextPts = (long)Math.Round(seconds * _encCtx->sample_rate);
+
+        /// <summary>拼接时把当前段音频整体平移到全局时间轴（在 KeepAudio 设定段内起点后、首帧送编前调用一次）。</summary>
+        public void AddStartSamples(long samples) => _nextPts += samples;
 
         public EncoderFrameFeeder(AVCodecContext* encCtx, AVFormatContext* ofmt, AVStream* stream, AVPacket* pkt)
         {

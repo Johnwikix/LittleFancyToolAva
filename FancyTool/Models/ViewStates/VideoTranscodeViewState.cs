@@ -78,4 +78,6 @@ public class VideoTranscodeViewState
     public string GifStatsMode { get; set; } = "diff";
     public int SelectedPresetIndex { get; set; } // Output preset index
     public bool IncludeAllInFolderScan { get; set; }
+    /// <summary>Gets or sets whether the list is concatenated into a single output.</summary>
+    public bool IsConcatMode { get; set; }
 }

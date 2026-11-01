@@ -242,6 +242,9 @@ public sealed class VideoTranscodeOptions
     public string GifStatsMode { get; set; } = "diff"; // diff / single
 }
 
+/// <summary>拼接模式的一个输入片段：源文件、在成片中的循环次数与独立裁剪范围。</summary>
+public sealed record VideoConcatSegment(string FilePath, int LoopCount, double TrimStartSeconds, double? TrimEndSeconds);
+
 public partial class VideoFileItem : ObservableObject
 {
     /// <summary>Gets or sets the trim start for this file, in seconds.</summary>
@@ -249,6 +252,15 @@ public partial class VideoFileItem : ObservableObject
 
     /// <summary>Gets or sets the trim end for this file, or null to keep its entire ending.</summary>
     public double? TrimEndSeconds { get; set; }
+
+    private int _loopCount = 1;
+
+    /// <summary>Gets or sets how many times this clip repeats in the concatenated output. Clamped to 1..99.</summary>
+    public int LoopCount
+    {
+        get => _loopCount;
+        set => SetProperty(ref _loopCount, Math.Clamp(value, 1, 99));
+    }
 
     public string FilePath { get; }
     public string FileName => Path.GetFileName(FilePath);
@@ -332,6 +344,18 @@ public partial class VideoFileItem : ObservableObject
         Owner?.Remove(this);
     }
 
+    [RelayCommand]
+    private void MoveUp()
+    {
+        Owner?.MoveUp(this);
+    }
+
+    [RelayCommand]
+    private void MoveDown()
+    {
+        Owner?.MoveDown(this);
+    }
+
     internal IVideoFileItemOwner? Owner { get; set; }
 
     public string StatusDisplay => _statusDisplay;
@@ -373,4 +397,6 @@ public partial class VideoFileItem : ObservableObject
 internal interface IVideoFileItemOwner
 {
     void Remove(VideoFileItem item);
+    void MoveUp(VideoFileItem item);
+    void MoveDown(VideoFileItem item);
 }

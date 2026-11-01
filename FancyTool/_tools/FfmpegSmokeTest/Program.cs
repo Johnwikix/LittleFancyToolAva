@@ -109,6 +109,12 @@ internal static partial class Program
         if (args.Contains("--sr-only")) return RunSuperResolutionWithDispatcher(sample, workDir, args);
         if (args.Contains("--interpolation-only")) return RunInterpolationCases(sample, workDir);
         if (args.Contains("--editing-only")) return RunEditingCases(svc, sample, workDir);
+        if (args.Contains("--concat-only"))
+        {
+            RunConcatCases(svc, sample, workDir);
+            Console.WriteLine($"Concat smoke tests: {_runCount} cases, {_failures} failures");
+            return _failures == 0 ? 0 : 1;
+        }
 
         // 2. 全矩阵（与 ViewModel FilterVideoCodecsForContainer/FilterAudioCodecsForContainer 一致）
         (VideoContainer C, VideoCodec[] V, AudioCodec[] A)[] matrix =
@@ -220,6 +226,9 @@ internal static partial class Program
                 ScaleMode = m, ScaleWidth = w, ScaleHeight = h,
             };
         });
+
+        // 3b. 拼接模式（多段单编码真实管线：顺序/循环/裁剪/异构 letterbox/混合音轨/GIF/两通/取消）
+        RunConcatCases(svc, sample, workDir);
 
         // 4. 硬件编码尝试（驱动相关，失败记 SKIP 不算代码回归）
         foreach ((string name, HardwareBackend hw) in new[]

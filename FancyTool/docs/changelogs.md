@@ -1,5 +1,12 @@
 # 变更记录
 
+## 2026-11-01
+
+- 视频转码新增拼接模式：勾选后按列表顺序把多个视频合并为一个文件（单次编码、无中间文件），分辨率不一致的片段以第一个视频为基准等比缩放并加黑边，帧率保留各段原始时间戳（VFR）。新增 `IVideoTranscodeService.ConcatTranscodeAsync` 多段单编码管线（独立分部文件，未改动 `ConvertOnce`）；拼接时间轴固定 1/90000、编码器标称帧率取全段最高帧率，避免高帧率段 pts 重复。拼接模式下 AI 超分 / 插帧禁用（VM 与服务双侧拒绝），暂停按钮隐藏（单次会话无段间暂停粒度）。
+- 拖拽排序：Avalonia `ListBox` 无内置 reorder，新增附加行为 `Helpers/ListBoxDragReorder.cs`（进程内私有 DataFormat 与 Explorer 文件拖入区分，DragOver 命中项中线上/下实时重排），仅拼接模式且非转码中启用；每项新增循环次数（1..99，仅拼接模式可见，与裁剪一样不持久化），`IsConcatMode` 随 ViewState 持久化；中英文资源同步新增 11 键。
+- 同步修复烟测工程既有编译错误：`SettingsTests` 补上 `SettingsViewModel` 新增的 `LicenseViewModel` 依赖（未解锁授权桩）。
+- 验证：拼接烟测 14/14 通过（顺序 / 循环 / 裁剪×循环 / 异构 letterbox 像素断言 / 有音无音混合 / GIF / MKV·VP9·Opus / 两通 / 非零时间戳 / 进度单调 / 取消清理 / 非法输入），FFmpeg 全量烟测 115 用例 0 失败（NVENC/AMF 驱动缺失按惯例 SKIP）。见 ADR 0018 与 `_tools/FfmpegSmokeTest/ConcatTests.cs`。
+
 ## 2026-10-31
 
 - 修复已购电脑在 VS MSIX Release 中仍被锁定：真实商品包身份是 `SennpaiStudio.---modbus`，清单及商店关联由错误的 `FancyTool.FancyTool` 更正；运行期核对 PFN，错误身份 / 查询异常不再误报为未购买。保留严格门控，无签名或调试放行。

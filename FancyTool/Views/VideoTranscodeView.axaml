@@ -3,6 +3,7 @@
              xmlns:vm="using:FancyToolAva.ViewModels"
              xmlns:models="using:FancyToolAva.Models"
              xmlns:controls="using:FancyToolAva.Views.Controls"
+             xmlns:helpers="using:FancyToolAva.Helpers"
              xmlns:fa="using:FluentAvalonia.UI.Controls"
              xmlns:lan="clr-namespace:Lang.Avalonia.MarkupExtensions;assembly=Lang.Avalonia"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -134,7 +135,9 @@
                                         </ComboBox>
                                         <TextBlock Classes="Caption" Text="{lan:I18n VideoTranscode.Hdr_Hint}" TextWrapping="Wrap" />
                                     </StackPanel>
-                                    <StackPanel Spacing="8" AutomationProperties.AutomationId="VideoSuperResolutionOptions">
+                                    <StackPanel Spacing="8" AutomationProperties.AutomationId="VideoSuperResolutionOptions"
+                                                IsEnabled="{Binding !IsConcatMode}"
+                                                ToolTip.Tip="{lan:I18n VideoTranscode.Hint_ConcatNoAi}">
                                         <CheckBox IsChecked="{Binding IsVideoSrEnabled, Mode=TwoWay}" IsCheckedChanged="OnSrEnabledChanged" IsEnabled="{Binding !IsBusy}" Content="{lan:I18n VideoTranscode.Sr_Enable}" AutomationProperties.AutomationId="VideoSrEnable" />
                                         <StackPanel IsVisible="{Binding IsVideoSrEnabled}" Spacing="8">
                                             <fa:FAInfoBar x:Name="VideoSrHdrLossyWarning" IsOpen="True" IsClosable="False" Severity="Warning"
@@ -215,7 +218,9 @@
                                         </Grid>
                                     </StackPanel>
 
-                                    <Border Background="{DynamicResource CardBackgroundFillColorSecondaryBrush}" CornerRadius="6" Padding="10" AutomationProperties.AutomationId="VideoInterpolationOptions">
+                                    <Border Background="{DynamicResource CardBackgroundFillColorSecondaryBrush}" CornerRadius="6" Padding="10" AutomationProperties.AutomationId="VideoInterpolationOptions"
+                                            IsEnabled="{Binding !IsConcatMode}"
+                                            ToolTip.Tip="{lan:I18n VideoTranscode.Hint_ConcatNoAi}">
                                     <StackPanel Spacing="8">
                                         <TextBlock Text="{lan:I18n VideoTranscode.Interp_Title}" FontWeight="SemiBold" />
                                         <ComboBox ItemsSource="{Binding InterpolationModes}" SelectedIndex="{Binding InterpolationModeIndex, Mode=TwoWay}" IsEnabled="{Binding !IsBusy}" HorizontalAlignment="Stretch" AutomationProperties.AutomationId="VideoInterpolationMode">
@@ -377,12 +382,17 @@
                     <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="12,8,12,4">
                         <TextBlock Grid.Column="0" Classes="SectionHeader" Text="{Binding StatusText, FallbackValue='File List'}" VerticalAlignment="Center" />
                     </Grid>
-                    <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="6" Margin="12,0,12,4" HorizontalAlignment="Right">
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="14" Margin="12,0,12,4" HorizontalAlignment="Right">
                         <CheckBox IsChecked="{Binding IncludeAllInFolderScan, Mode=TwoWay}"
                                   VerticalAlignment="Center"
                                   Content="{lan:I18n VideoTranscode.CheckBox_IncludeAllInFolder}" />
+                        <CheckBox IsChecked="{Binding IsConcatMode, Mode=TwoWay}" IsEnabled="{Binding !IsBusy}"
+                                  VerticalAlignment="Center"
+                                  ToolTip.Tip="{lan:I18n VideoTranscode.Hint_ConcatMode}"
+                                  Content="{lan:I18n VideoTranscode.CheckBox_ConcatMode}" />
                     </StackPanel>
-                    <ListBox Grid.Row="2" ItemsSource="{Binding FileItems}" SelectedItem="{Binding SelectedFileItem, Mode=TwoWay}" BorderThickness="0" Margin="8,0,8,8">
+                    <ListBox Grid.Row="2" ItemsSource="{Binding FileItems}" SelectedItem="{Binding SelectedFileItem, Mode=TwoWay}" BorderThickness="0" Margin="8,0,8,8"
+                             helpers:ListBoxDragReorder.Enabled="{Binding IsReorderEnabled}">
                         <ListBox.ItemsPanel>
                             <ItemsPanelTemplate>
                                 <VirtualizingStackPanel />
@@ -390,17 +400,26 @@
                         </ListBox.ItemsPanel>
                         <ListBox.ItemTemplate>
                             <DataTemplate x:DataType="models:VideoFileItem">
-                                <Grid ColumnDefinitions="Auto,*,Auto,Auto" Margin="4,2">
+                                <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" Margin="4,2">
                                     <SelectableTextBlock Grid.Column="0" Text="VID" Margin="0,0,8,0" VerticalAlignment="Center" FontSize="10" Opacity="0.6" />
                                     <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
                                         <SelectableTextBlock Text="{Binding FileName}" FontWeight="Medium" TextTrimming="CharacterEllipsis" />
                                         <SelectableTextBlock Text="{Binding ProbeDisplay}" FontSize="11" Opacity="0.7" TextTrimming="CharacterEllipsis" />
                                     </StackPanel>
-                                    <StackPanel Grid.Column="2" Spacing="2" VerticalAlignment="Center" Margin="8,0">
+                                    <!-- 循环次数仅拼接模式可见：决定该段在成片中重复几次 -->
+                                    <StackPanel Grid.Column="2" Spacing="0" VerticalAlignment="Center" Margin="4,0,8,0"
+                                                IsVisible="{Binding $parent[UserControl].((vm:VideoTranscodeViewModel)DataContext).IsConcatMode}"
+                                                ToolTip.Tip="{lan:I18n VideoTranscode.Label_LoopCount}">
+                                        <TextBlock Text="{lan:I18n VideoTranscode.Label_LoopCount}" FontSize="10" Opacity="0.6" HorizontalAlignment="Center" />
+                                        <NumericUpDown Value="{Binding LoopCount, Mode=TwoWay}" Minimum="1" Maximum="99"
+                                                       IsEnabled="{Binding !$parent[UserControl].((vm:VideoTranscodeViewModel)DataContext).IsBusy}"
+                                                       Width="64" Padding="4,2" FontSize="12" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="3" Spacing="2" VerticalAlignment="Center" Margin="8,0">
                                         <SelectableTextBlock Text="{Binding StatusDisplay}" FontSize="11" />
                                         <SelectableTextBlock Text="{Binding ProgressDisplay}" FontSize="11" Opacity="0.8" />
                                     </StackPanel>
-                                    <Button Grid.Column="3" Command="{Binding RemoveCommand}" IsEnabled="{Binding !$parent[UserControl].((vm:VideoTranscodeViewModel)DataContext).IsBusy}" Padding="6,2" Background="Transparent" BorderThickness="0" ToolTip.Tip="{lan:I18n FileEnc.Tooltip_Remove}" Content="🗑️" />
+                                    <Button Grid.Column="4" Command="{Binding RemoveCommand}" IsEnabled="{Binding !$parent[UserControl].((vm:VideoTranscodeViewModel)DataContext).IsBusy}" Padding="6,2" Background="Transparent" BorderThickness="0" ToolTip.Tip="{lan:I18n FileEnc.Tooltip_Remove}" Content="🗑️" />
                                 </Grid>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
@@ -420,7 +439,7 @@
                 </Grid>
                 <StackPanel x:Name="ActionPanel" Grid.Column="2" Orientation="Horizontal" Spacing="6">
                     <Button Command="{Binding StartTranscodeCommand}" Classes="Primary" Content="{lan:I18n VideoTranscode.Button_Start}" />
-                    <Button Command="{Binding TogglePauseCommand}" IsVisible="{Binding IsBusy}" Content="{Binding PauseResumeLabel}" />
+                    <Button Command="{Binding TogglePauseCommand}" IsVisible="{Binding ShowPauseButton}" Content="{Binding PauseResumeLabel}" />
                     <Button Command="{Binding StopTranscodeCommand}" IsVisible="{Binding IsBusy}" Content="{lan:I18n Common.Button_Stop}" />
                 </StackPanel>
                 <Grid x:Name="FooterProgress" Grid.Row="1" Grid.ColumnSpan="3" RowDefinitions="Auto,Auto" ColumnDefinitions="*,12,Auto" IsVisible="{Binding IsBusy}" Margin="0,8,0,0">

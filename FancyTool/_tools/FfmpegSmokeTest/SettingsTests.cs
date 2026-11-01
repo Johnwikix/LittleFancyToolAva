@@ -39,7 +39,7 @@ internal static partial class Program
             var host = new ApplicationHostService(files, app, views, NullLogger<ApplicationHostService>.Instance);
             host.LoadState();
             var dialogs = new SettingsTestDialogs { Folder = custom };
-            var vm = new SettingsViewModel(app, dialogs, files);
+            var vm = new SettingsViewModel(app, dialogs, files, new LicenseViewModel(new UnlockedLicenseStub()));
             void Check(bool value, string message) { if (!value) throw new InvalidOperationException(message); }
             void Complete(Task task) { PumpUntil(() => task.IsCompleted); task.GetAwaiter().GetResult(); }
             Check(app.Preferences.UseSuperResolutionNpu, "NPU acceleration should default on for legacy settings");
@@ -135,7 +135,7 @@ internal static partial class Program
             File.WriteAllText(interpolationMarker, "availability marker only");
             Check(interpolation.IsModelAvailable(VideoInterpolationModel.Rife425Lite), "Interpolation ignored the custom root");
             // Bind a fresh settings VM to the preferences instance loaded on restart.
-            vm = new SettingsViewModel(app, dialogs, files);
+            vm = new SettingsViewModel(app, dialogs, files, new LicenseViewModel(new UnlockedLicenseStub()));
             Complete(vm.ResetModelsDirectoryCommand.ExecuteAsync(null));
             Check(files.LoadState()!.Preferences!.ModelStorageDirectory == string.Empty, "Restore default was not persisted");
             Check(!File.Exists(marker) && video.IsModelAvailable(VideoSrModel.Anime4KCnnS), "Reset did not migrate video models or update the existing service");
@@ -143,7 +143,7 @@ internal static partial class Program
             host.LoadState();
             Check(AppPaths.ModelsDirectory == AppPaths.DefaultModelsDirectory, "Default root did not return after restart");
             Check(!Directory.EnumerateFiles(custom, ".fancytool-write-*").Any(), "Write probes were left behind");
-            vm = new SettingsViewModel(app, dialogs, files);
+            vm = new SettingsViewModel(app, dialogs, files, new LicenseViewModel(new UnlockedLicenseStub()));
             var view = new SettingsView { DataContext = vm };
             var window = new Window { Title = "Settings model management smoke test", Width = 1000, Height = 900, Content = view };
             window.Show();
@@ -208,4 +208,18 @@ internal static partial class Program
         public Task<IReadOnlyList<string>?> PickOpenFilesAsync(string title, IReadOnlyList<FilePickerFileType>? filters = null) => Task.FromResult<IReadOnlyList<string>?>(null);
         public Task<string?> PickSaveFileAsync(string title, string? defaultFileName = null, IReadOnlyList<FilePickerFileType>? filters = null) => Task.FromResult<string?>(null);
     }
+    /// <summary>设置页烟测用的已解锁授权桩（主程序 SettingsViewModel 新增 LicenseViewModel 依赖后同步）。</summary>
+    private sealed class UnlockedLicenseStub : ILicenseService
+    {
+        public AppLicenseState State => AppLicenseState.FullLicense;
+        public bool CanUseApplication => true;
+        public bool CanPurchase => false;
+        public DateTimeOffset? TrialExpiration => null;
+        public event Action? StateChanged { add { } remove { } }
+        public Task InitializeAsync(nint ownerHandle) => Task.CompletedTask;
+        public Task RefreshAsync() => Task.CompletedTask;
+        public Task PurchaseAsync() => Task.CompletedTask;
+        public void Dispose() { }
+    }
 }
+
