@@ -337,15 +337,11 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
         {
             if (SetProperty(ref field, value))
             {
-                OnPropertyChanged(nameof(IsReorderEnabled));
                 OnPropertyChanged(nameof(ShowPauseButton));
                 InvalidateAllCommands();
             }
         }
     }
-
-    /// <summary>拼接模式下才允许拖拽调整顺序，且转码中锁定。</summary>
-    public bool IsReorderEnabled => IsConcatMode && !IsBusy;
 
     /// <summary>拼接是单次编码会话，段间无暂停粒度，隐藏暂停按钮（停止仍可用）。</summary>
     public bool ShowPauseButton => IsBusy && !IsConcatMode;
@@ -734,7 +730,6 @@ public partial class VideoTranscodeViewModel : ViewModelBase, IViewState, IVideo
             if (SetProperty(ref field, value))
             {
                 InvalidateAllCommands();
-                OnPropertyChanged(nameof(IsReorderEnabled));
                 OnPropertyChanged(nameof(ShowPauseButton));
                 if (Dispatcher.UIThread.CheckAccess()) RefreshEditingAvailability();
                 else Dispatcher.UIThread.Post(RefreshEditingAvailability);

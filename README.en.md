@@ -80,7 +80,7 @@ Transparent image conversion and alpha compositing use SIMD acceleration. See th
 
 Video transcoding runs FFmpeg in-process (GPL shared libraries bundled with the app) and batch-converts common container × video/audio codec combinations, with GIF export. The Filters and Quality tabs add the following enhancements:
 
-Concatenate mode: check it to merge all videos in list order into a single file. Drag entries to reorder, set a per-clip loop count (how many times the clip repeats in the output), and keep each clip's own trim range. Mismatched resolutions are scaled to the first video with letterboxing; frame rates keep each clip's original timing. The output is encoded in a single pass with no intermediate files. AI super-resolution and interpolation are unavailable in this mode. See [ADR 0018](FancyTool/docs/adr/0018-concat-mode.md).
+Concatenate mode: check it to merge all videos in list order into a single file. Use each row's up/down buttons to reorder, set a per-clip loop count (how many times the clip repeats in the output), and keep each clip's own trim range. Mismatched resolutions are scaled to the first video with letterboxing; frame rates keep each clip's original timing. The output is encoded in a single pass with no intermediate files. AI super-resolution and interpolation are unavailable in this mode. See [ADR 0018](FancyTool/docs/adr/0018-concat-mode.md).
 
 The Filters tab offers RIFE AI interpolation and model-free CPU motion compensation, with 2×, 4×, or 6× the source frame rate. Playback duration and audio sync are preserved, with scene-cut protection enabled by default. RIFE 4.25 Lite (default) and 4.25 use Windows ML GPU/NPU providers with DirectML GPU fallback. Models download on demand into the shared model directory's `Interpolation` subfolder and support verification and directory migration. With interpolation enabled, GIF uses the selected multiplier too; RIFE can tone-map HDR input and produce 10-bit HDR output; other interpolation modes require Force SDR. The combined processing order is automatic or can be selected manually. When upscaling is disabled, output downscaling runs before interpolation to reduce processing cost. NPU compilation may take longer for large frames; GPU is recommended for speed.
 
@@ -119,7 +119,7 @@ Audio transcoding also runs FFmpeg in-process with batch conversion, writing tag
 | Image | Image → Base64 | Image → Base64 | Stream encoding | .NET BCL |
 | Image | Image Convert | Batch image format conversion (jpg / png / bmp / webp / tiff / dds / jxl / heic / ico) | SKBitmap decode + multi-format encode + multi-size ICO packing | SkiaSharp |
 | Image | Image Super-Resolution | AI image upscaling (2× / 4×, GPU accelerated) | RealESRGAN / ClearReality and more (ONNX inference) | ONNX Runtime / Windows ML |
-| Media | Video Transcode | Batch video transcoding, concatenation (drag-to-reorder + per-clip loop counts) & GIF export with HDR output, AI super-resolution and frame interpolation | FFmpeg filter graph + GPU-resident pipeline (NVDEC/NVENC) + SR/interpolation models | FFmpeg.AutoGen / ONNX Runtime |
+| Media | Video Transcode | Batch video transcoding, concatenation (reorder + per-clip loop counts) & GIF export with HDR output, AI super-resolution and frame interpolation | FFmpeg filter graph + GPU-resident pipeline (NVDEC/NVENC) + SR/interpolation models | FFmpeg.AutoGen / ONNX Runtime |
 | Media | Audio Transcode | Batch audio conversion with DSP upsampling (up to 192 kHz) | FFmpeg encoding + managed DSP upsampler | FFmpeg.AutoGen |
 
 ## 🖼️ Screenshots

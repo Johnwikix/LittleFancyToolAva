@@ -30,7 +30,7 @@
 ### UI / VM
 
 - `IsConcatMode`（VM 属性，随 ViewState 持久化；每项 `LoopCount` 与 Trim 一样不持久化）；
-- 拖拽排序：Avalonia `ListBox` 无内置 reorder，新增附加行为 `Helpers/ListBoxDragReorder.cs`（进程内私有 `DataFormat` 与 Explorer 文件拖入区分；DragOver 按命中项中线上/下实时重排），仅拼接模式且非转码中启用；
+- 顺序调整：每行 ↑↓ 按钮（仅拼接模式可见，经 `IVideoFileItemOwner.MoveUp/MoveDown` 由 VM 执行 `FileItems.Move`，转码中锁定）。曾实现过基于 `DragDrop` 的拖拽排序（附加行为实时重排），实测手感不佳后移除，改回按钮；
 - 拼接路径把服务的全局进度按"各段有效时长（裁剪后 × 循环次数）"还原为当前段 + 段内进度，统计与预览帧路由到当前段对应的列表项；
 - 拼接是单次编码会话，段间无暂停粒度：隐藏暂停按钮（停止仍可用，取消后当前段回 Pending、临时文件由服务清理）。
 
@@ -52,3 +52,5 @@ dotnet run --project FancyTool/_tools/FfmpegSmokeTest -- --concat-only .qa/ffmpe
 覆盖：同构 3 段拼接时长、单段循环 ×3、裁剪 × 循环组合、异构分辨率/帧率/宽高比（输出画布 = 首段 + letterbox 像素断言：黑边行暗、内容区亮）、有音/无音段混合（音频样本数只计基准段）、GIF、MKV/VP9/Opus、两通、非零时间戳源、进度单调且终值 1、预取消（异常类型 + 输出与临时文件不残留）、非法输入（空列表 / 超分选项 / 缺文件）。
 
 未实测：Linux/VAAPI 后端拼接、真实 NVENC 硬编拼接（Windows 本机无对应驱动环境时烟测按既有惯例记 SKIP）、MSIX 打包下的 UI 行为。
+
+> 2026-11-01 修订：顺序调整由拖拽排序改为每行 ↑↓ 按钮（拖拽实时重排实测手感不佳，已移除 `Helpers/ListBoxDragReorder.cs`）。

@@ -361,6 +361,9 @@ public partial class VideoFileItem : ObservableObject
     public string StatusDisplay => _statusDisplay;
     public string ProgressDisplay => _progressDisplay;
 
+    /// <summary>进度行是否有内容；空时隐藏该行，让状态文本在行内垂直居中（等待中不偏上）。</summary>
+    public bool HasProgressDisplay => _progressDisplay.Length > 0;
+
     private void RefreshStatusDisplay()
     {
         _statusDisplay = _status switch
@@ -391,6 +394,7 @@ public partial class VideoFileItem : ObservableObject
             _ => ""
         };
         OnPropertyChanged(nameof(ProgressDisplay));
+        OnPropertyChanged(nameof(HasProgressDisplay));
     }
 }
 

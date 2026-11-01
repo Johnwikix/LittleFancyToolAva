@@ -3,7 +3,6 @@
              xmlns:vm="using:FancyToolAva.ViewModels"
              xmlns:models="using:FancyToolAva.Models"
              xmlns:controls="using:FancyToolAva.Views.Controls"
-             xmlns:helpers="using:FancyToolAva.Helpers"
              xmlns:fa="using:FluentAvalonia.UI.Controls"
              xmlns:lan="clr-namespace:Lang.Avalonia.MarkupExtensions;assembly=Lang.Avalonia"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -391,8 +390,7 @@
                                   ToolTip.Tip="{lan:I18n VideoTranscode.Hint_ConcatMode}"
                                   Content="{lan:I18n VideoTranscode.CheckBox_ConcatMode}" />
                     </StackPanel>
-                    <ListBox Grid.Row="2" ItemsSource="{Binding FileItems}" SelectedItem="{Binding SelectedFileItem, Mode=TwoWay}" BorderThickness="0" Margin="8,0,8,8"
-                             helpers:ListBoxDragReorder.Enabled="{Binding IsReorderEnabled}">
+                    <ListBox Grid.Row="2" ItemsSource="{Binding FileItems}" SelectedItem="{Binding SelectedFileItem, Mode=TwoWay}" BorderThickness="0" Margin="8,0,8,8">
                         <ListBox.ItemsPanel>
                             <ItemsPanelTemplate>
                                 <VirtualizingStackPanel />
@@ -400,26 +398,29 @@
                         </ListBox.ItemsPanel>
                         <ListBox.ItemTemplate>
                             <DataTemplate x:DataType="models:VideoFileItem">
-                                <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" Margin="4,2">
+                                <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto" Margin="4,2">
                                     <SelectableTextBlock Grid.Column="0" Text="VID" Margin="0,0,8,0" VerticalAlignment="Center" FontSize="10" Opacity="0.6" />
                                     <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
                                         <SelectableTextBlock Text="{Binding FileName}" FontWeight="Medium" TextTrimming="CharacterEllipsis" />
                                         <SelectableTextBlock Text="{Binding ProbeDisplay}" FontSize="11" Opacity="0.7" TextTrimming="CharacterEllipsis" />
                                     </StackPanel>
+                                    <!-- 顺序调整仅拼接模式可见：决定该段在成片中的位置 -->
+                                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center" Margin="4,0,8,0"
+                                                IsVisible="{Binding $parent[UserControl].((vm:VideoTranscodeViewModel)DataContext).IsConcatMode}">
+                                        <Button Command="{Binding MoveUpCommand}" IsEnabled="{Binding !$parent[UserControl].((vm:VideoTranscodeViewModel)DataContext).IsBusy}" Padding="6,2" Background="Transparent" BorderThickness="0" ToolTip.Tip="{lan:I18n VideoTranscode.Tooltip_MoveUp}" Content="↑" />
+                                        <Button Command="{Binding MoveDownCommand}" IsEnabled="{Binding !$parent[UserControl].((vm:VideoTranscodeViewModel)DataContext).IsBusy}" Padding="6,2" Background="Transparent" BorderThickness="0" ToolTip.Tip="{lan:I18n VideoTranscode.Tooltip_MoveDown}" Content="↓" />
+                                    </StackPanel>
                                     <!-- 循环次数仅拼接模式可见：决定该段在成片中重复几次 -->
-                                    <StackPanel Grid.Column="2" Spacing="0" VerticalAlignment="Center" Margin="4,0,8,0"
-                                                IsVisible="{Binding $parent[UserControl].((vm:VideoTranscodeViewModel)DataContext).IsConcatMode}"
-                                                ToolTip.Tip="{lan:I18n VideoTranscode.Label_LoopCount}">
-                                        <TextBlock Text="{lan:I18n VideoTranscode.Label_LoopCount}" FontSize="10" Opacity="0.6" HorizontalAlignment="Center" />
-                                        <NumericUpDown Value="{Binding LoopCount, Mode=TwoWay}" Minimum="1" Maximum="99"
-                                                       IsEnabled="{Binding !$parent[UserControl].((vm:VideoTranscodeViewModel)DataContext).IsBusy}"
-                                                       Width="64" Padding="4,2" FontSize="12" />
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="3" Spacing="2" VerticalAlignment="Center" Margin="8,0">
+                                    <NumericUpDown Grid.Column="3" Value="{Binding LoopCount, Mode=TwoWay}" Minimum="1" Maximum="99"
+                                                   IsVisible="{Binding $parent[UserControl].((vm:VideoTranscodeViewModel)DataContext).IsConcatMode}"
+                                                   IsEnabled="{Binding !$parent[UserControl].((vm:VideoTranscodeViewModel)DataContext).IsBusy}"
+                                                   ToolTip.Tip="{lan:I18n VideoTranscode.Label_LoopCount}"
+                                                   Width="150" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                    <StackPanel Grid.Column="4" Spacing="2" VerticalAlignment="Center" Margin="8,0">
                                         <SelectableTextBlock Text="{Binding StatusDisplay}" FontSize="11" />
-                                        <SelectableTextBlock Text="{Binding ProgressDisplay}" FontSize="11" Opacity="0.8" />
+                                        <SelectableTextBlock Text="{Binding ProgressDisplay}" FontSize="11" Opacity="0.8" IsVisible="{Binding HasProgressDisplay}" />
                                     </StackPanel>
-                                    <Button Grid.Column="4" Command="{Binding RemoveCommand}" IsEnabled="{Binding !$parent[UserControl].((vm:VideoTranscodeViewModel)DataContext).IsBusy}" Padding="6,2" Background="Transparent" BorderThickness="0" ToolTip.Tip="{lan:I18n FileEnc.Tooltip_Remove}" Content="🗑️" />
+                                    <Button Grid.Column="5" Command="{Binding RemoveCommand}" IsEnabled="{Binding !$parent[UserControl].((vm:VideoTranscodeViewModel)DataContext).IsBusy}" Padding="6,2" Background="Transparent" BorderThickness="0" ToolTip.Tip="{lan:I18n FileEnc.Tooltip_Remove}" Content="🗑️" />
                                 </Grid>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
