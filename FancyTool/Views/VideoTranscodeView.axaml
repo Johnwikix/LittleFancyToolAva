@@ -408,22 +408,23 @@
                                         <SelectableTextBlock Text="{Binding FileName}" FontWeight="Medium" TextTrimming="CharacterEllipsis" />
                                         <SelectableTextBlock Text="{Binding ProbeDisplay}" FontSize="11" Opacity="0.7" TextTrimming="CharacterEllipsis" />
                                     </StackPanel>
+                                    <!-- 状态/进度文案长度随行变化，置于固定宽度的排序与循环控件左侧，避免这些控件逐行错位 -->
+                                    <StackPanel Grid.Column="2" Spacing="2" VerticalAlignment="Center" Margin="8,0">
+                                        <SelectableTextBlock Text="{Binding StatusDisplay}" FontSize="11" />
+                                        <SelectableTextBlock Text="{Binding ProgressDisplay}" FontSize="11" Opacity="0.8" IsVisible="{Binding HasProgressDisplay}" />
+                                    </StackPanel>
                                     <!-- 顺序调整仅拼接模式可见：决定该段在成片中的位置 -->
-                                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center" Margin="4,0,8,0"
+                                    <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center" Margin="4,0,8,0"
                                                 IsVisible="{Binding $parent[UserControl].((vm:VideoTranscodeViewModel)DataContext).IsConcatMode}">
                                         <Button Command="{Binding MoveUpCommand}" IsEnabled="{Binding !$parent[UserControl].((vm:VideoTranscodeViewModel)DataContext).IsBusy}" Padding="6,2" Background="Transparent" BorderThickness="0" ToolTip.Tip="{lan:I18n VideoTranscode.Tooltip_MoveUp}" Content="↑" />
                                         <Button Command="{Binding MoveDownCommand}" IsEnabled="{Binding !$parent[UserControl].((vm:VideoTranscodeViewModel)DataContext).IsBusy}" Padding="6,2" Background="Transparent" BorderThickness="0" ToolTip.Tip="{lan:I18n VideoTranscode.Tooltip_MoveDown}" Content="↓" />
                                     </StackPanel>
                                     <!-- 循环次数仅拼接模式可见：决定该段在成片中重复几次 -->
-                                    <NumericUpDown Grid.Column="3" Value="{Binding LoopCount, Mode=TwoWay}" Minimum="1" Maximum="99"
+                                    <NumericUpDown Grid.Column="4" Value="{Binding LoopCount, Mode=TwoWay}" Minimum="1" Maximum="99"
                                                    IsVisible="{Binding $parent[UserControl].((vm:VideoTranscodeViewModel)DataContext).IsConcatMode}"
                                                    IsEnabled="{Binding !$parent[UserControl].((vm:VideoTranscodeViewModel)DataContext).IsBusy}"
                                                    ToolTip.Tip="{lan:I18n VideoTranscode.Label_LoopCount}"
                                                    Width="150" VerticalAlignment="Center" Margin="0,0,8,0" />
-                                    <StackPanel Grid.Column="4" Spacing="2" VerticalAlignment="Center" Margin="8,0">
-                                        <SelectableTextBlock Text="{Binding StatusDisplay}" FontSize="11" />
-                                        <SelectableTextBlock Text="{Binding ProgressDisplay}" FontSize="11" Opacity="0.8" IsVisible="{Binding HasProgressDisplay}" />
-                                    </StackPanel>
                                     <Button Grid.Column="5" Command="{Binding RemoveCommand}" IsEnabled="{Binding !$parent[UserControl].((vm:VideoTranscodeViewModel)DataContext).IsBusy}" Padding="6,2" Background="Transparent" BorderThickness="0" ToolTip.Tip="{lan:I18n FileEnc.Tooltip_Remove}" Content="🗑️" />
                                 </Grid>
                             </DataTemplate>
