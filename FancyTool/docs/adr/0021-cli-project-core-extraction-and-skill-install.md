@@ -56,6 +56,23 @@ FFmpeg shared 库、`i18n/*.json` 与 `EnsureFFmpegSharedLibraries`（缺库时 
 
 `FancyTool.Cli.csproj` 显式 `PublishAot=false`，自包含托管发布到独立目录 `<publish>\cli`。理由：GUI 的 AOT 产物是根目录那一组文件，CLI 若共享同一目录会与 apphost / 裁剪描述冲突；若自己再跑一遍 AOT，则要为 ONNX Runtime、Windows ML 投影、FFmpeg.AutoGen 的运行时注册单独验证，收益（体积/启动）不足以抵掉风险。`publish-win.ps1` 在 GUI 发布之后追加 CLI 发布（`-SkipCli` 可跳过）。
 
+### 2026-11-03 更新：技能安装扩展到全部主流 agent
+
+SKILL.md 已成为跨厂商的 Agent Skills 开放标准，技能安装从"只写 Qoder"扩展为六家同装（`SkillInstaller.Agents` 注册表为单一来源）：
+
+| agent | 技能目录 |
+|---|---|
+| Claude Code | `~/.claude/skills/fancy-tool/` |
+| Cursor | `~/.cursor/skills/fancy-tool/` |
+| Gemini CLI | `~/.gemini/skills/fancy-tool/` |
+| Codex | `~/.codex/skills/fancy-tool/` |
+| GitHub Copilot CLI | `~/.copilot/skills/fancy-tool/` |
+| Qoder | `~/.qoder-cn/skills/fancy-tool/` |
+
+- **默认全部安装**，不检测本机是否装有该 agent：未装的 agent 目录提前创建，装上即用；`--agent <all|短名列表>` 可选子集。
+- **AGENTS.md 类常驻指令文件不扩展**（各家的 CLAUDE.md / GEMINI.md / instructions.md 等价物）：它们是全量常驻上下文，写入命令清单会污染每个会话；SKILL.md 由 frontmatter 按需触发才是正确机制。Qoder AGENTS.md 受管块保留为可选附加（CLI `--agents-md`，GUI 首启次按钮）。
+- CLI 参数由 `--target <qoder|agents|both>` 改为 `--agent` + `--agents-md`；安装 / 幂等 / `--force` 守卫 / 卸载清理语义逐 agent 不变，`SkillInstallResult.Target` 用 agent 短名。
+
 ### 安装后可直接调用：MSIX 用执行别名，Inno 改用户 PATH
 
 - **MSIX**：`Package.appxmanifest` 增加第二个 `Application Id="Cli"`（`Executable="cli\fancy-tool.exe"`、`EntryPoint="Windows.FullTrustApplication"`、`AppListEntry="none"` 不出现在开始菜单），并声明 `uap5:Extension` 的 `windows.appExecutionAlias`，别名 `fancy-tool.exe`。Windows 自动把别名目录加入 PATH，不需要安装器改注册表。`FancyToolAva.csproj` 的 `PublishCliForMsix` 目标在 `FancyToolMsixBuild=true` 时把 CLI 发布到 `$(PublishDir)cli`。
@@ -120,9 +137,22 @@ FFmpeg 相关代码整体搬进 Core，因此重跑全矩阵确认迁移没有�
 - GUI 首次启动对话框经 lvt 非侵入检查确认渲染与主按钮路径；「技能 + AGENTS.md」次按钮路径由 CLI 同一 `SkillInstaller` 覆盖验证。
 - 打包：MSIX 模式发布产物含 `cli\fancy-tool.exe`，`makeappx pack` 通过清单与别名校验；Inno 脚本 `iscc` 编译通过，`[Code]` 的 PATH 追加/删除逻辑经脚本审查（Git Bash 需 `MSYS_NO_PATHCONV=1` 才能把 `/D` 开关传给 `iscc`）。
 
+### 2026-11-03 补充：真实 wapproj 打包打通与两处构建修复
+
+本机装上 VS 18 Community 后首次真实运行 wapproj 打包，暴露两个问题并已修复（详见 changelogs 2026-11-03）：
+
+1. **库工程平台传染（CS0006）**：Core / Lyricify 未声明 `Platforms`，x64 引用方把 `Platform=x64` 传染给它们，期望 `obj\x64\...\ref\` 引用程序集；该目录只在恰好有人以 x64 构建过库时存在。与 ADR 0009 当年 Lyricify 的 CS0006 同构，本次在普通（非隔离）链上复发。修复为三处 `ProjectReference` 钉 `SetPlatform="Platform=AnyCPU"` + slnx 映射同步 AnyCPU。
+2. **DesktopBridge 负载不收 Exec 产物（APPX0703）**：负载来自入口工程 `DesktopBridgePublishItemsOutputGroup` 项清单（`ResolvedFileToPublish`），不枚举发布目录。修复：`AddCliToDesktopBridgePublishItems` 注入输出组 + wapproj `RebaseCliPayloadToPackageRoot` 把 CLI 项重定位到包根 `cli\`（CreateWapProjPackageFiles 给入口工程全部输出加 `FancyToolAva\` 前缀，与清单字面值和 Upload 变体的剥前缀行为冲突；CLI 因此落在包根 `cli\`，GUI 仍在 `FancyToolAva\`）。
+
+### 2026-11-03 补充（二）：VS IDE 生成走另一条负载通道
+
+上述修复只覆盖命令行打包（`_IsGeneratingAppxPackage=true` 消费 `DesktopBridgePublishItemsOutputGroup`）。**VS IDE 内生成 wapproj**（`BuildingInsideVisualStudio=true` → `_IsGeneratingAppxPackage=false`）时 DesktopBridge 改用 `PackageOutputGroups`（`BuiltProjectOutputGroup` 等构建输出组）收集负载，CLI 依旧缺席而报 APPX0703。补充修复：`AddCliToBuiltOutputForIdePackaging` 把 CLI 发布输出注入 `BuiltProjectOutputGroupOutput`，**必须 `BeforeTargets="BuiltProjectOutputGroup"`**——MSBuild 的 `AfterTargets` 修改的项不会进入被挂 target 的 `Returns`（Returns 在本体完成时捕获，早于钩子执行），而 IDE 模式的 wapproj 直接消费该 Returns。两种模式的 CLI 发布落点不同（命令行=msixpublish、IDE=默认 `$(OutputPath)publish\`），注入时两个候选都探测。验证：IDE 模拟构建（`-p:BuildingInsideVisualStudio=true`）exit 0，appxrecipe 负载含 cli 250 项且包内路径为包根 `cli\`；命令行打包模式回归不受影响。
+
+冷启动（清空 x64 / msix 中间产物）验证 `MSBuild FancyToolAva.Msix.wapproj -restore -p:Configuration=Release -p:Platform=x64` 完整出包，主 / ForBundle / Upload 三份生成的 AppxManifest 中 CLI `Executable="cli\fancy-tool.exe"` 与包内文件一致；slnx Release|x64 回归通过。
+
 ## 已知限制与未验证项
 
-- **未做**：真机 MSIX 安装后的 `fancy-tool` 别名调用（本机缺 VS 18 / DesktopBridge 工具链，只做到 `makeappx` 校验）；Inno 安装/卸载后 `HKCU\Environment\Path` 的实际增删（只做到编译与逻辑审查）；Linux `.deb` 尚未打包 CLI（`publish-linux-deb.ps1` 未接入，需要单独决定 `.deb` 的 `cli` 落点与 `/usr/bin` 链接）。
+- **未做**：真机 MSIX 安装后的 `fancy-tool` 别名调用（wapproj 真实打包已于 2026-11-03 在 VS 18 Community MSBuild 下通过并校验包内清单与负载一致，但包未安装到系统）；Inno 安装/卸载后 `HKCU\Environment\Path` 的实际增删（只做到编译与逻辑审查）；Linux `.deb` 尚未打包 CLI（`publish-linux-deb.ps1` 未接入，需要单独决定 `.deb` 的 `cli` 落点与 `/usr/bin` 链接）。
 - **未实测**：视频超分 / 插帧（`video transcode --sr` / `--interpolate`）与歌词提取的 CLI 端到端运行——本机模型目录只有四款图片超分模型，VideoSr / RIFE / 歌词模型均未安装（`models list` 全部 `[ ]`），跑真实推理需要先下载数 GB 模型；命令与参数映射已接通并复用 GUI 同一服务，结论只到「代码路径存在」。图片超分已实测，见上。
 - 首次启动对话框的次按钮（技能 + `AGENTS.md`）未在 UI 上点选验证：lvt 合成按键的 Tab 顺序落在主按钮；该分支经 CLI `skill install --target both` 覆盖。
 - `AGENTS.md` 托管块只保证不覆盖用户内容，不保证与其他工具的同名托管块兼容。

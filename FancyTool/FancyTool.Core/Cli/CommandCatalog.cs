@@ -387,21 +387,23 @@ public static class CommandCatalog
             ["fancy-tool ffmpeg info"]),
 
         // ── 技能安装 ─────────────────────────────────────────────────────
-        new("skill install", "将 CLI 用法写入本机技能或 AGENTS.md", "Install CLI usage into a local skill or AGENTS.md",
-            "skill install [--target <qoder|agents|both>] [--lang <zh|en>] [--force] [--json]",
-            [new("--target", "<qoder|agents|both>", "安装目标，默认 qoder", "Install target (default: qoder)"),
+        new("skill install", "将 CLI 用法写入各主流 agent 的本机技能目录", "Install CLI usage as a local skill for mainstream AI agents",
+            "skill install [--agent <all|claude,cursor,gemini,codex,copilot,qoder>] [--agents-md] [--lang <zh|en>] [--force] [--json]",
+            [new("--agent", "<all|列表>", "目标 agent（逗号分隔），默认全部六家", "Target agents (comma-separated); default: all six"),
+                new("--agents-md", null, "附加 Qoder 用户级 AGENTS.md 受管块", "Also add the managed block to the Qoder user-level AGENTS.md"),
                 new("--lang", "<zh|en>", "生成文档语言，默认跟随系统", "Documentation language (default: system)"),
                 Force, new("--json", null, "以 JSON 输出", "Emit JSON")],
-            ["fancy-tool skill install --target both"]),
+            ["fancy-tool skill install", "fancy-tool skill install --agent claude,cursor"]),
         new("skill print", "输出技能文档内容（不写文件）", "Print the skill document without writing files",
             "skill print [--lang <zh|en>]",
             [new("--lang", "<zh|en>", "文档语言，默认跟随系统", "Documentation language (default: system)")],
             ["fancy-tool skill print --lang zh"]),
-        new("skill uninstall", "移除已安装的技能/AGENTS.md 片段", "Remove the installed skill/AGENTS.md block",
-            "skill uninstall [--target <qoder|agents|both>] [--json]",
-            [new("--target", "<qoder|agents|both>", "卸载目标，默认 qoder", "Uninstall target (default: qoder)"),
+        new("skill uninstall", "移除已安装的技能与 AGENTS.md 受管片段", "Remove the installed skills and the managed AGENTS.md block",
+            "skill uninstall [--agent <all|claude,cursor,gemini,codex,copilot,qoder>] [--agents-md] [--json]",
+            [new("--agent", "<all|列表>", "目标 agent（逗号分隔），默认全部六家", "Target agents (comma-separated); default: all six"),
+                new("--agents-md", null, "同时移除 Qoder AGENTS.md 受管块", "Also remove the managed block from the Qoder AGENTS.md"),
                 new("--json", null, "以 JSON 输出", "Emit JSON")],
-            ["fancy-tool skill uninstall --target both"]),
+            ["fancy-tool skill uninstall", "fancy-tool skill uninstall --agents-md"]),
     ];
 
     private static CliCommandSpec[] Symmetric(string group, string label, string labelEn, string[] paddings, string sizes, string defaultSize)

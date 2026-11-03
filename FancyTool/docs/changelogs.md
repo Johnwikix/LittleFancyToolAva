@@ -1,5 +1,25 @@
 # 变更记录
 
+## 2026-11-03（MSIX 打包修复 · 二：VS IDE 生成路径）
+
+- 修复 **VS IDE 内生成 wapproj** 仍报 APPX0703（清单引用 `cli\fancy-tool.exe` 不在负载）：DesktopBridge 有两条负载收集通道——命令行打包（`_IsGeneratingAppxPackage=true`）消费 `DesktopBridgePublishItemsOutputGroup`（前次已注入 ✓）；**VS IDE 生成**（`BuildingInsideVisualStudio=true` → `_IsGeneratingAppxPackage=false`）改用 `PackageOutputGroups`（`BuiltProjectOutputGroup` 等构建输出组），CLI 的 Exec 发布产物不在其中。CLI 本身一直有构建（`PublishCliForMsix` 正常执行），缺的是这条通道的清单项。
+- 修复：`FancyToolAva.csproj` 新增 `AddCliToBuiltOutputForIdePackaging`，把 CLI 发布输出注入 `BuiltProjectOutputGroupOutput`。两个关键约束：**必须 `BeforeTargets`**——MSBuild 的 `AfterTargets` 修改的项不会进入被挂 target 的 `Returns`（Returns 在本体完成时捕获，早于钩子），IDE 模式直接消费该 Returns 就拿不到；命令行模式 `PublishDir` 被 DesktopBridge 改写为 msixpublish 而 IDE 模式保持默认 `$(OutputPath)publish\`，两个落点都探测。包内路径仍由 wapproj 的 `RebaseCliPayloadToPackageRoot` 统一到包根 `cli\`。
+- 验证（VS 18 MSBuild 模拟 IDE 全局属性 `-p:BuildingInsideVisualStudio=true`）：构建 exit 0，`FancyToolAva.Msix.build.appxrecipe` 生成，负载 584 项含 cli 250 项（`PackagePath=cli\...` 包根、`cli\fancy-tool.exe` 就位、无 `FancyToolAva\cli` 重复）；GUI 入口 `FancyToolAva\FancyToolAva.exe`。命令行打包模式回归通过（msix + msixbundle + appxupload 完整出包，包内清单与负载一致）。诊断日志 `.qa/msix-ide-*.log`。
+
+## 2026-11-03（技能安装扩展到全部主流 agent）
+
+- 技能安装从"只写 Qoder"扩展为六家 agent 同装（SKILL.md 已是跨厂商开放标准，一份内容多处落盘）：Claude Code `~/.claude/skills`、Cursor `~/.cursor/skills`、Gemini CLI `~/.gemini/skills`、Codex `~/.codex/skills`、Copilot CLI `~/.copilot/skills`、Qoder `~/.qoder-cn/skills`。默认全部安装（未装的 agent 目录提前创建、装上即用）；AGENTS.md 类常驻指令文件（CLAUDE.md / GEMINI.md / instructions.md）**不扩展**——常驻上下文写命令清单会污染每个会话，Qoder AGENTS.md 受管块保留为可选附加。
+- CLI 参数 `--target <qoder|agents|both>` 改为 `--agent <all|短名列表>` + `--agents-md`；`SkillInstallTarget` 枚举删除，改为 `SkillInstaller.Agents` 注册表（`SkillAgentTarget` 记录）+ 参数化 `Install/UninstallAsync`，安装/幂等/`--force`/卸载清理语义逐 agent 不变。GUI 首启对话框主按钮改为「安装到全部 agent」，次按钮「技能 + AGENTS.md」，`SkillPrompt` 九键中英文同步更新。
+- 验证：`FANCYTOOL_SKILL_HOME` 指向 `.qa/skill-multi` 下，六家 `skill install` 全部写入（frontmatter 首行、生成标记在其后、CRLF）；重复执行全部「未更改」；`--agent claude,qoder` 只处理指定两家；未知名退出码 2 并列出合法值；预置用户内容的 Qoder `AGENTS.md` 经 `--agents-md` 只增受管块，`skill uninstall --agents-md` 后六家技能目录清空、用户段落原样保留。GUI 首启对话框文案经静态核对（i18n 键与 `App.axaml.cs` 占位参数一致），未做 lvt 实机点选。见 ADR 0021 更新小节。
+
+## 2026-11-03（MSIX 打包修复）
+
+- 修复 MSIX 构建两处失败（本机已装 VS 18 Community，可真实跑 DesktopBridge 打包）：
+  - **CS0006 找不到 `FancyTool.Core\obj\x64\Release\...\ref\FancyTool.Core.dll`**：Core / Lyricify 未声明 `Platforms`，x64 评估的引用方（sln 的 Release|x64、MSIX 隔离链）把 `Platform=x64` 传染给它们，期望 `obj\x64` 中间目录；该路径只在"恰好有人以 x64 构建过库"时存在，VS IDE 内构建 wapproj 时依赖不随隔离链构建即报错。修复：三处 `ProjectReference`（Ava→Core/Lyricify、Cli→Core、Core→Lyricify）钉 `SetPlatform="Platform=AnyCPU"`，slnx 平台映射同步改为 AnyCPU，库在任何引用方平台下只有单一中间目录。
+  - **APPX0703 清单引用 `cli\fancy-tool.exe` 不在负载**：DesktopBridge 负载不是枚举发布目录，而是消费入口工程 `DesktopBridgePublishItemsOutputGroup` 的项清单（源自 `ResolvedFileToPublish`），`PublishCliForMsix` 用外部 dotnet 进程写入的 CLI 文件不在其中。修复分两层：`FancyToolAva.csproj` 新增 `AddCliToDesktopBridgePublishItems`（在 `PublishItemsOutputGroup` 后把 `$(PublishDir)cli\**` 投影进输出组，注意先在临时项上通配再投影，直接写 `%(RecursiveDir)` 触发 MSB4120 自引用污染）；wapproj 新增 `RebaseCliPayloadToPackageRoot`（`_ConvertItems` 后把 CLI 项从 `FancyToolAva\cli\` 重定位到包根 `cli\` 并同步改写 `_FileToCopy`/`_UploadFileToCopy`，否则 CreateWapProjPackageFiles 给入口工程输出统一加的 `FancyToolAva\` 前缀会与清单字面值、Upload 变体的剥前缀行为互相矛盾）。
+- 验证：清空全部 `obj`/`bin` 的 x64、msix 中间产物后冷启动，`MSBuild FancyToolAva.Msix.wapproj -restore -p:Configuration=Release -p:Platform=x64` 完整出包（msix + msixbundle + appxupload），包内 `cli/fancy-tool.exe` 与三份生成的 AppxManifest（主 / ForBundle / Upload）的 `Executable="cli\fancy-tool.exe"` 一致，无 `FancyToolAva/cli` 重复残留；GUI 入口为 `FancyToolAva\FancyToolAva.exe`。slnx Release|x64 回归通过。诊断日志与中间证据在 `.qa/msix-*.log`。
+- 未实测：真机安装后 `fancy-tool` 别名调用（包未安装，仅静态校验清单与负载一致）。
+
 ## 2026-11-03
 
 - 修复视频转码文件列表在拼接模式下的横向错位：状态 / 进度列文案长度逐行变化，原排在固定宽度的 ↑↓ 与循环次数控件右侧，借助 `*` 列吸收宽度导致每行控件位置不同；现将状态列移到排序与循环控件左侧，固定控件逐行对齐。

@@ -919,8 +919,8 @@
   },
   "SkillPrompt": {
     "Title": "安装命令行用法到本机",
-    "Message": "FancyTool 已包含 fancy-tool 命令行工具，覆盖界面中的全部功能。是否把 CLI 用法写入本机，让 AI agent 直接知道如何调用？\n\nQoder 技能：{0}\nAGENTS.md：{1}\n\n之后可随时运行 fancy-tool skill install 重新安装。",
-    "Button_Skill": "安装 Qoder 技能",
+    "Message": "FancyTool 已包含 fancy-tool 命令行工具，覆盖界面中的全部功能。是否把 CLI 用法写入以下 AI agent 的技能目录，让它们直接知道如何调用？\n\n{0}\n\n选择「技能 + AGENTS.md」会同时向 Qoder 的用户级 AGENTS.md 追加受管片段：{1}\n\n之后可随时运行 fancy-tool skill install 重新安装。",
+    "Button_Skill": "安装到全部 agent",
     "Button_Both": "技能 + AGENTS.md",
     "Button_NotNow": "暂不",
     "Msg_Installed": "已写入：\n{0}",

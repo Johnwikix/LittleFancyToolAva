@@ -140,7 +140,7 @@ namespace FancyToolAva
             return null;
         }
 
-        /// <summary>首次启动询问是否把 CLI 用法写入本机 Qoder 技能或用户级 AGENTS.md。</summary>
+        /// <summary>首次启动询问是否把 CLI 用法写入本机各主流 agent 的技能目录（可选附加 Qoder AGENTS.md）。</summary>
         private async Task ShowCliSkillPromptIfNeededAsync(Window window)
         {
             if (_appObserveModel is null || _serviceProvider is null) return;
@@ -149,12 +149,15 @@ namespace FancyToolAva
 
             bool zh = (I18nManager.Instance.Culture?.Name ?? CultureInfo.CurrentUICulture.Name)
                 .StartsWith("zh", StringComparison.OrdinalIgnoreCase);
+            // Message 的 {0} 是"agent 名: 技能路径"逐行列表，{1} 是 Qoder AGENTS.md 路径。
+            string agentLines = string.Join("\n", SkillInstaller.Agents.Select(a =>
+                $"{a.Title}: {Path.Combine(SkillInstaller.UserHome, a.SkillDirectory, "SKILL.md")}"));
             var dialog = new FAContentDialog
             {
                 Title = LocalizationRegistry.Get("SkillPrompt.Title"),
                 Content = new SelectableTextBlock
                 {
-                    Text = LocalizationRegistry.Get("SkillPrompt.Message", SkillInstaller.QoderSkillPath, SkillInstaller.AgentsFilePath),
+                    Text = LocalizationRegistry.Get("SkillPrompt.Message", agentLines, SkillInstaller.AgentsFilePath),
                     TextWrapping = Avalonia.Media.TextWrapping.Wrap,
                     MaxWidth = 560,
                     Margin = new Avalonia.Thickness(20),
@@ -178,21 +181,23 @@ namespace FancyToolAva
 
             preferences.CliSkillPromptCompleted = true;
             var notifications = _serviceProvider.GetRequiredService<INotificationService>();
-            SkillInstallTarget? target = result switch
+            // 主按钮：全部 agent 的技能；次按钮：技能 + Qoder AGENTS.md 受管块。
+            (bool installSkills, bool agentsMd)? choice = result switch
             {
-                FAContentDialogResult.Primary => SkillInstallTarget.QoderSkill,
-                FAContentDialogResult.Secondary => SkillInstallTarget.Both,
+                FAContentDialogResult.Primary => (true, false),
+                FAContentDialogResult.Secondary => (true, true),
                 _ => null,
             };
             try
             {
-                if (target is null)
+                if (choice is null)
                 {
                     notifications.ShowInfo(LocalizationRegistry.Get("SkillPrompt.Msg_Skipped"));
                 }
                 else
                 {
-                    IReadOnlyList<SkillInstallResult> installed = await SkillInstaller.InstallAsync(target.Value, zh, force: false);
+                    IReadOnlyList<SkillInstallResult> installed = await SkillInstaller.InstallAsync(
+                        agents: null, includeQoderAgentsMd: choice.Value.agentsMd, zh, force: false);
                     List<string> changed = installed.Where(r => r.Changed).Select(r => r.Path).ToList();
                     if (changed.Count > 0)
                         notifications.ShowSuccess(LocalizationRegistry.Get("SkillPrompt.Msg_Installed", string.Join("\n", changed)));

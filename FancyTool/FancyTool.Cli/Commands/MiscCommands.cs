@@ -41,10 +41,11 @@ internal static class MiscCommands
 
     private static async Task<int> SkillAsync(CliContext ctx, bool install)
     {
-        SkillInstallTarget target = ParseTarget(ctx);
+        IReadOnlyList<SkillAgentTarget>? agents = ParseAgents(ctx);
+        bool agentsMd = ctx.Args.GetBool("--agents-md");
         IReadOnlyList<SkillInstallResult> results = install
-            ? await SkillInstaller.InstallAsync(target, ctx.Zh, ctx.Args.GetBool("--force"), ctx.CancellationToken).ConfigureAwait(false)
-            : await SkillInstaller.UninstallAsync(target, ctx.Zh, ctx.CancellationToken).ConfigureAwait(false);
+            ? await SkillInstaller.InstallAsync(agents, agentsMd, ctx.Zh, ctx.Args.GetBool("--force"), ctx.CancellationToken).ConfigureAwait(false)
+            : await SkillInstaller.UninstallAsync(agents, agentsMd, ctx.Zh, ctx.CancellationToken).ConfigureAwait(false);
         if (ctx.Json)
         {
             ctx.WriteJson(results.Select(r => new { target = r.Target, path = r.Path, changed = r.Changed, message = r.Message }));
@@ -64,11 +65,23 @@ internal static class MiscCommands
         return 0;
     }
 
-    private static SkillInstallTarget ParseTarget(CliContext ctx) =>
-        ctx.Args.GetChoice("--target", "qoder", "qoder", "agents", "both") switch
+    /// <summary>解析 --agent：缺省或 all 表示全部；否则为逗号分隔的短名列表，未知名抛用法错误。</summary>
+    private static IReadOnlyList<SkillAgentTarget>? ParseAgents(CliContext ctx)
+    {
+        string value = ctx.Args.Get("--agent", "all")!.Trim();
+        if (value.Length == 0 || string.Equals(value, "all", StringComparison.OrdinalIgnoreCase))
+            return null;
+        var resolved = new List<SkillAgentTarget>();
+        foreach (string name in value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
-            "agents" => SkillInstallTarget.AgentsFile,
-            "both" => SkillInstallTarget.Both,
-            _ => SkillInstallTarget.QoderSkill,
-        };
+            SkillAgentTarget? agent = SkillInstaller.ResolveAgent(name);
+            if (agent is null)
+                throw new CliUsageException(
+                    $"{(ctx.Zh ? "未知的 agent" : "Unknown agent")}: {name}. " +
+                    $"{(ctx.Zh ? "允许值" : "Allowed")}: all, {string.Join(", ", SkillInstaller.Agents.Select(a => a.Name))}");
+            if (!resolved.Contains(agent))
+                resolved.Add(agent);
+        }
+        return resolved.Count > 0 ? resolved : null;
+    }
 }
