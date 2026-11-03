@@ -1,11 +1,14 @@
 using System.Globalization;
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using FluentAvalonia.UI.Controls;
 using Lang.Avalonia;
 using Lang.Avalonia.Json;
 using FancyToolAva.Algorithms;
 using FancyToolAva.Algorithms.Encryption;
+using FancyToolAva.Cli;
 using FancyToolAva.Models;
 using FancyToolAva.Services;
 using FancyToolAva.ViewModels;
@@ -38,6 +41,7 @@ namespace FancyToolAva
                 Log.Warning("I18n init: {Error}", error);
             }
 
+            LocalizationRegistry.Provider = new LangLocalizationProvider();
             LocalizationStrings.Initialize(initial);
         }
 
@@ -87,6 +91,7 @@ namespace FancyToolAva
                 {
                     await license.InitializeAsync(window.TryGetPlatformHandle()?.Handle ?? 0);
                     if (!license.CanUseApplication) await window.ShowLicensePromptAsync(license);
+                    else await ShowCliSkillPromptIfNeededAsync(window);
                 };
                 window.Activated += (_, _) => _ = license.RefreshAsync();
 
@@ -135,6 +140,78 @@ namespace FancyToolAva
             return null;
         }
 
+        /// <summary>首次启动询问是否把 CLI 用法写入本机 Qoder 技能或用户级 AGENTS.md。</summary>
+        private async Task ShowCliSkillPromptIfNeededAsync(Window window)
+        {
+            if (_appObserveModel is null || _serviceProvider is null) return;
+            AppPreferences preferences = _appObserveModel.Preferences;
+            if (preferences.CliSkillPromptCompleted || !window.IsVisible) return;
+
+            bool zh = (I18nManager.Instance.Culture?.Name ?? CultureInfo.CurrentUICulture.Name)
+                .StartsWith("zh", StringComparison.OrdinalIgnoreCase);
+            var dialog = new FAContentDialog
+            {
+                Title = LocalizationRegistry.Get("SkillPrompt.Title"),
+                Content = new SelectableTextBlock
+                {
+                    Text = LocalizationRegistry.Get("SkillPrompt.Message", SkillInstaller.QoderSkillPath, SkillInstaller.AgentsFilePath),
+                    TextWrapping = Avalonia.Media.TextWrapping.Wrap,
+                    MaxWidth = 560,
+                    Margin = new Avalonia.Thickness(20),
+                },
+                PrimaryButtonText = LocalizationRegistry.Get("SkillPrompt.Button_Skill"),
+                SecondaryButtonText = LocalizationRegistry.Get("SkillPrompt.Button_Both"),
+                CloseButtonText = LocalizationRegistry.Get("SkillPrompt.Button_NotNow"),
+                DefaultButton = FAContentDialogButton.Primary,
+            };
+
+            FAContentDialogResult result;
+            try
+            {
+                result = await dialog.ShowAsync(window);
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "显示 CLI 技能安装提示失败");
+                return;
+            }
+
+            preferences.CliSkillPromptCompleted = true;
+            var notifications = _serviceProvider.GetRequiredService<INotificationService>();
+            SkillInstallTarget? target = result switch
+            {
+                FAContentDialogResult.Primary => SkillInstallTarget.QoderSkill,
+                FAContentDialogResult.Secondary => SkillInstallTarget.Both,
+                _ => null,
+            };
+            try
+            {
+                if (target is null)
+                {
+                    notifications.ShowInfo(LocalizationRegistry.Get("SkillPrompt.Msg_Skipped"));
+                }
+                else
+                {
+                    IReadOnlyList<SkillInstallResult> installed = await SkillInstaller.InstallAsync(target.Value, zh, force: false);
+                    List<string> changed = installed.Where(r => r.Changed).Select(r => r.Path).ToList();
+                    if (changed.Count > 0)
+                        notifications.ShowSuccess(LocalizationRegistry.Get("SkillPrompt.Msg_Installed", string.Join("\n", changed)));
+                    else
+                        notifications.ShowInfo(LocalizationRegistry.Get("SkillPrompt.Msg_UpToDate"));
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "写入 CLI 技能失败");
+                notifications.ShowError(LocalizationRegistry.Get("SkillPrompt.Msg_InstallFailed", ex.Message));
+            }
+            finally
+            {
+                try { _serviceProvider.GetRequiredService<ApplicationHostService>().SaveState(); }
+                catch (Exception ex) { Log.Warning(ex, "保存 CLI 技能提示状态失败"); }
+            }
+        }
+
         private void ConfigureServices(IServiceCollection services)
         {
             services.AddLogging(builder =>
@@ -159,6 +236,7 @@ namespace FancyToolAva
             services.AddKeyedSingleton<IEncryptionSymmetric, DESEncryption>("DES");
             services.AddKeyedSingleton<IEncryptionSymmetric, SM4Encryption>("SM4");
             services.AddSingleton<IEncryptionCode, Base64Encryption>();
+            services.AddSingleton<IUiDispatcher, AvaloniaUiDispatcher>();
             services.AddSingleton<INotificationService, ContentDialogNotificationService>();
             services.AddSingleton<IDialogService, ContentDialogService>();
             services.AddSingleton<IFileDialogService, FileDialogService>();

@@ -3,14 +3,6 @@ using CommunityToolkit.Mvvm.Input;
 
 namespace FancyToolAva.Models;
 
-public enum FileStatus
-{
-    Pending,
-    Converting,
-    Completed,
-    Failed
-}
-
 public partial class ImageFileItem : ObservableObject
 {
     public string FilePath { get; }

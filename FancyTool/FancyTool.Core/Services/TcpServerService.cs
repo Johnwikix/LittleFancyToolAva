@@ -1,4 +1,3 @@
-using Lang.Avalonia;
 using FancyToolAva.Models;
 using FancyToolAva.Utils;
 using Microsoft.Extensions.Logging;
@@ -24,6 +23,7 @@ namespace FancyToolAva.Services
         private bool _enableFrameBreak;
         private readonly ConcurrentDictionary<string, ClientBuffer> _clientBuffers = [];
         private readonly ILogger<TcpServerService> _logger;
+        private readonly IUiDispatcher _dispatcher;
         private bool _isStopping;
 
         public bool IsRunning => _isServerMode ? _listener != null : IsConnected;
@@ -37,9 +37,10 @@ namespace FancyToolAva.Services
         public event Action<string>? StatusChanged;
         public event EventHandler<ConnectionEventArgs>? ConnectionStateChanged;
 
-        public TcpServerService(ILogger<TcpServerService> logger)
+        public TcpServerService(ILogger<TcpServerService> logger, IUiDispatcher? dispatcher = null)
         {
             _logger = logger;
+            _dispatcher = dispatcher ?? ImmediateUiDispatcher.Instance;
             _logger.LogInformation("TcpServerService created");
         }
 
@@ -251,10 +252,7 @@ namespace FancyToolAva.Services
                 {
                     CleanupClientBuffer(endpoint);
                     try { target.Close(); } catch { }
-                    Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
-                    {
-                        ConnectedClients.Remove(endpoint);
-                    });
+                    _dispatcher.Post(() => ConnectedClients.Remove(endpoint));
                     _logger.LogInformation("TCP server disconnected client: {Endpoint}", endpoint);
                     var msg = LocalizationRegistry.Get("ServiceStatus.Tcp_ClientDisconnected", endpoint);
                     StatusChanged?.Invoke(msg);
@@ -414,10 +412,7 @@ namespace FancyToolAva.Services
                         _clients.Add(client);
                     }
 
-                    await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
-                    {
-                        ConnectedClients.Add(endpoint);
-                    });
+                    await _dispatcher.InvokeAsync(() => ConnectedClients.Add(endpoint));
 
                     _logger.LogInformation("TCP client connected: {Endpoint}", endpoint);
                     var msg = LocalizationRegistry.Get("ServiceStatus.Tcp_ClientConnected", endpoint);
@@ -483,10 +478,7 @@ namespace FancyToolAva.Services
             finally
             {
                 FlushClientBuffer(endpoint);
-                await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
-                {
-                    ConnectedClients.Remove(endpoint);
-                });
+                await _dispatcher.InvokeAsync(() => ConnectedClients.Remove(endpoint));
                 lock (_clients) { _clients.Remove(client); }
                 CleanupClientBuffer(endpoint);
                 try { client.Close(); } catch { }

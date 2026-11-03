@@ -1,12 +1,14 @@
 using System.Globalization;
-using Lang.Avalonia;
 
 namespace FancyToolAva.Services
 {
     public sealed record LanguageOption(string Culture, string NativeName, string EnglishName);
 
+    /// <summary>Code-side lookup used by Core services; the host installs a language provider.</summary>
     public static class LocalizationRegistry
     {
+        public static ILocalizationProvider? Provider { get; set; }
+
         public static System.Collections.Generic.List<LanguageOption> Available { get; } =
         [
             new LanguageOption("en-US", "English", "English"),
@@ -17,7 +19,7 @@ namespace FancyToolAva.Services
         {
             try
             {
-                return I18nManager.Instance.GetResource(key) ?? key;
+                return Provider?.GetString(key) ?? key;
             }
             catch
             {

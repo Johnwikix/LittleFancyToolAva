@@ -1,4 +1,3 @@
-using Lang.Avalonia;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 using System.Net;

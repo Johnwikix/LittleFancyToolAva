@@ -34,9 +34,6 @@
   <ItemGroup>
     <InternalsVisibleTo Include="FfmpegSmokeTest" />
     <InternalsVisibleTo Include="LicenseSmokeTest" />
-    <None Include="Libraries/VideoSr/*.onnx;Libraries/VideoSr/models.json;Libraries/VideoSr/NOTICE.md;Libraries/VideoSr/Licenses/*" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
-    <None Include="Libraries/InterpolationModels/LICENSE.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Link="Licenses/RIFE.txt" />
-    <None Include="Libraries/InterpolationModels/NOTICE.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Link="Licenses/RIFE-NOTICE.md" />
   </ItemGroup>
 
   <!-- Satori 运行时包（自包含托管发布用）：SDK 只在 PublishAot != true 时引用
@@ -95,6 +92,15 @@
     <Compile Remove="External\**" />
     <EmbeddedResource Remove="External\**" />
     <None Remove="External\**" />
+    <Compile Remove="FancyTool.Core\**" />
+    <EmbeddedResource Remove="FancyTool.Core\**" />
+    <None Remove="FancyTool.Core\**" />
+    <AvaloniaResource Remove="FancyTool.Core\**" />
+    <Compile Remove="FancyTool.Cli\**" />
+    <EmbeddedResource Remove="FancyTool.Cli\**" />
+    <None Remove="FancyTool.Cli\**" />
+    <AvaloniaResource Remove="FancyTool.Cli\**" />
+    <ProjectReference Include="FancyTool.Core\FancyTool.Core.csproj" />
     <ProjectReference Include="External\Lyricify.Lyrics.Helper\Lyricify.Lyrics.Helper.csproj" />
     <None Include="External\Lyricify.Lyrics.Helper\LICENSE" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Link="Licenses\Lyricify-Lyrics-Helper.txt" />
     <None Include="External\NOTICE-Lyrics.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Link="Licenses\Lyrics-NOTICE.txt" />
@@ -103,10 +109,6 @@
   <ItemGroup>
     <AvaloniaResource Include="Assets\**" />
     <AvaloniaResource Include="Resources\**" />
-    <EmbeddedResource Include="Resources\LyricsModels\*.json" />
-    <EmbeddedResource Include="Libraries/VideoCuda/*.ptx" LogicalName="FancyToolAva.VideoCuda.%(Filename)%(Extension)" />
-    <EmbeddedResource Include="Libraries/VideoPixels/*.pb" LogicalName="FancyToolAva.VideoPixels.%(Filename)%(Extension)" />
-    <EmbeddedResource Include="AudioEnhancement/Coefficients/Assets/dsp-tables.bin" LogicalName="FancyToolAva.AudioEnhancement.Coefficients.dsp-tables.bin" />
   </ItemGroup>
 
   <ItemGroup>
@@ -177,6 +179,14 @@
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
   </ItemGroup>
+  <!-- MSIX 包内同时携带 CLI：DesktopBridge 只收集入口工程的发布目录，
+       因此在 GUI 发布完成后把自包含 CLI 发布到 <PublishDir>\cli，
+       供 Package.appxmanifest 的 fancy-tool.exe 执行别名使用。 -->
+  <Target Name="PublishCliForMsix" AfterTargets="Publish"
+          Condition="'$(FancyToolMsixBuild)' == 'true' and '$(DesignTimeBuild)' != 'true'">
+    <Exec Command="dotnet publish &quot;$(MSBuildProjectDirectory)\FancyTool.Cli\FancyTool.Cli.csproj&quot; -c $(Configuration) -f $(TargetFramework) -r win-x64 --self-contained true -p:PublishAot=false -p:FancyToolMsixBuild=true -o &quot;$(PublishDir)cli&quot;" />
+  </Target>
+
   <!-- Metadata query only: this target does not compile or publish anything.
        DesktopBridge's AddProjectMetadata ignores reference-only isolation properties. -->
   <Target Name="GetFancyToolMsixMetadata" Returns="@(_FancyToolMsixMetadata)">

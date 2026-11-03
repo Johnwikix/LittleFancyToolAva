@@ -1,4 +1,3 @@
-using Avalonia.Media.Imaging;
 using Microsoft.Extensions.Logging;
 using SkiaSharp;
 
@@ -33,7 +32,7 @@ public class ImageConversionService : IImageConversionService
         }, ct);
     }
 
-    public async Task<Bitmap?> Base64ToBitmapAsync(string base64, CancellationToken ct = default)
+    public async Task<byte[]?> Base64ToPreviewPngAsync(string base64, CancellationToken ct = default)
     {
         if (base64.Length > MaxImageSize * 4 / 3 + 100)
             throw new InvalidOperationException("Base64 input too large");
@@ -42,12 +41,7 @@ public class ImageConversionService : IImageConversionService
         return await Task.Run(() =>
         {
             using var src = SKBitmap.Decode(bytes);
-            if (src == null) return null;
-
-            byte[] pngBytes = EncodePreviewPng(src);
-
-            using var ms = new MemoryStream(pngBytes);
-            return new Bitmap(ms);
+            return src == null ? null : EncodePreviewPng(src);
         }, ct);
     }
 
@@ -175,7 +169,7 @@ return await Task.Run(async () =>
         }, ct);
     }
 
-    public async Task<Bitmap?> LoadImageAsync(string imagePath, CancellationToken ct = default)
+    public async Task<byte[]?> LoadPreviewPngAsync(string imagePath, CancellationToken ct = default)
     {
         var fi = new FileInfo(imagePath);
         if (fi.Length > MaxImageSize)
@@ -184,12 +178,7 @@ return await Task.Run(async () =>
         return await Task.Run(() =>
         {
             using var src = SKBitmap.Decode(imagePath);
-            if (src == null) return null;
-
-            byte[] pngBytes = EncodePreviewPng(src);
-
-            using var ms = new MemoryStream(pngBytes);
-            return new Bitmap(ms);
+            return src == null ? null : EncodePreviewPng(src);
         }, ct);
     }
 

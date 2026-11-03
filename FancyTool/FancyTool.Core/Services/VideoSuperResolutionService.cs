@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging;
 namespace FancyToolAva.Services;
 
 /// <summary>Installs packaged models and leases reusable GPU-only sessions exclusively to each video.</summary>
-public sealed class VideoSuperResolutionService(ModelDownloadService downloader, ILogger<VideoSuperResolutionService> logger, AppPreferences? preferences = null) : IVideoSuperResolutionService, IDisposable
+public sealed class VideoSuperResolutionService(ModelDownloadService downloader, ILogger<VideoSuperResolutionService> logger, ISuperResolutionPreferences? preferences = null) : IVideoSuperResolutionService, IDisposable
 {
     private readonly SemaphoreSlim _sessionGate = new(1, 1);
     private readonly Dictionary<(string Path, int Window, VideoSrBackend Backend, bool Half, bool CudaGraph, int Degree), IVideoFrameUpscaler> _sessions = new();

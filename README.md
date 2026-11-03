@@ -98,6 +98,21 @@ NVIDIA 光流使用 `fruc_vulkan`，要求驱动暴露 `VK_NV_optical_flow` 等�
 
 音频转码同样基于进程内 FFmpeg，支持批量转换，标签与封面跟随写入：无损输出支持 FLAC / ALAC / WAV / AIFF（可选位深，Auto 按源推断 16/24/32bit 或 float），有损输出支持 MP3 / AAC / OGG / Opus / WMA / AC3 / MP2；采样率可跟随源并按编码器支持表自动对齐（如 MP3 上限 48 kHz、Opus 仅 8/12/16/24/48 kHz，DSD 源默认 176.4 kHz）。内置 DSP 升频：对 44.1/48 kHz 单/双声道 PCM 输入补全高频并提升采样率，倍率决定目标采样率，最高 192 kHz，仅无损输出可用。
 
+### ⌨️ 命令行（CLI）
+
+GUI 的全部工具能力同时提供命令行入口 `fancy-tool`，与图形界面共用同一套服务实现（`FancyTool.Core`）：对称 / 非对称加密与密钥生成、哈希、Base64、文件批量加解密与文件夹比较、图片 Base64 / 格式转换 / 超分、视频探测 / 预览 / 转码 / 拼接、音频探测与转换、串口、TCP / UDP 调试与带宽丢包测试、模型管理、歌词提取与导出，共 19 个命令组、58 条命令，每条都自带 `-help`。
+
+```powershell
+fancy-tool --help                  # 命令组索引
+fancy-tool video transcode -help   # 单命令选项与示例
+fancy-tool aes keygen --key-length 256 --key-type hex
+fancy-tool file encrypt -i D:\music\a.flac --key-file D:\keys\a.json --out-dir D:\out
+```
+
+进度写 stderr、结果写 stdout，`--json` 输出机器可读结果，`-lang zh|en` 切换帮助语言。批处理语义（可重复 `-i`、`--out-dir`、失败明细）与 GUI 一致，`file keygen` 生成的密钥文件在 GUI 与 CLI 之间互通。
+
+安装 MSIX 或 Inno 安装包后可直接输入 `fancy-tool`：前者注册 Windows 应用执行别名，后者把 `cli` 目录追加到当前用户的 PATH。GUI 首次启动会询问是否把用法写入本机 `%USERPROFILE%\.qoder-cn\skills\fancy-tool\SKILL.md` 与用户级 `AGENTS.md`（只写受管区块，不动已有内容），之后可用 `fancy-tool skill install | print | uninstall` 刷新或移除。设计与验证见 [CLI 与技能安装记录](FancyTool/docs/adr/0021-cli-project-core-extraction-and-skill-install.md)。
+
 ## 📊 功能矩阵
 
 | 类别 | 工具 | 说明 | 算法 / 实现 | 主要依赖 |
@@ -121,6 +136,7 @@ NVIDIA 光流使用 `fruc_vulkan`，要求驱动暴露 `VK_NV_optical_flow` 等�
 | 图片 | 图片超分 | AI 图片超分辨率（2× / 4×，GPU 加速） | RealESRGAN / ClearReality 等（ONNX 推理） | ONNX Runtime / Windows ML |
 | 音视频 | 视频转码 | 批量视频转码、拼接（顺序调整 + 每段循环次数）与 GIF 导出，支持 HDR 输出、AI 超分与插帧 | FFmpeg 滤镜图 + 显存管线（NVDEC/NVENC）+ 超分/插帧模型 | FFmpeg.AutoGen / ONNX Runtime |
 | 音视频 | 音频转码 | 批量音频转换与 DSP 升频（最高 192 kHz） | FFmpeg 编码 + 托管 DSP 升采样 | FFmpeg.AutoGen |
+| 命令行 | `fancy-tool` | GUI 全部功能的 CLI（19 组 / 58 命令，逐条 `-help`），MSIX 执行别名与安装包 PATH 可直接调用，用法可写入本机技能 / `AGENTS.md` | 复用 `FancyTool.Core` 同一服务实现 | .NET BCL / FFmpeg.AutoGen / ONNX Runtime |
 
 ## 🖼️ 软件截图
 
@@ -135,6 +151,7 @@ NVIDIA 光流使用 `fruc_vulkan`，要求驱动暴露 `VK_NV_optical_flow` 等�
 
 ## 🧱 技术架构
 
+- **工程划分**：`FancyTool.Core`（算法、服务、模型、音频 DSP、进程内 FFmpeg、命令行命令目录）+ `FancyToolAva`（Avalonia 界面与 ViewModel）+ `FancyTool.Cli`（`fancy-tool` 可执行文件，仅引用 Core）。Core 通过 `IUiDispatcher`、`LocalizationRegistry.Provider`、PNG 字节预览和 `ISuperResolutionPreferences` 四个接缝与 UI 解耦，界面与命令行复用同一实现
 - **UI**：Avalonia 12 桌面端 + FluentAvalonia 3.0（FANavigationView / Frame / ContentDialog 体系），跟随系统 / 浅色 / 深色三套主题
 - **MVVM**：`CommunityToolkit.Mvvm`（`[ObservableProperty]` / `[RelayCommand]` 源生成）
 - **依赖注入**：`Microsoft.Extensions.DependencyInjection` 容器统一管理 Services、ViewModels、Algorithms（`AddSingleton` / `AddTransient` / `AddKeyedSingleton`），在 `App.axaml.cs` 中配置
@@ -142,7 +159,7 @@ NVIDIA 光流使用 `fruc_vulkan`，要求驱动暴露 `VK_NV_optical_flow` 等�
 - **状态持久化**：`IViewStateService` 序列化各工具页面状态；`AppPreferences` 持久化主题、动画、阴影、通知位置等设置；`ApplicationHostService` 在启动时 `LoadState` / `LoadViewStates`，退出时 `SaveState`
 - **日志**：`Serilog` 4 + `Serilog.Extensions.Logging` 桥接 `Microsoft.Extensions.Logging`；按天滚动写入 `{AppBaseDirectory}\logs\tool-.log`，单文件上限 50 MB，保留 30 天
 - **稳定性**：`Program.cs` 注册 `AppDomain.UnhandledException` 与 `TaskScheduler.UnobservedTaskException`；启动失败时通过 `MessageBoxW` 兜底提示
-- **发布**：自包含 NativeAOT 发布（`csproj` 默认 `PublishAot=true`；FFmpeg shared 库以静态 P/Invoke 绑定随应用分发，兼容 AOT）；MSIX 打包路径使用托管发布（`FancyToolMsixBuild=true` 时 `PublishAot=false`，入口工程需要普通 apphost）；`FolderProfile.pubxml` 提供 `SelfContained` + `PublishSingleFile` 文件夹发布；`FancyTool` 目录提供两个 PowerShell 脚本作为入口——`publish-win.ps1`（Windows x64 自包含 NativeAOT 发布）与 `publish-linux-deb.ps1`（基于 `Packaging.Targets` 的 `.deb` 打包），均封装了 `dotnet` 子进程调用
+- **发布**：自包含 NativeAOT 发布（`csproj` 默认 `PublishAot=true`；FFmpeg shared 库以静态 P/Invoke 绑定随应用分发，兼容 AOT）；MSIX 打包路径使用托管发布（`FancyToolMsixBuild=true` 时 `PublishAot=false`，入口工程需要普通 apphost）；CLI 固定为托管自包含，发布到输出目录下的 `cli` 子目录，MSIX 用第二个 Application + 应用执行别名携带，Inno 安装包把 `cli` 追加进当前用户 PATH；`FolderProfile.pubxml` 提供 `SelfContained` + `PublishSingleFile` 文件夹发布；`FancyTool` 目录提供两个 PowerShell 脚本作为入口——`publish-win.ps1`（Windows x64 自包含 NativeAOT 发布，随后发布 CLI，`-SkipCli` 可跳过）与 `publish-linux-deb.ps1`（基于 `Packaging.Targets` 的 `.deb` 打包，暂不含 CLI），均封装了 `dotnet` 子进程调用
 
 ## 🛠️ 构建
 
@@ -167,9 +184,12 @@ pwsh -File .\FancyTool\publish-win.ps1
 ```powershell
 # 自定义配置与输出目录
 pwsh -File .\FancyTool\publish-win.ps1 -Configuration Debug -Output .\out\debug
+
+# 只发布 GUI，跳过 CLI
+pwsh -File .\FancyTool\publish-win.ps1 -SkipCli
 ```
 
-产物默认位于 `bin\Release\net10.0-windows10.0.19041.0\win-x64\publish\win-x64\`，直接运行 `FancyToolAva.exe` 即可。
+产物默认位于 `bin\Release\net10.0-windows10.0.19041.0\win-x64\publish\win-x64\`，直接运行 `FancyToolAva.exe` 即可。CLI 走同一配置发布，指定 `-Output` 时落在其下的 `cli\fancy-tool.exe`，MSIX 目标则固定发布到 `$(PublishDir)cli`。
 
 ### 调试运行
 
@@ -177,12 +197,15 @@ pwsh -File .\FancyTool\publish-win.ps1 -Configuration Debug -Output .\out\debug
 
 ```bash
 dotnet run -c Debug
+
+# 命令行版本
+dotnet run --project FancyTool/FancyTool.Cli -c Debug -- video probe -i D:\video\sample.mkv
 ```
 
 ### 跨平台分发
 
 - Linux x64 `.deb` 包：在 `FancyTool` 目录执行 `pwsh -File .\publish-linux-deb.ps1`，产物落在 `FancyTool\dist\`；脚本未覆盖 `PublishAot`，跨平台交叉 AOT 需要目标平台工具链，可用 `-p:PublishAot=false` 回退托管自包含
-- Windows MSIX 包：通过 `FancyToolAva.Msix` 项目打包（`FancyToolMsixBuild=true` 时使用独立输出目录 `bin/msix` / `obj/msix`），图标重采样脚本位于 `FancyToolAva.Msix/generate-msix-icons.ps1`；生成与验证方式见 [ADR 0009](FancyTool/docs/adr/0009-msix-entry-point-output-metadata.md)
+- Windows MSIX 包：通过 `FancyToolAva.Msix` 项目打包（`FancyToolMsixBuild=true` 时使用独立输出目录 `bin/msix` / `obj/msix`），图标重采样脚本位于 `FancyToolAva.Msix/generate-msix-icons.ps1`；清单的第二个 Application 把 `cli\fancy-tool.exe` 注册为应用执行别名 `fancy-tool.exe`，安装后命令行可直接调用；生成与验证方式见 [ADR 0009](FancyTool/docs/adr/0009-msix-entry-point-output-metadata.md) 与 [ADR 0021](FancyTool/docs/adr/0021-cli-project-core-extraction-and-skill-install.md)
 - 任意 RID 自包含发布：`dotnet publish -c Release -r <RID> -p:PublishSelfContained=true`（亦可经由 `Properties\PublishProfiles\FolderProfile.pubxml`：`dotnet publish -c Release -p:PublishProfile=FolderProfile`）
 
 > ⚠️ **注意**：Linux 版本未充分验证，可能存在兼容性问题。

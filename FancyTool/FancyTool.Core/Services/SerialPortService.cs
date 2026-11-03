@@ -3,7 +3,6 @@ using System.Collections.ObjectModel;
 using System.IO.Ports;
 using System.Runtime.InteropServices;
 using System.Text;
-using Lang.Avalonia;
 using FancyToolAva.Models;
 using FancyToolAva.Utils;
 using Microsoft.Extensions.Logging;

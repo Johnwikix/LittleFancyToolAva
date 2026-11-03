@@ -5,6 +5,7 @@ using Avalonia.Media.Imaging;
 using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using FancyToolAva.Helpers;
 using FancyToolAva.Services;
 using FancyToolAva.Utils;
 
@@ -101,7 +102,7 @@ public partial class Img2Base64ViewModel : ViewModelBase
         try
         {
             ImagePath = path;
-            SetImagePreview(await _imageConversionService.LoadImageAsync(path, _cts.Token));
+            SetImagePreview(ImagePreviewHelper.ToBitmap(await _imageConversionService.LoadPreviewPngAsync(path, _cts.Token)));
             Base64Input = string.Empty;
             Base64Output = string.Empty;
         }
@@ -161,7 +162,7 @@ public partial class Img2Base64ViewModel : ViewModelBase
         IsBusy = true;
         try
         {
-            SetImagePreview(await _imageConversionService.Base64ToBitmapAsync(Base64Input, _cts.Token));
+            SetImagePreview(ImagePreviewHelper.ToBitmap(await _imageConversionService.Base64ToPreviewPngAsync(Base64Input, _cts.Token)));
             _notificationService.ShowSuccess(LocalizationRegistry.Get("Img2Base64.Msg_Decoded"));
         }
         catch (OperationCanceledException) { }
@@ -215,7 +216,7 @@ public partial class Img2Base64ViewModel : ViewModelBase
             IsBusy = true;
             try
             {
-                SetImagePreview(await _imageConversionService.Base64ToBitmapAsync(text, _cts.Token));
+                SetImagePreview(ImagePreviewHelper.ToBitmap(await _imageConversionService.Base64ToPreviewPngAsync(text, _cts.Token)));
                 _notificationService.ShowSuccess(LocalizationRegistry.Get("Img2Base64.Msg_Decoded"));
             }
             catch (OperationCanceledException) { }
@@ -249,7 +250,7 @@ public partial class Img2Base64ViewModel : ViewModelBase
                 return;
             }
 
-            SetImagePreview(await _imageConversionService.Base64ToBitmapAsync(text.Trim(), _cts.Token));
+            SetImagePreview(ImagePreviewHelper.ToBitmap(await _imageConversionService.Base64ToPreviewPngAsync(text.Trim(), _cts.Token)));
             _notificationService.ShowSuccess(LocalizationRegistry.Get("Img2Base64.Msg_Decoded"));
         }
         catch (OperationCanceledException) { }

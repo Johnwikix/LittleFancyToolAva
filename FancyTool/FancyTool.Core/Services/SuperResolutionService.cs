@@ -47,7 +47,7 @@ public sealed class SuperResolutionService : ISuperResolutionService
     private static readonly int[] WindowSizes = [192, 288, 384, 576];
     private const int TilePad = 32;
 
-    private readonly AppPreferences _preferences;
+    private readonly ISuperResolutionPreferences _preferences;
     private Task? _warmupTask;
     private CancellationTokenSource? _warmupCts;
     private string? _lastDownloadError;
@@ -75,7 +75,7 @@ public sealed class SuperResolutionService : ISuperResolutionService
 
     public SuperResolutionService(
         ILogger<SuperResolutionService> logger,
-        AppPreferences preferences,
+        ISuperResolutionPreferences preferences,
         ModelDownloadService downloader)
     {
         _logger = logger;

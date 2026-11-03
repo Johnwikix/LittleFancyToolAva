@@ -31,6 +31,8 @@ ArchitecturesInstallIn64BitMode=x64compatible
 ; non-elevated user install under %LOCALAPPDATA%\Programs via {autopf}.
 PrivilegesRequired=admin
 PrivilegesRequiredOverridesAllowed=dialog
+; Notify Explorer after the user PATH is updated in [Code].
+ChangesEnvironment=yes
 
 [Languages]
 ; Inno Setup 6 bundles no official Simplified Chinese .isl, so ChineseSimplified.isl
@@ -54,3 +56,59 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#MyAppName}}"; Flags: nowait postinstall skipifsilent
+
+[Code]
+function CliDirectory(): String;
+begin
+  Result := ExpandConstant('{app}\cli');
+end;
+
+function PathContains(const Path, Entry: String): Boolean;
+begin
+  Result := Pos(';' + LowerCase(Entry) + ';', ';' + LowerCase(Path) + ';') > 0;
+end;
+
+procedure AddCliToUserPath();
+var
+  OldPath, NewPath, Entry: String;
+begin
+  Entry := CliDirectory();
+  if not RegQueryStringValue(HKCU, 'Environment', 'Path', OldPath) then
+    OldPath := '';
+  if PathContains(OldPath, Entry) then
+    Exit;
+  if (OldPath <> '') and (OldPath[Length(OldPath)] <> ';') then
+    OldPath := OldPath + ';';
+  NewPath := OldPath + Entry;
+  RegWriteExpandStringValue(HKCU, 'Environment', 'Path', NewPath);
+end;
+
+procedure RemoveCliFromUserPath();
+var
+  OldPath, NewPath, Entry: String;
+  P: Integer;
+begin
+  if not RegQueryStringValue(HKCU, 'Environment', 'Path', OldPath) then
+    Exit;
+  Entry := CliDirectory();
+  P := Pos(';' + LowerCase(Entry) + ';', ';' + LowerCase(OldPath) + ';');
+  if P = 0 then
+    Exit;
+  NewPath := OldPath;
+  Delete(NewPath, P - 1, Length(Entry) + 1);
+  while (Length(NewPath) > 0) and (NewPath[Length(NewPath)] = ';') do
+    Delete(NewPath, Length(NewPath), 1);
+  RegWriteExpandStringValue(HKCU, 'Environment', 'Path', NewPath);
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if CurStep = ssPostInstall then
+    AddCliToUserPath();
+end;
+
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+begin
+  if CurUninstallStep = usUninstall then
+    RemoveCliFromUserPath();
+end;

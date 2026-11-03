@@ -914,5 +914,16 @@
     "Error_TokenLimit": "Decoding repeated indefinitely. Shorten chunks or select a language, then retry.",
     "Warning_SplitRetry": "Difficult segments were retried with shorter chunks. Review those segments.",
     "Warning_GpuFallback": "GPU loading or inference failed. The affected step completed on CPU."
+  },
+  "SkillPrompt": {
+    "Title": "Install CLI usage on this machine",
+    "Message": "FancyTool includes the fancy-tool CLI, which covers every feature in the app. Install its usage on this machine so AI agents know how to call it?\n\nQoder skill: {0}\nAGENTS.md: {1}\n\nYou can rerun fancy-tool skill install at any time.",
+    "Button_Skill": "Install Qoder skill",
+    "Button_Both": "Skill + AGENTS.md",
+    "Button_NotNow": "Not now",
+    "Msg_Installed": "Written:\n{0}",
+    "Msg_UpToDate": "The skill is already up to date.",
+    "Msg_Skipped": "Skipped; run fancy-tool skill install later.",
+    "Msg_InstallFailed": "Install failed: {0}"
   }
 }

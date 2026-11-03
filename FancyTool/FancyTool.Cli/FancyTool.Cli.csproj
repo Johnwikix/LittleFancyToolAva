@@ -1,0 +1,58 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>FancyToolAva.Cli</RootNamespace>
+    <!-- 可执行文件名固定为 fancy-tool.exe；MSIX 应用执行别名与安装包 PATH 都依赖该名称。 -->
+    <AssemblyName>fancy-tool</AssemblyName>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <PublishAot>false</PublishAot>
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == '' AND $([MSBuild]::IsOSPlatform('windows'))">win-x64</RuntimeIdentifier>
+    <Platforms>AnyCPU;x64</Platforms>
+    <VersionPrefix>1.1.0.0</VersionPrefix>
+    <NoWarn>$(NoWarn);NU1701;CS8767;CS8625;CS8602;CS8600;CS8604;CS0618</NoWarn>
+  </PropertyGroup>
+
+  <Import Project="..\WindowsInference.props" />
+
+  <PropertyGroup Condition="'$(FancyToolMsixBuild)' == 'true'">
+    <DefineConstants>$(DefineConstants);FANCYTOOL_MSIX</DefineConstants>
+    <PublishAot>false</PublishAot>
+    <PublishTrimmed>false</PublishTrimmed>
+    <PublishSingleFile>false</PublishSingleFile>
+    <UseAppHost>true</UseAppHost>
+  </PropertyGroup>
+
+  <!-- 与 GUI 相同：进程内 FFmpeg shared 库随 CLI 输出分发，独立 CLI 目录也能直接运行。 -->
+  <ItemGroup Condition="'$(RuntimeIdentifier)' == 'win-x64' or ('$(RuntimeIdentifier)' == '' and $([MSBuild]::IsOSPlatform('windows')))">
+    <None Include="..\Libraries\FFmpeg\win-x64\*.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Link="%(Filename)%(Extension)" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(RuntimeIdentifier)' == 'linux-x64'">
+    <None Include="..\Libraries\FFmpeg\linux-x64\*.so.*" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Link="%(Filename)%(Extension)" LinuxFileMode="755" />
+  </ItemGroup>
+
+  <Target Name="EnsureFFmpegSharedLibraries" BeforeTargets="BeforeBuild" Condition="'$(DesignTimeBuild)' != 'true'">
+    <Error Condition="('$(RuntimeIdentifier)' == 'win-x64' or ('$(RuntimeIdentifier)' == '' and $([MSBuild]::IsOSPlatform('windows')))) and !Exists('$(MSBuildProjectDirectory)\..\Libraries\FFmpeg\win-x64\avcodec-63.dll')" Code="FT1001" Text="缺少 FFmpeg shared 库 Libraries\FFmpeg\win-x64\avcodec-63.dll。请先运行：pwsh -File FancyTool/Libraries/FFmpeg/fetch-ffmpeg.ps1 -Platform win" />
+    <Error Condition="'$(RuntimeIdentifier)' == 'linux-x64' and !Exists('$(MSBuildProjectDirectory)\..\Libraries\FFmpeg\linux-x64\libavcodec.so.63')" Code="FT1001" Text="缺少 FFmpeg shared 库 Libraries\FFmpeg\linux-x64\libavcodec.so.63。请先运行：pwsh -File FancyTool/Libraries/FFmpeg/fetch-ffmpeg.ps1 -Platform linux" />
+  </Target>
+
+  <ItemGroup>
+    <!-- CLI 的 Core 服务错误消息与 GUI 共用同一份资源。 -->
+    <None Include="..\i18n\*.json" Link="i18n\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.11" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.0" />
+    <PackageReference Include="Serilog" Version="4.4.0" />
+    <PackageReference Include="Serilog.Extensions.Logging" Version="10.0.0" />
+    <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FancyTool.Core\FancyTool.Core.csproj" />
+  </ItemGroup>
+</Project>

@@ -98,6 +98,21 @@ The existing enhancement and RIFE models process SDR images. HDR inputs are tone
 
 Audio transcoding also runs FFmpeg in-process with batch conversion, writing tags and cover art through: lossless output covers FLAC / ALAC / WAV / AIFF (optional bit depth, Auto infers 16/24/32-bit or float from the source), lossy output covers MP3 / AAC / OGG / Opus / WMA / AC3 / MP2. Sample rate can follow the source and is aligned to each encoder's supported table (MP3 caps at 48 kHz, Opus only 8/12/16/24/48 kHz, DSD sources default to 176.4 kHz). A built-in DSP upsampler restores high frequencies and raises the sample rate of 44.1/48 kHz mono/stereo PCM input; the multiplier sets the target rate, up to 192 kHz, available for lossless output only.
 
+### ⌨️ Command Line (CLI)
+
+Every GUI capability is also available as `fancy-tool`, running on the same service implementation as the interface (`FancyTool.Core`): symmetric / asymmetric ciphers and keygen, hashing, Base64, batch file encryption and folder compare, image Base64 / conversion / super-resolution, video probe / preview / transcode / concat, audio probe and conversion, serial port, TCP / UDP debugging plus bandwidth and packet-loss tests, model management and lyrics extraction — 19 command groups and 58 commands, each with its own `-help`.
+
+```powershell
+fancy-tool --help                  # group index
+fancy-tool video transcode -help   # options and examples for one command
+fancy-tool aes keygen --key-length 256 --key-type hex
+fancy-tool file encrypt -i D:\music\a.flac --key-file D:\keys\a.json --out-dir D:\out
+```
+
+Progress goes to stderr and results to stdout, `--json` emits machine-readable output, and `-lang zh|en` switches the help language. Batch semantics (repeatable `-i`, `--out-dir`, per-file failure detail) match the GUI, and `file keygen` writes key files both sides can use.
+
+After installing the MSIX or the Inno Setup package, `fancy-tool` resolves directly: the MSIX registers an app execution alias, the installer appends the `cli` folder to the current user's PATH. On first launch the GUI asks whether to write the usage into `%USERPROFILE%\.qoder-cn\skills\fancy-tool\SKILL.md` and the user-level `AGENTS.md` (a managed block only, existing content untouched); `fancy-tool skill install | print | uninstall` refreshes or removes it later. See the [CLI and skill install record](FancyTool/docs/adr/0021-cli-project-core-extraction-and-skill-install.md).
+
 ## 📊 Feature Matrix
 
 | Category | Tool | Description | Algorithm / Implementation | Main Dependency |
@@ -121,6 +136,7 @@ Audio transcoding also runs FFmpeg in-process with batch conversion, writing tag
 | Image | Image Super-Resolution | AI image upscaling (2× / 4×, GPU accelerated) | RealESRGAN / ClearReality and more (ONNX inference) | ONNX Runtime / Windows ML |
 | Media | Video Transcode | Batch video transcoding, concatenation (reorder + per-clip loop counts) & GIF export with HDR output, AI super-resolution and frame interpolation | FFmpeg filter graph + GPU-resident pipeline (NVDEC/NVENC) + SR/interpolation models | FFmpeg.AutoGen / ONNX Runtime |
 | Media | Audio Transcode | Batch audio conversion with DSP upsampling (up to 192 kHz) | FFmpeg encoding + managed DSP upsampler | FFmpeg.AutoGen |
+| Command line | `fancy-tool` | CLI for every GUI capability (19 groups / 58 commands, per-command `-help`), callable after install via the MSIX alias or installer PATH, usage writable into a local skill / `AGENTS.md` | Reuses the `FancyTool.Core` services | .NET BCL / FFmpeg.AutoGen / ONNX Runtime |
 
 ## 🖼️ Screenshots
 
@@ -136,6 +152,7 @@ Audio transcoding also runs FFmpeg in-process with batch conversion, writing tag
 
 ## 🧱 Architecture
 
+- **Projects**: `FancyTool.Core` (algorithms, services, models, audio DSP, in-process FFmpeg, the CLI command catalog) + `FancyToolAva` (Avalonia UI and ViewModels) + `FancyTool.Cli` (the `fancy-tool` executable, referencing only Core). Core stays UI-free behind four seams — `IUiDispatcher`, `LocalizationRegistry.Provider`, PNG-byte previews and `ISuperResolutionPreferences` — so the interface and the command line share one implementation
 - **UI**: Avalonia 12 desktop + FluentAvalonia 3.0 (FANavigationView / Frame / ContentDialog family); supports System / Light / Dark themes
 - **MVVM**: `CommunityToolkit.Mvvm` with `[ObservableProperty]` / `[RelayCommand]` source generation
 - **Dependency Injection**: `Microsoft.Extensions.DependencyInjection` container wires up services, ViewModels and algorithms (`AddSingleton` / `AddTransient` / `AddKeyedSingleton`) in `App.axaml.cs`
@@ -143,7 +160,7 @@ Audio transcoding also runs FFmpeg in-process with batch conversion, writing tag
 - **State Persistence**: `IViewStateService` serializes per-tool page state; `AppPreferences` persists theme, animations, shadows, notification placement, etc.; `ApplicationHostService` calls `LoadState` / `LoadViewStates` on launch and `SaveState` on exit
 - **Logging**: `Serilog` 4 + `Serilog.Extensions.Logging` bridging `Microsoft.Extensions.Logging`; daily-rolling output to `{AppBaseDirectory}\logs\tool-.log`, capped at 50 MB per file, 30 days retained
 - **Stability**: `Program.cs` registers `AppDomain.UnhandledException` and `TaskScheduler.UnobservedTaskException`; startup failures surface through `MessageBoxW`
-- **Publishing**: Self-contained NativeAOT publishing (`csproj` defaults `PublishAot=true`; the bundled FFmpeg shared libraries bind through static P/Invoke and are AOT-compatible); the MSIX packaging path uses managed publishing (`FancyToolMsixBuild=true` forces `PublishAot=false` because the entry project needs a regular apphost); `FolderProfile.pubxml` provides `SelfContained` + `PublishSingleFile` folder publishing; two PowerShell scripts in the `FancyTool` folder act as entry points — `publish-win.ps1` (Windows x64 self-contained NativeAOT publish) and `publish-linux-deb.ps1` (`.deb` packaging backed by the `Packaging.Targets` `CreateDeb` MSBuild target); both wrap `dotnet` subprocess calls
+- **Publishing**: Self-contained NativeAOT publishing (`csproj` defaults `PublishAot=true`; the bundled FFmpeg shared libraries bind through static P/Invoke and are AOT-compatible); the MSIX packaging path uses managed publishing (`FancyToolMsixBuild=true` forces `PublishAot=false` because the entry project needs a regular apphost); the CLI is always managed self-contained and lands in a `cli` subfolder of the publish output, carried into MSIX through a second Application plus an app execution alias and into the Inno Setup package through the user PATH; `FolderProfile.pubxml` provides `SelfContained` + `PublishSingleFile` folder publishing; two PowerShell scripts in the `FancyTool` folder act as entry points — `publish-win.ps1` (Windows x64 self-contained NativeAOT publish, then the CLI; `-SkipCli` omits it) and `publish-linux-deb.ps1` (`.deb` packaging backed by the `Packaging.Targets` `CreateDeb` MSBuild target, CLI not packaged yet); both wrap `dotnet` subprocess calls
 
 ## 🛠️ Build
 
@@ -168,9 +185,12 @@ Optional parameters:
 ```powershell
 # Custom configuration and output directory
 pwsh -File .\FancyTool\publish-win.ps1 -Configuration Debug -Output .\out\debug
+
+# GUI only, skip the CLI publish
+pwsh -File .\FancyTool\publish-win.ps1 -SkipCli
 ```
 
-Output is placed at `bin\Release\net10.0-windows10.0.19041.0\win-x64\publish\win-x64\`. Launch `FancyToolAva.exe` to start the app.
+Output is placed at `bin\Release\net10.0-windows10.0.19041.0\win-x64\publish\win-x64\`. Launch `FancyToolAva.exe` to start the app. The CLI publish follows the same configuration; with `-Output` it lands next to the GUI as `cli\fancy-tool.exe`, and the MSIX target always publishes it to `$(PublishDir)cli`.
 
 ### Debug Run
 
@@ -178,12 +198,15 @@ For quick iteration outside the script, use the dotnet CLI directly:
 
 ```bash
 dotnet run -c Debug
+
+# the command-line build
+dotnet run --project FancyTool/FancyTool.Cli -c Debug -- video probe -i D:\video\sample.mkv
 ```
 
 ### Cross-Platform Distribution
 
-- Linux x64 `.deb` package: run `pwsh -File .\publish-linux-deb.ps1` from the `FancyTool` folder; output lands in `FancyTool\dist\`. The script does not override `PublishAot`, so cross-OS AOT requires the target toolchain — pass `-p:PublishAot=false` for a managed self-contained build
-- Windows MSIX package: packaged through the `FancyToolAva.Msix` project (`FancyToolMsixBuild=true` uses the dedicated `bin/msix` / `obj/msix` output); the icon resampling script lives at `FancyToolAva.Msix/generate-msix-icons.ps1`. See [ADR 0009](FancyTool/docs/adr/0009-msix-entry-point-output-metadata.md) for generation and verification
+- Linux x64 `.deb` package: run `pwsh -File .\publish-linux-deb.ps1` from the `FancyTool` folder; output lands in `FancyTool\dist\`. The script does not override `PublishAot`, so cross-OS AOT requires the target toolchain — pass `-p:PublishAot=false` for a managed self-contained build. The `.deb` does not carry the CLI yet
+- Windows MSIX package: packaged through the `FancyToolAva.Msix` project (`FancyToolMsixBuild=true` uses the dedicated `bin/msix` / `obj/msix` output); the icon resampling script lives at `FancyToolAva.Msix/generate-msix-icons.ps1`. The manifest's second Application registers `cli\fancy-tool.exe` as the app execution alias `fancy-tool.exe`, so the command resolves on PATH after install. See [ADR 0009](FancyTool/docs/adr/0009-msix-entry-point-output-metadata.md) and [ADR 0021](FancyTool/docs/adr/0021-cli-project-core-extraction-and-skill-install.md)
 - Any-RID self-contained publish: `dotnet publish -c Release -r <RID> -p:PublishSelfContained=true` (or via `Properties\PublishProfiles\FolderProfile.pubxml`: `dotnet publish -c Release -p:PublishProfile=FolderProfile`)
 
 > ⚠️ **Note**: The Linux version has not been fully verified and may have compatibility issues.

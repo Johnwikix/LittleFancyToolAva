@@ -12,7 +12,7 @@ namespace FancyToolAva.Models
         Dark = 2
     }
 
-    public partial class AppPreferences : ObservableObject
+    public partial class AppPreferences : ObservableObject, ISuperResolutionPreferences
     {
         public int ThemeIndex
         {
@@ -118,5 +118,12 @@ namespace FancyToolAva.Models
             get => field;
             set => SetProperty(ref field, Math.Clamp(value, 0, 3));
         } = 2;
+
+        /// <summary>首次启动时是否已询问过将 CLI 用法安装到本机技能/AGENTS.md。</summary>
+        public bool CliSkillPromptCompleted
+        {
+            get => field;
+            set => SetProperty(ref field, value);
+        }
     }
 }

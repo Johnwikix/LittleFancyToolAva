@@ -1,5 +1,5 @@
-<UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vm="using:FancyToolAva.ViewModels" xmlns:models="using:FancyToolAva.Models"
+﻿<UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:FancyToolAva.ViewModels" xmlns:models="clr-namespace:FancyToolAva.Models;assembly=FancyTool.Core"
              xmlns:controls="using:FancyToolAva.Views.Controls"
              xmlns:lan="clr-namespace:Lang.Avalonia.MarkupExtensions;assembly=Lang.Avalonia"
              x:Class="FancyToolAva.Views.LyricsExtractionView" x:DataType="vm:LyricsExtractionViewModel">

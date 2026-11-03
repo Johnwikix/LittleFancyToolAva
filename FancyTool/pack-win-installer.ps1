@@ -30,6 +30,9 @@ New-Item -ItemType Directory -Force -Path $stage | Out-Null
 if (-not (Test-Path (Join-Path $stage "FancyToolAva.exe"))) {
     throw "publish-win.ps1 produced no FancyToolAva.exe in $stage"
 }
+if (-not (Test-Path (Join-Path $stage "cli\fancy-tool.exe"))) {
+    throw "publish-win.ps1 produced no cli\fancy-tool.exe in $stage"
+}
 
 # Inno Setup is not on PATH after a winget user-scope install; check the usual roots.
 if (-not $IsccPath) {

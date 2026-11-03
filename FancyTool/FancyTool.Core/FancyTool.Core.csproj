@@ -1,0 +1,70 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>FancyToolAva</RootNamespace>
+    <AssemblyName>FancyTool.Core</AssemblyName>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <NoWarn>$(NoWarn);NU1701;CS8767;CS8625;CS8602;CS8600;CS8604;CS0618</NoWarn>
+  </PropertyGroup>
+
+  <Import Project="..\WindowsInference.props" />
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="FancyToolAva" />
+    <InternalsVisibleTo Include="FancyTool.Cli" />
+    <InternalsVisibleTo Include="fancy-tool" />
+    <InternalsVisibleTo Include="FfmpegSmokeTest" />
+    <InternalsVisibleTo Include="BatchSmokeTest" />
+    <InternalsVisibleTo Include="LicenseSmokeTest" />
+    <InternalsVisibleTo Include="LyricsSmokeTest" />
+    <InternalsVisibleTo Include="LinkTestSmokeTest" />
+    <InternalsVisibleTo Include="AudioSmokeTest" />
+    <InternalsVisibleTo Include="SpectralEnhancementSmokeTest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="..\Resources\LyricsModels\*.json" LogicalName="FancyToolAva.Resources.LyricsModels.%(Filename)%(Extension)" />
+    <EmbeddedResource Include="..\Libraries\VideoCuda\*.ptx" LogicalName="FancyToolAva.VideoCuda.%(Filename)%(Extension)" />
+    <EmbeddedResource Include="..\Libraries\VideoPixels\*.pb" LogicalName="FancyToolAva.VideoPixels.%(Filename)%(Extension)" />
+    <EmbeddedResource Include="AudioEnhancement\Coefficients\Assets\dsp-tables.bin" LogicalName="FancyToolAva.AudioEnhancement.Coefficients.dsp-tables.bin" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\Libraries\VideoSr\*.onnx;..\Libraries\VideoSr\models.json;..\Libraries\VideoSr\NOTICE.md;..\Libraries\VideoSr\Licenses\*"
+          Link="Libraries\VideoSr\%(RecursiveDir)%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Include="..\Libraries\InterpolationModels\LICENSE.txt" Link="Licenses\RIFE.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Include="..\Libraries\InterpolationModels\NOTICE.md" Link="Licenses\RIFE-NOTICE.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Include="..\Libraries\FFmpeg\LICENSE.txt" Link="Licenses\FFmpeg.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Include="..\External\Lyricify.Lyrics.Helper\LICENSE" Link="Licenses\Lyricify-Lyrics-Helper.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Include="..\External\NOTICE-Lyrics.txt" Link="Licenses\Lyrics-NOTICE.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="System.IO.Ports" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageReference Include="BouncyCastle.Cryptography" Version="2.7.0" />
+    <PackageReference Include="FFmpeg.AutoGen" Version="9.0.1.1" />
+    <PackageReference Include="SkiaSharp" Version="3.119.4" />
+    <PackageReference Include="System.IO.Ports" Version="10.0.11" />
+    <PackageReference Include="System.Numerics.Tensors" Version="9.0.0" />
+    <PackageReference Include="z440.atl.core" Version="7.16.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0" />
+    <PackageReference Include="Serilog" Version="4.4.0" />
+    <PackageReference Include="Microsoft.Windows.AI.MachineLearning" Version="2.4.89" Condition="'$(TargetFramework)' == 'net10.0-windows10.0.19041.0'" />
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.22.1" Condition="'$(TargetFramework)' == 'net10.0'" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\External\Lyricify.Lyrics.Helper\Lyricify.Lyrics.Helper.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <ErrorOnDuplicatePublishOutputFiles>false</ErrorOnDuplicatePublishOutputFiles>
+  </PropertyGroup>
+</Project>

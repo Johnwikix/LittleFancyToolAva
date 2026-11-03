@@ -930,13 +930,13 @@ internal static class Program
     private sealed class FakeImageConversion : IImageConversionService
     {
         public Task<string?> ImageToBase64Async(string imagePath, CancellationToken ct = default) => Task.FromResult<string?>(null);
-        public Task<Avalonia.Media.Imaging.Bitmap?> Base64ToBitmapAsync(string base64, CancellationToken ct = default) => Task.FromResult<Avalonia.Media.Imaging.Bitmap?>(null);
+        public Task<byte[]?> Base64ToPreviewPngAsync(string base64, CancellationToken ct = default) => Task.FromResult<byte[]?>(null);
         public Task<string?> ConvertImageFormatAsync(string inputPath, string outputPath, string format,
             CancellationToken ct = default, int? maxDimension = null, string? filterType = null,
             IProgress<double>? progress = null, int? scalePercent = null,
             SuperResolutionModel? superResolutionModel = null, int superResolutionScale = 4,
             ISuperResolutionService? superResolutionService = null) => Task.FromResult<string?>(null);
-        public Task<Avalonia.Media.Imaging.Bitmap?> LoadImageAsync(string imagePath, CancellationToken ct = default) => Task.FromResult<Avalonia.Media.Imaging.Bitmap?>(null);
+        public Task<byte[]?> LoadPreviewPngAsync(string imagePath, CancellationToken ct = default) => Task.FromResult<byte[]?>(null);
         public Task<byte[]> ImageToBytesAsync(string imagePath, CancellationToken ct = default) => Task.FromResult(Array.Empty<byte>());
         public Task<byte[]> CreateIcoBytesAsync(string imagePath, int size, CancellationToken ct = default) => Task.FromResult(Array.Empty<byte>());
         public Task<bool> SaveAsIcoAsync(string imagePath, string outputPath, int size, CancellationToken ct = default) => Task.FromResult(false);

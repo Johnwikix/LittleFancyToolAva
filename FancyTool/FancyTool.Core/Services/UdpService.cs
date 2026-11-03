@@ -1,4 +1,3 @@
-using Lang.Avalonia;
 using FancyToolAva.Models;
 using FancyToolAva.Utils;
 using Microsoft.Extensions.Logging;
