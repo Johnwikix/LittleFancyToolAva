@@ -1,6 +1,8 @@
 # MSIX 全功能授权验证
 
 > 后续实测（同日）：已定位本机 I: 盘 VS Community，完成真正 DesktopBridge Release 打包并验证真实已购许可。初轮遗漏了已发布商品身份比对，导致错误包名；现已修复。见 [已购许可验证](license-owned-validation-2026-10-31.md)。下文保留初轮验证边界，不作为真实授权验收结论。
+>
+> 后续变更（2026-11-03）：已购用户遇到 Store 临时查询失败不再被锁定，见 [ADR 0020](adr/0020-license-transient-failure-retention.md)。本报告中“后续失败锁定”的用例结论仅代表当时策略。
 
 日期：2026-10-31。策略见 [ADR 0016](adr/0016-msix-application-license.md)。
 

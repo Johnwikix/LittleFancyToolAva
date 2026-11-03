@@ -46,7 +46,8 @@ internal static class Program
                 ("inactive-disables-entire-app", InactiveAsync),
                 ("first-query-failure-locks", FirstFailureAsync),
                 ("initialization-failure-locks-and-retry-recovers", InitializationFailureAsync),
-                ("subsequent-query-failure-revokes-full-license", LaterFailureAsync),
+                ("subsequent-query-failure-retains-confirmed-license", LaterFailureAsync),
+                ("trial-failure-retains-until-local-expiry", TrialFailureAsync),
                 ("expired-and-missing-trial-deadlines-lock", InvalidTrialsAsync),
                 ("trial-expires-without-store-refresh", ExpirationAsync),
                 ("clock-rollback-cannot-extend-running-trial", ClockRollbackAsync),
@@ -162,6 +163,11 @@ internal static class Program
         await fixture.Service.InitializeAsync(1);
         Check(!fixture.Service.CanUseApplication && fixture.Service.CanPurchase && fixture.Service.State == AppLicenseState.LicenseInactive,
             "非活跃许可未全局锁定");
+        fixture.Store.Query = () => Task.FromException<StoreLicenseSnapshot>(new IOException("offline"));
+        await fixture.Service.RefreshAsync();
+        Check(!fixture.Service.CanUseApplication && fixture.Service.CanPurchase && fixture.Service.State == AppLicenseState.LicenseInactive,
+            "临时失败把已确认的非活跃许可误报为验证失败");
+        fixture.Store.Query = null;
         fixture.Store.Current = new(true, false, null);
         await fixture.Service.RefreshAsync();
         Check(fixture.Service.CanUseApplication && !fixture.Service.CanPurchase, "正式许可未恢复权限");
@@ -237,8 +243,9 @@ internal static class Program
             && !viewModel.ShowTrialExpiration && statusChanges >= 2, "购买确认后设置页没有实时刷新为完整版");
         fixture.Store.Query = () => Task.FromException<StoreLicenseSnapshot>(new IOException("offline"));
         await fixture.Service.RefreshAsync();
-        Check(viewModel.TitleText == LocalizationStrings.Current["License.VerificationTitle"] && !viewModel.ShowPurchase,
-            "把许可查询失败误报为未购买");
+        Check(viewModel.TitleText == LocalizationStrings.Current["License.Title"]
+            && viewModel.StatusText == LocalizationStrings.Current["License.FullLicense"] && !viewModel.ShowPurchase,
+            "临时查询失败撤销或误报了已购许可");
         using var ordinary = new LicenseService(null, new Clock(), new Scheduler());
         using var ordinaryViewModel = new LicenseViewModel(ordinary);
         Check(ordinaryViewModel.StatusText == LocalizationStrings.Current["License.Unrestricted"] && !ordinaryViewModel.ShowPurchase,
@@ -264,7 +271,28 @@ internal static class Program
         await fixture.Service.InitializeAsync(1);
         fixture.Store.Query = () => Task.FromException<StoreLicenseSnapshot>(new IOException("offline"));
         await fixture.Service.RefreshAsync();
-        Check(!fixture.Service.CanUseApplication && fixture.Service.State == AppLicenseState.VerificationFailed, "失败后保留了旧许可权限");
+        Check(fixture.Service.CanUseApplication && fixture.Service.State == AppLicenseState.FullLicense,
+            "临时失败撤销了已确认的正式许可");
+        fixture.Store.Query = null;
+        fixture.Store.Current = new(false, false, null);
+        await fixture.Service.RefreshAsync();
+        Check(!fixture.Service.CanUseApplication && fixture.Service.State == AppLicenseState.LicenseInactive,
+            "Store 明确的非活跃许可未撤销授权");
+    }
+
+    private static async Task TrialFailureAsync()
+    {
+        using var fixture = new Fixture();
+        fixture.Store.Current = new(true, true, Epoch.AddSeconds(2));
+        await fixture.Service.InitializeAsync(1);
+        fixture.Store.Query = () => Task.FromException<StoreLicenseSnapshot>(new IOException("offline"));
+        await fixture.Service.RefreshAsync();
+        Check(fixture.Service.CanUseApplication && fixture.Service.State == AppLicenseState.TrialActive,
+            "临时失败撤销了有效试用");
+        fixture.Clock.Advance(TimeSpan.FromSeconds(2));
+        Check(!fixture.Service.CanUseApplication, "临时失败后读取权限未核对试用到期");
+        fixture.Scheduler.TickSeconds();
+        Check(fixture.Service.State == AppLicenseState.LicenseInactive, "临时失败后试用到期未转锁定");
     }
 
     private static async Task InvalidTrialsAsync()
@@ -388,6 +416,14 @@ internal static class Program
         store.Current = new(true, false, null);
         await service.RefreshAsync();
         Check(service.CanUseApplication && store.Queries == 2, "旧查询完成后未通过新查询恢复");
+        var hanging = NewCompletion<StoreLicenseSnapshot>();
+        store.Query = () => hanging.Task;
+        await service.RefreshAsync();
+        Check(service.CanUseApplication && service.State == AppLicenseState.FullLicense,
+            "已确认许可后的查询超时撤销了授权");
+        hanging.SetResult(new(false, false, null));
+        await Task.Delay(30);
+        Check(service.CanUseApplication, "超时后的迟到结果生效");
     }
 
     private static async Task MonitoringFailureAsync()

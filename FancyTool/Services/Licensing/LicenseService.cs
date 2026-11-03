@@ -2,7 +2,7 @@ using Serilog;
 
 namespace FancyToolAva.Services;
 
-/// <summary>参考 music_player 的 Store 查询、串行补查和购买流程；MSIX 的任何未知/失败状态都拒绝使用。</summary>
+/// <summary>参考 music_player 的 Store 查询、串行补查和购买流程；首次与身份失败拒绝使用，已确认结论不因临时查询失败撤销。</summary>
 public sealed class LicenseService : ILicenseService
 {
     private sealed record Status(AppLicenseState State, DateTimeOffset? Expiration, long TrialStart, TimeSpan TrialDuration);
@@ -150,9 +150,22 @@ public sealed class LicenseService : ILicenseService
                 }
                 catch (Exception ex)
                 {
-                    Log.Warning(ex, "Store 许可验证失败，禁用全部工具");
-                    if (!_disposed) ApplyState(ex is StoreIdentityMismatchException
-                        ? AppLicenseState.PackageIdentityMismatch : AppLicenseState.VerificationFailed);
+                    if (_disposed) break;
+                    if (ex is StoreIdentityMismatchException)
+                    {
+                        Log.Warning(ex, "Store 包身份不匹配，禁用全部工具");
+                        ApplyState(AppLicenseState.PackageIdentityMismatch);
+                    }
+                    else if (TryKeepStoreVerdict())
+                    {
+                        // 临时故障不能撤销 Store 已给出的结论；试用仍按本地到期时间失效。
+                        Log.Warning(ex, "Store 许可验证失败，沿用上次结论 {State}", _status.State);
+                    }
+                    else
+                    {
+                        Log.Warning(ex, "Store 许可验证失败，禁用全部工具");
+                        ApplyState(AppLicenseState.VerificationFailed);
+                    }
                 }
             } while (_refreshPending && !_disposed);
         }
@@ -160,6 +173,24 @@ public sealed class LicenseService : ILicenseService
         {
             _refreshCompletion = null;
             completion.TrySetResult();
+        }
+    }
+
+    /// <summary>查询失败时沿用 Store 已给出的明确结论；从未确认成功或已锁定时仍按失败处理。</summary>
+    private bool TryKeepStoreVerdict()
+    {
+        Status status = _status;
+        switch (status.State)
+        {
+            case AppLicenseState.FullLicense:
+            case AppLicenseState.LicenseInactive:
+                return true;
+            case AppLicenseState.TrialActive:
+                // 复用 ApplyState 的本地到期检查；仍有效的试用不会因补查失败而中断。
+                ApplyState(AppLicenseState.TrialActive, status.Expiration);
+                return true;
+            default:
+                return false;
         }
     }
 
