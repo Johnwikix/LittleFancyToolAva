@@ -100,8 +100,13 @@
     <EmbeddedResource Remove="FancyTool.Cli\**" />
     <None Remove="FancyTool.Cli\**" />
     <AvaloniaResource Remove="FancyTool.Cli\**" />
-    <ProjectReference Include="FancyTool.Core\FancyTool.Core.csproj" />
-    <ProjectReference Include="External\Lyricify.Lyrics.Helper\Lyricify.Lyrics.Helper.csproj" />
+    <!-- 库工程钉住 AnyCPU：Core / Lyricify 不声明 Platforms，x64 评估的引用方（sln 的
+         Release|x64、MSIX 隔离链）会把 Platform=x64 传染给它们，期望 obj\x64\...\ref\
+         下的引用程序集；该路径只在"恰好有人以 x64 构建过库"时存在，VS IDE 内构建
+         wapproj 时依赖不随之构建，直接 CS0006。钉住后库在任何引用方平台下都只有
+         AnyCPU 一套中间目录（obj\Release / obj\msix\Release）。 -->
+    <ProjectReference Include="FancyTool.Core\FancyTool.Core.csproj" SetPlatform="Platform=AnyCPU" />
+    <ProjectReference Include="External\Lyricify.Lyrics.Helper\Lyricify.Lyrics.Helper.csproj" SetPlatform="Platform=AnyCPU" />
     <None Include="External\Lyricify.Lyrics.Helper\LICENSE" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Link="Licenses\Lyricify-Lyrics-Helper.txt" />
     <None Include="External\NOTICE-Lyrics.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Link="Licenses\Lyrics-NOTICE.txt" />
   </ItemGroup>
@@ -185,6 +190,45 @@
   <Target Name="PublishCliForMsix" AfterTargets="Publish"
           Condition="'$(FancyToolMsixBuild)' == 'true' and '$(DesignTimeBuild)' != 'true'">
     <Exec Command="dotnet publish &quot;$(MSBuildProjectDirectory)\FancyTool.Cli\FancyTool.Cli.csproj&quot; -c $(Configuration) -f $(TargetFramework) -r win-x64 --self-contained true -p:PublishAot=false -p:FancyToolMsixBuild=true -o &quot;$(PublishDir)cli&quot;" />
+  </Target>
+
+  <!-- DesktopBridge 的包负载不是枚举发布目录，而是消费入口工程
+       DesktopBridgePublishItemsOutputGroup 的项清单（源自 ResolvedFileToPublish）；
+       PublishCliForMsix 用外部 dotnet 进程写入 <PublishDir>\cli 的文件天然不在清单中，
+       清单引用 cli\fancy-tool.exe 时会报 APPX0703。这里在输出组收集阶段显式补齐，
+       RelativePath 即包内路径，需与 Package.appxmanifest 的 Executable 值（cli\ 前缀）一致。 -->
+  <Target Name="AddCliToDesktopBridgePublishItems" AfterTargets="PublishItemsOutputGroup"
+          Condition="'$(FancyToolMsixBuild)' == 'true' and Exists('$(PublishDir)cli')">
+    <ItemGroup>
+      <!-- 先在临时项上完成通配（生成 RecursiveDir 等通配元数据），再投影进输出组；
+           直接在输出组项里写 %(RecursiveDir) 会触发 MSB4120 自引用，元数据被既有项交叉污染。 -->
+      <_CliPublishPayload Include="$(PublishDir)cli\**\*.*" />
+      <PublishItemsOutputGroupOutputs Include="@(_CliPublishPayload)">
+        <OutputPath>%(_CliPublishPayload.Identity)</OutputPath>
+        <RelativePath>cli\%(_CliPublishPayload.RecursiveDir)%(_CliPublishPayload.Filename)%(_CliPublishPayload.Extension)</RelativePath>
+      </PublishItemsOutputGroupOutputs>
+    </ItemGroup>
+  </Target>
+
+  <!-- VS IDE 内构建 wapproj（BuildingInsideVisualStudio=true → _IsGeneratingAppxPackage=false）时，
+       DesktopBridge 不消费 DesktopBridgePublishItemsOutputGroup，而是用 PackageOutputGroups
+       （BuiltProjectOutputGroup 等构建输出组）收集负载；Exec 发布的 CLI 文件同样不在其中。
+       这里把 CLI 发布输出补进 BuiltProjectOutputGroupOutput。命令行打包模式的 PublishDir 由
+       DesktopBridge 改写为 msixpublish，IDE 模式保持默认 $(OutputPath)publish\，两个落点都探测。
+       必须用 BeforeTargets：AfterTargets 修改的项不会进入被挂 target 的 Returns（Returns 在
+       本体完成时捕获，早于钩子），wapproj 直接消费 BuiltProjectOutputGroup 的 Returns 就拿不到。
+       包内路径仍统一由 wapproj 的 RebaseCliPayloadToPackageRoot 重定位到包根 cli\。 -->
+  <Target Name="AddCliToBuiltOutputForIdePackaging" BeforeTargets="BuiltProjectOutputGroup"
+          Condition="'$(FancyToolMsixBuild)' == 'true'">
+    <PropertyGroup>
+      <_CliPayloadRoot Condition="'$(PublishDir)' != '' and Exists('$(PublishDir)cli')">$(PublishDir)cli\</_CliPayloadRoot>
+      <_CliPayloadRoot Condition="'$(_CliPayloadRoot)' == '' and Exists('$(OutputPath)publish\cli')">$(OutputPath)publish\cli\</_CliPayloadRoot>
+    </PropertyGroup>
+    <ItemGroup Condition="'$(_CliPayloadRoot)' != ''">
+      <_CliBuiltPayload Include="$(_CliPayloadRoot)**\*.*" />
+      <BuiltProjectOutputGroupOutput Include="@(_CliBuiltPayload)"
+                                     TargetPath="cli\%(_CliBuiltPayload.RecursiveDir)%(_CliBuiltPayload.Filename)%(_CliBuiltPayload.Extension)" />
+    </ItemGroup>
   </Target>
 
   <!-- Metadata query only: this target does not compile or publish anything.

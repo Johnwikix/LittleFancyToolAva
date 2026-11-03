@@ -53,6 +53,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\FancyTool.Core\FancyTool.Core.csproj" />
+    <!-- 与 GUI 一致：Core 钉住 AnyCPU，避免本工程的 x64 评估把 Core 的中间目录
+         漂移到 obj\x64（详见 FancyToolAva.csproj 同位置注释）。 -->
+    <ProjectReference Include="..\FancyTool.Core\FancyTool.Core.csproj" SetPlatform="Platform=AnyCPU" />
   </ItemGroup>
 </Project>

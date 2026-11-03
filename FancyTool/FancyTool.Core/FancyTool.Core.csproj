@@ -61,7 +61,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\External\Lyricify.Lyrics.Helper\Lyricify.Lyrics.Helper.csproj" />
+    <!-- Lyricify 同为无 Platforms 声明的库：钉住 AnyCPU，x64 评估下不再期望
+         obj\x64 中间目录（详见 FancyToolAva.csproj 同位置注释）。 -->
+    <ProjectReference Include="..\External\Lyricify.Lyrics.Helper\Lyricify.Lyrics.Helper.csproj" SetPlatform="Platform=AnyCPU" />
   </ItemGroup>
 
   <PropertyGroup>

@@ -109,6 +109,38 @@
     <None Include="Package.StoreAssociation.xml" />
   </ItemGroup>
   <Import Project="$(WapProjPath)\Microsoft.DesktopBridge.targets" />
+  <!-- CLI 负载重定位到包根 cli\。CreateWapProjPackageFiles 给入口工程全部输出统一加
+       FancyToolAva\ 前缀（包内 TargetPath 与 layout CopyToTargetPath 都是
+       FancyToolAva\cli\...），而清单字面 Executable 不会被打包任务改写，且商店
+       Upload 变体还会对非入口应用剥掉 FancyToolAva\ 前缀，三份生成的 AppxManifest
+       会互相矛盾。在 _ConvertItems 产出被 _CopyPackageFiles / AppxPackagePayload /
+       清单生成消费之前，把 cli\ 项改写为包根路径，与 Package.appxmanifest 的
+       Executable="cli\fancy-tool.exe" 字面值保持一致。_FileToCopy / _UploadFileToCopy
+       在 _ConvertItems 内部已经生成，必须一并改写。 -->
+  <Target Name="RebaseCliPayloadToPackageRoot" AfterTargets="_ConvertItems">
+    <ItemGroup>
+      <_RebasedCliFiles Include="@(WapProjPackageFile)"
+                        Condition="$([System.Text.RegularExpressions.Regex]::IsMatch('%(WapProjPackageFile.TargetPath)', '^FancyToolAva\\cli\\'))" />
+    </ItemGroup>
+    <ItemGroup Condition="'@(_RebasedCliFiles)' != ''">
+      <WapProjPackageFile Remove="@(_RebasedCliFiles)" />
+      <UploadWapProjPackageFile Remove="@(_RebasedCliFiles)" />
+      <_FileToCopy Remove="@(_RebasedCliFiles)" />
+      <_UploadFileToCopy Remove="@(_RebasedCliFiles)" />
+      <WapProjPackageFile Include="@(_RebasedCliFiles)"
+                          TargetPath="$([System.String]::Copy('%(_RebasedCliFiles.TargetPath)').Replace('FancyToolAva\cli\', 'cli\'))"
+                          CopyToTargetPath="$([System.String]::Copy('%(_RebasedCliFiles.CopyToTargetPath)').Replace('\FancyToolAva\cli\', '\cli\'))" />
+      <UploadWapProjPackageFile Include="@(_RebasedCliFiles)"
+                          TargetPath="$([System.String]::Copy('%(_RebasedCliFiles.TargetPath)').Replace('FancyToolAva\cli\', 'cli\'))"
+                          CopyToTargetPath="$([System.String]::Copy('%(_RebasedCliFiles.CopyToTargetPath)').Replace('\FancyToolAva\cli\', '\cli\'))" />
+      <_FileToCopy Include="@(_RebasedCliFiles)"
+                          TargetPath="$([System.String]::Copy('%(_RebasedCliFiles.TargetPath)').Replace('FancyToolAva\cli\', 'cli\'))"
+                          CopyToTargetPath="$([System.String]::Copy('%(_RebasedCliFiles.CopyToTargetPath)').Replace('\FancyToolAva\cli\', '\cli\'))" />
+      <_UploadFileToCopy Include="@(_RebasedCliFiles)"
+                          TargetPath="$([System.String]::Copy('%(_RebasedCliFiles.TargetPath)').Replace('FancyToolAva\cli\', 'cli\'))"
+                          CopyToTargetPath="$([System.String]::Copy('%(_RebasedCliFiles.CopyToTargetPath)').Replace('\FancyToolAva\cli\', '\cli\'))" />
+    </ItemGroup>
+  </Target>
   <ItemGroup>
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.7705" PrivateAssets="all" />
   </ItemGroup>

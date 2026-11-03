@@ -12,11 +12,15 @@
   <Project Path="FancyToolAva.csproj">
     <Platform Solution="*|x64" Project="x64" />
   </Project>
+  <!-- 库工程在解决方案 x64 配置下仍按 AnyCPU 构建，与各引用方的
+       SetPlatform="Platform=AnyCPU" 保持同一套中间目录，避免 obj\x64 期望落空（CS0006）。 -->
   <Project Path="FancyTool.Core\FancyTool.Core.csproj">
-    <Platform Solution="*|x64" Project="x64" />
+    <Platform Solution="*|x64" Project="AnyCPU" />
   </Project>
   <Project Path="FancyTool.Cli\FancyTool.Cli.csproj">
     <Platform Solution="*|x64" Project="x64" />
   </Project>
-  <Project Path="External/Lyricify.Lyrics.Helper/Lyricify.Lyrics.Helper.csproj" />
+  <Project Path="External/Lyricify.Lyrics.Helper/Lyricify.Lyrics.Helper.csproj">
+    <Platform Solution="*|x64" Project="AnyCPU" />
+  </Project>
 </Solution>

@@ -48,7 +48,9 @@
       </uap:VisualElements>
     </Application>
     <!-- 命令行入口不显示在开始菜单；WindowsApps 目录中的执行别名让 fancy-tool
-         自动加入 PATH，等价于安装程序写入环境变量。 -->
+         自动加入 PATH，等价于安装程序写入环境变量。Executable 是包根相对路径：
+         wapproj 的 RebaseCliPayloadToPackageRoot 把 CLI 发布输出重定位到包根
+         cli\（入口工程的其他输出都在 FancyToolAva\ 子目录下）。 -->
     <Application Id="Cli"
       Executable="cli\fancy-tool.exe"
       EntryPoint="Windows.FullTrustApplication">
