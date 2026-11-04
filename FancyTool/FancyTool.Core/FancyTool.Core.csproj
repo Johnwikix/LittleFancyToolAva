@@ -18,14 +18,12 @@
     <InternalsVisibleTo Include="FfmpegSmokeTest" />
     <InternalsVisibleTo Include="BatchSmokeTest" />
     <InternalsVisibleTo Include="LicenseSmokeTest" />
-    <InternalsVisibleTo Include="LyricsSmokeTest" />
     <InternalsVisibleTo Include="LinkTestSmokeTest" />
     <InternalsVisibleTo Include="AudioSmokeTest" />
     <InternalsVisibleTo Include="SpectralEnhancementSmokeTest" />
   </ItemGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="..\Resources\LyricsModels\*.json" LogicalName="FancyToolAva.Resources.LyricsModels.%(Filename)%(Extension)" />
     <EmbeddedResource Include="..\Libraries\VideoCuda\*.ptx" LogicalName="FancyToolAva.VideoCuda.%(Filename)%(Extension)" />
     <EmbeddedResource Include="..\Libraries\VideoPixels\*.pb" LogicalName="FancyToolAva.VideoPixels.%(Filename)%(Extension)" />
     <EmbeddedResource Include="AudioEnhancement\Coefficients\Assets\dsp-tables.bin" LogicalName="FancyToolAva.AudioEnhancement.Coefficients.dsp-tables.bin" />
@@ -38,8 +36,6 @@
     <None Include="..\Libraries\InterpolationModels\LICENSE.txt" Link="Licenses\RIFE.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <None Include="..\Libraries\InterpolationModels\NOTICE.md" Link="Licenses\RIFE-NOTICE.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <None Include="..\Libraries\FFmpeg\LICENSE.txt" Link="Licenses\FFmpeg.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
-    <None Include="..\External\Lyricify.Lyrics.Helper\LICENSE" Link="Licenses\Lyricify-Lyrics-Helper.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
-    <None Include="..\External\NOTICE-Lyrics.txt" Link="Licenses\Lyrics-NOTICE.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>
@@ -58,12 +54,6 @@
     <PackageReference Include="Serilog" Version="4.4.0" />
     <PackageReference Include="Microsoft.Windows.AI.MachineLearning" Version="2.4.89" Condition="'$(TargetFramework)' == 'net10.0-windows10.0.19041.0'" />
     <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.22.1" Condition="'$(TargetFramework)' == 'net10.0'" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <!-- Lyricify 同为无 Platforms 声明的库：钉住 AnyCPU，x64 评估下不再期望
-         obj\x64 中间目录（详见 FancyToolAva.csproj 同位置注释）。 -->
-    <ProjectReference Include="..\External\Lyricify.Lyrics.Helper\Lyricify.Lyrics.Helper.csproj" SetPlatform="Platform=AnyCPU" />
   </ItemGroup>
 
   <PropertyGroup>

@@ -11,9 +11,6 @@ namespace FancyToolAva.ViewModels
 {
     public partial class MainWindowViewModel : ViewModelBase, IDisposable
     {
-        // 歌词字幕提取：本地模型效果不佳，暂时不开放入口；侧边栏导航与首页磁贴共用此开关
-        private static readonly bool LyricsExtractionEnabled = false;
-
         public AppObserveModel AppObserveModel { get; }
 
         private readonly IServiceProvider _serviceProvider;
@@ -138,8 +135,6 @@ namespace FancyToolAva.ViewModels
             categories[4].Label = L.Localize("Nav.Category_Video");
             categories[4].Children[0].Label = L.Localize("Nav.Item_VideoTranscode");
             categories[4].Children[1].Label = L.Localize("Nav.Item_AudioTranscode");
-            if (LyricsExtractionEnabled)
-                categories[4].Children[2].Label = L.Localize("Nav.Item_LyricsExtraction");
         }
 
         private static PageNavigationItem BuildCommCategory(IServiceProvider sp)
@@ -183,8 +178,6 @@ namespace FancyToolAva.ViewModels
             category.Children.Add(new PageNavigationItem(L.Localize("Nav.Item_VideoTranscode"), FASymbol.Video, sp.GetRequiredService<VideoTranscodeViewModel>()));
             // MusicInfo(E142) 在 FluentAvalonia 内嵌 Symbols 字体中无字形，会渲染成空框，只能用 Audio(E189)
             category.Children.Add(new PageNavigationItem(L.Localize("Nav.Item_AudioTranscode"), FASymbol.Audio, sp.GetRequiredService<AudioConvertViewModel>()));
-            if (LyricsExtractionEnabled)
-                category.Children.Add(new PageNavigationItem(L.Localize("Nav.Item_LyricsExtraction"), FASymbol.Document, sp.GetRequiredService<LyricsExtractionViewModel>()));
             return category;
         }
 

@@ -2,7 +2,6 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using FancyToolAva.Models;
 using FancyToolAva.Services;
-using FancyToolAva.Services.Lyrics;
 
 namespace FancyToolAva.Cli.Commands;
 
@@ -37,19 +36,6 @@ internal static class ModelsCommands
             return new { name = model == VideoInterpolationModel.Rife425Lite ? "rife425-lite" : "rife425", model = model.ToString(), file = fileName, path, installed = File.Exists(path) };
         }).ToList();
 
-        var lyrics = new[] { "asr", "asr-fp32", "aligner" }.Select(pack =>
-        {
-            string directory = pack switch
-            {
-                "asr" => Path.Combine(LyricsModelService.DefaultDirectory, "asr"),
-                "asr-fp32" => Path.Combine(LyricsModelService.DefaultDirectory, "asr-fp32"),
-                _ => Path.Combine(LyricsModelService.DefaultDirectory, "aligner"),
-            };
-            var entries = LyricsModelService.GetManifest(pack).ToList();
-            bool installed = entries.All(e => File.Exists(Path.Combine(directory, e.FileName)));
-            return new { pack, directory, files = entries.Select(e => e.FileName), installed };
-        }).ToList();
-
         if (ctx.Json)
         {
             ctx.WriteJson(new
@@ -58,7 +44,6 @@ internal static class ModelsCommands
                 image,
                 videoSuperResolution = videoSr,
                 interpolation,
-                lyrics,
             });
         }
         else
@@ -67,8 +52,7 @@ internal static class ModelsCommands
                 (ctx.Zh ? "模型目录: " : "Model directory: ") + AppPaths.ModelsDirectory + "\n\n" +
                 Format("image", image.Select(i => (i.name, i.installed))) +
                 Format("video-sr", videoSr.Select(i => (i.name, i.installed))) +
-                Format("interpolation", interpolation.Select(i => (i.name, i.installed))) +
-                Format("lyrics", lyrics.Select(i => (i.pack, i.installed))));
+                Format("interpolation", interpolation.Select(i => (i.name, i.installed))));
         }
         return Task.FromResult(0);
     }
@@ -133,21 +117,11 @@ internal static class ModelsCommands
             }
         }
 
-        bool lyrics = ctx.Args.GetBool("--lyrics") || ctx.Args.GetBool("--lyrics-high");
-        if (lyrics)
-        {
-            bool high = ctx.Args.GetBool("--lyrics-high");
-            var service = ctx.Get<LyricsModelService>();
-            await service.EnsureAsync(LyricsModelService.DefaultDirectory, high,
-                new Progress<LyricsProgress>(p => { if (!ctx.Quiet) ctx.Progress(p.Fraction); }), ctx.CancellationToken).ConfigureAwait(false);
-            installed.Add(high ? "lyrics-high" : "lyrics");
-        }
-
         ctx.ProgressDone();
         if (installed.Count == 0)
             throw new CliUsageException(ctx.Zh
-                ? "指定 --image、--video-sr、--interpolation 或 --lyrics。"
-                : "Specify --image, --video-sr, --interpolation, or --lyrics.");
+                ? "指定 --image、--video-sr 或 --interpolation。"
+                : "Specify --image, --video-sr, or --interpolation.");
         if (ctx.Json) ctx.WriteJson(new { modelDirectory = AppPaths.ModelsDirectory, installed });
         else ctx.WriteResult((ctx.Zh ? "已安装: " : "Installed: ") + string.Join(", ", installed));
         return 0;

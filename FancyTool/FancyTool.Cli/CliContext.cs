@@ -2,7 +2,6 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using FancyToolAva.AudioEnhancement;
 using FancyToolAva.Services;
-using FancyToolAva.Services.Lyrics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Serilog;
@@ -190,9 +189,6 @@ public static class CliServices
         services.AddSingleton<IUdpService, UdpService>();
         services.AddSingleton<TcpLinkTestService>();
         services.AddSingleton<UdpLinkTestService>();
-        services.AddSingleton<PcmAudioDecoder>();
-        services.AddSingleton<LyricsModelService>();
-        services.AddSingleton<LyricsExtractionService>();
         return services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = false, ValidateScopes = false });
     }
 }

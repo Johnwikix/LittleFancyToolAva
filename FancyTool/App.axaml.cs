@@ -278,10 +278,6 @@ namespace FancyToolAva
             services.AddSingleton<AudioEnhancement.IAudioUpsamplingBackend, AudioEnhancement.ManagedDspUpsamplingBackend>();
             services.AddSingleton<AudioEnhancement.AudioUpsamplingBackendRegistry>();
             services.AddSingleton<IAudioConvertService, AudioConvertService>();
-            services.AddSingleton<Services.Lyrics.PcmAudioDecoder>();
-            services.AddSingleton<Services.Lyrics.LyricsModelService>();
-            services.AddSingleton<Services.Lyrics.LyricsExtractionService>();
-            services.AddSingleton<LyricsExtractionViewModel>();
 
             services.AddTransient<FileEncryptionViewModel>();
             services.AddTransient<FolderCompareViewModel>();

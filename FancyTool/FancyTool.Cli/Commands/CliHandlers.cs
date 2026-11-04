@@ -15,7 +15,6 @@ internal static class CliHandlers
         AudioCommands.Register(map);
         NetworkCommands.Register(map);
         ModelsCommands.Register(map);
-        LyricsCommands.Register(map);
         MiscCommands.Register(map);
         return map;
     }

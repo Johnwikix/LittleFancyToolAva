@@ -100,7 +100,7 @@ Audio transcoding also runs FFmpeg in-process with batch conversion, writing tag
 
 ### ⌨️ Command Line (CLI)
 
-Every GUI capability is also available as `fancy-tool`, running on the same service implementation as the interface (`FancyTool.Core`): symmetric / asymmetric ciphers and keygen, hashing, Base64, batch file encryption and folder compare, image Base64 / conversion / super-resolution, video probe / preview / transcode / concat, audio probe and conversion, serial port, TCP / UDP debugging plus bandwidth and packet-loss tests, model management and lyrics extraction — 19 command groups and 58 commands, each with its own `-help`.
+Every GUI capability is also available as `fancy-tool`, running on the same service implementation as the interface (`FancyTool.Core`): symmetric / asymmetric ciphers and keygen, hashing, Base64, batch file encryption and folder compare, image Base64 / conversion / super-resolution, video probe / preview / transcode / concat, audio probe and conversion, serial port, TCP / UDP debugging plus bandwidth and packet-loss tests, and model management — 18 command groups and 56 commands, each with its own `-help`.
 
 ```powershell
 fancy-tool --help                  # group index

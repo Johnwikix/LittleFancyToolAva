@@ -25,7 +25,7 @@
 ## MVVM 与页面注册
 
 - 保持 `CommunityToolkit.Mvvm` 源生成：`[ObservableProperty]`、`[RelayCommand]`，设置状态与命令放在 ViewModel，视图只负责布局和交互转发。
-- 页面生命周期：ViewModel 实现 `IViewLifecycle`（`OnNavigatedTo` / `OnNavigatedFrom`）；瞬时页面（`AddTransient`）离开时由 `NavigationFactory.GetPageFromObject` 触发 `Dispose`，长驻页面（串口 / TCP / UDP / 歌词 / 设置等 `AddSingleton`）不会被导航释放，资源清理必须显式管理。
+- 页面生命周期：ViewModel 实现 `IViewLifecycle`（`OnNavigatedTo` / `OnNavigatedFrom`）；瞬时页面（`AddTransient`）离开时由 `NavigationFactory.GetPageFromObject` 触发 `Dispose`，长驻页面（串口 / TCP / UDP / 设置等 `AddSingleton`）不会被导航释放，资源清理必须显式管理。
 - 新增工具页：新建 ViewModel → 在 `App.axaml.cs` 的 `ConfigureServices` 注册（默认 `AddTransient`，需保持长连接的用 `AddSingleton` 并写清释放路径）→ 新建 View（`*View.axaml`，`DataContext` 由 `NavigationFactory.Register<TViewModel, TView>()` 注入）→ 在 `MainWindow`/`NavigationFactory` 注册导航入口 → 补齐 `i18n` 双语言键。
 - 页面状态持久化：实现 `IViewState` 并注册到 `IViewStateService`（`Register/Unregister`），由 `ApplicationHostService` 在启动 / 退出时 `LoadViewStates` / `SaveState`；窗口与页面首帧布局依赖 ViewState 恢复时，注意 `OnNavigatedTo` 与 `Register` 的先后顺序。
 - 应用偏好统一走 `AppObserveModel / AppPreferences`（theme、backdrop、语言、模型目录等），不要新增平行的配置文件。
@@ -69,14 +69,8 @@
   ```powershell
   # 进程内 FFmpeg 全矩阵转码（容器×视频编码×音频编码）与特殊场景
   dotnet run --project FancyTool/_tools/FfmpegSmokeTest -- .qa/ffmpeg
-
-  # 歌词格式回读检查
-  dotnet run --project FancyTool/_tools/LyricsSmokeTest -- formats .qa/lyrics/formats
-
-  # 网络歌词源对照（测试专用，不覆盖识别结果）
-  dotnet run --project FancyTool/_tools/LyricsSmokeTest -- network .qa/lyrics/network D:\music\歌曲.mp3
   ```
-- 测试数据隔离：`FANCYTOOL_DATA_DIRECTORY` 隔离应用数据，`FANCYTOOL_LYRICS_MODELS` / `FANCYTOOL_LYRICS_DATA` 隔离模型与歌词队列。下载模型、音频缓存和输出统一放已忽略的 `.qa/`，不随源码分发。
+- 测试数据隔离：`FANCYTOOL_DATA_DIRECTORY` 隔离应用数据。下载模型、音频缓存和输出统一放已忽略的 `.qa/`，不随源码分发。
 - 烟测必须走真实代码路径（`VideoTranscodeService`、`FfmpegService`、ViewModel 的过滤/守卫逻辑等），不能只在测试里复制一份逻辑自证；涉及 UI、GPU/Windows ML、文件监视或原生资源的改动，桩测试通过不能代替集成验证。
 - 性能与内存结论必须注明环境（机器、GPU、驱动、版本）、场景、测量边界和重复次数；未执行的设备/UI 验证要明确列出，没有测量不得宣称零分配或具体倍数收益。
 

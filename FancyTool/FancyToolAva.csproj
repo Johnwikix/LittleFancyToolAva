@@ -100,15 +100,12 @@
     <EmbeddedResource Remove="FancyTool.Cli\**" />
     <None Remove="FancyTool.Cli\**" />
     <AvaloniaResource Remove="FancyTool.Cli\**" />
-    <!-- 库工程钉住 AnyCPU：Core / Lyricify 不声明 Platforms，x64 评估的引用方（sln 的
-         Release|x64、MSIX 隔离链）会把 Platform=x64 传染给它们，期望 obj\x64\...\ref\
+    <!-- 库工程钉住 AnyCPU：Core 不声明 Platforms，x64 评估的引用方（sln 的
+         Release|x64、MSIX 隔离链）会把 Platform=x64 传染给它，期望 obj\x64\...\ref\
          下的引用程序集；该路径只在"恰好有人以 x64 构建过库"时存在，VS IDE 内构建
          wapproj 时依赖不随之构建，直接 CS0006。钉住后库在任何引用方平台下都只有
          AnyCPU 一套中间目录（obj\Release / obj\msix\Release）。 -->
     <ProjectReference Include="FancyTool.Core\FancyTool.Core.csproj" SetPlatform="Platform=AnyCPU" />
-    <ProjectReference Include="External\Lyricify.Lyrics.Helper\Lyricify.Lyrics.Helper.csproj" SetPlatform="Platform=AnyCPU" />
-    <None Include="External\Lyricify.Lyrics.Helper\LICENSE" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Link="Licenses\Lyricify-Lyrics-Helper.txt" />
-    <None Include="External\NOTICE-Lyrics.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Link="Licenses\Lyrics-NOTICE.txt" />
   </ItemGroup>
 
   <ItemGroup>

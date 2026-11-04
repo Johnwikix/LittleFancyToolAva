@@ -2,6 +2,8 @@
 
 日期：2026-11-03
 
+> 2026-11-04 补充：歌词提取功能已整体移除（[ADR 0022](0022-remove-lyrics-extraction.md)），本文中的歌词命令、Lyricify 引用与「19 个命令组 / 58 条命令」计数按 **18 组 / 56 条** 理解；视频超分 / 插帧的 CLI 端到端实测见文末补充（三）。
+
 ## 背景与约束
 
 需求是把 GUI 的全部工具能力同时提供命令行入口，并让本机 AI agent 知道这些命令怎么用：
@@ -150,9 +152,19 @@ FFmpeg 相关代码整体搬进 Core，因此重跑全矩阵确认迁移没有�
 
 冷启动（清空 x64 / msix 中间产物）验证 `MSBuild FancyToolAva.Msix.wapproj -restore -p:Configuration=Release -p:Platform=x64` 完整出包，主 / ForBundle / Upload 三份生成的 AppxManifest 中 CLI `Executable="cli\fancy-tool.exe"` 与包内文件一致；slnx Release|x64 回归通过。
 
+### 2026-11-04 补充（三）：视频超分 / 插帧 CLI 端到端实测；歌词功能移除
+
+- **视频超分 / 插帧实测通过**（Intel Arc 140T iGPU，DirectML + OpenVINO 厂商路径；Debug 构建 CLI，`FANCYTOOL_DATA_DIRECTORY` 沙盒，走 `VideoTranscodeService` 真实推理；输入 160×120@10fps 4s 测试片）：
+  - `--sr` ×2：ravu-lite-r2（DirectML，6.2s）、anime4k-cnn-s（厂商，2.7s）、fsrcnnx-s（3.1s）、ravu-lite-r3（fp32，5.3s）均输出 320×240；`anime4k-cnn-s --sr-fp16` 在 Intel 厂商 EP 上同样通过。
+  - `--interpolate rife`：rife425-lite ×2（3.5s）与 rife425 ×2（3.0s）输出 20fps，rife425-lite ×4 输出 40fps。
+  - 组合 `--sr anime4k-cnn-s ×2 + rife425-lite ×2` 输出 320×240@20fps（4.9s）。
+  - rife425 首次下载报 `All download endpoints failed`（与歌词模型下载并发时的瞬时网络问题），curl 验证两端点 206，重试 5.5s 成功；错误传播与退出码正确。
+  - 原始数据与命令记录：`.qa/cli-e2e-2026-11-04/measurements.json`。显式 `--sr-backend` / `--interpolation-backend` 覆盖组合未测（沿用 ADR 0008 的产品默认 auto）。
+- **歌词提取功能整体移除**（用户决策，本地模型效果不达预期且不再需要）：命令目录变为 18 组 / 56 条，详见 [ADR 0022](0022-remove-lyrics-extraction.md)。下文「未实测」清单中的歌词项由此关闭。
+
 ## 已知限制与未验证项
 
 - **未做**：真机 MSIX 安装后的 `fancy-tool` 别名调用（wapproj 真实打包已于 2026-11-03 在 VS 18 Community MSBuild 下通过并校验包内清单与负载一致，但包未安装到系统）；Inno 安装/卸载后 `HKCU\Environment\Path` 的实际增删（只做到编译与逻辑审查）；Linux `.deb` 尚未打包 CLI（`publish-linux-deb.ps1` 未接入，需要单独决定 `.deb` 的 `cli` 落点与 `/usr/bin` 链接）。
-- **未实测**：视频超分 / 插帧（`video transcode --sr` / `--interpolate`）与歌词提取的 CLI 端到端运行——本机模型目录只有四款图片超分模型，VideoSr / RIFE / 歌词模型均未安装（`models list` 全部 `[ ]`），跑真实推理需要先下载数 GB 模型；命令与参数映射已接通并复用 GUI 同一服务，结论只到「代码路径存在」。图片超分已实测，见上。
+- **未实测**：视频超分 / 插帧（`video transcode --sr` / `--interpolate`）与歌词提取的 CLI 端到端运行——本机模型目录只有四款图片超分模型，VideoSr / RIFE / 歌词模型均未安装（`models list` 全部 `[ ]`），跑真实推理需要先下载数 GB 模型；命令与参数映射已接通并复用 GUI 同一服务，结论只到「代码路径存在」。图片超分已实测，见上。→ 2026-11-04 更新：视频超分 / 插帧已实测通过、歌词功能已移除，见补充（三）与 ADR 0022。
 - 首次启动对话框的次按钮（技能 + `AGENTS.md`）未在 UI 上点选验证：lvt 合成按键的 Tab 顺序落在主按钮；该分支经 CLI `skill install --target both` 覆盖。
 - `AGENTS.md` 托管块只保证不覆盖用户内容，不保证与其他工具的同名托管块兼容。

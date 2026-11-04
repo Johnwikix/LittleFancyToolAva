@@ -1,6 +1,8 @@
 # Model storage and HDR output
 
 > 2026-10-17 补充：HDR 显存管线与 RIFE 保留 HDR 输出见 [ADR 0012](0012-hdr-cuda-video-pipeline.md)。本文原有算法说明与历史验证范围保留，旧 HDR 管线限制由新 ADR 更新。
+>
+> 2026-11-04 补充：歌词功能已整体移除（[ADR 0022](0022-remove-lyrics-extraction.md)），本文中 `Qwen3Lyrics` 目录约定与 `FANCYTOOL_LYRICS_MODELS` 支持说明随之失效；模型目录迁移机制本身不变，继续服务图像超分与视频超分 / 插帧模型。
 
 Settings owns the default model root. `ModelStorageDirectory` is saved immediately;
 `ApplicationHostService.LoadState` resolves it before constructing model consumers.

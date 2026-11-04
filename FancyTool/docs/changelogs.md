@@ -1,5 +1,12 @@
 # 变更记录
 
+## 2026-11-04（移除歌词提取功能 · 视频超分/插帧 CLI 实测）
+
+- **整体移除歌词提取功能**（用户决策：本地模型效果不达预期且不再需要；GUI 入口自 2026-10-01 起已关闭，CLI 却仍暴露该命令，两侧行为不一致）：删除 `LyricsExtractionView/ViewModel`、`FancyTool.Core/Services/Lyrics/`（10 文件）、`LyricsModels.cs`、CLI `lyrics extract/export`、`models install --lyrics/--lyrics-high`、`Resources/LyricsModels/`（Qwen3 清单）、`_tools/LyricsSmokeTest`、**`External/Lyricify.Lyrics.Helper`（约 100 文件，唯一使用方即歌词功能）** 与 `NOTICE-Lyrics.txt`；同步清理 GUI 服务注册/导航/磁贴、CLI 分发与 CommandCatalog 渲染（**19 组/58 条 → 18 组/56 条**）、i18n 双语约 70 键、Core/Ava csproj 与 slnx 的 Lyricify 引用及许可拷贝（SharpZipLib 随之消失）。决策与范围见 ADR 0022。
+- **视频超分 / 插帧 CLI 端到端实测通过**（补上 ADR 0021 的未验证项）：Intel Arc 140T，`--sr` ×2 四模型（ravu-r2 DirectML 6.2s、anime4k-cnn-s 2.7s、fsrcnnx-s 3.1s、ravu-r3 5.3s，均 160×120→320×240；anime4k fp16 亦通过）、RIFE lite/full ×2 → 20fps、lite ×4 → 40fps、组合 SR+插帧 320×240@20fps；rife425 首次下载遇瞬时网络失败，重试成功，错误传播正确。证据 `.qa/cli-e2e-2026-11-04/measurements.json`，详见 ADR 0021 补充（三）。
+- 烟测适配：`FfmpegSmokeTest --settings-only` 的嵌套迁移 fixture 由 `Qwen3Lyrics/asr` 改为中性的 `nested/asr`，歌词队列恢复校验块随功能删除；AGENTS.md 去掉 LyricsSmokeTest 命令与 `FANCYTOOL_LYRICS_*` 环境变量说明；README 双语 CLI 能力行改为 18 组/56 条。
+- 验证：Core/Cli/Ava 三工程 `dotnet build` 0 错误（slnx 仅剩既有 wapproj MSB4019）；BatchSmokeTest 21/21；`FfmpegSmokeTest --settings-only` 全矩阵通过；CLI 根帮助 / `models list` / `skill print` 无 lyrics 残留，`lyrics` 命令返回未知命令；源码 grep 仅剩 `.vs` 缓存（不入库）。本机已安装的各 agent `SKILL.md` 含旧版 lyrics 小节，`fancy-tool skill install --force` 刷新。既有遗留（非本次引入）：i18n 存在 `AppFatal.*`（zh）/`App.FatalError.*`（en）死键，无代码引用。
+
 ## 2026-11-03（MSIX 打包修复 · 二：VS IDE 生成路径）
 
 - 修复 **VS IDE 内生成 wapproj** 仍报 APPX0703（清单引用 `cli\fancy-tool.exe` 不在负载）：DesktopBridge 有两条负载收集通道——命令行打包（`_IsGeneratingAppxPackage=true`）消费 `DesktopBridgePublishItemsOutputGroup`（前次已注入 ✓）；**VS IDE 生成**（`BuildingInsideVisualStudio=true` → `_IsGeneratingAppxPackage=false`）改用 `PackageOutputGroups`（`BuiltProjectOutputGroup` 等构建输出组），CLI 的 Exec 发布产物不在其中。CLI 本身一直有构建（`PublishCliForMsix` 正常执行），缺的是这条通道的清单项。

@@ -64,7 +64,7 @@ public static class CommandCatalog
     public static IReadOnlyList<string> GroupOrder { get; } =
     [
         "aes", "des", "sm4", "rsa", "sm2", "hash", "base64", "file", "image", "video", "audio",
-        "serial", "tcp", "udp", "linktest", "models", "lyrics", "ffmpeg", "skill",
+        "serial", "tcp", "udp", "linktest", "models", "ffmpeg", "skill",
     ];
 
     private static IReadOnlyList<CliCommandSpec> Build() =>
@@ -336,49 +336,23 @@ public static class CommandCatalog
             ["fancy-tool linktest udp-client --host 192.168.1.10 --port 9101 --duration 10 --rate 10485760"]),
 
         // ── 模型 ─────────────────────────────────────────────────────────
-        new("models list", "列出图像/视频/歌词模型及安装状态", "List image, video, and lyrics models with install state",
+        new("models list", "列出图像/视频模型及安装状态", "List image and video models with install state",
             "models list [--json]",
             [new("--json", null, "以 JSON 输出", "Emit JSON")],
             ["fancy-tool models list"]),
         new("models install", "下载并校验模型", "Download and verify models",
-            "models install [--image <all|realesrgan-x4plus|...>] [--video-sr <all|anime4k-cnn-s|...>] [--interpolation <all|rife425-lite|rife425>] [--lyrics] [--dir <dir>]",
+            "models install [--image <all|realesrgan-x4plus|...>] [--video-sr <all|anime4k-cnn-s|...>] [--interpolation <all|rife425-lite|rife425>] [--dir <dir>]",
             [new("--image", "<name|all>", "图像超分模型", "Image super-resolution model"),
                 new("--video-sr", "<name|all>", "视频超分模型", "Video super-resolution model"),
                 new("--interpolation", "<name|all>", "视频插帧模型", "Video interpolation model"),
-                new("--lyrics", null, "歌词识别模型（普通精度）", "Lyrics recognition models (standard precision)"),
-                new("--lyrics-high", null, "歌词识别模型（高精度）", "Lyrics recognition models (high precision)"),
                 new("--dir", "<dir>", "模型根目录，默认应用数据目录", "Model root directory (default: app data)")],
-            ["fancy-tool models install --image all --lyrics"]),
+            ["fancy-tool models install --image all"]),
         new("models dir", "显示或切换模型目录", "Show or change the model directory",
             "models dir [--set <dir>] [--reset] [--json]",
             [new("--set", "<dir>", "切换模型目录（下次启动生效）", "Change the model directory (effective next launch)"),
                 new("--reset", null, "恢复默认目录", "Reset to the default directory"),
                 new("--json", null, "以 JSON 输出", "Emit JSON")],
             ["fancy-tool models dir", "fancy-tool models dir --set D:\\models"]),
-
-        // ── 歌词 ─────────────────────────────────────────────────────────
-        new("lyrics extract", "从音频提取歌词（GUI 歌词页同等行为）", "Extract lyrics from audio (same as the GUI lyrics page)",
-            "lyrics extract -i <audio> [-i <audio> ...] -o <out-dir> [--language <name>] [--performance <automatic|resource-saving|high-precision>] [--no-gpu] [--formats <lrc,srt,...>] [--chunk-seconds <n>] [--max-line-chars <n>] [--offset-ms <n>] [--model-dir <dir>] [--no-prefer-existing]",
-            [Input, Out,
-                new("--language", "<name>", "语言，默认 Auto", "Language (default: Auto)"),
-                new("--performance", "<mode>", "性能模式，默认 automatic", "Performance mode (default: automatic)"),
-                new("--no-gpu", null, "禁用 GPU 推理", "Disable GPU inference"),
-                new("--formats", "<list>", "输出格式，默认 lrc,srt", "Output formats (default: lrc,srt)"),
-                new("--chunk-seconds", "<n>", "分块秒数，默认 30", "Chunk length (default: 30)"),
-                new("--max-line-chars", "<n>", "单行最大字符数，默认 42", "Maximum characters per line (default: 42)"),
-                new("--offset-ms", "<n>", "整体时间偏移（毫秒）", "Global timing offset (ms)"),
-                new("--model-dir", "<dir>", "歌词模型目录", "Lyrics model directory"),
-                new("--no-prefer-existing", null, "忽略同名歌词文件，强制重新识别", "Ignore existing lyrics and re-recognize"),
-                new("--json", null, "以 JSON 输出结果", "Emit the result as JSON")],
-            ["fancy-tool lyrics extract -i song.mp3 -o .\\lyrics --formats lrc,srt"]),
-        new("lyrics export", "将歌词工程导出为其他格式", "Export a lyrics project to other formats",
-            "lyrics export -i <lyrics.json|.lrc|...> -o <base-path> --formats <lrc,srt,...> [--source <audio>] [--duration-ms <n>] [--offset-ms <n>]",
-            [Input, Out,
-                new("--formats", "<list>", "输出格式，默认 lrc,srt", "Output formats (default: lrc,srt)"),
-                new("--source", "<audio>", "源音频路径（导入非 JSON 时使用）", "Source audio path (for non-JSON input)"),
-                new("--duration-ms", "<n>", "源时长（毫秒）", "Source duration (ms)"),
-                new("--offset-ms", "<n>", "整体时间偏移（毫秒）", "Global timing offset (ms)")],
-            ["fancy-tool lyrics export -i song.json -o song --formats lrc,srt,vtt"]),
 
         // ── FFmpeg ───────────────────────────────────────────────────────
         new("ffmpeg info", "显示进程内 FFmpeg 版本与编码器", "Show the in-process FFmpeg version and encoders",
@@ -629,7 +603,6 @@ public static class CommandCatalog
         "udp" => zh ? "UDP 绑定/发送调试" : "UDP bind/send debugging",
         "linktest" => zh ? "TCP/UDP 带宽与丢包测试" : "TCP/UDP bandwidth and loss testing",
         "models" => zh ? "模型目录、下载与安装" : "Model directory, download, and installation",
-        "lyrics" => zh ? "歌词识别与导出" : "Lyrics extraction and export",
         "ffmpeg" => zh ? "内置 FFmpeg 信息" : "Bundled FFmpeg information",
         "skill" => zh ? "将 CLI 用法安装到本机技能/AGENTS.md" : "Install CLI usage into a local skill/AGENTS.md",
         _ => command.Path,
@@ -642,8 +615,8 @@ public static class CommandCatalog
         sb.AppendLine("---");
         sb.AppendLine("name: fancy-tool");
         sb.AppendLine("description: " + (zh
-            ? "使用 FancyTool 命令行完成加密解密、哈希、Base64、文件/图片/音视频转换、串口与网络调试、模型管理和歌词提取。"
-            : "Use the FancyTool command line for encryption, hashing, Base64, file/image/audio/video conversion, serial and network debugging, model management, and lyrics extraction."));
+            ? "使用 FancyTool 命令行完成加密解密、哈希、Base64、文件/图片/音视频转换、串口与网络调试和模型管理。"
+            : "Use the FancyTool command line for encryption, hashing, Base64, file/image/audio/video conversion, serial and network debugging, and model management."));
         sb.AppendLine("---");
         sb.AppendLine();
         sb.AppendLine(zh ? "# FancyTool CLI" : "# FancyTool CLI");

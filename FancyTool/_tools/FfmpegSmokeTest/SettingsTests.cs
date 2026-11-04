@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
@@ -12,7 +11,6 @@ using FancyToolAva;
 using FancyToolAva.Models;
 using FancyToolAva.Models.ViewStates;
 using FancyToolAva.Services;
-using FancyToolAva.Services.Lyrics;
 using FancyToolAva.ViewModels;
 using FancyToolAva.Views;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -28,7 +26,6 @@ internal static partial class Program
             string data = Path.GetFullPath(Path.Combine(workDir, "settings-data"));
             string custom = Path.GetFullPath(Path.Combine(workDir, "自定义模型 storage"));
             Environment.SetEnvironmentVariable("FANCYTOOL_DATA_DIRECTORY", data);
-            Environment.SetEnvironmentVariable("FANCYTOOL_LYRICS_MODELS", null);
             Directory.CreateDirectory(data);
             string preferenceFile = Path.Combine(data, "preferences.json");
             File.WriteAllText(preferenceFile, "{\"Preferences\":{\"Language\":\"zh-CN\",\"UseSuperResolutionDml\":false}}");
@@ -51,15 +48,15 @@ internal static partial class Program
             File.WriteAllText(Path.Combine(custom, "existing-model.marker"), "keep");
             string partial = oldModel + ".partial";
             File.WriteAllText(partial, "unfinished download");
-            Directory.CreateDirectory(Path.Combine(AppPaths.ModelsDirectory, "Qwen3Lyrics", "asr"));
-            File.WriteAllText(Path.Combine(AppPaths.ModelsDirectory, "Qwen3Lyrics", "asr", "model.marker"), "nested");
+            Directory.CreateDirectory(Path.Combine(AppPaths.ModelsDirectory, "nested", "asr"));
+            File.WriteAllText(Path.Combine(AppPaths.ModelsDirectory, "nested", "asr", "model.marker"), "nested");
             Complete(vm.PickModelsDirectoryCommand.ExecuteAsync(null));
             Check(app.Preferences.ModelStorageDirectory == custom && vm.ModelsDirectory == custom, "Folder selection did not update settings");
             Check(files.LoadState()!.Preferences!.ModelStorageDirectory == custom, "Folder selection was not persisted immediately");
             Check(AppPaths.ModelsDirectory == custom, "Active model directory did not change immediately");
             Check(!File.Exists(oldModel) && File.ReadAllText(Path.Combine(custom, "existing-model.marker")) == "keep", "Existing models were not migrated");
             Check(File.Exists(partial) && !File.Exists(Path.Combine(custom, "existing-model.marker.partial")), "An unfinished model download was migrated");
-            Check(File.ReadAllText(Path.Combine(custom, "Qwen3Lyrics", "asr", "model.marker")) == "nested", "Nested model files were not migrated");
+            Check(File.ReadAllText(Path.Combine(custom, "nested", "asr", "model.marker")) == "nested", "Nested model files were not migrated");
             vm.OpenModelsDirectoryCommand.Execute(null);
             Check(dialogs.Opened == custom, "Open folder used the wrong directory");
             dialogs.Folder = null;
@@ -107,20 +104,6 @@ internal static partial class Program
             Complete(vm.PickModelsDirectoryCommand.ExecuteAsync(null));
             host.LoadState(); // Simulate the next launch before constructing model consumers.
             Check(AppPaths.ModelsDirectory == custom, "Saved custom directory was not applied at startup");
-            Check(LyricsModelService.DefaultDirectory == Path.Combine(custom, "Qwen3Lyrics"), "Default lyrics models ignored model management");
-            string lyricsData = Path.GetFullPath(Path.Combine(workDir, "lyrics-queue"));
-            Environment.SetEnvironmentVariable("FANCYTOOL_LYRICS_DATA", lyricsData);
-            Directory.CreateDirectory(lyricsData);
-            string queuePath = Path.Combine(lyricsData, "queue.json");
-            var lyricsModels = ((App)Application.Current!).TryGetService<LyricsModelService>()!;
-            var extraction = ((App)Application.Current!).TryGetService<LyricsExtractionService>()!;
-            foreach (string stored in new[] { Path.Combine(AppPaths.DefaultModelsDirectory, "Qwen3Lyrics"), Path.Combine(workDir, "explicit-lyrics-models") })
-            {
-                File.WriteAllText(queuePath, JsonSerializer.Serialize(new LyricsQueueState { Options = new LyricsOptions { ModelDirectory = stored } }));
-                using var lyrics = new LyricsExtractionViewModel(extraction, lyricsModels, dialogs, NullLogger<LyricsExtractionViewModel>.Instance);
-                string expected = stored.Contains("explicit-lyrics-models", StringComparison.Ordinal) ? stored : Path.Combine(custom, "Qwen3Lyrics");
-                Check(lyrics.ModelsDirectory == expected, "Legacy default migration overwrote an explicit lyrics folder or ignored model management");
-            }
             using var http = new HttpClient();
             var downloader = new ModelDownloadService(http, NullLogger<ModelDownloadService>.Instance);
             var video = new VideoSuperResolutionService(downloader, NullLogger<VideoSuperResolutionService>.Instance);
