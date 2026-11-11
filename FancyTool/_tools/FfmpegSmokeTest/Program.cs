@@ -34,6 +34,28 @@ internal static partial class Program
         if (args.Contains("--image-pixels-only")) return RunImagePixelCases();
         if (args.Contains("--image-gpu")) return RunImageGpuBenchmark(workDir, args);
         if (args.Contains("--image-models-only")) return RunImageModelCases(workDir, args.Contains("--inspect"));
+        if (args.Contains("--model-resume")) return RunModelResumeCases(workDir);
+        if (args.Contains("--model-live"))
+        {
+            // --model-live <url> <fileName> <sha256> <dir>
+            int index = Array.IndexOf(args, "--model-live");
+            return RunModelLiveFetch(args[index + 1], args[index + 2], args[index + 3], args[index + 4]);
+        }
+        if (args.Contains("--http-range"))
+        {
+            // --http-range <url> <prefixBytes> [workDir]
+            int index = Array.IndexOf(args, "--http-range");
+            return RunHttpRangeProbeAsync(args[index + 1], long.Parse(args[index + 2]),
+                index + 3 < args.Length && !args[index + 3].StartsWith("--", StringComparison.Ordinal)
+                    ? args[index + 3] : workDir).GetAwaiter().GetResult();
+        }
+        if (args.Contains("--image-vosr"))
+        {
+            int index = Array.IndexOf(args, "--image-vosr");
+            string? models = index + 1 < args.Length && !args[index + 1].StartsWith("--", StringComparison.Ordinal)
+                ? args[index + 1] : null;
+            return RunVosrCase(workDir, models);
+        }
         if (args.Contains("--settings-only")) return RunSettingsCases(workDir, args.Contains("--inspect"));
         if (args.Contains("--onnx-candidate")) return RunOnnxCandidate(workDir, args);
         WriteTestAvi(sample, width: 160, height: 120, fps: 10, seconds: 2);

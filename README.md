@@ -17,7 +17,7 @@
     <img src="https://img.shields.io/badge/语言-C%23-purple" alt="C#">
     <img src="https://img.shields.io/badge/UI-Avalonia%2012-blue" alt="Avalonia">
     <img src="https://img.shields.io/badge/主题-FluentAvalonia-blue" alt="FluentAvalonia">
-    <img src="https://img.shields.io/badge/.NET-10.0-purple" alt=".NET 10">
+    <img src="https://img.shields.io/badge/.NET-11.0-purple" alt=".NET 11">
     <img src="https://img.shields.io/badge/平台-Windows%20%7C%20Linux-blue" alt="Platform">
     <img src="https://img.shields.io/badge/许可证-GPL--3.0-blue" alt="License">
   </div>
@@ -72,7 +72,7 @@ MSIX 版需要有效正式许可或尚未到期的 Store 试用许可；试用�
 - 🖼️ **图片转 Base64**：将图片转换为 Base64 编码字符串
 - 🖼️ **图片转换**：图片格式批量转换（jpg / png / bmp / webp / tiff / dds / jxl / heic / ico，基于 SkiaSharp）
 
-图片超分提供 RealESRGAN x4plus、x4plus anime、general x4v3 和 ClearReality V1 四款模型，支持 2× / 4×，默认使用 ClearReality。已移除采用非商业许可的模型；旧版本中选择这些模型的设置会回退到 ClearReality，其他模型选择和有效倍率保持不变。详见[模型移除决策](FancyTool/docs/adr/0015-remove-noncommercial-image-models.md)。
+图片超分提供 RealESRGAN x4plus、x4plus anime、general x4v3 和 ClearReality V1 四款轻量模型，以及可选的一步扩散生成式模型 VOSR-1.4B（CVPR 2026，首次选用时按需下载约 3.3 GB 的九张 FP16 分级图，漫游 512 窗口拼块并由本地重叠混合，约 2.5 s/块），均支持 2× / 4×，默认使用 ClearReality。VOSR 会生成源图中不存在的细节，适合文档、截图与细结构恢复，不适合取证类用途。已移除采用非商业许可的模型；旧版本中选择这些模型的设置会回退到 ClearReality，其他模型选择和有效倍率保持不变。详见[模型移除决策](FancyTool/docs/adr/0015-remove-noncommercial-image-models.md)与[VOSR 接入决策](FancyTool/docs/adr/0023-vosr-generative-image-sr.md)。
 
 透明图片的像素转换与透明度合成支持 SIMD 加速。保留模型的真实 GPU 复测、输出一致性和性能边界见[图片 / 视频验证报告](FancyTool/docs/gpu-inference-validation-2026-10-23.md)。
 
@@ -133,7 +133,7 @@ fancy-tool file encrypt -i D:\music\a.flac --key-file D:\keys\a.json --out-dir D
 | 文件 | 文件加解密 | 文件级加密 / 解密 | AES / SM4 等（可扩展） | BouncyCastle.Cryptography |
 | 图片 | 图片转 Base64 | 图片 → Base64 | 字节流编码 | .NET BCL |
 | 图片 | 图片转换 | 图片格式批量转换（jpg / png / bmp / webp / tiff / dds / jxl / heic / ico） | SKBitmap 解码 + 多格式编码 + ICO 多尺寸封装 | SkiaSharp |
-| 图片 | 图片超分 | AI 图片超分辨率（2× / 4×，GPU 加速） | RealESRGAN / ClearReality 等（ONNX 推理） | ONNX Runtime / Windows ML |
+| 图片 | 图片超分 | AI 图片超分辨率（2× / 4×，GPU 加速，含生成式 VOSR-1.4B） | RealESRGAN / ClearReality / VOSR 等（ONNX 推理） | ONNX Runtime / Windows ML |
 | 音视频 | 视频转码 | 批量视频转码、拼接（顺序调整 + 每段循环次数）与 GIF 导出，支持 HDR 输出、AI 超分与插帧 | FFmpeg 滤镜图 + 显存管线（NVDEC/NVENC）+ 超分/插帧模型 | FFmpeg.AutoGen / ONNX Runtime |
 | 音视频 | 音频转码 | 批量音频转换与 DSP 升频（最高 192 kHz） | FFmpeg 编码 + 托管 DSP 升采样 | FFmpeg.AutoGen |
 | 命令行 | `fancy-tool` | GUI 全部功能的 CLI（19 组 / 58 命令，逐条 `-help`），MSIX 执行别名与安装包 PATH 可直接调用，用法可写入本机技能 / `AGENTS.md` | 复用 `FancyTool.Core` 同一服务实现 | .NET BCL / FFmpeg.AutoGen / ONNX Runtime |
@@ -165,7 +165,7 @@ fancy-tool file encrypt -i D:\music\a.flac --key-file D:\keys\a.json --out-dir D
 
 ### 前置条件
 
-- [.NET 10 SDK](https://dotnet.microsoft.com/)（`global.json` 已固定 SDK 版本与 `rollForward` 策略）
+- [.NET 11 SDK](https://dotnet.microsoft.com/)（`global.json` 已固定 SDK `11.0.100` 与 `rollForward: latestFeature`）
 - Windows 10 19041 或更高版本
 - Linux x64（如 Ubuntu 22.04+，需安装 `.deb` 运行时依赖）
 - 推荐使用 Visual Studio 2026
@@ -189,7 +189,7 @@ pwsh -File .\FancyTool\publish-win.ps1 -Configuration Debug -Output .\out\debug
 pwsh -File .\FancyTool\publish-win.ps1 -SkipCli
 ```
 
-产物默认位于 `bin\Release\net10.0-windows10.0.19041.0\win-x64\publish\win-x64\`，直接运行 `FancyToolAva.exe` 即可。CLI 走同一配置发布，指定 `-Output` 时落在其下的 `cli\fancy-tool.exe`，MSIX 目标则固定发布到 `$(PublishDir)cli`。
+产物默认位于 `bin\Release\net11.0-windows10.0.19041.0\win-x64\publish\win-x64\`，直接运行 `FancyToolAva.exe` 即可。CLI 走同一配置发布，指定 `-Output` 时落在其下的 `cli\fancy-tool.exe`，MSIX 目标则固定发布到 `$(PublishDir)cli`。
 
 ### 调试运行
 
@@ -255,7 +255,7 @@ GPLv3 对应源码：FFmpeg 源码（提交 [5cb9fcd211](https://github.com/FFmp
 - 日志子目录：`logs\`，按天滚动，单文件 ≤ 50 MB，保留 30 天
 - 工具页面状态：通过 `IViewStateService` 在应用退出时序列化，启动时还原
 - 应用偏好：由 `AppPreferences` 管理
-- **模型目录**：设置页「模型管理」可选择统一模型根目录（重启生效，可打开目录或恢复默认）。图像超分模型在首次启动时**自动从 HuggingFace 后台下载**（国内走 `hf-mirror.com`，失败回退官方源），下载一次后离线可用；RIFE 插帧模型（`Interpolation` 子目录）按固定版本 + SHA-256 校验按需下载；视频超分模型（`VideoSr` 子目录）随应用分发，可离线校验
+- **模型目录**：设置页「模型管理」可选择统一模型根目录（重启生效，可打开目录或恢复默认）。图像超分模型在首次启动时**自动从 HuggingFace 后台下载**（国内走 `hf-mirror.com`，失败回退官方源），下载一次后离线可用（VOSR-1.4B 为可选模型，按需下载 9 张分级图）；RIFE 插帧模型（`Interpolation` 子目录）按固定版本 + SHA-256 校验按需下载；视频超分模型（`VideoSr` 子目录）随应用分发，可离线校验
   - 海外/高级用户可通过设置系统环境变量 `HF_ENDPOINT` 自定义镜像站
   - 旧版本若把 `preferences.json` 放在 EXE 旁，首次启动会自动迁移到 `%LocalAppData%\FancyTool\`
 

@@ -949,6 +949,7 @@ internal static class Program
         public event Action<VideoSrDevice>? DeviceChanged { add { } remove { } }
         public IReadOnlyList<string> AvailableModels => [];
         public bool IsModelAvailable(SuperResolutionModel model) => false;
+        public Task EnsureModelAsync(SuperResolutionModel model, CancellationToken ct = default) => Task.CompletedTask;
         public Task<SkiaSharp.SKBitmap> UpscaleAsync(SkiaSharp.SKBitmap source, SuperResolutionModel model,
             int targetScale, IProgress<double>? progress = null, CancellationToken ct = default) => throw new InvalidOperationException("unused");
         public void ReleaseSessions() { }

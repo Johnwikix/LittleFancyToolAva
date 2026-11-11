@@ -18,7 +18,7 @@
     <img src="https://img.shields.io/badge/Language-C%23-purple" alt="C#">
     <img src="https://img.shields.io/badge/UI-Avalonia%2012-blue" alt="Avalonia">
     <img src="https://img.shields.io/badge/Theme-FluentAvalonia-blue" alt="FluentAvalonia">
-    <img src="https://img.shields.io/badge/.NET-10.0-purple" alt=".NET 10">
+    <img src="https://img.shields.io/badge/.NET-11.0-purple" alt=".NET 11">
     <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-blue" alt="Platform">
     <img src="https://img.shields.io/badge/License-GPL--3.0-blue" alt="License">
   </div>
@@ -72,7 +72,7 @@ The MSIX edition requires a valid full license or an unexpired Store trial. All 
 - 🖼️ **Image → Base64**: convert an image into a Base64 string
 - 🖼️ **Image Convert**: batch image format conversion (jpg / png / bmp / webp / tiff / dds / jxl / heic / ico, powered by SkiaSharp)
 
-Image enhancement offers four models: RealESRGAN x4plus, x4plus anime, general x4v3 and ClearReality V1, with 2× / 4× output and ClearReality selected by default. Models with noncommercial licenses have been removed. Legacy selections of removed models fall back to ClearReality; other model selections and valid scales are preserved. See the [model removal decision](FancyTool/docs/adr/0015-remove-noncommercial-image-models.md).
+Image enhancement offers four lightweight models — RealESRGAN x4plus, x4plus anime, general x4v3 and ClearReality V1 — plus the optional one-step diffusion model VOSR-1.4B (CVPR 2026), all with 2× / 4× output and ClearReality selected by default. VOSR downloads nine FP16 split graphs (~3.3 GB) on first use, restores 512 px windows at the target resolution and blends them locally at roughly 2.5 s per tile. It synthesizes detail that is not in the source, so it suits documents, screenshots and fine structures, not forensic use. Models with noncommercial licenses have been removed. Legacy selections of removed models fall back to ClearReality; other model selections and valid scales are preserved. See the [model removal decision](FancyTool/docs/adr/0015-remove-noncommercial-image-models.md) and the [VOSR decision](FancyTool/docs/adr/0023-vosr-generative-image-sr.md).
 
 Transparent image conversion and alpha compositing use SIMD acceleration. See the [image / video GPU validation report](FancyTool/docs/gpu-inference-validation-2026-10-23.md) for hardware tests, output comparisons, and performance limits.
 
@@ -133,7 +133,7 @@ After installing the MSIX or the Inno Setup package, `fancy-tool` resolves direc
 | File | File Encryption | Batch file encrypt / decrypt | AES / SM4 (extensible) | BouncyCastle.Cryptography |
 | Image | Image → Base64 | Image → Base64 | Stream encoding | .NET BCL |
 | Image | Image Convert | Batch image format conversion (jpg / png / bmp / webp / tiff / dds / jxl / heic / ico) | SKBitmap decode + multi-format encode + multi-size ICO packing | SkiaSharp |
-| Image | Image Super-Resolution | AI image upscaling (2× / 4×, GPU accelerated) | RealESRGAN / ClearReality and more (ONNX inference) | ONNX Runtime / Windows ML |
+| Image | Image Super-Resolution | AI image upscaling (2× / 4×, GPU accelerated, including generative VOSR-1.4B) | RealESRGAN / ClearReality / VOSR (ONNX inference) | ONNX Runtime / Windows ML |
 | Media | Video Transcode | Batch video transcoding, concatenation (reorder + per-clip loop counts) & GIF export with HDR output, AI super-resolution and frame interpolation | FFmpeg filter graph + GPU-resident pipeline (NVDEC/NVENC) + SR/interpolation models | FFmpeg.AutoGen / ONNX Runtime |
 | Media | Audio Transcode | Batch audio conversion with DSP upsampling (up to 192 kHz) | FFmpeg encoding + managed DSP upsampler | FFmpeg.AutoGen |
 | Command line | `fancy-tool` | CLI for every GUI capability (19 groups / 58 commands, per-command `-help`), callable after install via the MSIX alias or installer PATH, usage writable into a local skill / `AGENTS.md` | Reuses the `FancyTool.Core` services | .NET BCL / FFmpeg.AutoGen / ONNX Runtime |
@@ -166,7 +166,7 @@ After installing the MSIX or the Inno Setup package, `fancy-tool` resolves direc
 
 ### Prerequisites
 
-- [.NET 10 SDK](https://dotnet.microsoft.com/) (SDK version and `rollForward` policy are pinned in `global.json`)
+- [.NET 11 SDK](https://dotnet.microsoft.com/) (SDK `11.0.100` and `rollForward: latestFeature` are pinned in `global.json`)
 - Windows 10 19041 or later
 - Linux x64 (e.g. Ubuntu 22.04+; `.deb` runtime dependencies required)
 - Visual Studio 2026 recommended
@@ -190,7 +190,7 @@ pwsh -File .\FancyTool\publish-win.ps1 -Configuration Debug -Output .\out\debug
 pwsh -File .\FancyTool\publish-win.ps1 -SkipCli
 ```
 
-Output is placed at `bin\Release\net10.0-windows10.0.19041.0\win-x64\publish\win-x64\`. Launch `FancyToolAva.exe` to start the app. The CLI publish follows the same configuration; with `-Output` it lands next to the GUI as `cli\fancy-tool.exe`, and the MSIX target always publishes it to `$(PublishDir)cli`.
+Output is placed at `bin\Release\net11.0-windows10.0.19041.0\win-x64\publish\win-x64\`. Launch `FancyToolAva.exe` to start the app. The CLI publish follows the same configuration; with `-Output` it lands next to the GUI as `cli\fancy-tool.exe`, and the MSIX target always publishes it to `$(PublishDir)cli`.
 
 ### Debug Run
 
@@ -258,7 +258,7 @@ Application data is stored at:
 - **Log subdirectory**: `logs\`, daily rolling, ≤ 50 MB per file, 30 days retained
 - **Per-tool page state**: serialized by `IViewStateService` on exit and restored on launch
 - **App preferences** : managed by `AppPreferences`
-- **Model directory**: Settings → Model Management chooses the shared model root (applies after restart, with open-folder and restore-default actions). Image super-resolution models **download automatically from HuggingFace in the background on first launch** (via `hf-mirror.com` first, falling back to the official source) and remain for offline use. RIFE interpolation models (`Interpolation` subfolder) download on demand with pinned revisions and SHA-256 verification. Video super-resolution models (`VideoSr` subfolder) ship with the app and can be verified offline.
+- **Model directory**: Settings → Model Management chooses the shared model root (applies after restart, with open-folder and restore-default actions). Image super-resolution models **download automatically from HuggingFace in the background on first launch** (via `hf-mirror.com` first, falling back to the official source) and remain for offline use (VOSR-1.4B is optional and fetches nine split graphs on demand). RIFE interpolation models (`Interpolation` subfolder) download on demand with pinned revisions and SHA-256 verification. Video super-resolution models (`VideoSr` subfolder) ship with the app and can be verified offline.
   - Power users can override the mirror by setting the `HF_ENDPOINT` environment variable.
   - If you used an older build that stored `preferences.json` next to the executable, it is migrated to `%LocalAppData%\FancyTool\` on first launch.
 

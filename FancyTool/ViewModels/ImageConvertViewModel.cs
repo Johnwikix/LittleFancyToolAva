@@ -123,6 +123,7 @@ public partial class ImageConvertViewModel : ViewModelBase, IViewState, IFileIte
     }
 
     private bool _suppressSuperResolutionToggle;
+    private bool _restoringState;
 
     public int SelectedSrModelIndex
     {
@@ -132,6 +133,7 @@ public partial class ImageConvertViewModel : ViewModelBase, IViewState, IFileIte
             if (SetProperty(ref field, value))
             {
                 OnPropertyChanged(nameof(IsSuperResolutionReady));
+                EnsureSelectedModelAvailable();
             }
         }
     } = 3;
@@ -258,6 +260,7 @@ public partial class ImageConvertViewModel : ViewModelBase, IViewState, IFileIte
         AvailableSrModelLabels.Add(LocalizationRegistry.Get("ImageConvert.SrModel_RealEsrganX4Anime"));
         AvailableSrModelLabels.Add(LocalizationRegistry.Get("ImageConvert.SrModel_RealEsrganGeneralX4v3"));
         AvailableSrModelLabels.Add(LocalizationRegistry.Get("ImageConvert.SrModel_SpanClearRealityV1"));
+        AvailableSrModelLabels.Add(LocalizationRegistry.Get("ImageConvert.SrModel_Vosr14B"));
         _superResolutionService.DownloadProgressChanged += OnDownloadProgressChanged;
         _superResolutionService.IsDownloadingChanged += OnIsDownloadingChanged;
         _superResolutionService.DeviceChanged += device => Dispatcher.UIThread.Post(() =>
@@ -294,6 +297,42 @@ public partial class ImageConvertViewModel : ViewModelBase, IViewState, IFileIte
         OnPropertyChanged(nameof(ShowModelMissingHint));
     }
 
+    /// <summary>
+    /// Starts the on-demand download for the selected model. ESRGAN-family graphs come from the
+    /// startup warmup; the VOSR chain is 3.3 GB and is only fetched once the user selects it.
+    /// </summary>
+    private void EnsureSelectedModelAvailable()
+    {
+        if (SelectedSrModelIndex < 0 || SelectedSrModelIndex >= AvailableSuperResolutionModels.Count) return;
+        var model = AvailableSuperResolutionModels[SelectedSrModelIndex];
+        if (_superResolutionService.IsModelAvailable(model)) return;
+        // 恢复页面状态（含每次进入图像页）不自动下载；只有用户主动改选模型才触发。
+        if (_restoringState) return;
+        // 重复选择时允许重复调用：服务侧单飞，下载侧按文件加锁并按断点续传。
+        _ = EnsureModelCoreAsync(model);
+    }
+
+    private async Task EnsureModelCoreAsync(SuperResolutionModel model)
+    {
+        try
+        {
+            await _superResolutionService.EnsureModelAsync(model);
+        }
+        catch (OperationCanceledException)
+        {
+            // Navigation or shutdown; nothing to report.
+        }
+        catch (Exception)
+        {
+            // Failure detail is already surfaced through LastDownloadError / ModelDownloadStatusText.
+        }
+        finally
+        {
+            OnPropertyChanged(nameof(IsSuperResolutionReady));
+            OnPropertyChanged(nameof(ShowModelMissingHint));
+        }
+    }
+
     object IViewState.CaptureState() => new ImageConvertViewState
     {
         FormatIndex = FormatIndex,
@@ -314,22 +353,30 @@ public partial class ImageConvertViewModel : ViewModelBase, IViewState, IFileIte
     {
         if (state is ImageConvertViewState s)
         {
-            FormatIndex = s.FormatIndex;
-            OutputFolder = s.OutputFolder;
-            IsDownscaleEnabled = s.IsDownscaleEnabled;
-            DownscalePercent = s.DownscalePercent is > 10 and <= 100 ? s.DownscalePercent : 100;
-            SelectedFilterIndex = s.SelectedFilterIndex;
-            SelectedSizeIndex = s.SelectedSizeIndex;
-            int modelIndex = AvailableSuperResolutionModels.IndexOf((SuperResolutionModel)s.SelectedSrModelIndex);
-            SelectedSrModelIndex = modelIndex >= 0
-                ? modelIndex
-                : AvailableSuperResolutionModels.IndexOf(SuperResolutionModel.SpanClearRealityV1);
-            SelectedSrScaleIndex = s.SelectedSrScaleIndex is 0 or 1 ? s.SelectedSrScaleIndex : 0;
-            // Always restore the SR checkbox. If the model isn't ready yet (still
-            // downloading or download failed), IsSuperResolutionReady / the
-            // download-progress UI / ShowModelMissingHint already convey that.
-            IsSuperResolutionEnabled = s.IsSuperResolutionEnabled;
+            // 恢复上次选择不应触发下载：否则每次进入页面都会重跑一次 VOSR 拉取。
+            _restoringState = true;
+            try { RestoreStateCore(s); }
+            finally { _restoringState = false; }
         }
+    }
+
+    private void RestoreStateCore(ImageConvertViewState s)
+    {
+        FormatIndex = s.FormatIndex;
+        OutputFolder = s.OutputFolder;
+        IsDownscaleEnabled = s.IsDownscaleEnabled;
+        DownscalePercent = s.DownscalePercent is > 10 and <= 100 ? s.DownscalePercent : 100;
+        SelectedFilterIndex = s.SelectedFilterIndex;
+        SelectedSizeIndex = s.SelectedSizeIndex;
+        int modelIndex = AvailableSuperResolutionModels.IndexOf((SuperResolutionModel)s.SelectedSrModelIndex);
+        SelectedSrModelIndex = modelIndex >= 0
+            ? modelIndex
+            : AvailableSuperResolutionModels.IndexOf(SuperResolutionModel.SpanClearRealityV1);
+        SelectedSrScaleIndex = s.SelectedSrScaleIndex is 0 or 1 ? s.SelectedSrScaleIndex : 0;
+        // Always restore the SR checkbox. If the model isn't ready yet (still
+        // downloading or download failed), IsSuperResolutionReady / the
+        // download-progress UI / ShowModelMissingHint already convey that.
+        IsSuperResolutionEnabled = s.IsSuperResolutionEnabled;
     }
 
     [RelayCommand(CanExecute = nameof(CanModify))]

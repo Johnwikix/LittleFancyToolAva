@@ -38,7 +38,7 @@
 
 ## 平台与运行时差异
 
-- 主项目 TFM 由 `WindowsInference.props` 控制：Windows 使用 `net10.0-windows10.0.19041.0`（WinRT / Windows ML 投影），Linux 保留 `net10.0`。新增 Windows 专属代码必须置于相应条件编译或 `OperatingSystem.IsWindows()` 守卫内，保证 Linux 构建仍是干净的平台无关代码。
+- 主项目 TFM 由 `WindowsInference.props` 控制：Windows 使用 `net11.0-windows10.0.19041.0`（WinRT / Windows ML 投影），Linux 保留 `net11.0`。新增 Windows 专属代码必须置于相应条件编译或 `OperatingSystem.IsWindows()` 守卫内，保证 Linux 构建仍是干净的平台无关代码。
 - 发布形态是**自包含 NativeAOT 发布**：`csproj` 默认 `PublishAot=true`，FFmpeg shared 库以静态 P/Invoke 绑定随应用分发（加载引导见 `Services/FFmpegNative.cs`），兼容 AOT；MSIX 打包路径例外，`FancyToolMsixBuild=true` 时强制 `PublishAot=false` 走托管发布（入口工程需要普通 apphost）。
 - 不要重复引入 ONNX Runtime 或替换 Windows ML（`Microsoft.Windows.AI.MachineLearning`），冲突的 `onnxruntime.dll` 会静默移除硬件执行提供程序；GPU/后端策略（如 `session.disable_cpu_ep_fallback=1`）沿用 `Services/` 中已验证的组合，不私自放宽。
 - FFmpeg 为进程内 GPL shared 库（随应用分发，来源与校验见 `Libraries/FFmpeg/BUILD_INFO.md`）。两个平台目录不入库（单文件超过 GitHub 的 100 MB 限制），首次构建或发布前运行 `pwsh -File FancyTool/Libraries/FFmpeg/fetch-ffmpeg.ps1`（缺库时 csproj 以 `FT1001` 中断构建）。改动 FFmpeg 相关代码或库后，必须重新跑对应烟测并在文档中保留证据。

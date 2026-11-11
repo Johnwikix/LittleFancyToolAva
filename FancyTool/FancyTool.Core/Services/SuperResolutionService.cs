@@ -48,10 +48,13 @@ public sealed class SuperResolutionService : ISuperResolutionService
     private const int TilePad = 32;
 
     private readonly ISuperResolutionPreferences _preferences;
+    private readonly VosrImagePipeline _vosr;
     private Task? _warmupTask;
     private CancellationTokenSource? _warmupCts;
     private string? _lastDownloadError;
     private readonly Dictionary<SuperResolutionModel, double> _perModelProgress = new();
+    private readonly object _ensureGate = new();
+    private Task? _ensureTask;
     private string? _activeFileName;
 
     public event Action<ModelDownloadProgress>? DownloadProgressChanged;
@@ -59,6 +62,8 @@ public sealed class SuperResolutionService : ISuperResolutionService
 
     public Task WarmupTask => _warmupTask ?? Task.CompletedTask;
 
+    // Startup warmup and on-demand VOSR download can overlap; the UI flag follows the count.
+    private int _activeDownloads;
     private bool _isDownloading;
     public bool IsDownloading
     {
@@ -71,6 +76,16 @@ public sealed class SuperResolutionService : ISuperResolutionService
         }
     }
 
+    private void BeginDownload()
+    {
+        if (Interlocked.Increment(ref _activeDownloads) == 1) IsDownloading = true;
+    }
+
+    private void EndDownload()
+    {
+        if (Interlocked.Decrement(ref _activeDownloads) == 0) IsDownloading = false;
+    }
+
     public string? LastDownloadError => _lastDownloadError;
 
     public SuperResolutionService(
@@ -81,6 +96,7 @@ public sealed class SuperResolutionService : ISuperResolutionService
         _logger = logger;
         _preferences = preferences;
         _downloader = downloader;
+        _vosr = new VosrImagePipeline(logger);
         _uiContext = SynchronizationContext.Current ?? new SynchronizationContext();
         _warmupTask = StartWarmupAsync();
     }
@@ -90,7 +106,7 @@ public sealed class SuperResolutionService : ISuperResolutionService
         // Defer to a background thread so the UI thread isn't blocked on the
         // first read of each file (33 MB ONNX IO + SHA256 is non-trivial).
         await Task.Yield();
-        IsDownloading = true;
+        BeginDownload();
         OnDownloadProgress(new ModelDownloadProgress(
             string.Empty, ModelDownloadStage.Connecting, 0, null, "正在准备…"));
         try
@@ -114,7 +130,7 @@ public sealed class SuperResolutionService : ISuperResolutionService
         }
         finally
         {
-            IsDownloading = false;
+            EndDownload();
         }
     }
 
@@ -129,14 +145,57 @@ public sealed class SuperResolutionService : ISuperResolutionService
         "RealESRGAN_x4plus",
         "RealESRGAN_x4plus_anime",
         "realesr-general-x4v3_fp16",
-        "4x-ClearRealityV1_fp16"
+        "4x-ClearRealityV1_fp16",
+        "VOSR_1.4B"
     };
 
     public bool IsModelAvailable(SuperResolutionModel model)
     {
+        if (model == SuperResolutionModel.Vosr1_4B) return VosrImagePipeline.IsAvailable(out _);
         string fileName = GetFileName(model);
         string path = Path.Combine(_modelsDirectory, fileName);
         return File.Exists(path);
+    }
+
+    /// <inheritdoc />
+    public Task EnsureModelAsync(SuperResolutionModel model, CancellationToken ct = default)
+    {
+        ThrowIfDisposed();
+        // ESRGAN-family graphs are fetched by the startup warmup; only the VOSR chain is on demand.
+        if (model != SuperResolutionModel.Vosr1_4B || IsModelAvailable(model)) return Task.CompletedTask;
+
+        lock (_ensureGate)
+        {
+            // 单飞：页面反复进入或重复选择时共用同一个下载任务，不并发重复拉取。
+            if (_ensureTask is { IsCompleted: false }) return _ensureTask;
+            _ensureTask = EnsureModelCoreAsync(model, ct);
+            return _ensureTask;
+        }
+    }
+
+    private async Task EnsureModelCoreAsync(SuperResolutionModel model, CancellationToken ct)
+    {
+        BeginDownload();
+        try
+        {
+            var progress = new Progress<ModelDownloadProgress>(OnDownloadProgress);
+            await _downloader
+                .UseModelsAsync(ModelManifest.Vosr, () => AppPaths.ModelsDirectory, _ => true, progress, ct)
+                .ConfigureAwait(false);
+            _lastDownloadError = null;
+            _logger.LogInformation("VOSR chain is ready in {Dir}", _modelsDirectory);
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex)
+        {
+            _lastDownloadError = ex.Message;
+            _logger.LogError(ex, "VOSR model download failed");
+            throw;
+        }
+        finally
+        {
+            EndDownload();
+        }
     }
 
     public async Task<SKBitmap> UpscaleAsync(
@@ -147,6 +206,9 @@ public sealed class SuperResolutionService : ISuperResolutionService
         CancellationToken ct = default)
     {
         ThrowIfDisposed();
+
+        if (model == SuperResolutionModel.Vosr1_4B)
+            return await UpscaleVosr(source, targetScale, progress, ct);
 
         if (targetScale != 2 && targetScale != 4)
             throw new ArgumentOutOfRangeException(nameof(targetScale), "Target scale must be 2x or 4x.");
@@ -316,6 +378,36 @@ public sealed class SuperResolutionService : ISuperResolutionService
     }
 
     private static int CeilDiv(int a, int b) => (a + b - 1) / b;
+
+    /// <summary>
+    /// Runs the VOSR chain. The network is resolution preserving, so the requested scale is a
+    /// pre-scale factor for the source rather than a network attribute.
+    /// </summary>
+    private Task<SKBitmap> UpscaleVosr(SKBitmap source, int targetScale, IProgress<double>? progress, CancellationToken ct)
+    {
+        if (targetScale != 2 && targetScale != 4)
+            throw new ArgumentOutOfRangeException(nameof(targetScale), "Target scale must be 2x or 4x.");
+
+        if (!VosrImagePipeline.IsAvailable(out string? missing))
+        {
+            string detail = _isDownloading
+                ? "正在下载 VOSR 模型，请稍候。"
+                : !string.IsNullOrEmpty(_lastDownloadError)
+                    ? $"VOSR 模型下载失败：{_lastDownloadError}。可在图像页重新选择该模型重试。"
+                    : $"VOSR 模型文件 '{missing}' 不存在，选择该模型后会自动下载（约 3.3 GB）。";
+            throw new FileNotFoundException(detail, missing);
+        }
+
+        long outW = (long)source.Width * targetScale;
+        long outH = (long)source.Height * targetScale;
+        if (outW > MaxOutputDimension || outH > MaxOutputDimension)
+        {
+            throw new SuperResolutionOutputTooLargeException(
+                (int)Math.Min(outW, int.MaxValue), (int)Math.Min(outH, int.MaxValue), MaxOutputDimension);
+        }
+
+        return Task.FromResult(_vosr.Restore(source, targetScale, progress, ReportDevice, ct));
+    }
 
     private SKBitmap RunModelTile(SuperResolutionModel model, SKImage tile, CancellationToken ct)
     {
@@ -766,6 +858,8 @@ public sealed class SuperResolutionService : ISuperResolutionService
             _npuSessions.Clear();
             _npuDevices.Clear();
             _npuFailures.Clear();
+            // The VOSR chain holds ~3.3 GB of weights; drop it with the other sessions.
+            _vosr.ReleaseSessions();
             _logger.LogInformation("Super-resolution sessions released.");
         }
     }
@@ -779,5 +873,6 @@ public sealed class SuperResolutionService : ISuperResolutionService
             ReleaseSessionsCore();
             _disposed = true;
         }
+        _vosr.Dispose();
     }
 }

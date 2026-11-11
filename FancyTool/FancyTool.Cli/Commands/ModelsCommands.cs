@@ -18,6 +18,14 @@ internal static class ModelsCommands
     {
         var image = Enum.GetValues<SuperResolutionModel>().Select(model =>
         {
+            // VOSR 是九图链路，没有单一下载条目；以整链是否齐备作为安装状态。
+            if (model == SuperResolutionModel.Vosr1_4B)
+                return new
+                {
+                    name = ToImageName(model), model = model.ToString(), file = "vosr_*.onnx (9 graphs)",
+                    path = AppPaths.ModelsDirectory,
+                    installed = ModelManifest.Vosr.All(e => File.Exists(Path.Combine(AppPaths.ModelsDirectory, e.FileName)))
+                };
             ModelManifestEntry entry = ModelManifest.GetImageModel(model);
             string path = Path.Combine(AppPaths.ModelsDirectory, entry.FileName);
             return new { name = ToImageName(model), model = model.ToString(), file = entry.FileName, path, installed = File.Exists(path) };
@@ -83,6 +91,12 @@ internal static class ModelsCommands
             var downloader = ctx.Get<ModelDownloadService>();
             foreach (SuperResolutionModel model in models.Distinct())
             {
+                if (model == SuperResolutionModel.Vosr1_4B)
+                {
+                    await downloader.EnsureModelsAsync(ModelManifest.Vosr, AppPaths.ModelsDirectory, progress, ctx.CancellationToken).ConfigureAwait(false);
+                    installed.AddRange(ModelManifest.Vosr.Select(e => e.FileName));
+                    continue;
+                }
                 ModelManifestEntry entry = ModelManifest.GetImageModel(model);
                 await downloader.EnsureModelsAsync([entry], AppPaths.ModelsDirectory, progress, ctx.CancellationToken).ConfigureAwait(false);
                 installed.Add(entry.FileName);
@@ -177,6 +191,7 @@ internal static class ModelsCommands
         "realesrgan-x4plus-anime" => SuperResolutionModel.RealEsrganX4PlusAnime,
         "realesr-general-x4v3" or "realesrgan-general-x4v3" => SuperResolutionModel.RealEsrganGeneralX4V3,
         "clearreality" or "span-clearreality" or "4x-clearrealityv1" => SuperResolutionModel.SpanClearRealityV1,
+        "vosr" or "vosr-1.4b" or "vosr14b" => SuperResolutionModel.Vosr1_4B,
         _ => throw new CliUsageException($"Unknown image model: {value}"),
     };
 
@@ -197,6 +212,7 @@ internal static class ModelsCommands
         SuperResolutionModel.RealEsrganX4PlusAnime => "realesrgan-x4plus-anime",
         SuperResolutionModel.RealEsrganGeneralX4V3 => "realesr-general-x4v3",
         SuperResolutionModel.SpanClearRealityV1 => "clearreality",
+        SuperResolutionModel.Vosr1_4B => "vosr-1.4b",
         _ => model.ToString(),
     };
 

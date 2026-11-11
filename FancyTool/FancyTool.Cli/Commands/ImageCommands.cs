@@ -156,6 +156,7 @@ internal static class ImageCommands
             "realesrgan-x4plus-anime" => SuperResolutionModel.RealEsrganX4PlusAnime,
             "realesr-general-x4v3" or "realesrgan-general-x4v3" => SuperResolutionModel.RealEsrganGeneralX4V3,
             "clearreality" or "span-clearreality" or "4x-clearrealityv1" => SuperResolutionModel.SpanClearRealityV1,
+            "vosr" or "vosr-1.4b" or "vosr14b" => SuperResolutionModel.Vosr1_4B,
             _ => throw new CliUsageException($"Unknown --sr-model: {value}"),
         };
     }

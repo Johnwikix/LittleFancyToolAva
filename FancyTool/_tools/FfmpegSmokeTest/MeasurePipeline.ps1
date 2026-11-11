@@ -123,7 +123,7 @@ if (-not $SkipBuild) {
     & dotnet @buildArgs *> (Join-Path $output 'build.log')
     if ($LASTEXITCODE -ne 0) { Get-Content (Join-Path $output 'build.log') -Tail 20; exit $LASTEXITCODE }
 }
-$binary = Join-Path $binaryRoot 'Release/net10.0-windows10.0.19041.0/win-x64/FfmpegSmokeTest.exe'
+$binary = Join-Path $binaryRoot 'Release/net11.0-windows10.0.19041.0/win-x64/FfmpegSmokeTest.exe'
 if ($BinaryPath) { $binary = [IO.Path]::GetFullPath($BinaryPath) }
 $previousData = $env:FANCYTOOL_DATA_DIRECTORY
 $env:FANCYTOOL_DATA_DIRECTORY = $data

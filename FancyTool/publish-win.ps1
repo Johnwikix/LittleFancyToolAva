@@ -13,7 +13,7 @@ $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $publishArgs = @(
     "publish", "$root\FancyToolAva.csproj",
     "-c", $Configuration,
-    "-f", "net10.0-windows10.0.19041.0",
+    "-f", "net11.0-windows10.0.19041.0",
     "-r", "win-x64",
     "-p:PublishSelfContained=true"
 )
@@ -27,7 +27,7 @@ if (-not $SkipCli) {
     $cliArgs = @(
         "publish", "$root\FancyTool.Cli\FancyTool.Cli.csproj",
         "-c", $Configuration,
-        "-f", "net10.0-windows10.0.19041.0",
+        "-f", "net11.0-windows10.0.19041.0",
         "-r", "win-x64",
         "-p:PublishSelfContained=true",
         "-p:PublishAot=false",

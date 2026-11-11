@@ -1,5 +1,37 @@
 # 变更记录
 
+## 2026-11-11（运行时升级到 .NET 11）
+
+- **背景**：本机 .NET 10 SDK 的 `dotnet.dll` 缺失（用户更新 VS 后只剩 `11.0.100`），`global.json` 固定的 `10.0.100`/`10.0.300` 在 `rollForward: latestFeature` 下不会跨大版本，仓库已无法构建；按用户要求整体升级到 .NET 11。
+- **变更**：TFM 全部改为 `net11.0` / `net11.0-windows10.0.19041.0`（`WindowsInference.props`）；两处 `global.json` 固定 `11.0.100` + `latestFeature`；Satori SDK 升到 `11.0.0-satori.42242472725.2`（匹配 `SatoriPackageVersion 11.0.0-satori.42242472725.1`）；`Microsoft.Extensions.DependencyInjection/Http/Logging`、`System.IO.Ports`、`System.Numerics.Tensors` 升到 `11.0.0`；移除 Core 对 `Microsoft.Extensions.Logging.Abstractions` 的显式引用（.NET 11 起在共享框架内，触发 NU1510）。
+- **顺手修掉的构建缺陷**：Core 的 TFM 由 `$(RuntimeIdentifier)` 决定，而 SDK 在项目引用协商时不传 RID，交叉发布 `linux-x64` 时 Core 被评估成 Windows TFM 而报 TFM 不兼容（`.qa/rid-probe` 最小复现）。GUI 与 CLI 的 `ProjectReference` 现在显式 `SetTargetFramework="TargetFramework=$(TargetFramework)"`，Windows / Linux / MSIX 三条路径都不再依赖 RID 传播。
+- **验证**：Core、GUI、CLI 与 `_tools/` 七个烟测工程 0 错误 0 警告；`publish-win.ps1` 自包含 AOT 发布成功（`FancyToolAva.exe` 98.9 MB），发布版 GUI 与 `cli/fancy-tool.exe` 均可运行；VOSR 480×320→1920×1280 用时 42.1 s（GPU · Windows ML / OpenVINO）；`--image-models-only`、`--model-resume`（13/13）、`--image-vosr`（4/4）全部通过；`dotnet publish -r linux-x64` 产出 271 个文件的 ELF 目录。MSIX 与 `.deb` 未在本机重跑，详见 [ADR 0024](adr/0024-dotnet11-runtime.md)。
+
+## 2026-11-11（修复 VOSR 每次进入图像页重复下载）
+
+- **现象**：已下载过的 VOSR 每次进入图像转换页都会重新拉取，且始终装不完；用户目录中 `vosr_dinov2l_layer17.onnx` 始终缺失、`vosr_dit_blocks_00_12.onnx` 只剩 `.partial`。
+- **根因**（按影响排序）：
+  1. **清单里两张图的 SHA-256 转录错误**（`vosr_dinov2l_layer17.onnx` 写成 `…8ECAEEA07F…`，实际 `…8ECA EBA07F…`；`vosr_dit_blocks_00_12.onnx` 写成 `…A7DE1E1BFB…`，实际 `…A7DEE1BFB…`）。下载完成后必然校验失败 → 删掉成品重下，形成"永远下不完"的循环。取证：保留的"坏包"与 curl 下载的已知正常文件逐字节相同，哈希只差一个字符。
+  2. 下载层无断点续传、整体 15 分钟超时、失败即删 `.partial`，460/908 MB 的图在慢链路上每次从零开始。
+  3. `IViewState.RestoreState` 恢复上次选择即触发 `EnsureModelAsync`，因此每次进入页面都重跑一轮。
+  4. 每次进入都要对已存在文件全量哈希（3.3 GB）才判定"已下载"。
+- **修复**：
+  1. 修正两处清单哈希（已用九张图的实际字节与 HF API 双重复核）；
+  2. `ModelDownloadService` 支持 HTTP Range 续传：`.partial` 以 `FileShare.None` 独占打开后再取偏移、追加写，服务器返回 200 时回退整下、416 或内容不符时清空片段并对同一地址从头重下一次；总超时改为 90 s 空闲超时（每次读到数据即重置）；未收满声明长度时保留片段；
+  3. 校验器以 `FileShare.ReadWrite | Delete` 打开并重试 3 次，避免杀毒/索引器短暂占用把正确文件判成损坏；校验结果按（长度, 最后写入时间）缓存；
+  4. 恢复页面状态期间不自动下载，只有用户主动改选模型才触发；提示文案改为"重新选择该模型即可继续下载（支持断点续传）"；
+  5. `EnsureModelAsync` 单飞，重复选择/并发入口共用同一任务。
+- **验证**：`FfmpegSmokeTest --model-resume` 13 项通过（续传偏移、只发一次请求、完成后零请求、并发去重、忽略 Range、截断保留片段、垃圾片段自愈重下）；`--image-models-only` 新增"恢复页面状态不触发下载"断言通过；`hf-mirror.com` 实测 206 + `Content-Range`，前缀+续段拼接 SHA 与整体一致；真实目录补齐后九张图 SHA-256 全部通过，图片页可直接使用 VOSR。诊断入口：`--model-live <url> <file> <sha> <dir>`。
+
+## 2026-11-11（接入 VOSR-1.4B 生成式图片超分）
+
+- **新增图片超分模型 `VOSR-1.4B`**（`SuperResolutionModel.Vosr1_4B = 5`，[cswry/VOSR](https://github.com/cswry/VOSR) 一步扩散，权重取自 `AllGPTORG/VOSR_1.4B_Mobile`）。该模型不是单图定倍率网络，而是九张静态 512×512 分级图的链路：DINOv2-L layer17 → Qwen-Image VAE 编码 → DiT prepare → 四段 DiT blocks → DiT final → Qwen-Image VAE 解码；新增 `VosrImagePipeline` 负责编排、单步 `z = z − v` 更新与分块混合，`SuperResolutionService` 在遇到该模型时委派。
+- **按需下载**：九张 FP16 图合计约 3.35 GB，不进入启动预热，用户选中该模型时由新增的 `ISuperResolutionService.EnsureModelAsync` 拉取；`IsDownloading` 改为并发计数，启动预热与按需下载可并存。清单按文件钉住 SHA-256，镜像走 `hf-mirror.com`。
+- **分块策略**：先按目标倍率双三次放大到目标分辨率（模型分辨率保持），再用 512 窗口、步长 384 滑窗，128 px 重叠带用余弦窗交叉淡化（按列累积，内存上界 `512 × 目标高 × 4` float）；早期"取窗口内部 384 直接裁剪"的方案在同一素材上会留下每 384 px 一条垂直亮/暗带，已弃用。`posterior_noise` 传 0、初始 latent 按块坐标固定种子，重复运行结果一致。
+- **界面 / CLI**：模型下拉新增"极致 (VOSR 1.4B 生成式)"，选中即触发下载并沿用现有进度条；CLI 增加 `--sr-model vosr-1.4b`（`vosr`/`vosr14b` 同义），`models list` / `models install --image vosr` 支持九图整链。
+- **量化澄清**：用户给出的 `/onnx` 目录其实是 FP16 分级图；真正量化的 `pi/w8a16`（MatMulNBits INT8，1.66 GB，面向树莓派 CPU）在本应用 ORT 1.22.1 CPU EP 上直接报 `Only 4b quantization is supported for unpacked compute`，`sd8g3` 为骁龙 QNN EPContext，二者均不可用，故采用 FP16 分级图。
+- 验证：`dotnet build` Core/Ava/Cli/FfmpegSmokeTest 均 0 错误；`FfmpegSmokeTest --image-vosr <模型目录>` 4/4 通过（480×320→1920×1280，15 块，43.6 s，后端 `GPU · Windows ML / OpenVINO`，输出目视确认无接缝、文字与 1 px 细线可辨）；CPU 兜底约 29–35 s/块。已知问题：本机 Intel 驱动下连续创建 DirectML 会话会在 `InferenceSession::Init` 触发原生 `0xC0000005`（进程级崩溃，托管层无法接管），故后端顺序为厂商 GPU → DirectML → CPU。决策、实测与限制见 ADR 0023，证据在 `.qa/vosr/`。
+
 ## 2026-11-04（移除歌词提取功能 · 视频超分/插帧 CLI 实测）
 
 - **整体移除歌词提取功能**（用户决策：本地模型效果不达预期且不再需要；GUI 入口自 2026-10-01 起已关闭，CLI 却仍暴露该命令，两侧行为不一致）：删除 `LyricsExtractionView/ViewModel`、`FancyTool.Core/Services/Lyrics/`（10 文件）、`LyricsModels.cs`、CLI `lyrics extract/export`、`models install --lyrics/--lyrics-high`、`Resources/LyricsModels/`（Qwen3 清单）、`_tools/LyricsSmokeTest`、**`External/Lyricify.Lyrics.Helper`（约 100 文件，唯一使用方即歌词功能）** 与 `NOTICE-Lyrics.txt`；同步清理 GUI 服务注册/导航/磁贴、CLI 分发与 CommandCatalog 渲染（**19 组/58 条 → 18 组/56 条**）、i18n 双语约 70 键、Core/Ava csproj 与 slnx 的 Lyricify 引用及许可拷贝（SharpZipLib 随之消失）。决策与范围见 ADR 0022。

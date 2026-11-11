@@ -9,6 +9,8 @@ public enum SuperResolutionModel
     RealEsrganGeneralX4V3 = 2,
     // 编号用于历史页面状态；移除模型后保留空位，避免旧设置指向其他模型。
     SpanClearRealityV1 = 4,
+    /// <summary>一步扩散式 VOSR-1.4B；九图链路、按目标分辨率先双三次放大，首次选择需下载约 3.3 GB。</summary>
+    Vosr1_4B = 5,
 }
 
 public interface ISuperResolutionService : IDisposable
@@ -22,6 +24,12 @@ public interface ISuperResolutionService : IDisposable
     IReadOnlyList<string> AvailableModels { get; }
 
     bool IsModelAvailable(SuperResolutionModel model);
+
+    /// <summary>
+    /// Downloads the selected model if it is missing. Large chains (VOSR) are fetched on demand
+    /// instead of during startup warmup, so this is the entry point the UI calls on selection.
+    /// </summary>
+    Task EnsureModelAsync(SuperResolutionModel model, CancellationToken ct = default);
 
     Task<SKBitmap> UpscaleAsync(
         SKBitmap source,

@@ -47,19 +47,24 @@ internal static partial class Program
             File.WriteAllText(Path.Combine(workDir, "download-requests.json"), JsonSerializer.Serialize(requests.Files.ToArray()));
             Check(requests.Files.Distinct().Order().SequenceEqual(downloads.Order()),
                 "自动下载清单包含已移除模型或漏掉保留模型：" + string.Join(", ", requests.Files));
-            Check(sr.AvailableModels.SequenceEqual(files.Select(Path.GetFileNameWithoutExtension)), "服务模型列表与下载清单不同步。");
+            Check(sr.AvailableModels.SequenceEqual(files.Select(Path.GetFileNameWithoutExtension).Append("VOSR_1.4B")),
+                "服务模型列表与下载清单不同步。");
             Check(!sr.IsDownloading && sr.LastDownloadError != null, "离线下载失败未完成收尾。");
+            int downloadBaseline = requests.Files.Count;
             var models = Enum.GetValues<SuperResolutionModel>();
-            Check(models.Select(model => (int)model).SequenceEqual(new[] { 0, 1, 2, 4 }), "稳定模型编号发生变化。");
-            foreach (var (model, file) in models.Zip(files))
+            Check(models.Select(model => (int)model).SequenceEqual(new[] { 0, 1, 2, 4, 5 }), "稳定模型编号发生变化。");
+            // VOSR 为九图链路，没有单一下载条目，其余模型仍需一一对应。
+            foreach (var (model, file) in models.Where(m => m != SuperResolutionModel.Vosr1_4B).Zip(files))
                 Check(ModelManifest.GetImageModel(model).FileName == file && ModelManifest.GetImageModel(model).NativeScale == 4,
                     "模型文件或原生倍率映射不正确。");
+            Check(ModelManifest.Vosr.Count == 9 && ModelManifest.Vosr.All(entry => entry.NativeScale == 1),
+                "VOSR 链路清单应为九张分级图且不带固定倍率。");
 
             // 旧缓存仍存在时，服务也必须拒绝旧编号，不能尝试加载原生会话。
             File.WriteAllText(Path.Combine(AppPaths.ModelsDirectory, "4x-UltraSharp_fp16.onnx"), "legacy cache");
             File.WriteAllText(Path.Combine(AppPaths.ModelsDirectory, "2xLiveActionV1_SPAN.onnx"), "legacy cache");
             using var source = new SKBitmap(1, 1);
-            foreach (int removed in new[] { 3, 5, -1, int.MaxValue })
+            foreach (int removed in new[] { 3, 6, -1, int.MaxValue })
             {
                 try
                 {
@@ -81,7 +86,7 @@ internal static partial class Program
                 {
                     SelectedSrModelIndex = legacy, SelectedSrScaleIndex = 1, IsSuperResolutionEnabled = true
                 });
-                int expected = legacy is >= 0 and <= 2 ? legacy : 4;
+                int expected = legacy is >= 0 and <= 2 or 4 or 5 ? legacy : 4;
                 Check((int)vm.AvailableSuperResolutionModels[vm.SelectedSrModelIndex] == expected, "旧模型选择迁移错误。");
                 states.SaveAll();
                 var saved = JsonSerializer.Deserialize(File.ReadAllText(Path.Combine(data, "view-states.json")),
@@ -92,6 +97,12 @@ internal static partial class Program
                     "重复保存/恢复改变了模型或倍率。");
             }
 
+            // 恢复页面状态（含每次进入图像页）不得触发模型下载；只有用户改选模型才下载。
+            PumpUntil(() => true);
+            Thread.Sleep(300);
+            Check(requests.Files.Count == downloadBaseline,
+                "进入页面或恢复状态触发了模型重新下载，新增请求 " + (requests.Files.Count - downloadBaseline));
+
             var view = new ImageConvertView { DataContext = vm };
             var window = new Window { Width = 1100, Height = 800, Content = view, Title = "Image model removal smoke test" };
             window.Show();
@@ -100,7 +111,7 @@ internal static partial class Program
                 .Single(control => AutomationProperties.GetAutomationId(control) == "ImageSrModel");
             var scaleSelector = view.GetVisualDescendants().OfType<ComboBox>()
                 .Single(control => AutomationProperties.GetAutomationId(control) == "ImageSrScale");
-            Check(modelSelector.ItemCount == 4 && scaleSelector.ItemCount == 2, "真实页面仍显示旧模型或倍率缺失。");
+            Check(modelSelector.ItemCount == 5 && scaleSelector.ItemCount == 2, "真实页面仍显示旧模型或倍率缺失。");
             Check(vm.AvailableSrModelLabels.All(label => !label.StartsWith("ImageConvert.")
                 && !label.Contains("UltraSharp") && !label.Contains("LiveAction")), "模型文案未移除或资源键直出。");
             for (int index = 0; index < models.Length; index++)

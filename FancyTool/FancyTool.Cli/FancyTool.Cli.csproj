@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net11.0</TargetFramework>
     <RootNamespace>FancyToolAva.Cli</RootNamespace>
     <!-- 可执行文件名固定为 fancy-tool.exe；MSIX 应用执行别名与安装包 PATH 都依赖该名称。 -->
     <AssemblyName>fancy-tool</AssemblyName>
@@ -45,8 +45,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.11" />
-    <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="11.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="11.0.0" />
     <PackageReference Include="Serilog" Version="4.4.0" />
     <PackageReference Include="Serilog.Extensions.Logging" Version="10.0.0" />
     <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
@@ -55,6 +55,8 @@
   <ItemGroup>
     <!-- 与 GUI 一致：Core 钉住 AnyCPU，避免本工程的 x64 评估把 Core 的中间目录
          漂移到 obj\x64（详见 FancyToolAva.csproj 同位置注释）。 -->
-    <ProjectReference Include="..\FancyTool.Core\FancyTool.Core.csproj" SetPlatform="Platform=AnyCPU" />
+    <!-- 与 GUI 相同：显式传 TFM，避免交叉发布 linux-x64 时 Core 被评估成 Windows TFM。 -->
+    <ProjectReference Include="..\FancyTool.Core\FancyTool.Core.csproj" SetPlatform="Platform=AnyCPU"
+                      SetTargetFramework="TargetFramework=$(TargetFramework)" />
   </ItemGroup>
 </Project>
