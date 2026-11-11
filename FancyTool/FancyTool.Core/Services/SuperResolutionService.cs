@@ -55,6 +55,7 @@ public sealed class SuperResolutionService : ISuperResolutionService
     private readonly Dictionary<SuperResolutionModel, double> _perModelProgress = new();
     private readonly object _ensureGate = new();
     private Task? _ensureTask;
+    private SuperResolutionModel? _ensureModel;
     private string? _activeFileName;
 
     public event Action<ModelDownloadProgress>? DownloadProgressChanged;
@@ -161,13 +162,14 @@ public sealed class SuperResolutionService : ISuperResolutionService
     public Task EnsureModelAsync(SuperResolutionModel model, CancellationToken ct = default)
     {
         ThrowIfDisposed();
-        // ESRGAN-family graphs are fetched by the startup warmup; only the VOSR chain is on demand.
-        if (model != SuperResolutionModel.Vosr1_4B || IsModelAvailable(model)) return Task.CompletedTask;
+        // 启动预热只预取 ESRGAN 家族；任何缺失模型（含预热失败）都在此按需补齐。
+        if (IsModelAvailable(model)) return Task.CompletedTask;
 
         lock (_ensureGate)
         {
-            // 单飞：页面反复进入或重复选择时共用同一个下载任务，不并发重复拉取。
-            if (_ensureTask is { IsCompleted: false }) return _ensureTask;
+            // 单飞：同一模型的进行中任务被复用；改选其他模型时开启新的下载。
+            if (_ensureTask is { IsCompleted: false } && _ensureModel == model) return _ensureTask;
+            _ensureModel = model;
             _ensureTask = EnsureModelCoreAsync(model, ct);
             return _ensureTask;
         }
@@ -178,18 +180,21 @@ public sealed class SuperResolutionService : ISuperResolutionService
         BeginDownload();
         try
         {
+            IReadOnlyList<ModelManifestEntry> entries = model == SuperResolutionModel.Vosr1_4B
+                ? ModelManifest.Vosr
+                : [ModelManifest.GetImageModel(model)];
             var progress = new Progress<ModelDownloadProgress>(OnDownloadProgress);
             await _downloader
-                .UseModelsAsync(ModelManifest.Vosr, () => AppPaths.ModelsDirectory, _ => true, progress, ct)
+                .UseModelsAsync(entries, () => AppPaths.ModelsDirectory, _ => true, progress, ct)
                 .ConfigureAwait(false);
             _lastDownloadError = null;
-            _logger.LogInformation("VOSR chain is ready in {Dir}", _modelsDirectory);
+            _logger.LogInformation("Super-resolution model {Model} is ready in {Dir}", model, _modelsDirectory);
         }
         catch (OperationCanceledException) { throw; }
         catch (Exception ex)
         {
             _lastDownloadError = ex.Message;
-            _logger.LogError(ex, "VOSR model download failed");
+            _logger.LogError(ex, "Super-resolution model {Model} download failed", model);
             throw;
         }
         finally
@@ -221,8 +226,8 @@ public sealed class SuperResolutionService : ISuperResolutionService
             string detail = _isDownloading
                 ? $"正在下载模型 '{name}'，请稍候。"
                 : !string.IsNullOrEmpty(_lastDownloadError)
-                    ? $"模型 '{name}' 下载失败：{_lastDownloadError}。可重启程序重试。"
-                    : $"模型 '{name}' 不存在，请重启程序自动下载。";
+                    ? $"模型 '{name}' 下载失败：{_lastDownloadError}。重新选择该模型或重新勾选超分即可重试（支持断点续传）。"
+                    : $"模型 '{name}' 不存在，重新选择该模型或重新勾选超分即可自动下载。";
             throw new FileNotFoundException(detail, name);
         }
 
@@ -393,7 +398,7 @@ public sealed class SuperResolutionService : ISuperResolutionService
             string detail = _isDownloading
                 ? "正在下载 VOSR 模型，请稍候。"
                 : !string.IsNullOrEmpty(_lastDownloadError)
-                    ? $"VOSR 模型下载失败：{_lastDownloadError}。可在图像页重新选择该模型重试。"
+                    ? $"VOSR 模型下载失败：{_lastDownloadError}。重新选择该模型或重新勾选超分即可继续下载（支持断点续传）。"
                     : $"VOSR 模型文件 '{missing}' 不存在，选择该模型后会自动下载（约 3.3 GB）。";
             throw new FileNotFoundException(detail, missing);
         }
@@ -406,7 +411,18 @@ public sealed class SuperResolutionService : ISuperResolutionService
                 (int)Math.Min(outW, int.MaxValue), (int)Math.Min(outH, int.MaxValue), MaxOutputDimension);
         }
 
-        return Task.FromResult(_vosr.Restore(source, targetScale, progress, ReportDevice, ct));
+        try
+        {
+            return Task.FromResult(_vosr.Restore(source, targetScale, progress, ReportDevice, ct));
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex)
+        {
+            if (!_vosr.MarkGpuResourceFailure(ex)) throw;
+            // 会话已被毒化并在释放时跳过 Dispose：OpenVINO 在 CL_OUT_OF_RESOURCES 后释放原生会话会直接崩溃。
+            throw new InvalidOperationException(
+                "VOSR GPU 推理失败：显卡资源不足（OpenVINO CL_OUT_OF_RESOURCES）。已切换为 CPU，重新开始转换即可在 CPU 上完成（约每块 30 秒）。", ex);
+        }
     }
 
     private SKBitmap RunModelTile(SuperResolutionModel model, SKImage tile, CancellationToken ct)
@@ -852,9 +868,15 @@ public sealed class SuperResolutionService : ISuperResolutionService
             _extraInputs.Clear();
             _sessionUsesDml.Clear();
             _sessionWindows.Clear();
-            foreach (var session in _frameSessions.Values) session.Dispose();
+            foreach (var session in _frameSessions.Values)
+            {
+                try { session.Dispose(); } catch { }
+            }
             _frameSessions.Clear();
-            foreach (var session in _npuSessions.Values) session.Dispose();
+            foreach (var session in _npuSessions.Values)
+            {
+                try { session.Dispose(); } catch { }
+            }
             _npuSessions.Clear();
             _npuDevices.Clear();
             _npuFailures.Clear();

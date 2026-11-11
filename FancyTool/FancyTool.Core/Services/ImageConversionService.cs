@@ -154,10 +154,10 @@ return await Task.Run(async () =>
                 progress?.Report(1.0);
                 return outputPath;
             }
-            catch
+            catch (Exception ex)
             {
                 try { if (File.Exists(tmpPath)) File.Delete(tmpPath); } catch { }
-                _logger.LogWarning("Image conversion failed: {Input}", inputPath);
+                _logger.LogWarning(ex, "Image conversion failed: {Input}", inputPath);
                 throw;
             }
             finally

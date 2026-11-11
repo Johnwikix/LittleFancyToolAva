@@ -61,6 +61,10 @@ internal static class ImageCommands
         {
             srService = ctx.Get<ISuperResolutionService>();
             srService.PreferNpu = ctx.Args.GetBool("--sr-use-npu");
+            if (!srService.IsModelAvailable(srModel.Value))
+                throw new CliUsageException(ctx.Zh
+                    ? $"超分模型未安装。先运行: fancy-tool models install --image {ctx.Args.Get("--sr-model")}"
+                    : $"Super-resolution model is not installed. Run: fancy-tool models install --image {ctx.Args.Get("--sr-model")}");
         }
         var service = ctx.Get<IImageConversionService>();
         var results = new List<object>();

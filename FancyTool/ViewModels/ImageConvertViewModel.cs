@@ -7,6 +7,7 @@ using FancyToolAva.Models;
 using FancyToolAva.Models.ViewStates;
 using FancyToolAva.Services;
 using FancyToolAva.Utils;
+using Serilog;
 
 namespace FancyToolAva.ViewModels;
 
@@ -118,6 +119,8 @@ public partial class ImageConvertViewModel : ViewModelBase, IViewState, IFileIte
                 }
                 OnPropertyChanged(nameof(IsDownscaleEnabled));
                 OnPropertyChanged(nameof(IsSuperResolutionReady));
+                // 恢复的选中项不会在 RestoreState 期间下载；用户主动勾选超分是明确的下载意图。
+                if (value) EnsureSelectedModelAvailable();
             }
         }
     }
@@ -477,6 +480,16 @@ public partial class ImageConvertViewModel : ViewModelBase, IViewState, IFileIte
             return;
         }
 
+        bool srEnabled = IsSuperResolutionEnabled && !IsIcoMode
+            && SelectedSrModelIndex >= 0 && SelectedSrModelIndex < AvailableSuperResolutionModels.Count;
+        if (srEnabled && !_superResolutionService.IsModelAvailable(AvailableSuperResolutionModels[SelectedSrModelIndex]))
+        {
+            // 模型缺失或仍在下载：触发/复用自动下载（断点续传），完成后重新转换，不静默跳过超分。
+            EnsureSelectedModelAvailable();
+            _notificationService.ShowWarn(LocalizationRegistry.Get("ImageConvert.Msg_SrModelDownloading"));
+            return;
+        }
+
         _cts?.Cancel();
         _cts = new CancellationTokenSource();
         IsBusy = true;
@@ -489,13 +502,6 @@ public partial class ImageConvertViewModel : ViewModelBase, IViewState, IFileIte
         UpdateStatusText();
 
         string format = AvailableFormats[FormatIndex];
-
-        bool srEnabled = IsSuperResolutionEnabled && IsSuperResolutionReady && !IsIcoMode;
-        if (IsSuperResolutionEnabled && !IsSuperResolutionReady && IsSuperResolutionDownloading)
-        {
-            _notificationService.ShowWarn(LocalizationRegistry.Get("ImageConvert.Msg_SrModelDownloading"));
-            return;
-        }
         SuperResolutionModel? srModel = srEnabled ? AvailableSuperResolutionModels[SelectedSrModelIndex] : null;
         int srScale = AvailableSrScales[SelectedSrScaleIndex];
 
@@ -586,16 +592,24 @@ public partial class ImageConvertViewModel : ViewModelBase, IViewState, IFileIte
         // Return GPU/GL resources: destroy ONNX/DML sessions so their shared-memory
         // reservations are released back to the OS when the batch is done.
         // ReleaseSessions 持推理锁并同步 Dispose 原生会话，移出 UI 线程执行。
+        // 清理抛出的托管异常必须在此观察：逃出 async 命令会成为未处理异常直接终止进程。
         if (srEnabled)
-            await Task.Run(() => _superResolutionService.ReleaseSessions());
+        {
+            try { await Task.Run(() => _superResolutionService.ReleaseSessions()); }
+            catch (Exception ex) { Log.Warning(ex, "Failed to release super-resolution sessions after batch"); }
+        }
 
         // Return large (multi-GB) LOH allocations to the OS after the batch work is done.
-        await Task.Run(() =>
+        try
         {
-            GC.Collect(2, GCCollectionMode.Forced, blocking: true, compacting: true);
-            GC.WaitForPendingFinalizers();
-            GC.Collect(2, GCCollectionMode.Forced, blocking: true, compacting: true);
-        });
+            await Task.Run(() =>
+            {
+                GC.Collect(2, GCCollectionMode.Forced, blocking: true, compacting: true);
+                GC.WaitForPendingFinalizers();
+                GC.Collect(2, GCCollectionMode.Forced, blocking: true, compacting: true);
+            });
+        }
+        catch (Exception ex) { Log.Warning(ex, "Post-batch garbage collection failed"); }
 
         if (FailedCount == 0)
             _notificationService.ShowSuccess(LocalizationRegistry.Get("ImageConvert.Msg_AllDone", TotalCount));

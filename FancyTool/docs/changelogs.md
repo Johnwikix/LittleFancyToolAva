@@ -1,5 +1,12 @@
 # 变更记录
 
+## 2026-11-11（修复 VOSR 缺模型不自动下载与 GPU 清理闪退）
+
+- **现象一**：图像页选中 VOSR 且模型缺失时，重新勾选超分/重复选中/直接点转换都不会自动下载；转换在 `IsSuperResolutionReady` 为假时静默跳过超分（14:08 日志无 `Super-resolution applied` 行）。根因：下载只在模型下拉索引变化时触发，恢复页面状态被抑制后无入口；`StartConvert` 的"下载中"守卫因 `IsSuperResolutionReady` 已包含 `IsSuperResolutionDownloading` 而恒为假。
+- **现象二**：GPU 推理失败后进程 `0xC0000409` 原生崩溃（WER ucrtbase.dll fail-fast），日志因失败行不带异常而无记录。
+- **修复**：勾选超分（非恢复态）触发按需下载；`StartConvert` 模型缺失/下载中时触发下载并提示后返回，不再静默跳过；`EnsureModelAsync` 覆盖全部图片模型并按模型单飞；`image convert` 增加模型预检与 `models install` 指引；`ImageConversionService` 失败日志记录异常栈；批处理末尾 `ReleaseSessions`/强制 GC 包 try/catch；`VosrImagePipeline.Restore` 全程持 `_runGate`，杜绝释放会话与在途推理重叠（原生崩溃路径）；补齐 `ImageConvert.Msg_SrModelDownloading` 双语言键。
+- **验证**：真机 GUI Debug 2x/4x/会话重建均成功且清理正常；`--vosr-race`（释放等待在途推理、无崩溃）通过；Debug/Release harness 在成功与中途失败收尾下均存活；`--image-models-only` 新增"勾选触发下载"断言通过且"恢复不触发下载"仍成立；`--image-vosr` 4/4；CLI 预检生效。盲区：12:05 的原生崩溃未能隔离复现，详见 [ADR 0023](adr/0023-vosr-generative-image-sr.md)。
+
 ## 2026-11-11（运行时升级到 .NET 11）
 
 - **背景**：本机 .NET 10 SDK 的 `dotnet.dll` 缺失（用户更新 VS 后只剩 `11.0.100`），`global.json` 固定的 `10.0.100`/`10.0.300` 在 `rollForward: latestFeature` 下不会跨大版本，仓库已无法构建；按用户要求整体升级到 .NET 11。

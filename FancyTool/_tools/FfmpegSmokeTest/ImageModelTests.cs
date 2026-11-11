@@ -103,6 +103,19 @@ internal static partial class Program
             Check(requests.Files.Count == downloadBaseline,
                 "进入页面或恢复状态触发了模型重新下载，新增请求 " + (requests.Files.Count - downloadBaseline));
 
+            // 恢复后 VOSR 仍选中且九图缺失：用户重新勾选超分（非恢复）必须触发自动下载，而非静默跳过。
+            ((IViewState)vm).RestoreState(new ImageConvertViewState
+            {
+                SelectedSrModelIndex = 5, SelectedSrScaleIndex = 1, IsSuperResolutionEnabled = true
+            });
+            Check(vm.AvailableSuperResolutionModels[vm.SelectedSrModelIndex] == SuperResolutionModel.Vosr1_4B,
+                "回归前提：恢复后应选中 VOSR。");
+            int beforeToggle = requests.Files.Count;
+            vm.IsSuperResolutionEnabled = false;
+            vm.IsSuperResolutionEnabled = true;
+            PumpUntil(() => requests.Files.Count > beforeToggle);
+            Check(requests.Files.Count > beforeToggle, "重新勾选超分未触发缺失 VOSR 模型的自动下载。");
+
             var view = new ImageConvertView { DataContext = vm };
             var window = new Window { Width = 1100, Height = 800, Content = view, Title = "Image model removal smoke test" };
             window.Show();

@@ -56,6 +56,33 @@ internal static partial class Program
                 ? args[index + 1] : null;
             return RunVosrCase(workDir, models);
         }
+        if (args.Contains("--vosr-oom"))
+        {
+            int index = Array.IndexOf(args, "--vosr-oom");
+            string? models = index + 1 < args.Length && !args[index + 1].StartsWith("--", StringComparison.Ordinal)
+                ? args[index + 1] : null;
+            string? image = index + 2 < args.Length && !args[index + 2].StartsWith("--", StringComparison.Ordinal)
+                ? args[index + 2] : null;
+            int chains = index + 3 < args.Length && int.TryParse(args[index + 3], out int n) ? n : 2;
+            return RunVosrOomCase(workDir, models, image, chains);
+        }
+        if (args.Contains("--vosr-race"))
+        {
+            int index = Array.IndexOf(args, "--vosr-race");
+            string? models = index + 1 < args.Length && !args[index + 1].StartsWith("--", StringComparison.Ordinal)
+                ? args[index + 1] : null;
+            return RunVosrRaceCase(workDir, models);
+        }
+        if (args.Contains("--image-vosr-crash"))
+        {
+            int index = Array.IndexOf(args, "--image-vosr-crash");
+            string? models = index + 1 < args.Length && !args[index + 1].StartsWith("--", StringComparison.Ordinal)
+                ? args[index + 1] : null;
+            string? image = index + 2 < args.Length && !args[index + 2].StartsWith("--", StringComparison.Ordinal)
+                ? args[index + 2] : null;
+            double cancelAfter = index + 3 < args.Length && double.TryParse(args[index + 3], out double seconds) ? seconds : 0;
+            return RunVosrCrashRepro(workDir, models, image, cancelAfter);
+        }
         if (args.Contains("--settings-only")) return RunSettingsCases(workDir, args.Contains("--inspect"));
         if (args.Contains("--onnx-candidate")) return RunOnnxCandidate(workDir, args);
         WriteTestAvi(sample, width: 160, height: 120, fps: 10, seconds: 2);

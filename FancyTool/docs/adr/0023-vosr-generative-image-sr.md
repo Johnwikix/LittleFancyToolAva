@@ -65,6 +65,26 @@
 
 回归入口：`FfmpegSmokeTest --model-resume`（13 项，覆盖续传偏移、重复调用零请求、并发去重、忽略 Range、截断保留片段、垃圾片段自愈）；`--image-models-only` 断言"恢复页面状态不触发下载"；`--model-live <url> <file> <sha> <dir>` 用真实网络验证单条目落盘哈希。`hf-mirror.com` 实测返回 `206` 与 `Content-Range`，前缀 + 续段拼接的 SHA-256 与整体下载一致。
 
+## 自动下载触发与 GPU 清理崩溃（2026-11-11 修复）
+
+**现象一：VOSR 缺失时不自动下载。** 取证：14:08:46 日志把 `wpfui-gallery.png` 转成 jpg，却没有 `Super-resolution applied` 行——勾选了超分但被静默跳过；13:31 下载因退出中断后，14:08 重启再也不续传。
+
+根因：下载只在模型下拉**索引变化**时触发。恢复页面状态被 `_restoringState` 抑制后，重新勾选超分、重复选中同一项（`SetProperty` 值未变不触发）、点击转换都不会发起下载；`StartConvert` 在模型未就绪时把 `srEnabled` 置 false **静默跳过超分**，"下载中请稍候"守卫写成 `!IsSuperResolutionReady && IsSuperResolutionDownloading`，而 `IsSuperResolutionReady` 本身已包含 `IsSuperResolutionDownloading`，是永假的死代码（其文案键 `ImageConvert.Msg_SrModelDownloading` 也从未加入 i18n）。
+
+**现象二：GPU 推理后原生闪退、日志无记录。** 取证：Windows 事件日志 12:05:07 `FancyToolAva.exe` 崩溃，异常码 `0xC0000409`（ucrtbase.dll，fail-fast/abort，托管 catch 与 `AppDomain.UnhandledException` 均无法接管）；应用日志停在 12:05:04 `Image conversion failed`（该行未带异常栈）→ 3 秒后进程消失。
+
+根因与修复：
+
+1. **推理失败不可见**：`ImageConversionService` 的失败日志不带异常对象。改为 `LogWarning(ex, …)`，下次推理失败会记录完整异常栈与图/后端信息。
+2. **释放会话与在途推理重叠**：`VosrImagePipeline.Restore` 在推理期间不持 `_runGate`，而 `ReleaseSessions`/`Dispose` 用该锁释放原生会话。批处理末尾的释放、退出、硬件安装释放都可能与在途推理重叠，在 OpenVINO/DML 会话内部触发原生崩溃。`Restore` 现全程持 `_runGate`（`RestoreCore` 拆分），释放必须等待推理结束。
+3. **清理异常逃出命令**：批处理末尾 `ReleaseSessions`/强制压缩 GC 未包 try/catch，托管异常会逃出 `AsyncRelayCommand` 成为未处理异常并终止进程。已包 catch 并记日志。
+4. **自动下载触发**：勾选超分（非恢复态）调用 `EnsureSelectedModelAvailable`；`StartConvert` 在模型缺失/下载中时触发（复用）下载并明确提示后返回，不再静默跳过；`EnsureModelAsync` 覆盖全部图片模型（预热失败的 ESRGAN 也可按需补齐）并按模型单飞；提示文案同步更新，补齐 `Msg_SrModelDownloading` 双语言键。
+5. **CLI 预检**：`image convert --sr-model <缺失模型>` 直接给出 `fancy-tool models install --image <模型>` 指引，而不是在转换中途抛错。
+
+**已验证**：真机 GUI（Debug）2x（1964×1086）、4x（3928×2172）与会话重建后再次推理都成功，末尾释放与强制 GC 正常；`--vosr-race` 验证推理进行中调用 `ReleaseSessions` 会等待推理结束后再释放（返回 960×640，无崩溃）；Debug/Release 烟测在成功与"中途 Terminate 制造失败"两种收尾下均存活；`--image-models-only` 新增"重新勾选超分触发缺失 VOSR 下载"断言通过且"恢复状态不触发下载"仍成立；`--image-vosr` 4/4；CLI 预检生效。
+
+**盲区**：12:05 的 `0xC0000409` 未能在隔离环境复现（真机 Debug GUI、Debug/Release 控制台 harness 均未复现），无法证明第 2/3 条就是当时那次崩溃的直接原因；它们消除了两条**可复现**的原生/托管崩溃路径。若再次复发，第 1 条修复会留下推理失败的异常栈。调查入口：`FfmpegSmokeTest --image-vosr-crash <模型目录> <图片> [取消秒数]`（逐步标记推理/释放/GC，原生崩溃时最后一条标记即崩溃点）与 `--vosr-race <模型目录>`。
+
 ## 复现
 
 ```powershell
