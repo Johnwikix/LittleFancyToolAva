@@ -1,5 +1,7 @@
 # Shared Windows ML acceleration and efficient super-resolution
 
+> 目标框架已由 [ADR 0023：升级到 .NET 11 并移除 SDK 版本固定](0023-net11-upgrade-and-unpinned-sdk.md) 更新为 `net11.0-windows10.0.19041.0`（Windows）/ `net11.0`（Linux）；下文第 7 行的 TFM 描述为当时的历史状态，Windows ML / 提供程序选择等其余结论继续有效。
+>
 > 图片模型选择已由 [ADR 0015：移除非商业图片模型](0015-remove-noncommercial-image-models.md) 部分取代：UltraSharp 与 LiveAction 已从当前功能和下载清单移除。下文保留历史决策与实验数据。
 
 Windows builds use `Microsoft.Windows.AI.MachineLearning` 2.4.89, including ONNX Runtime 1.27.1 and DirectML. Image and video inference share provider discovery, hardware selection and reusable tile runners. The old separately bundled OpenVINO C API, DLLs and licenses are removed. Vendor OpenVINO is acquired and registered by Windows ML; it is not another app-owned inference runtime.

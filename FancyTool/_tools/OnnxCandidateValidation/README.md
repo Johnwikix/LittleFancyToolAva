@@ -4,7 +4,7 @@
 
 `fetch.ps1` 固定上游提交与权重 SHA-256；`prepare.py` 导出九个变体，比较 PyTorch/CPU ONNX，并生成确定性参考张量。C# 验证入口复用应用的 Windows ML、位图分块和视频转码服务，强制禁用 CPU EP 回退。`run.py` 串行启动独立进程，保留失败；`summarize.py` 汇总证据及合格配置。
 
-在仓库根目录运行。需要 Python 3.14、.NET 10 SDK、已安装的 Windows ML OpenVINO GPU 提供程序和 Intel GPU 驱动。GPU 运行必须在可访问真实适配器的用户会话中执行。
+在仓库根目录运行。需要 Python 3.14、.NET 11 SDK、已安装的 Windows ML OpenVINO GPU 提供程序和 Intel GPU 驱动。GPU 运行必须在可访问真实适配器的用户会话中执行。
 
 ```powershell
 $work = '.qa/onnx-candidates'
@@ -16,7 +16,7 @@ $python = "$work/venv/Scripts/python.exe"
 & $python -I -m pip --isolated install --target "$work/venv/Lib/site-packages" --extra-index-url https://download.pytorch.org/whl/cpu -r .qa/git-history-cleanup-2026-10-17/evidence/onnx-vsr-validation-2026-10-16/python-lock.txt
 & $python -I "$tools/prepare.py" $work
 dotnet build FancyTool/_tools/FfmpegSmokeTest -c Release -p:PublishAot=false
-$runner = 'FancyTool/_tools/FfmpegSmokeTest/bin/Release/net10.0-windows10.0.19041.0/win-x64/FfmpegSmokeTest.exe'
+$runner = 'FancyTool/_tools/FfmpegSmokeTest/bin/Release/net11.0-windows10.0.19041.0/win-x64/FfmpegSmokeTest.exe'
 & $python -I "$tools/run.py" $work --runner $runner
 ```
 

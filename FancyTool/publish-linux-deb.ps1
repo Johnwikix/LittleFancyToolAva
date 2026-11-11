@@ -5,8 +5,9 @@
 # by the Packaging.Targets NuGet package (dotnet-packaging).
 #
 # Note: the dotnet-deb CLI tool wrapper is NOT used here — it bundles an old
-# MSBuildLocator that resolves the wrong SDK and fails on net10.0. Invoking
-# the target through the pinned SDK (global.json -> 10.0.302) avoids that.
+# MSBuildLocator that resolves the wrong SDK and fails on net11.0. Invoking
+# the CreateDeb target through the installed .NET 11 SDK avoids that.
+# global.json no longer pins a version: MSBuild selects the highest installed SDK.
 #
 # Packaging metadata lives in FancyToolAva.csproj: PackagePrefix,
 # PackageVersion, DebSection, DebPriority, DebDependency, AppHost and the

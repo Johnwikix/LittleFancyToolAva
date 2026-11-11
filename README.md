@@ -17,7 +17,7 @@
     <img src="https://img.shields.io/badge/语言-C%23-purple" alt="C#">
     <img src="https://img.shields.io/badge/UI-Avalonia%2012-blue" alt="Avalonia">
     <img src="https://img.shields.io/badge/主题-FluentAvalonia-blue" alt="FluentAvalonia">
-    <img src="https://img.shields.io/badge/.NET-10.0-purple" alt=".NET 10">
+    <img src="https://img.shields.io/badge/.NET-11.0-purple" alt=".NET 11">
     <img src="https://img.shields.io/badge/平台-Windows%20%7C%20Linux-blue" alt="Platform">
     <img src="https://img.shields.io/badge/许可证-GPL--3.0-blue" alt="License">
   </div>
@@ -165,7 +165,7 @@ fancy-tool file encrypt -i D:\music\a.flac --key-file D:\keys\a.json --out-dir D
 
 ### 前置条件
 
-- [.NET 10 SDK](https://dotnet.microsoft.com/)（`global.json` 已固定 SDK 版本与 `rollForward` 策略）
+- [.NET 11 SDK](https://dotnet.microsoft.com/)（仓库不再提供 `global.json`，默认使用本机已安装的最高版本 SDK；CI 建议显式安装 11.0.100 固定版本）
 - Windows 10 19041 或更高版本
 - Linux x64（如 Ubuntu 22.04+，需安装 `.deb` 运行时依赖）
 - 推荐使用 Visual Studio 2026
@@ -189,7 +189,7 @@ pwsh -File .\FancyTool\publish-win.ps1 -Configuration Debug -Output .\out\debug
 pwsh -File .\FancyTool\publish-win.ps1 -SkipCli
 ```
 
-产物默认位于 `bin\Release\net10.0-windows10.0.19041.0\win-x64\publish\win-x64\`，直接运行 `FancyToolAva.exe` 即可。CLI 走同一配置发布，指定 `-Output` 时落在其下的 `cli\fancy-tool.exe`，MSIX 目标则固定发布到 `$(PublishDir)cli`。
+产物默认位于 `bin\Release\net11.0-windows10.0.19041.0\win-x64\publish\win-x64\`，直接运行 `FancyToolAva.exe` 即可。CLI 走同一配置发布，指定 `-Output` 时落在其下的 `cli\fancy-tool.exe`，MSIX 目标则固定发布到 `$(PublishDir)cli`。
 
 ### 调试运行
 

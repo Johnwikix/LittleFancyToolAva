@@ -1,6 +1,8 @@
 # NanoVSR 时序超分与 TensorRT RTX 修复
 
 > 视频模型部分已被 [轻量 GPU 视频超分](0008-lightweight-gpu-video-sr.md) 替代；本文保留当时的实验记录，NanoVSR 已从当前视频功能与分发包移除。TensorRT RTX 提供程序发现修复继续适用于其他模型。
+>
+> 本文第 81–86 行所述「用 `global.json` 把 SDK 限制在 .NET 10 稳定系列」的策略已由 [ADR 0023：升级到 .NET 11 并移除 SDK 版本固定](0023-net11-upgrade-and-unpinned-sdk.md) 取代。当时观察到的「.NET 11 RC SDK 下 Avalonia 预编译 XAML 缺失」作为历史证据保留，GA SDK 的复核结论见 ADR 0023。
 
 日期：2026-10-16。
 

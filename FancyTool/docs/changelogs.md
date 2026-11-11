@@ -1,5 +1,15 @@
 # 变更记录
 
+## 2026-11-11（升级 .NET 11 · 移除 global.json）
+
+- **全量升级目标框架到 .NET 11**：`net10.0` → `net11.0`、Windows `net10.0-windows10.0.19041.0` → `net11.0-windows10.0.19041.0`；覆盖 `WindowsInference.props`、GUI / Core / CLI 三工程、7 个烟测工程、TFM 条件包引用、`publish-win.ps1`、`FolderProfile.pubxml`、烟测脚本路径、AGENTS.md 与 README 双语。历史实测报告保留旧 TFM 作为原始证据，ADR 0004 / 0007 文首补指向新 ADR 的说明。
+- **删除 `global.json`**（原固定 10.0.100 / `latestFeature`）：本机缺 10.0.100 时 `dotnet --version` 直接 exit 155，删除后解析为 11.0.100。代价是构建 SDK 不再由仓库锁定，CI 需显式安装 >= 11.0.100；未来安装更高主版本（含预览）会被自动选中。决策、替代方案与完整影响面见 ADR 0023。
+- **`PublishWithSatoriGC` 同步升到 11**：`10.0.13-satori.38707290103.1` → `11.0.0-satori.42242472725.2`，运行时包由 SDK 解析为 `11.0.0-satori.42242472725.1`，与主框架同为 11.x（NuSpec 仍为 MIT）。10.x 运行时包不能与 `net11.0` 混用，只改 TFM 不够。
+- 清理 .NET 11 新增的 NU1510：Core 移除 `Microsoft.Extensions.Logging.Abstractions` 显式引用（框架自动提供）。
+- 修复 Linux 交叉构建：SDK 在 TFM 协商阶段会移除 `RuntimeIdentifier`，`SetPlatform` 后 Core 误判为 Windows TFM 导致 `net11.0` 主工程无法引用；GUI / CLI 的 Core 引用改用 `SkipGetTargetFrameworkProperties` + `SetTargetFramework` 把引用方 TFM 钉给 Core。属 2026-11-03 `SetPlatform` 修复遗留的传递缺口，本次验证发现并修复。
+- 验证：GUI Debug / CLI Debug / Linux 交叉 Release（`net11.0/linux-x64`）/ 7 个烟测工程均 0 错误；GUI 与 CLI 0 警告，FfmpegSmokeTest 3 个既有 CS0618。Windows NativeAOT Release 发布成功（`FancyToolAva.exe` 99 MB，产物 `.qa/net11-aot-2026-11-11/`），仅既有 SATORI002 与 FluentAvalonia / DataGrid trim 告警。AOT 产物限时启动 15s 持续运行（exit 124），日志无 `precompiled XAML` / Fatal，未复现 ADR 0007 记录的 .NET 11 RC XAML 缺失问题。CLI 自包含发布成功（72 KB apphost），`fancy-tool.exe --help` 退出码 0、命令目录正常渲染。
+- 未实测：GUI 窗口渲染与交互、MSIX / `.deb` / Inno 安装包、`publish-win.ps1` 脚本整体串联执行（GUI AOT 与 CLI 发布已分别验证）、Linux 真机运行、Windows ML / GPU 推理、FFmpeg 全矩阵烟测的实际执行（仅编译通过）。
+
 ## 2026-11-04（移除歌词提取功能 · 视频超分/插帧 CLI 实测）
 
 - **整体移除歌词提取功能**（用户决策：本地模型效果不达预期且不再需要；GUI 入口自 2026-10-01 起已关闭，CLI 却仍暴露该命令，两侧行为不一致）：删除 `LyricsExtractionView/ViewModel`、`FancyTool.Core/Services/Lyrics/`（10 文件）、`LyricsModels.cs`、CLI `lyrics extract/export`、`models install --lyrics/--lyrics-high`、`Resources/LyricsModels/`（Qwen3 清单）、`_tools/LyricsSmokeTest`、**`External/Lyricify.Lyrics.Helper`（约 100 文件，唯一使用方即歌词功能）** 与 `NOTICE-Lyrics.txt`；同步清理 GUI 服务注册/导航/磁贴、CLI 分发与 CommandCatalog 渲染（**19 组/58 条 → 18 组/56 条**）、i18n 双语约 70 键、Core/Ava csproj 与 slnx 的 Lyricify 引用及许可拷贝（SharpZipLib 随之消失）。决策与范围见 ADR 0022。

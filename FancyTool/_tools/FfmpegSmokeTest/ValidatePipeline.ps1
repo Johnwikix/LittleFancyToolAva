@@ -10,7 +10,7 @@ if (-not $SkipBuild) {
     & dotnet build (Join-Path $PSScriptRoot 'FfmpegSmokeTest.csproj') -c Release --no-restore --disable-build-servers -v:q *> (Join-Path $output 'build.txt')
     if ($LASTEXITCODE -ne 0) { Get-Content (Join-Path $output 'build.txt') -Tail 20; exit $LASTEXITCODE }
 }
-$binary = Join-Path $PSScriptRoot 'bin/Release/net10.0-windows10.0.19041.0/win-x64/FfmpegSmokeTest.exe'
+$binary = Join-Path $PSScriptRoot 'bin/Release/net11.0-windows10.0.19041.0/win-x64/FfmpegSmokeTest.exe'
 $previousData = $env:FANCYTOOL_DATA_DIRECTORY
 $previousAvx = $env:COMPlus_EnableAVX2
 $previousIntrinsic = $env:COMPlus_EnableHWIntrinsic

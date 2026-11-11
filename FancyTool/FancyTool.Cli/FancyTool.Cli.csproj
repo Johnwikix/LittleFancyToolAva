@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net11.0</TargetFramework>
     <RootNamespace>FancyToolAva.Cli</RootNamespace>
     <!-- 可执行文件名固定为 fancy-tool.exe；MSIX 应用执行别名与安装包 PATH 都依赖该名称。 -->
     <AssemblyName>fancy-tool</AssemblyName>
@@ -55,6 +55,10 @@
   <ItemGroup>
     <!-- 与 GUI 一致：Core 钉住 AnyCPU，避免本工程的 x64 评估把 Core 的中间目录
          漂移到 obj\x64（详见 FancyToolAva.csproj 同位置注释）。 -->
-    <ProjectReference Include="..\FancyTool.Core\FancyTool.Core.csproj" SetPlatform="Platform=AnyCPU" />
+    <!-- 与 GUI 一致：跳过 TFM 协商并把本工程 TFM 钉给 Core，保证 Linux 交叉构建时两者同为 net11.0。 -->
+    <ProjectReference Include="..\FancyTool.Core\FancyTool.Core.csproj"
+                      SetPlatform="Platform=AnyCPU"
+                      SkipGetTargetFrameworkProperties="true"
+                      SetTargetFramework="TargetFramework=$(TargetFramework)" />
   </ItemGroup>
 </Project>

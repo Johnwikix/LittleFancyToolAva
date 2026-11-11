@@ -18,7 +18,7 @@
     <img src="https://img.shields.io/badge/Language-C%23-purple" alt="C#">
     <img src="https://img.shields.io/badge/UI-Avalonia%2012-blue" alt="Avalonia">
     <img src="https://img.shields.io/badge/Theme-FluentAvalonia-blue" alt="FluentAvalonia">
-    <img src="https://img.shields.io/badge/.NET-10.0-purple" alt=".NET 10">
+    <img src="https://img.shields.io/badge/.NET-11.0-purple" alt=".NET 11">
     <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-blue" alt="Platform">
     <img src="https://img.shields.io/badge/License-GPL--3.0-blue" alt="License">
   </div>
@@ -166,7 +166,7 @@ After installing the MSIX or the Inno Setup package, `fancy-tool` resolves direc
 
 ### Prerequisites
 
-- [.NET 10 SDK](https://dotnet.microsoft.com/) (SDK version and `rollForward` policy are pinned in `global.json`)
+- [.NET 11 SDK](https://dotnet.microsoft.com/) (no `global.json` is shipped; the highest installed SDK is used by default — pin 11.0.100 explicitly on CI)
 - Windows 10 19041 or later
 - Linux x64 (e.g. Ubuntu 22.04+; `.deb` runtime dependencies required)
 - Visual Studio 2026 recommended
@@ -190,7 +190,7 @@ pwsh -File .\FancyTool\publish-win.ps1 -Configuration Debug -Output .\out\debug
 pwsh -File .\FancyTool\publish-win.ps1 -SkipCli
 ```
 
-Output is placed at `bin\Release\net10.0-windows10.0.19041.0\win-x64\publish\win-x64\`. Launch `FancyToolAva.exe` to start the app. The CLI publish follows the same configuration; with `-Output` it lands next to the GUI as `cli\fancy-tool.exe`, and the MSIX target always publishes it to `$(PublishDir)cli`.
+Output is placed at `bin\Release\net11.0-windows10.0.19041.0\win-x64\publish\win-x64\`. Launch `FancyToolAva.exe` to start the app. The CLI publish follows the same configuration; with `-Output` it lands next to the GUI as `cli\fancy-tool.exe`, and the MSIX target always publishes it to `$(PublishDir)cli`.
 
 ### Debug Run
 
