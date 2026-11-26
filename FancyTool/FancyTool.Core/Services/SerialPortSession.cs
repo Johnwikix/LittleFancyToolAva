@@ -1,5 +1,4 @@
 using System.Buffers;
-using System.Collections.ObjectModel;
 using System.IO.Ports;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -9,7 +8,11 @@ using Microsoft.Extensions.Logging;
 
 namespace FancyToolAva.Services
 {
-    public class SerialPortService : ISerialPortService, IDisposable
+    /// <summary>
+    /// 单端口会话：一个实例只持有一个 <see cref="SerialPort"/>、一份接收缓冲与一个帧定时器。
+    /// 多端口调试时为每个端口创建一个实例，由 <see cref="SerialPortHub"/> 统一管理。
+    /// </summary>
+    public class SerialPortSession : ISerialPortService, IDisposable
     {
         private const int ReceiveReadBufferSize = 4096;
 
@@ -18,7 +21,7 @@ namespace FancyToolAva.Services
         private Timer? _frameTimer;
         private int _frameBreakInterval = 20;
         private bool _disposed;
-        private readonly ILogger<SerialPortService> _logger;
+        private readonly ILogger<SerialPortSession> _logger;
         private bool _isClosing;
         private int _timerGen;
         private readonly object _timerLock = new();
@@ -31,10 +34,10 @@ namespace FancyToolAva.Services
         public event Action<string>? StatusChanged;
         public event EventHandler<ConnectionEventArgs>? ConnectionStateChanged;
 
-        public SerialPortService(ILogger<SerialPortService> logger)
+        public SerialPortSession(ILogger<SerialPortSession> logger)
         {
             _logger = logger;
-            _logger.LogInformation("SerialPortService created");
+            _logger.LogInformation("SerialPortSession created");
         }
 
         public async Task OpenAsync(string portName, int baudRate, Parity parity, int dataBits, StopBits stopBits, CancellationToken ct = default)
@@ -208,14 +211,26 @@ namespace FancyToolAva.Services
             }
         }
 
-        public string[] GetPortNames()
-        {
-            return SerialPort.GetPortNames();
-        }
+        public string[] GetPortNames() => SerialPortCatalog.GetPortNames();
 
         public void SetFrameBreakInterval(int ms)
         {
             _frameBreakInterval = Math.Max(10, ms);
+        }
+
+        public void SetHandshake(bool rts, bool dtr)
+        {
+            if (_serialPort is not { IsOpen: true } port) return;
+            try
+            {
+                port.RtsEnable = rts;
+                port.DtrEnable = dtr;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "SerialPort set handshake failed");
+                StatusChanged?.Invoke(LocalizationRegistry.Get("ServiceStatus.Serial_PortError", ex.Message));
+            }
         }
 
         private void OnSerialDataReceived(object? sender, SerialDataReceivedEventArgs e)
@@ -371,7 +386,7 @@ namespace FancyToolAva.Services
             if (_disposed) return;
             _disposed = true;
             Close();
-            _logger.LogInformation("SerialPortService disposed");
+            _logger.LogInformation("SerialPortSession disposed");
             GC.SuppressFinalize(this);
         }
     }

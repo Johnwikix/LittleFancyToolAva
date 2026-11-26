@@ -245,7 +245,8 @@ namespace FancyToolAva
             services.AddSingleton<INotificationService, ContentDialogNotificationService>();
             services.AddSingleton<IDialogService, ContentDialogService>();
             services.AddSingleton<IFileDialogService, FileDialogService>();
-            services.AddSingleton<ISerialPortService, SerialPortService>();
+            services.AddTransient<ISerialPortService, SerialPortSession>();
+            services.AddSingleton<ISerialPortHub, SerialPortHub>();
             services.AddSingleton<ITcpServerService, TcpServerService>();
             services.AddSingleton<IUdpService, UdpService>();
             services.AddSingleton<TcpLinkTestService>();

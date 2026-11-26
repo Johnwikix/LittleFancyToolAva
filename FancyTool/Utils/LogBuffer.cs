@@ -12,7 +12,7 @@ namespace FancyToolAva.Utils
         public event PropertyChangedEventHandler? PropertyChanged;
 
         private readonly ConcurrentQueue<LogEntry> _pending = new();
-        private readonly DispatcherTimer _flushTimer;
+        private readonly DispatcherTimer? _flushTimer;
 
         public AvaloniaList<LogEntry> Entries { get; } = new();
 
@@ -22,8 +22,17 @@ namespace FancyToolAva.Utils
 
         public LogBuffer() : this(16) { }
 
-        public LogBuffer(int flushIntervalMs)
+        public LogBuffer(int flushIntervalMs) : this(flushIntervalMs, true) { }
+
+        /// <summary>
+        /// autoFlush=false 时不创建内部定时器，改由调用方（页面级统一刷新）调用 <see cref="Flush"/>。
+        /// 多串口会话共用页面级刷新，避免每路一个 16ms 定时器抢占 UI 线程。
+        /// </summary>
+        public LogBuffer(bool autoFlush) : this(16, autoFlush) { }
+
+        public LogBuffer(int flushIntervalMs, bool autoFlush)
         {
+            if (!autoFlush) return;
             _flushTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(flushIntervalMs) };
             _flushTimer.Tick += (_, _) => Flush();
             _flushTimer.Start();
@@ -78,7 +87,7 @@ namespace FancyToolAva.Utils
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Count)));
         }
 
-        private void Flush()
+        public void Flush()
         {
             if (_pending.IsEmpty) return;
             if (!Dispatcher.UIThread.CheckAccess())

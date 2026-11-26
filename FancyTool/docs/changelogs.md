@@ -1,5 +1,14 @@
 # 变更记录
 
+## 2026-11-26（串口调试多端口：ComboBox 会话选择器）
+
+- **串口调试支持多端口并发**：单例 `SerialPortService`（实例内只有一份 `SerialPort`/接收缓冲/帧定时器）拆为会话级 `SerialPortSession` + 单例 `SerialPortHub`，端口枚举收口到 `SerialPortCatalog`；GUI 侧 `ISerialPortService` 改 `AddTransient`、新增 `AddSingleton<ISerialPortHub, SerialPortHub>`，CLI 用临时会话，`serial list / send / listen` 命令名与参数不变。
+- **保留现有布局，ComboBox 升级为会话选择器**：下拉项带连接状态点（复用 `ConnectionStatusToBrushConverter`）、状态文字、未读徽标、参数摘要；末尾追加"添加端口 COMx"段，选中即新增会话（默认断开、不自动连接）；ComboBox 右侧新增"关闭"按钮。左栏参数/选项、右栏日志/发送、头部状态胶囊全部改绑当前会话，切换会话整组一起换。
+- **状态与资源**：`SerialPortViewState` 升到 v2（`Sessions[]` + `SelectedSessionId`），旧扁平结构读到即迁移为单会话且不自动重连；`LogBuffer` 新增 `autoFlush=false` 构造，串口会话改由页面级 16ms 统一刷新（每会话不再各自起定时器），非当前会话日志上限降为 5000 行、当前会话 20000 行。
+- **新增行为**：发送区"广播"（按已连接会话逐个下发、失败只影响该路）、`TerminalStatusBar.MiddleDetail` 显示"已连接 N / M 会话"、同一 COM 被其他已连接会话占用时拒绝连接、RTS/DTR 改为真实写 `SerialPort.RtsEnable/DtrEnable`（原实现只弹提示）。
+- **i18n**：`Serial.Button_CloseSession`、`Label_Broadcast`、`Label_Aggregate`、`Menu_AddPort`、`Msg_MaxSessions`、`Msg_PortInUseBySession` 六键中英同步。
+- 验证：GUI 与 CLI `dotnet build` 均 0 错误 0 警告；`fancy-tool serial list` 实跑列出 8 个端口；双语键 808/808 对称。**未实测**：GUI 点击交互、真实串口多路收发（无设备）、TCP/UDP 页面日志刷新回归（`LogBuffer` 新构造对旧调用方保留了自建定时器）。合并日志（跨端口时间线）未实现。
+
 ## 2026-11-11（升级 .NET 11 · 移除 global.json）
 
 - **全量升级目标框架到 .NET 11**：`net10.0` → `net11.0`、Windows `net10.0-windows10.0.19041.0` → `net11.0-windows10.0.19041.0`；覆盖 `WindowsInference.props`、GUI / Core / CLI 三工程、7 个烟测工程、TFM 条件包引用、`publish-win.ps1`、`FolderProfile.pubxml`、烟测脚本路径、AGENTS.md 与 README 双语。历史实测报告保留旧 TFM 作为原始证据，ADR 0004 / 0007 文首补指向新 ADR 的说明。

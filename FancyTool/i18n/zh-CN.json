@@ -228,7 +228,13 @@
     "Msg_SaveDialogTitle": "保存接收数据",
     "Msg_SaveSuccess": "数据已保存到 {0}",
     "Msg_NotConnected": "请先连接串口。",
-    "Msg_TimedSendError": "定时发送错误: {0}"
+"Msg_TimedSendError": "定时发送错误: {0}",
+    "Button_CloseSession": "关闭",
+    "Label_Broadcast": "广播",
+    "Label_Aggregate": "已连接 {0} / {1} 会话",
+    "Menu_AddPort": "添加端口 {0}",
+    "Msg_MaxSessions": "最多 {0} 路，先关闭一个会话。",
+    "Msg_PortInUseBySession": "{0} 已被其他会话占用"
   },
   "Tcp": {
     "Title": "TCP 调试",

@@ -35,6 +35,7 @@
         <helpers:LogKindToBrushConverter x:Key="LogKindToBrushConverter" />
         <helpers:ConnectionStatusToTextConverter x:Key="StatusTextConverter" />
         <helpers:IntEqualsToBoolConverter x:Key="IntEq" />
+        <helpers:ConnectionStatusToBrushConverter x:Key="ConnectionStatusBrush" />
 
         <!-- ============ Home page card grid ============ -->
         <ControlTheme TargetType="ListBoxItem"

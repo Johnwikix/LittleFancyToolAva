@@ -184,7 +184,8 @@ public static class CliServices
         services.AddSingleton<IAudioConvertService, AudioConvertService>();
         services.AddSingleton<IFileEncryptionService, FileEncryptionService>();
         services.AddSingleton<IFolderCompareService, FolderCompareService>();
-        services.AddSingleton<ISerialPortService, SerialPortService>();
+        services.AddTransient<ISerialPortService, SerialPortSession>();
+        services.AddSingleton<ISerialPortHub, SerialPortHub>();
         services.AddSingleton<ITcpServerService, TcpServerService>();
         services.AddSingleton<IUdpService, UdpService>();
         services.AddSingleton<TcpLinkTestService>();

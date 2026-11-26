@@ -230,7 +230,13 @@
     "Msg_SaveDialogTitle": "Save Received Data",
     "Msg_SaveSuccess": "Data saved to {0}",
     "Msg_NotConnected": "Please connect the serial port first.",
-    "Msg_TimedSendError": "Timed send error: {0}"
+"Msg_TimedSendError": "Timed send error: {0}",
+    "Button_CloseSession": "Close",
+    "Label_Broadcast": "Broadcast",
+    "Label_Aggregate": "{0} of {1} sessions connected",
+    "Menu_AddPort": "Add port {0}",
+    "Msg_MaxSessions": "Up to {0} sessions. Close one first.",
+    "Msg_PortInUseBySession": "{0} is already in use by another session"
   },
   "Tcp": {
     "Title": "TCP Debug",

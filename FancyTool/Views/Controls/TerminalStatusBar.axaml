@@ -13,7 +13,7 @@
                 Background="{DynamicResource SubtleFillColorTertiaryBrush}"
                 CornerRadius="4"
                 Padding="12,6">
-            <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,*">
+            <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,*,Auto">
                 <TextBlock Grid.Column="0" FontSize="12" VerticalAlignment="Center">
                     <Run Text="{lan:I18n TerminalStatus.Label_RX}" FontWeight="SemiBold" />
                     <Run Text="{Binding #Root.RxCount}" />
@@ -32,6 +32,10 @@
                     <Run Text="{Binding #Root.ElapsedText}" />
                 </TextBlock>
                 <TextBlock Grid.Column="4" Margin="16,0,0,0" FontSize="12" VerticalAlignment="Center"
+                           HorizontalAlignment="Right"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                           Text="{Binding #Root.MiddleDetail}" />
+                <TextBlock Grid.Column="5" Margin="16,0,0,0" FontSize="12" VerticalAlignment="Center"
                            HorizontalAlignment="Right"
                            Text="{Binding #Root.RightDetail}" />
             </Grid>

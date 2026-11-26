@@ -17,6 +17,9 @@ namespace FancyToolAva.Views.Controls
         public static readonly StyledProperty<string> ElapsedTextProperty =
             AvaloniaProperty.Register<TerminalStatusBar, string>(nameof(ElapsedText), "00:00:00");
 
+        public static readonly StyledProperty<string> MiddleDetailProperty =
+            AvaloniaProperty.Register<TerminalStatusBar, string>(nameof(MiddleDetail), string.Empty);
+
         public static readonly StyledProperty<string> RightDetailProperty =
             AvaloniaProperty.Register<TerminalStatusBar, string>(nameof(RightDetail), string.Empty);
 
@@ -42,6 +45,12 @@ namespace FancyToolAva.Views.Controls
         {
             get => GetValue(ElapsedTextProperty);
             set => SetValue(ElapsedTextProperty, value);
+        }
+
+        public string MiddleDetail
+        {
+            get => GetValue(MiddleDetailProperty);
+            set => SetValue(MiddleDetailProperty, value);
         }
 
         public string RightDetail
