@@ -7,6 +7,7 @@ using Lang.Avalonia;
 using FancyToolAva.Models;
 using FancyToolAva.Models.ViewStates;
 using FancyToolAva.Services;
+using FancyToolAva.Utils;
 
 namespace FancyToolAva.ViewModels
 {
@@ -31,6 +32,8 @@ namespace FancyToolAva.ViewModels
         private SerialChoiceItem? _selectedChoice;
         private SerialSessionViewModel? _currentSession;
         private bool _isBroadcast;
+        private bool _isMergedLog;
+        private bool _canCloseCached = true;
 
         public SerialPortViewModel(ISerialPortHub hub, INotificationService notificationService,
             IViewStateService viewStateService, IFileDialogService fileDialogService, AppObserveModel app)
@@ -40,6 +43,8 @@ namespace FancyToolAva.ViewModels
             _viewStateService = viewStateService;
             _fileDialogService = fileDialogService;
             _app = app;
+
+            MergedLog.MaxLines = 20_000;
 
             _uiFlushTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
             _uiFlushTimer.Tick += (_, _) => FlushAllSessions();
@@ -59,6 +64,8 @@ namespace FancyToolAva.ViewModels
 
         public ObservableCollection<string> AvailablePorts { get; } = [];
 
+        public LogBuffer MergedLog { get; } = new(autoFlush: false);
+
         public IReadOnlyList<string> BaudRates => SerialSessionViewModel.BaudRates;
         public IReadOnlyList<string> Parities => SerialSessionViewModel.Parities;
         public IReadOnlyList<string> DataBitsList => SerialSessionViewModel.DataBitsList;
@@ -77,7 +84,7 @@ namespace FancyToolAva.ViewModels
                 _currentSession?.MarkRead();
                 OnPropertyChanged();
                 OnPropertyChanged(string.Empty);
-                RefreshSelection();
+                SelectChoice(value);
                 RefreshAggregate();
             }
         }
@@ -87,16 +94,13 @@ namespace FancyToolAva.ViewModels
             get => _selectedChoice;
             set
             {
-                if (_suppressChoice)
-                {
-                    _selectedChoice = value;
-                    OnPropertyChanged();
-                    return;
-                }
+                if (_suppressChoice) return;
 
                 if (value is null)
                 {
-                    OnPropertyChanged();
+                    // ItemsSource 变更（选中项被移出集合）时控件会先推 null。
+                    // 这里不把 null 写回字段，改为重新推送当前会话的选中项，避免收起框变空。
+                    ReassertSelection();
                     return;
                 }
 
@@ -108,11 +112,14 @@ namespace FancyToolAva.ViewModels
                 if (value.Session is { } session)
                 {
                     CurrentSession = session;
+                    return;
                 }
-                else
+
+                var created = AddSession(value.PortName);
+                SyncChoiceItems();
+                if (created is not null)
                 {
-                    AddSession(value.PortName);
-                    RebuildChoices();
+                    SelectChoice(created, reassert: true);
                 }
             }
         }
@@ -136,6 +143,8 @@ namespace FancyToolAva.ViewModels
         public bool IsAnyConnected => Sessions.Any(s => s.IsConnected);
 
         public bool CanSend => IsBroadcast ? IsAnyConnected : CurrentSession?.IsConnected == true;
+
+        public bool CanCloseSession => Sessions.Count > 1;
 
         public bool CanAddSession => Sessions.Count < MaxSessions;
 
@@ -195,7 +204,8 @@ namespace FancyToolAva.ViewModels
             RefreshPortsCore();
             string port = AvailablePorts.FirstOrDefault() ?? string.Empty;
             AddSession(port);
-            RebuildChoices();
+            SyncChoiceItems();
+            SelectChoice(CurrentSession, reassert: true);
         }
 
         private SerialSessionViewModel? AddSession(string portName, SerialSessionViewState? state = null, bool select = true)
@@ -214,7 +224,7 @@ namespace FancyToolAva.ViewModels
             };
             session.Faulted += OnSessionFaulted;
             session.PropertyChanged += OnSessionPropertyChanged;
-            state ??= null;
+            session.LogSink = OnSessionLog;
             if (state is not null)
             {
                 session.ApplyState(state);
@@ -249,7 +259,8 @@ namespace FancyToolAva.ViewModels
             }
 
             CurrentSession = selected ?? Sessions.FirstOrDefault();
-            RebuildChoices();
+            SyncChoiceItems();
+            SelectChoice(CurrentSession, reassert: true);
         }
 
         private void RemoveSession(SerialSessionViewModel session, bool releaseHub)
@@ -273,42 +284,107 @@ namespace FancyToolAva.ViewModels
                 && (other.IsConnected || other.ConnectionStatus == ConnectionStatus.Connecting));
         }
 
-        private void RebuildChoices()
+        /// <summary>
+        /// 增量同步下拉项：不整表 Clear（Clear 会让 ComboBox 把 SelectedItem 置空，
+        /// 且新实例不在旧集合里，收起框会停在"未选中"状态）。
+        /// </summary>
+        private void SyncChoiceItems()
         {
             _suppressChoice = true;
-            PortChoices.Clear();
-
-            foreach (var session in Sessions)
+            try
             {
-                PortChoices.Add(SerialChoiceItem.ForSession(session));
+                for (int i = PortChoices.Count - 1; i >= 0; i--)
+                {
+                    if (PortChoices[i].Session is { } existing && !Sessions.Contains(existing))
+                    {
+                        PortChoices.RemoveAt(i);
+                    }
+                }
+
+                foreach (var session in Sessions)
+                {
+                    if (PortChoices.Any(c => ReferenceEquals(c.Session, session))) continue;
+                    var item = SerialChoiceItem.ForSession(session);
+                    int addIndex = IndexOfFirstAddPortItem();
+                    if (addIndex >= 0) PortChoices.Insert(addIndex, item);
+                    else PortChoices.Add(item);
+                }
+
+                var used = Sessions
+                    .Select(s => s.SelectedPort)
+                    .Where(p => !string.IsNullOrEmpty(p))
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                for (int i = PortChoices.Count - 1; i >= 0; i--)
+                {
+                    var item = PortChoices[i];
+                    if (item.Session is null && used.Contains(item.PortName))
+                    {
+                        PortChoices.RemoveAt(i);
+                    }
+                }
+
+                var present = PortChoices
+                    .Where(c => c.Session is null)
+                    .Select(c => c.PortName)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                foreach (var port in AvailablePorts)
+                {
+                    if (string.IsNullOrEmpty(port) || used.Contains(port) || present.Contains(port)) continue;
+                    PortChoices.Add(SerialChoiceItem.ForPort(port));
+                }
+            }
+            finally
+            {
+                _suppressChoice = false;
             }
 
-            var used = Sessions
-                .Select(s => s.SelectedPort)
-                .Where(p => !string.IsNullOrEmpty(p))
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-            foreach (var port in AvailablePorts.Where(p => !used.Contains(p)))
-            {
-                PortChoices.Add(SerialChoiceItem.ForPort(port));
-            }
-
-            _selectedChoice = PortChoices.FirstOrDefault(c => ReferenceEquals(c.Session, _currentSession));
-            OnPropertyChanged(nameof(SelectedChoice));
             OnPropertyChanged(nameof(CanAddSession));
-            _suppressChoice = false;
         }
 
-        private void RefreshSelection()
+        private int IndexOfFirstAddPortItem()
         {
-            if (_currentSession is null) return;
-            var item = PortChoices.FirstOrDefault(c => ReferenceEquals(c.Session, _currentSession));
-            if (item is null || ReferenceEquals(item, _selectedChoice)) return;
+            for (int i = 0; i < PortChoices.Count; i++)
+            {
+                if (PortChoices[i].Session is null) return i;
+            }
+            return -1;
+        }
 
-            _suppressChoice = true;
+        private SerialChoiceItem? FindItem(SerialSessionViewModel? session)
+        {
+            if (session is null) return null;
+            return PortChoices.FirstOrDefault(c => ReferenceEquals(c.Session, session));
+        }
+
+        private void SelectChoice(SerialSessionViewModel? session, bool reassert = false)
+        {
+            var item = FindItem(session);
+            if (item is null) return;
+
+            if (!ReferenceEquals(_selectedChoice, item))
+            {
+                _selectedChoice = item;
+                OnPropertyChanged(nameof(SelectedChoice));
+            }
+
+            if (!reassert) return;
+
+            // 集合刚变更过时，ComboBox 可能在本帧稍后才把 SelectedItem 复位；
+            // 再推一次（含下一帧）保证收起框落在当前会话上。
+            OnPropertyChanged(nameof(SelectedChoice));
+            Dispatcher.UIThread.Post(() => OnPropertyChanged(nameof(SelectedChoice)));
+        }
+
+        private void ReassertSelection()
+        {
+            var item = FindItem(_currentSession);
+            if (item is null) return;
+
             _selectedChoice = item;
             OnPropertyChanged(nameof(SelectedChoice));
-            _suppressChoice = false;
+            Dispatcher.UIThread.Post(() => OnPropertyChanged(nameof(SelectedChoice)));
         }
 
         private void RefreshPortsCore()
@@ -322,6 +398,13 @@ namespace FancyToolAva.ViewModels
 
         private void RefreshAggregate()
         {
+            bool canClose = CanCloseSession;
+            if (canClose != _canCloseCached)
+            {
+                _canCloseCached = canClose;
+                OnPropertyChanged(nameof(CanCloseSession));
+                CloseSessionCommand.NotifyCanExecuteChanged();
+            }
             OnPropertyChanged(nameof(TotalSessions));
             OnPropertyChanged(nameof(ConnectedCount));
             OnPropertyChanged(nameof(IsAnyConnected));
@@ -337,6 +420,7 @@ namespace FancyToolAva.ViewModels
                 session.FlushCounters();
                 session.FlushLog();
             }
+            MergedLog.Flush();
         }
 
         private void TickSessions()
@@ -365,21 +449,69 @@ namespace FancyToolAva.ViewModels
             }
         }
 
+        public bool IsMergedLog
+        {
+            get => _isMergedLog;
+            set
+            {
+                if (!SetProperty(ref _isMergedLog, value)) return;
+                OnPropertyChanged(nameof(BufferUsageCount));
+                OnPropertyChanged(nameof(BufferUsageMax));
+            }
+        }
+
+        public int BufferUsageCount => _isMergedLog ? MergedLog.Count : CurrentSession?.Log.Count ?? 0;
+
+        public int BufferUsageMax => _isMergedLog ? MergedLog.MaxLines : CurrentSession?.Log.MaxLines ?? 0;
+
+        private void OnSessionLog(SerialSessionViewModel session, LogKind kind, string text)
+        {
+            MergedLog.Enqueue(kind, $"[{session.DisplayName}] {text}");
+        }
+
+        [RelayCommand]
+        private void ClearLog()
+        {
+            if (_isMergedLog)
+            {
+                MergedLog.Clear();
+                return;
+            }
+            CurrentSession?.ClearCommand.Execute(null);
+        }
+
+        [RelayCommand]
+        private async Task SaveLog()
+        {
+            if (_isMergedLog)
+            {
+                await LogFileHelper.SaveAsync(MergedLog, _fileDialogService, _notificationService, "SerialMerged");
+                return;
+            }
+            if (CurrentSession is { } session)
+            {
+                await session.SaveDataCommand.ExecuteAsync(null);
+            }
+        }
+
         [RelayCommand]
         private void RefreshPorts()
         {
             RefreshPortsCore();
-            RebuildChoices();
+            SyncChoiceItems();
+            SelectChoice(CurrentSession, reassert: true);
         }
 
-        [RelayCommand]
+        [RelayCommand(CanExecute = nameof(CanCloseSession))]
         private void CloseSession()
         {
             var session = CurrentSession;
             if (session is null) return;
+            if (!CanCloseSession) return;
 
             int index = Sessions.IndexOf(session);
             RemoveSession(session, releaseHub: true);
+            SyncChoiceItems();
 
             if (Sessions.Count == 0)
             {
@@ -389,7 +521,7 @@ namespace FancyToolAva.ViewModels
             }
 
             CurrentSession = Sessions[Math.Clamp(index, 0, Sessions.Count - 1)];
-            RebuildChoices();
+            SelectChoice(CurrentSession, reassert: true);
         }
 
         [RelayCommand]

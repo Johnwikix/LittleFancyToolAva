@@ -359,13 +359,13 @@ public class SerialSessionViewState
 | 项 | 实现情况 |
 | --- | --- |
 | 服务层 | `SerialPortSession`（原 `SerialPortService` 改名）+ `SerialPortHub` + `SerialPortCatalog`；GUI `AddTransient<ISerialPortService>` + `AddSingleton<ISerialPortHub>`；CLI 不改命令，只换注册 |
-| ComboBox | 折叠态与下拉共用同一 `ItemTemplate`（未单独做 `SelectionBoxItemTemplate`）：状态点 + 端口名/别名 + 参数摘要 + 状态文字 + 未读徽标 |
+| ComboBox | 下拉项用 `ItemTemplate`（状态点 + 端口名/别名 + 状态文字 + 未读徽标），收起框单独用 `SelectionBoxItemTemplate`（状态点 + 端口名 + 状态文字）；参数摘要行与"关闭"按钮位置按用户改后的布局（摘要注释掉、关闭移入 ActionBar） |
 | 添加端口 | 下拉末尾追加"添加端口 COMx"项，选中即建会话；上限 8 路，超限提示 |
 | 会话关闭 | ComboBox 右侧"关闭"按钮；**无确认弹窗**（`INotificationService` 没有确认 API），直接断开并释放端口 |
 | 广播 | 发送区"广播"勾选，页面 `SendCommand` 按已连接会话逐个下发 |
 | 聚合 | `TerminalStatusBar` 新增 `MiddleDetail`，显示"已连接 N / M 会话" |
 | 日志刷新 | `LogBuffer(autoFlush:false)` + 页面级单 16ms 定时器统一 `Flush`/计数，替换每会话定时器 |
-| 合并日志 | **未实现**，日志卡标题栏未加"合并日志"按钮 |
+| 合并日志 | 已实现：`LogBuffer.EntryEnqueued` → 会话 `LogSink` → 页面 `MergedLog`（20000 行、常驻采集），日志卡标题栏 `ToggleButton` 切换，行前缀 `[别名]`；清空/保存按当前视图分流 |
 | 双分屏 | 未实现（原 P4 可选） |
 | 端口热插拔轮询 | 未实现，仍靠"刷新端口"按钮 |
 

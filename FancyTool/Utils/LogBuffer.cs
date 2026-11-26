@@ -11,6 +11,8 @@ namespace FancyToolAva.Utils
     {
         public event PropertyChangedEventHandler? PropertyChanged;
 
+        public event Action<LogKind, string>? EntryEnqueued;
+
         private readonly ConcurrentQueue<LogEntry> _pending = new();
         private readonly DispatcherTimer? _flushTimer;
 
@@ -42,6 +44,7 @@ namespace FancyToolAva.Utils
         {
             if (string.IsNullOrEmpty(text)) return;
             _pending.Enqueue(new LogEntry(kind, text));
+            EntryEnqueued?.Invoke(kind, text);
         }
 
         public void EnqueueLine(LogKind kind, string text)
@@ -59,14 +62,18 @@ namespace FancyToolAva.Utils
                     if (lineEnd > lineStart && src[lineEnd - 1] == '\r') lineEnd--;
                     if (lineEnd > lineStart)
                     {
-                        _pending.Enqueue(new LogEntry(kind, text.Substring(lineStart, lineEnd - lineStart)));
+                        string lineText = text.Substring(lineStart, lineEnd - lineStart);
+                        _pending.Enqueue(new LogEntry(kind, lineText));
+                        EntryEnqueued?.Invoke(kind, lineText);
                     }
                     lineStart = i + 1;
                 }
             }
             if (lineStart < src.Length)
             {
-                _pending.Enqueue(new LogEntry(kind, text.Substring(lineStart)));
+                string tailText = text.Substring(lineStart);
+                _pending.Enqueue(new LogEntry(kind, tailText));
+                EntryEnqueued?.Invoke(kind, tailText);
             }
         }
 

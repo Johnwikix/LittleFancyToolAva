@@ -88,6 +88,23 @@
 				</Grid>
 			</DataTemplate>
 		</ComboBox.ItemTemplate>
+		<ComboBox.SelectionBoxItemTemplate>
+			<DataTemplate x:DataType="vm:SerialChoiceItem">
+				<StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+					<Ellipse Width="8" Height="8" VerticalAlignment="Center"
+							 IsVisible="{Binding HasSession}"
+							 Fill="{Binding State, Converter={StaticResource ConnectionStatusBrush}}" />
+					<TextBlock Text="+" VerticalAlignment="Center"
+							   Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+							   IsVisible="{Binding IsAddPort}" />
+					<TextBlock Text="{Binding DisplayName}" FontSize="12" FontWeight="SemiBold"
+							   VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+					<TextBlock Text="{Binding StateText}" FontSize="11" VerticalAlignment="Center"
+							   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+							   IsVisible="{Binding HasSession}" />
+				</StackPanel>
+			</DataTemplate>
+		</ComboBox.SelectionBoxItemTemplate>
                                     </ComboBox>
                             </StackPanel>
                             <StackPanel Classes="FormRow">
@@ -131,8 +148,8 @@
                                         Content="{lan:I18n Serial.Button_Disconnect}"
                                         IsEnabled="{Binding CurrentSession.IsConnected}" />
 	                            <Button Grid.Column="1"
-			                            Classes="Quiet"
 			                            Command="{Binding CloseSessionCommand}"
+                                            IsEnabled="{Binding CanCloseSession}"
                                         Content="{lan:I18n Serial.Button_CloseSession}" />
                             </StackPanel>
                         </StackPanel>
@@ -182,18 +199,24 @@
                         <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="16,12,16,8">
                             <TextBlock Classes="SectionHeader" Grid.Column="0" Text="{lan:I18n Serial.Group_Log}" />
                             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
-                                <Button Classes="Quiet" Command="{Binding CurrentSession.ClearCommand}" Content="{lan:I18n Common.Button_Clear}" />
-                                <Button Classes="Quiet" Command="{Binding CurrentSession.SaveDataCommand}" Content="{lan:I18n Serial.Button_SaveData}" />
+                                <ToggleButton Classes="Quiet" Content="{lan:I18n Serial.Button_MergedLog}" IsChecked="{Binding IsMergedLog, Mode=TwoWay}" />
+                                <Button Classes="Quiet" Command="{Binding ClearLogCommand}" Content="{lan:I18n Common.Button_Clear}" />
+                                <Button Classes="Quiet" Command="{Binding SaveLogCommand}" Content="{lan:I18n Serial.Button_SaveData}" />
                             </StackPanel>
                         </Grid>
-                        <controls:LogBufferView Grid.Row="1" Margin="12,0,12,0" Entries="{Binding CurrentSession.Log.Entries}" />
+                        <controls:LogBufferView Grid.Row="1" Margin="12,0,12,0"
+                                                 IsVisible="{Binding IsMergedLog, Converter={StaticResource Inv}}"
+                                                 Entries="{Binding CurrentSession.Log.Entries}" />
+                        <controls:LogBufferView Grid.Row="1" Margin="12,0,12,0"
+                                                 IsVisible="{Binding IsMergedLog}"
+                                                 Entries="{Binding MergedLog.Entries}" />
                         <Border Grid.Row="2" Background="{DynamicResource SubtleFillColorTertiaryBrush}"
                                 Padding="16,6" Margin="12,0,12,12" CornerRadius="4">
                             <TextBlock Classes="Caption">
                                 <Run Text="{lan:I18n Serial.Label_BufferUsage}" />
-                                <Run Text="{Binding CurrentSession.Log.Count}" />
+                                <Run Text="{Binding BufferUsageCount}" />
                                 <Run Text=" / " />
-                                <Run Text="{Binding CurrentSession.Log.MaxLines}" />
+                                <Run Text="{Binding BufferUsageMax}" />
                                 <Run Text="{lan:I18n Serial.Label_BufferLines}" />
                             </TextBlock>
                         </Border>

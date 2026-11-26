@@ -229,6 +229,7 @@
     "Msg_SaveSuccess": "数据已保存到 {0}",
     "Msg_NotConnected": "请先连接串口。",
 "Msg_TimedSendError": "定时发送错误: {0}",
+    "Button_MergedLog": "合并日志",
     "Button_CloseSession": "关闭",
     "Label_Broadcast": "广播",
     "Label_Aggregate": "已连接 {0} / {1} 会话",

@@ -50,6 +50,8 @@ namespace FancyToolAva.ViewModels
         /// <summary>需要提示用户的错误；由页面 VM 决定是否弹窗（只有当前会话才弹）。</summary>
         public event Action<SerialSessionViewModel, string>? Faulted;
 
+        public Action<SerialSessionViewModel, LogKind, string>? LogSink { get; set; }
+
         public LogBuffer Log { get; } = new(autoFlush: false);
 
         public SerialSessionViewModel(ISerialPortService session, INotificationService notificationService,
@@ -64,6 +66,7 @@ namespace FancyToolAva.ViewModels
             _session.DataSent += OnDataSent;
             _session.StatusChanged += OnStatusChanged;
             _session.ConnectionStateChanged += OnConnectionStateChanged;
+            Log.EntryEnqueued += (kind, text) => LogSink?.Invoke(this, kind, text);
         }
 
         public string SelectedPort

@@ -29,6 +29,8 @@ namespace FancyToolAva.ViewModels
 
         public static SerialChoiceItem ForPort(string portName) => new(null, portName);
 
+        public override string ToString() => DisplayName;
+
         public bool HasSession => Session is not null;
 
         public bool IsAddPort => Session is null;

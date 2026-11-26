@@ -7,7 +7,9 @@
 - **状态与资源**：`SerialPortViewState` 升到 v2（`Sessions[]` + `SelectedSessionId`），旧扁平结构读到即迁移为单会话且不自动重连；`LogBuffer` 新增 `autoFlush=false` 构造，串口会话改由页面级 16ms 统一刷新（每会话不再各自起定时器），非当前会话日志上限降为 5000 行、当前会话 20000 行。
 - **新增行为**：发送区"广播"（按已连接会话逐个下发、失败只影响该路）、`TerminalStatusBar.MiddleDetail` 显示"已连接 N / M 会话"、同一 COM 被其他已连接会话占用时拒绝连接、RTS/DTR 改为真实写 `SerialPort.RtsEnable/DtrEnable`（原实现只弹提示）。
 - **i18n**：`Serial.Button_CloseSession`、`Label_Broadcast`、`Label_Aggregate`、`Menu_AddPort`、`Msg_MaxSessions`、`Msg_PortInUseBySession` 六键中英同步。
-- 验证：GUI 与 CLI `dotnet build` 均 0 错误 0 警告；`fancy-tool serial list` 实跑列出 8 个端口；双语键 808/808 对称。**未实测**：GUI 点击交互、真实串口多路收发（无设备）、TCP/UDP 页面日志刷新回归（`LogBuffer` 新构造对旧调用方保留了自建定时器）。合并日志（跨端口时间线）未实现。
+- **修复（同日）**：添加端口后 ComboBox 收起框为空。原因是 `RebuildChoices` 对 `PortChoices` 整表 `Clear()`，ComboBox 会先把 `SelectedItem` 置空，而重建出来的新实例又不在旧集合里，收起框就停在未选中态；改为增量 `SyncChoiceItems`（会话项插到"添加端口"段之前、被占用端口项就地移除），选择变更后补一次 `Dispatcher` 重推，并给 ComboBox 补 `SelectionBoxItemTemplate`（Fluent 模板只用它渲染收起框，不回退 `ItemTemplate`），`SerialChoiceItem` 另加 `ToString()` 兜底。重新编译 0 错误 0 警告。
+- **关闭会话按钮随会话数置灰**：仅剩 1 个会话时不可关闭——`CloseSessionCommand` 加 `CanExecute = CanCloseSession`（`Sessions.Count > 1`），XAML 另绑 `IsEnabled="{Binding CanCloseSession}"` 双保险；`RefreshAggregate` 内只在状态翻转时 `NotifyCanExecuteChanged`，避免每秒刷新命令状态。
+- 验证：GUI 与 CLI `dotnet build` 均 0 错误 0 警告；`fancy-tool serial list` 实跑列出 8 个端口；双语键 808/808 对称。**未实测**：GUI 点击交互、真实串口多路收发（无设备）、TCP/UDP 页面日志刷新回归（`LogBuffer` 新构造对旧调用方保留了自建定时器）。合并日志（跨端口时间线）已实现：`LogBuffer` 增加 `EntryEnqueued` 事件，会话 `LogSink` 汇聚到页面 `MergedLog`（20000 行、常驻采集），日志卡标题栏 `ToggleButton` 切换，行前缀为 `[别名]`，清空/保存按当前视图分流。
 
 ## 2026-11-11（升级 .NET 11 · 移除 global.json）
 
