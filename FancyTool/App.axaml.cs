@@ -251,6 +251,7 @@ namespace FancyToolAva
             services.AddSingleton<IUdpService, UdpService>();
             services.AddSingleton<TcpLinkTestService>();
             services.AddSingleton<UdpLinkTestService>();
+            services.AddSingleton<TerminalTicker>();
 
             services.AddTransient<MainWindowViewModel>();
             services.AddTransient<HomeViewModel>();

@@ -1,5 +1,39 @@
 # 变更记录
 
+## 2026-11-27（P0：终端会话 / 页面公共基类抽取，串口取消会话上限；同日修复四处既有问题）
+
+- **公共基类抽取**（`tcp-udp-multi-session-design.md` 6.1 甲方案，P0）：新增会话级 `TerminalSessionViewModelBase`（日志、计数、未读、计时、状态文案、发送选项、定时发送循环）、页面级泛型 `TerminalPageViewModelBase<TSession>`（会话集合、当前会话、下拉项同步、关闭并选邻、合并日志、聚合文案、"全部会话"发送）、`SessionChoiceItem`（取代 `SerialChoiceItem`，后者删除）和单例节拍 `TerminalTicker`（16ms / 1s，`App.axaml.cs` 注册）。`SerialSessionViewModel` / `SerialPortViewModel` 改为派生，串口页布局不变。选择器两个 `DataTemplate` 提到 `CommonStyles.axaml`（`SessionChoiceItemTemplate`、`SessionChoiceBoxTemplate`），后续 TCP / UDP 共用。
+- **定时发送是会话级的**：每一路各自一个任务和取消令牌，开始时在 UI 线程取发送目标快照（抽象 `CreatePollingSender()`），之后切换会话、离开页面都不影响进行中的定时发送。串口原本就是会话级，行为不变；这次由基类承载，TCP / UDP 迁移时直接继承。
+- **取消串口 8 路上限**：删除 `MaxSessions`、`CanAddSession`、超限提示和恢复存档时的截断（`Take(MaxSessions)`）。下拉项同步由"每个会话在下拉项里线性查找"改为字典。
+- **"广播"改为"全部会话"**：勾选框改用公共键 `Session.Label_SendAllSessions`，行为不变。
+- **i18n**：新增 `Session.Label_SendAllSessions`，删除 `Serial.Label_Broadcast`、`Serial.Msg_MaxSessions`，中英各 808 键（同日修复后为 811 键）。
+- **随搬移产生的四处非搬移变化**（均已逐行对照旧实现）：其一，按设计 6.2 订阅 `CultureChanged`，切换语言后聚合文案、下拉项名称与状态文字、会话状态文字重发通知，旧实现没有这一段。其二，TX 文本解码与 RX 共用带回退的 `DecodeBytes`，旧实现 TX 直接 `GetString`、没有异常回退。其三，定时发送任务不再把取消令牌传给 `Task.Run`，并删除从未被读取的 `_pollTask` 字段。其四，删除没有绑定的 `RxTxSummary` / `ShortCount`（会话）和 `Summary` / `RxTxSummary`（下拉项）。
+- **验证**（Windows 11 26300 x64，SDK 11.0.100，Debug 构建，FluentAvalonia 3.0.2；GUI 以"最小化且不激活的窗口 + UI Automation"驱动，不模拟鼠标键盘；虚拟串口 VSerial 两两互连 COM1↔COM2 … COM7↔COM8；证据在 `.qa/tcp-udp-multi-session-2026-11-26/`）：
+  - 构建：GUI 与 CLI 均 0 警告 0 错误。泛型基类上的 `[RelayCommand]` 与编译绑定（`CurrentSession.*`）按预期可用，设计第 11 节的第二条风险没有出现。
+  - GUI 基线对比：改动前的构建副本与改动后的构建按同一组步骤各采集 9 个状态（默认、下拉展开、两路、两路下拉、合并日志、全部会话、输入发送内容、关闭会话、8 路）逐元素比对，每个状态只有 4 行差异，全部是勾选框"广播"→"全部会话"。
+  - 存档恢复：同一份 10 路存档，旧构建只恢复 8 路（"已连接 0 / 8 会话"），新构建恢复 10 路。切换会话时参数与发送内容整体切换，两构建一致。
+  - 真实串口（COM1↔COM2 两路互连）：A 手动发送后 B 的 RX 为 1。A 启动定时发送后切到 B，B 的"定时发送"可用、"停止"禁用，B 的 RX 持续增长（1 → 49 → 74）；切回 A，"停止"仍可用，TX 6 → 25 → 98。B 也启动定时发送后 A 的 RX 增长到 31。"全部会话"发送与停止正常。
+  - 英文启动：串口页 9 个状态的文字无裸键、无残留中文（`All sessions`、`Add port COMx`、`0 of N sessions connected` 等）。
+  - CLI：`fancy-tool serial list` 列出 COM1–COM8；`serial send --port COM3 --data cli-p0` 与 `serial listen --port COM4` 环回收到 `RX> cli-p0`。
+  - 正常退出：2 路会话（均未连接）下关闭窗口，`SerialPortHub` 与各服务按序释放，日志无错误。
+- **未执行**：运行时切换语言（后台最小化窗口下 UIA 无法驱动侧栏导航项，旧构建相同，进不了设置页）；真实鼠标键盘点击、关闭窗口时有定时发送在途的退出路径、超过 10 路会话的内存占用均未测；P1–P3 未开始。
+- **同日修复四处既有问题**（用户确认后修改）：
+  - 合并日志保存提示显示裸键：原前缀 `SerialMerged` 在 i18n 里没有对应分区。新增公共分区 `MergedLog`（`Msg_NoDataToSave`、`Msg_SaveDialogTitle`、`Msg_SaveSuccess`，中英同步），前缀改为页面基类里的常量，不再由各页面提供。
+  - 恢复存档后总是选中第一路：存档里的 `SelectedSessionId` 对不上新建会话的 `Id`。会话基类新增 `RestoreId`，串口会话的 `ApplyState` 用存档里的 `Id` 覆盖新建的标识；存档没有有效标识时保留新建的。
+  - 会话出错回调可能在非 UI 线程发布通知：对话框本身原本就会切回 UI 线程（`ContentDialogNotificationService`），越线程的是页面处理器里的聚合状态与命令通知。页面基类改为不在 UI 线程时先切回，再刷新与弹提示；"是否当前会话"在触发时刻取值。
+  - `ParameterSummary` 没有任何绑定（下拉摘要行早已注释掉）：连同它的五处通知一起删除，四个索引属性保留原有的变更通知。
+- **四处修复的验证**（同上环境与驱动方式，证据目录同上）：修复后重跑 9 个状态的采集，与修复前逐元素一致（0 行差异）。同一份 `SelectedSessionId=s03` 的 10 路存档，新构建恢复后选中第 3 路（COM3），切到 `dup3` 后正常关闭窗口，存档写回 `s09`；旧构建恢复后选中第 1 路，存档里的 `Id` 全部是新生成的。合并日志为空时点"保存数据"，新构建显示"没有可保存的合并日志。"，英文为 "No merged log to save."，旧构建显示裸键 `SerialMerged.Msg_NoDataToSave`。命令行占住 COM3 时在界面连接，弹出"连接失败: Access to the path 'COM3' is denied."，走的是出错回调在 UI 线程上的分支。
+- **四处修复里没有运行期证据的部分**：出错回调在线程池线程上触发的分支（服务层的 `SendAsync` 自己吞掉异常，当前只有订阅者抛异常才会走到那条路径）；合并日志非空时的保存对话框标题与成功提示（会弹出系统文件对话框，打扰用户），只做了"键存在且中英对称"的静态检查。
+
+## 2026-11-26（TCP / UDP 多会话设计文档）
+
+- 新增 `docs/tcp-udp-multi-session-design.md`（待评审，未实现）：沿用串口多端口的会话模型，针对"端点是文本框输入"设计三处差异。其一，下拉末尾放固定的"新建会话"项，默认复制当前会话并把端口 +1。其二，运行中冻结绑定身份，启动前按"TCP 服务端监听端点 / UDP 本地端点"做冲突检查：UDP 因 `ReuseAddress` 同端口双绑定会成功且投递未定义，必须在应用层拦截，组播会话之间放行。其三，链路测试保持页面级并改用独立端点输入，开始测试时才停止全部会话，切页签不再停。
+- 服务层建议泛型 `SessionHub<T>` 加 Core 内 `BindEndpoint`，CLI 不受影响。并建议先从串口实现抽出会话级 / 页面级公共基类（单独一期、先留 GUI 基线），否则选择器同步、合并日志、定时发送等逻辑会在三页各留一份。
+- 列出迁移时不再带走的现状问题（TCP `Modes` 无绑定、`_cts` 从未赋值、UI 线程 `task.Wait(200)`、定时发送忽略所选客户端）、分期与 6 项待确认事项。仅文档，未改动代码，未重新构建。
+- **同日评审，文档更新为 v1.1**：第 1–3 项同意——先抽公共基类并改串口、链路测试用独立端点且开始测试时才停全部会话、运行中冻结绑定身份。第 4–6 项按评审意见改写：TCP 定时发送必须遵守所选客户端，做法是与手动发送共用目标规则、目标在开始时确定、目标客户端断开即停止；发送勾选的文案统一为"全部会话"，串口同步修改；取消全部会话上限，包括串口现有的 8 路。
+- 核对第 4 项的调用链时发现一处现状缺陷（静态阅读，未运行复现）：服务端踢出单个客户端时 `TcpServerService` 发的是 `Disconnected`，页面据此把 `IsRunning` 置为 false，状态胶囊变为未连接、"已连接客户端"卡隐藏，而监听仍在继续。已写入设计 6.4，计划在 P1 改为发 `ClientDisconnected`。
+- 在 `serial-multi-port-ui-design.md` 文首补后续决策说明，指向新设计。仍仅文档，未改动代码，未重新构建。
+
 ## 2026-11-26（串口调试多端口：ComboBox 会话选择器）
 
 - **串口调试支持多端口并发**：单例 `SerialPortService`（实例内只有一份 `SerialPort`/接收缓冲/帧定时器）拆为会话级 `SerialPortSession` + 单例 `SerialPortHub`，端口枚举收口到 `SerialPortCatalog`；GUI 侧 `ISerialPortService` 改 `AddTransient`、新增 `AddSingleton<ISerialPortHub, SerialPortHub>`，CLI 用临时会话，`serial list / send / listen` 命令名与参数不变。

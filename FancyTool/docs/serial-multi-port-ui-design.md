@@ -1,8 +1,9 @@
 # 串口调试多端口 UI 重设计方案（v2）
 
 - 日期：2026-11-26
-- 状态：待评审（未实现）
+- 状态：已评审并实现（第 14 节为实现记录）；文首"后续决策"三项已于 2026-11-27 实施，见第 15 节
 - 修订：v1 采用"左侧会话轨"，v2 按评审意见改为**保留现有布局，串口 ComboBox 升级为会话选择器并加连接状态标识**
+- 后续决策（2026-11-26）：评审 `tcp-udp-multi-session-design.md` 时取代了本文的两处结论，并新增一项，已于 2026-11-27 实施（见第 15 节）——取消会话上限 8 路（涉及第 2、5.1、8、9、12、14 节）；发送区的"广播"改名"全部会话"（涉及第 3、4.4、9、11、14 节）；会话级与页面级的公共逻辑抽为基类，供 TCP / UDP 复用。以该文档为准。
 - 范围：`Views/SerialPortView.axaml`、`ViewModels/SerialPortViewModel.cs`、`FancyTool.Core/Services/SerialPortService.cs`、`Models/ViewStates/SerialPortViewState.cs`、`i18n/*.json`，以及 CLI `serial` 命令的兼容处理
 
 ## 1. 目标与硬约束
@@ -370,3 +371,16 @@ public class SerialSessionViewState
 | 端口热插拔轮询 | 未实现，仍靠"刷新端口"按钮 |
 
 验证：GUI 与 CLI 均 `dotnet build` 0 错误 0 警告；`fancy-tool serial list` 实跑通过；中英键 808/808 对称。待人工验证：GUI 交互、真实串口多路收发、TCP/UDP 日志刷新回归。
+
+## 15. 后续决策实施记录（2026-11-27）
+
+文首"后续决策"三项已随 `tcp-udp-multi-session-design.md` 的 P0 实施，细节与验证见该文档第 13 节和 `changelogs.md` 2026-11-27 条目。
+
+| 项 | 实现情况 |
+| --- | --- |
+| 公共基类 | `SerialSessionViewModel` / `SerialPortViewModel` 改为派生自 `TerminalSessionViewModelBase` / `TerminalPageViewModelBase<TSession>`；`SerialChoiceItem` 由 `SessionChoiceItem` 取代，选择器两个模板移入 `CommonStyles.axaml`；页面布局不变 |
+| 取消会话上限 | 删除 `MaxSessions`（8）、`CanAddSession`、超限提示和恢复存档时的截断。第 14 节"添加端口"一行里的上限描述作废 |
+| "广播"改名"全部会话" | 发送区勾选框改用 `Session.Label_SendAllSessions`，行为不变。第 14 节"广播"一行作废 |
+| 同日修复的既有问题 | 合并日志保存提示显示裸键（新增 i18n 分区 `MergedLog`）；恢复存档后选中项总是第一路（会话按存档恢复 `Id`）；会话出错回调在非 UI 线程发布通知；删除没有绑定的 `ParameterSummary`（第 7 节提到的下拉摘要行早已注释掉）。见 `changelogs.md` 2026-11-27 条目 |
+
+第 14 节末尾的"待人工验证"补充：真实串口多路收发（COM1↔COM2）与 GUI 状态对比已在后台用 UI Automation 完成，结果见上述文档；TCP / UDP 日志刷新回归仍未测（两页未改动，仍用自带定时器的 `LogBuffer`）。

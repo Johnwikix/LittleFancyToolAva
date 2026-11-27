@@ -2,7 +2,8 @@
        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
        xmlns:sys="clr-namespace:System;assembly=mscorlib"
        xmlns:helpers="using:FancyToolAva.Helpers"
-       xmlns:models="clr-namespace:FancyToolAva.Models;assembly=FancyTool.Core">
+       xmlns:models="clr-namespace:FancyToolAva.Models;assembly=FancyTool.Core"
+       xmlns:vm="using:FancyToolAva.ViewModels">
 
     <Styles.Resources>
         <!-- ============ Typography ============ -->
@@ -68,6 +69,64 @@
                 </ControlTemplate>
             </Setter>
         </ControlTheme>
+
+        <!-- ============ Session selector (serial / TCP / UDP) ============ -->
+        <!-- Dropdown item: status dot or plus sign, name, state text, unread badge. -->
+        <DataTemplate x:Key="SessionChoiceItemTemplate" x:DataType="vm:SessionChoiceItem">
+            <Grid ColumnDefinitions="Auto,*,Auto,Auto"
+                  ColumnSpacing="6"
+                  Margin="0,2">
+                <Ellipse Grid.Column="0"
+                         Width="8" Height="8"
+                         VerticalAlignment="Center"
+                         IsVisible="{Binding HasSession}"
+                         Fill="{Binding State, Converter={StaticResource ConnectionStatusBrush}}" />
+                <TextBlock Grid.Column="0"
+                           Text="+"
+                           VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                           IsVisible="{Binding IsAddItem}" />
+                <StackPanel Grid.Column="1" Spacing="1">
+                    <TextBlock Text="{Binding DisplayName}"
+                               FontSize="12"
+                               FontWeight="SemiBold"
+                               TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+                <TextBlock Grid.Column="2"
+                           Text="{Binding StateText}"
+                           FontSize="11"
+                           VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                           IsVisible="{Binding HasSession}" />
+                <Border Grid.Column="3"
+                        VerticalAlignment="Center"
+                        Padding="5,1"
+                        CornerRadius="8"
+                        Background="{DynamicResource AccentFillColorSecondaryBrush}"
+                        IsVisible="{Binding HasUnread}">
+                    <TextBlock Text="{Binding UnreadText}"
+                               FontSize="10"
+                               Foreground="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
+                </Border>
+            </Grid>
+        </DataTemplate>
+
+        <!-- Collapsed selection box. -->
+        <DataTemplate x:Key="SessionChoiceBoxTemplate" x:DataType="vm:SessionChoiceItem">
+            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                <Ellipse Width="8" Height="8" VerticalAlignment="Center"
+                         IsVisible="{Binding HasSession}"
+                         Fill="{Binding State, Converter={StaticResource ConnectionStatusBrush}}" />
+                <TextBlock Text="+" VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                           IsVisible="{Binding IsAddItem}" />
+                <TextBlock Text="{Binding DisplayName}" FontSize="12" FontWeight="SemiBold"
+                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                <TextBlock Text="{Binding StateText}" FontSize="11" VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                           IsVisible="{Binding HasSession}" />
+            </StackPanel>
+        </DataTemplate>
 
     </Styles.Resources>
 

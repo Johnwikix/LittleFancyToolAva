@@ -1,9 +1,6 @@
-using System.Collections.ObjectModel;
-using System.Diagnostics;
 using System.IO.Ports;
 using System.Text;
 using Avalonia.Threading;
-using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using FancyToolAva.Models;
 using FancyToolAva.Models.ViewStates;
@@ -15,7 +12,7 @@ namespace FancyToolAva.ViewModels
     /// <summary>
     /// 单个串口会话：一份参数、一份日志、一个物理端口的收发。多路会话由页面 VM 编队。
     /// </summary>
-    public partial class SerialSessionViewModel : ViewModelBase
+    public partial class SerialSessionViewModel : TerminalSessionViewModelBase
     {
         public static readonly string[] BaudRates =
         [
@@ -29,36 +26,18 @@ namespace FancyToolAva.ViewModels
         public static readonly string[] Encodings = ["Auto", "UTF8", "ASCII", "GB2312"];
 
         private readonly ISerialPortService _session;
-        private readonly INotificationService _notificationService;
         private readonly IFileDialogService _fileDialogService;
         private readonly AppObserveModel _app;
-
-        private CancellationTokenSource? _pollCts;
-        private Task? _pollTask;
-        private DateTime? _connectedAt;
-        private long _pendingRxCount;
-        private long _pendingTxCount;
         private Encoding? _cachedEncoding;
         private int _cachedEncodingIndex = -1;
-        private bool _isActive = true;
-
-        public string Id { get; } = Guid.NewGuid().ToString("N");
 
         /// <summary>端口是否被本进程其它会话占用；由页面 VM 注入。</summary>
         public Func<SerialSessionViewModel, string, bool>? PortConflictCheck { get; set; }
 
-        /// <summary>需要提示用户的错误；由页面 VM 决定是否弹窗（只有当前会话才弹）。</summary>
-        public event Action<SerialSessionViewModel, string>? Faulted;
-
-        public Action<SerialSessionViewModel, LogKind, string>? LogSink { get; set; }
-
-        public LogBuffer Log { get; } = new(autoFlush: false);
-
         public SerialSessionViewModel(ISerialPortService session, INotificationService notificationService,
-            IFileDialogService fileDialogService, AppObserveModel app)
+            IFileDialogService fileDialogService, AppObserveModel app) : base(notificationService)
         {
             _session = session;
-            _notificationService = notificationService;
             _fileDialogService = fileDialogService;
             _app = app;
 
@@ -66,8 +45,15 @@ namespace FancyToolAva.ViewModels
             _session.DataSent += OnDataSent;
             _session.StatusChanged += OnStatusChanged;
             _session.ConnectionStateChanged += OnConnectionStateChanged;
-            Log.EntryEnqueued += (kind, text) => LogSink?.Invoke(this, kind, text);
         }
+
+        public override bool IsActive => IsConnected;
+
+        public override string DisplayName => string.IsNullOrWhiteSpace(Alias) ? SelectedPort : Alias;
+
+        protected override string NotActiveMessageKey => "Serial.Msg_NotConnected";
+
+        protected override string TimedSendErrorMessageKey => "Serial.Msg_TimedSendError";
 
         public string SelectedPort
         {
@@ -76,7 +62,6 @@ namespace FancyToolAva.ViewModels
             {
                 if (SetProperty(ref field, value))
                 {
-                    OnPropertyChanged(nameof(ParameterSummary));
                     OnPropertyChanged(nameof(DisplayName));
                 }
             }
@@ -97,49 +82,25 @@ namespace FancyToolAva.ViewModels
         public int BaudRateIndex
         {
             get;
-            set
-            {
-                if (SetProperty(ref field, value))
-                {
-                    OnPropertyChanged(nameof(ParameterSummary));
-                }
-            }
+            set => SetProperty(ref field, value);
         }
 
         public int ParityIndex
         {
             get;
-            set
-            {
-                if (SetProperty(ref field, value))
-                {
-                    OnPropertyChanged(nameof(ParameterSummary));
-                }
-            }
+            set => SetProperty(ref field, value);
         }
 
         public int DataBitsIndex
         {
             get;
-            set
-            {
-                if (SetProperty(ref field, value))
-                {
-                    OnPropertyChanged(nameof(ParameterSummary));
-                }
-            }
+            set => SetProperty(ref field, value);
         } = 3;
 
         public int StopBitsIndex
         {
             get;
-            set
-            {
-                if (SetProperty(ref field, value))
-                {
-                    OnPropertyChanged(nameof(ParameterSummary));
-                }
-            }
+            set => SetProperty(ref field, value);
         }
 
         public int EncodingIndex
@@ -153,48 +114,6 @@ namespace FancyToolAva.ViewModels
                 }
             }
         }
-
-        public string SendText
-        {
-            get;
-            set => SetProperty(ref field, value);
-        } = string.Empty;
-
-        public string StatusText
-        {
-            get;
-            set => SetProperty(ref field, value);
-        } = string.Empty;
-
-        public string StatusDetail
-        {
-            get;
-            set => SetProperty(ref field, value);
-        } = string.Empty;
-
-        public bool IsHexSend
-        {
-            get;
-            set => SetProperty(ref field, value);
-        }
-
-        public bool IsHexDisplay
-        {
-            get;
-            set => SetProperty(ref field, value);
-        }
-
-        public bool IsPolling
-        {
-            get;
-            set => SetProperty(ref field, value);
-        }
-
-        public int PollInterval
-        {
-            get;
-            set => SetProperty(ref field, value);
-        } = 1000;
 
         public int FrameBreakInterval
         {
@@ -235,146 +154,6 @@ namespace FancyToolAva.ViewModels
             }
         }
 
-        public ConnectionStatus ConnectionStatus
-        {
-            get;
-            set => SetProperty(ref field, value);
-        } = ConnectionStatus.Idle;
-
-        public int RxCount
-        {
-            get;
-            set
-            {
-                if (SetProperty(ref field, value))
-                {
-                    OnPropertyChanged(nameof(RxTxSummary));
-                }
-            }
-        }
-
-        public int TxCount
-        {
-            get;
-            set
-            {
-                if (SetProperty(ref field, value))
-                {
-                    OnPropertyChanged(nameof(RxTxSummary));
-                }
-            }
-        }
-
-        public int UnreadCount
-        {
-            get;
-            set
-            {
-                if (SetProperty(ref field, value))
-                {
-                    OnPropertyChanged(nameof(HasUnread));
-                    OnPropertyChanged(nameof(UnreadText));
-                }
-            }
-        }
-
-        public bool HasUnread => UnreadCount > 0;
-
-        public string UnreadText => UnreadCount > 99 ? "99+" : UnreadCount.ToString();
-
-        public string ElapsedText
-        {
-            get;
-            set => SetProperty(ref field, value);
-        } = "00:00:00";
-
-        public bool EnableSendCount
-        {
-            get;
-            set => SetProperty(ref field, value);
-        }
-
-        public int SendCount
-        {
-            get;
-            set => SetProperty(ref field, value);
-        } = 1;
-
-        public string DisplayName => string.IsNullOrWhiteSpace(Alias) ? SelectedPort : Alias;
-
-        /// <summary>形如 "115200 8N1"，用于 ComboBox 折叠态与下拉项的第二行。</summary>
-        public string ParameterSummary
-        {
-            get
-            {
-                string parity = ParityIndex switch
-                {
-                    1 => "O",
-                    2 => "E",
-                    3 => "M",
-                    4 => "S",
-                    _ => "N"
-                };
-                string stop = StopBitsIndex switch
-                {
-                    1 => "1.5",
-                    2 => "2",
-                    _ => "1"
-                };
-                return $"{BaudRates[Math.Clamp(BaudRateIndex, 0, BaudRates.Length - 1)]} {DataBitsList[Math.Clamp(DataBitsIndex, 0, DataBitsList.Length - 1)]}{parity}{stop}";
-            }
-        }
-
-        public string RxTxSummary => $"RX {ShortCount(RxCount)} · TX {ShortCount(TxCount)}";
-
-        public string StateText => ConnectionStatus switch
-        {
-            ConnectionStatus.Connected => LocalizationRegistry.Get("Common.Status_Connected"),
-            ConnectionStatus.Connecting => LocalizationRegistry.Get("Common.Status_Connecting"),
-            ConnectionStatus.Error => LocalizationRegistry.Get("Common.Status_Error"),
-            _ => LocalizationRegistry.Get("Common.Status_Idle")
-        };
-
-        private static string ShortCount(int value)
-        {
-            return value >= 1_000_000
-                ? $"{value / 1_000_000.0:0.#}M"
-                : value >= 1_000
-                    ? $"{value / 1_000.0:0.#}K"
-                    : value.ToString();
-        }
-
-        public void MarkRead()
-        {
-            if (UnreadCount == 0) return;
-            UnreadCount = 0;
-        }
-
-        /// <summary>当前会话放大日志上限，非当前会话降级，控制多路内存占用。</summary>
-        public void SetActive(bool active)
-        {
-            _isActive = active;
-            Log.MaxLines = active ? 20_000 : 5_000;
-        }
-
-        internal void FlushCounters()
-        {
-            int tx = (int)Interlocked.Exchange(ref _pendingTxCount, 0);
-            int rx = (int)Interlocked.Exchange(ref _pendingRxCount, 0);
-            if (tx > 0) TxCount += tx;
-            if (rx > 0) RxCount += rx;
-        }
-
-        internal void FlushLog() => Log.Flush();
-
-        internal void UpdateElapsed()
-        {
-            if (_connectedAt is { } start)
-            {
-                ElapsedText = (DateTime.Now - start).ToString(@"hh\:mm\:ss");
-            }
-        }
-
         public SerialSessionViewState ToState() => new()
         {
             Id = Id,
@@ -398,6 +177,7 @@ namespace FancyToolAva.ViewModels
 
         public void ApplyState(SerialSessionViewState state)
         {
+            RestoreId(state.Id);
             Alias = state.Alias;
             SelectedPort = state.PortName;
             BaudRateIndex = Math.Clamp(state.BaudRateIndex, 0, BaudRates.Length - 1);
@@ -422,37 +202,19 @@ namespace FancyToolAva.ViewModels
             _session.SetHandshake(IsRtsEnabled, IsDtrEnabled);
         }
 
-        private void OnBytesReceived(byte[] bytes)
+        private void OnBytesReceived(byte[] bytes) => OnReceived(bytes);
+
+        private void OnDataSent(byte[] bytes) => OnSent(bytes);
+
+        protected override string DecodeBytes(byte[] bytes)
         {
-            Interlocked.Increment(ref _pendingRxCount);
-
-            if (IsHexDisplay)
+            try
             {
-                Log.Enqueue(LogKind.Rx, ToolMethod.ByteArrayToSpacedHexString(bytes));
+                return GetEncodingCached().GetString(bytes);
             }
-            else
+            catch
             {
-                Log.EnqueueLine(LogKind.Rx, DecodeBytes(bytes));
-            }
-
-            if (!_isActive)
-            {
-                var next = UnreadCount + 1;
-                if (next > 999) next = 999;
-                UnreadCount = next;
-            }
-        }
-
-        private void OnDataSent(byte[] bytes)
-        {
-            Interlocked.Increment(ref _pendingTxCount);
-            if (IsHexDisplay)
-            {
-                Log.Enqueue(LogKind.Tx, ToolMethod.ByteArrayToSpacedHexString(bytes));
-            }
-            else
-            {
-                Log.EnqueueLine(LogKind.Tx, GetEncodingCached().GetString(bytes));
+                return ToolMethod.ByteArrayToHexString(bytes);
             }
         }
 
@@ -463,18 +225,6 @@ namespace FancyToolAva.ViewModels
             _cachedEncodingIndex = idx;
             _cachedEncoding = ToolMethod.GetEncoding(ParseEncodingMode(Encodings[idx]));
             return _cachedEncoding;
-        }
-
-        private string DecodeBytes(byte[] bytes)
-        {
-            try
-            {
-                return GetEncodingCached().GetString(bytes);
-            }
-            catch
-            {
-                return ToolMethod.ByteArrayToHexString(bytes);
-            }
         }
 
         private static ToolMethod.EncodingMode ParseEncodingMode(string encoding)
@@ -490,11 +240,7 @@ namespace FancyToolAva.ViewModels
 
         private void OnStatusChanged(string status)
         {
-            Dispatcher.UIThread.Post(() =>
-            {
-                StatusText = status;
-                OnPropertyChanged(nameof(StatusText));
-            });
+            PostStatusText(status);
         }
 
         private void OnConnectionStateChanged(object? sender, ConnectionEventArgs e)
@@ -510,16 +256,16 @@ namespace FancyToolAva.ViewModels
                     case ConnectionEventType.Disconnected:
                         IsConnected = false;
                         IsPolling = false;
-                        _pollCts?.Cancel();
+                        CancelPolling();
                         Log.Append(LogKind.System, e.Message);
                         break;
                     case ConnectionEventType.Lost:
                         IsConnected = false;
                         IsPolling = false;
-                        _pollCts?.Cancel();
+                        CancelPolling();
                         ConnectionStatus = ConnectionStatus.Error;
                         Log.Append(LogKind.Error, e.Message);
-                        Faulted?.Invoke(this, e.Message);
+                        RaiseFault(e.Message);
                         break;
                     case ConnectionEventType.LineDisconnect:
                         Log.Append(LogKind.Warn, e.Message);
@@ -534,12 +280,12 @@ namespace FancyToolAva.ViewModels
 
         private void OnIsConnectedChanged(bool value)
         {
+            OnPropertyChanged(nameof(IsActive));
             if (value)
             {
                 ConnectionStatus = ConnectionStatus.Connected;
                 StatusDetail = $"{SelectedPort} @ {BaudRates[BaudRateIndex]}";
-                _connectedAt = DateTime.Now;
-                ElapsedText = "00:00:00";
+                StartElapsed();
                 ApplyHandshake();
             }
             else
@@ -549,10 +295,8 @@ namespace FancyToolAva.ViewModels
                     ConnectionStatus = ConnectionStatus.Idle;
                 }
                 StatusDetail = string.Empty;
-                _connectedAt = null;
-                ElapsedText = "00:00:00";
-                _pollCts?.Cancel();
-                _pollTask = null;
+                StopElapsed();
+                CancelPolling();
             }
         }
 
@@ -604,7 +348,7 @@ namespace FancyToolAva.ViewModels
                 IsConnected = false;
                 var timeoutMsg = LocalizationRegistry.Get("Serial.Status_Timeout", timeoutSec);
                 Log.Append(LogKind.Warn, timeoutMsg);
-                Faulted?.Invoke(this, timeoutMsg);
+                RaiseFault(timeoutMsg);
             }
             catch (Exception ex)
             {
@@ -612,23 +356,20 @@ namespace FancyToolAva.ViewModels
                 IsConnected = false;
                 var errMsg = LocalizationRegistry.Get("Serial.Status_ConnectFail", ex.Message);
                 Log.Append(LogKind.Error, errMsg);
-                Faulted?.Invoke(this, errMsg);
+                RaiseFault(errMsg);
             }
         }
 
         [RelayCommand]
         private void Disconnect()
         {
-            _pollCts?.Cancel();
+            CancelPolling();
             _session.Close();
             IsConnected = _session.IsOpen;
             IsPolling = false;
         }
 
-        [RelayCommand]
-        private Task Send() => SendCurrentAsync();
-
-        public async Task SendCurrentAsync()
+        public override async Task SendManualAsync()
         {
             if (string.IsNullOrEmpty(SendText)) return;
             string encoding = Encodings[Math.Clamp(EncodingIndex, 0, Encodings.Length - 1)];
@@ -640,18 +381,14 @@ namespace FancyToolAva.ViewModels
             {
                 var errMsg = LocalizationRegistry.Get("Serial.Status_SendFail", ex.Message);
                 Log.Enqueue(LogKind.Error, errMsg);
-                Faulted?.Invoke(this, errMsg);
+                RaiseFault(errMsg);
             }
         }
 
-        [RelayCommand]
-        private void Clear()
+        protected override Func<Task> CreatePollingSender()
         {
-            Log.Clear();
-            Interlocked.Exchange(ref _pendingRxCount, 0);
-            Interlocked.Exchange(ref _pendingTxCount, 0);
-            RxCount = 0;
-            TxCount = 0;
+            string encoding = Encodings[Math.Clamp(EncodingIndex, 0, Encodings.Length - 1)];
+            return () => _session.SendAsync(SendText, IsHexSend, encoding);
         }
 
         [RelayCommand]
@@ -672,80 +409,9 @@ namespace FancyToolAva.ViewModels
             ApplyHandshake();
         }
 
-        [RelayCommand]
-        private void StartPolling()
+        public override void Shutdown()
         {
-            if (!IsConnected)
-            {
-                _notificationService.ShowWarn(LocalizationRegistry.Get("Serial.Msg_NotConnected"));
-                return;
-            }
-            if (IsPolling) return;
-
-            var localCts = new CancellationTokenSource();
-            _pollCts = localCts;
-            IsPolling = true;
-            string encoding = Encodings[Math.Clamp(EncodingIndex, 0, Encodings.Length - 1)];
-
-            _pollTask = Task.Run(async () =>
-            {
-                int sentCount = 0;
-                long intervalTicks = Math.Max(1L, (long)(PollInterval * (Stopwatch.Frequency / 1000.0)));
-                long nextDue = Stopwatch.GetTimestamp() + intervalTicks;
-                try
-                {
-                    while (!localCts.Token.IsCancellationRequested)
-                    {
-                        if (!IsConnected) break;
-                        try
-                        {
-                            await _session.SendAsync(SendText, IsHexSend, encoding).ConfigureAwait(false);
-                        }
-                        catch (OperationCanceledException) { throw; }
-                        catch (Exception ex)
-                        {
-                            Log.Enqueue(LogKind.Error, LocalizationRegistry.Get("Serial.Msg_TimedSendError", ex.Message));
-                        }
-                        if (EnableSendCount && ++sentCount >= SendCount) break;
-
-                        nextDue += intervalTicks;
-                        long remainingTicks = nextDue - Stopwatch.GetTimestamp();
-                        while (remainingTicks > 0)
-                        {
-                            if (localCts.Token.IsCancellationRequested) break;
-                            long remainingMs = remainingTicks * 1000 / Stopwatch.Frequency;
-                            if (remainingMs >= 1)
-                                await Task.Delay((int)remainingMs, localCts.Token).ConfigureAwait(false);
-                            else
-                                await Task.Yield();
-                            remainingTicks = nextDue - Stopwatch.GetTimestamp();
-                        }
-                    }
-                }
-                catch (OperationCanceledException) { }
-                finally
-                {
-                    await Dispatcher.UIThread.InvokeAsync(() =>
-                    {
-                        if (ReferenceEquals(_pollCts, localCts))
-                        {
-                            IsPolling = false;
-                        }
-                    });
-                }
-            }, localCts.Token);
-        }
-
-        [RelayCommand]
-        private void StopPolling()
-        {
-            _pollCts?.Cancel();
-        }
-
-        public void Shutdown()
-        {
-            _pollCts?.Cancel();
-            OnPropertyChanged(nameof(StatusText));
+            base.Shutdown();
             _session.BytesReceived -= OnBytesReceived;
             _session.DataSent -= OnDataSent;
             _session.StatusChanged -= OnStatusChanged;

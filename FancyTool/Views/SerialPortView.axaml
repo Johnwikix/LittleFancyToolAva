@@ -40,72 +40,11 @@
                             <TextBlock Classes="SectionHeader" Text="{lan:I18n Serial.Group_PortSettings}" />
                             <StackPanel Classes="FormRow">
                                 <TextBlock Classes="FieldLabel" Text="{lan:I18n Serial.Label_Port}" />
-	<ComboBox HorizontalAlignment="Stretch"
-			  ItemsSource="{Binding PortChoices}"
-			  SelectedItem="{Binding SelectedChoice, Mode=TwoWay}">
-		<ComboBox.ItemTemplate>
-			<DataTemplate x:DataType="vm:SerialChoiceItem">
-				<Grid ColumnDefinitions="Auto,*,Auto,Auto"
-					  ColumnSpacing="6"
-					  Margin="0,2">
-					<Ellipse Grid.Column="0"
-							 Width="8" Height="8"
-							 VerticalAlignment="Center"
-							 IsVisible="{Binding HasSession}"
-							 Fill="{Binding State, Converter={StaticResource ConnectionStatusBrush}}" />
-					<TextBlock Grid.Column="0"
-							   Text="+"
-							   VerticalAlignment="Center"
-							   Foreground="{DynamicResource TextFillColorTertiaryBrush}"
-							   IsVisible="{Binding IsAddPort}" />
-					<StackPanel Grid.Column="1" Spacing="1">
-						<TextBlock Text="{Binding DisplayName}"
-								   FontSize="12"
-								   FontWeight="SemiBold"
-								   TextTrimming="CharacterEllipsis" />
-						<!--<TextBlock Text="{Binding Summary}"
-						FontSize="11"
-						Foreground="{DynamicResource TextFillColorTertiaryBrush}"
-						IsVisible="{Binding HasSession}"
-						TextTrimming="CharacterEllipsis" />-->
-					</StackPanel>
-					<TextBlock Grid.Column="2"
-							   Text="{Binding StateText}"
-							   FontSize="11"
-							   VerticalAlignment="Center"
-							   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-							   IsVisible="{Binding HasSession}" />
-					<Border Grid.Column="3"
-							VerticalAlignment="Center"
-							Padding="5,1"
-							CornerRadius="8"
-							Background="{DynamicResource AccentFillColorSecondaryBrush}"
-							IsVisible="{Binding HasUnread}">
-						<TextBlock Text="{Binding UnreadText}"
-								   FontSize="10"
-								   Foreground="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
-					</Border>
-				</Grid>
-			</DataTemplate>
-		</ComboBox.ItemTemplate>
-		<ComboBox.SelectionBoxItemTemplate>
-			<DataTemplate x:DataType="vm:SerialChoiceItem">
-				<StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-					<Ellipse Width="8" Height="8" VerticalAlignment="Center"
-							 IsVisible="{Binding HasSession}"
-							 Fill="{Binding State, Converter={StaticResource ConnectionStatusBrush}}" />
-					<TextBlock Text="+" VerticalAlignment="Center"
-							   Foreground="{DynamicResource TextFillColorTertiaryBrush}"
-							   IsVisible="{Binding IsAddPort}" />
-					<TextBlock Text="{Binding DisplayName}" FontSize="12" FontWeight="SemiBold"
-							   VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-					<TextBlock Text="{Binding StateText}" FontSize="11" VerticalAlignment="Center"
-							   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-							   IsVisible="{Binding HasSession}" />
-				</StackPanel>
-			</DataTemplate>
-		</ComboBox.SelectionBoxItemTemplate>
-                                    </ComboBox>
+                            <ComboBox HorizontalAlignment="Stretch"
+                                      ItemTemplate="{StaticResource SessionChoiceItemTemplate}"
+                                      SelectionBoxItemTemplate="{StaticResource SessionChoiceBoxTemplate}"
+                                      ItemsSource="{Binding Choices}"
+                                      SelectedItem="{Binding SelectedChoice, Mode=TwoWay}" />
                             </StackPanel>
                             <StackPanel Classes="FormRow">
                                 <TextBlock Classes="FieldLabel" Text="{lan:I18n Serial.Label_BaudRate}" />
@@ -235,8 +174,8 @@
                                     Classes="Primary"
                                     Content="{lan:I18n Common.Button_Send}"
                                     IsEnabled="{Binding CanSend}" />
-                            <CheckBox Content="{lan:I18n Serial.Label_Broadcast}"
-                                      IsChecked="{Binding IsBroadcast, Mode=TwoWay}" />
+                            <CheckBox Content="{lan:I18n Session.Label_SendAllSessions}"
+                                      IsChecked="{Binding SendToAll, Mode=TwoWay}" />
                         </StackPanel>
                     </Grid>
                 </Border>
