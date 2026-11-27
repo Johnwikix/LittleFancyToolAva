@@ -1,6 +1,6 @@
 # 变更记录
 
-## 2026-11-27（P0：终端会话 / 页面公共基类抽取，串口取消会话上限；同日修复四处既有问题）
+## 2026-11-27（P0：终端会话 / 页面公共基类抽取，串口取消会话上限；同日修复五处既有问题）
 
 - **公共基类抽取**（`tcp-udp-multi-session-design.md` 6.1 甲方案，P0）：新增会话级 `TerminalSessionViewModelBase`（日志、计数、未读、计时、状态文案、发送选项、定时发送循环）、页面级泛型 `TerminalPageViewModelBase<TSession>`（会话集合、当前会话、下拉项同步、关闭并选邻、合并日志、聚合文案、"全部会话"发送）、`SessionChoiceItem`（取代 `SerialChoiceItem`，后者删除）和单例节拍 `TerminalTicker`（16ms / 1s，`App.axaml.cs` 注册）。`SerialSessionViewModel` / `SerialPortViewModel` 改为派生，串口页布局不变。选择器两个 `DataTemplate` 提到 `CommonStyles.axaml`（`SessionChoiceItemTemplate`、`SessionChoiceBoxTemplate`），后续 TCP / UDP 共用。
 - **定时发送是会话级的**：每一路各自一个任务和取消令牌，开始时在 UI 线程取发送目标快照（抽象 `CreatePollingSender()`），之后切换会话、离开页面都不影响进行中的定时发送。串口原本就是会话级，行为不变；这次由基类承载，TCP / UDP 迁移时直接继承。
@@ -17,13 +17,18 @@
   - CLI：`fancy-tool serial list` 列出 COM1–COM8；`serial send --port COM3 --data cli-p0` 与 `serial listen --port COM4` 环回收到 `RX> cli-p0`。
   - 正常退出：2 路会话（均未连接）下关闭窗口，`SerialPortHub` 与各服务按序释放，日志无错误。
 - **未执行**：运行时切换语言（后台最小化窗口下 UIA 无法驱动侧栏导航项，旧构建相同，进不了设置页）；真实鼠标键盘点击、关闭窗口时有定时发送在途的退出路径、超过 10 路会话的内存占用均未测；P1–P3 未开始。
-- **同日修复四处既有问题**（用户确认后修改）：
+- **同日修复五处既有问题**（用户确认后修改）：
   - 合并日志保存提示显示裸键：原前缀 `SerialMerged` 在 i18n 里没有对应分区。新增公共分区 `MergedLog`（`Msg_NoDataToSave`、`Msg_SaveDialogTitle`、`Msg_SaveSuccess`，中英同步），前缀改为页面基类里的常量，不再由各页面提供。
   - 恢复存档后总是选中第一路：存档里的 `SelectedSessionId` 对不上新建会话的 `Id`。会话基类新增 `RestoreId`，串口会话的 `ApplyState` 用存档里的 `Id` 覆盖新建的标识；存档没有有效标识时保留新建的。
   - 会话出错回调可能在非 UI 线程发布通知：对话框本身原本就会切回 UI 线程（`ContentDialogNotificationService`），越线程的是页面处理器里的聚合状态与命令通知。页面基类改为不在 UI 线程时先切回，再刷新与弹提示；"是否当前会话"在触发时刻取值。
   - `ParameterSummary` 没有任何绑定（下拉摘要行早已注释掉）：连同它的五处通知一起删除，四个索引属性保留原有的变更通知。
-- **四处修复的验证**（同上环境与驱动方式，证据目录同上）：修复后重跑 9 个状态的采集，与修复前逐元素一致（0 行差异）。同一份 `SelectedSessionId=s03` 的 10 路存档，新构建恢复后选中第 3 路（COM3），切到 `dup3` 后正常关闭窗口，存档写回 `s09`；旧构建恢复后选中第 1 路，存档里的 `Id` 全部是新生成的。合并日志为空时点"保存数据"，新构建显示"没有可保存的合并日志。"，英文为 "No merged log to save."，旧构建显示裸键 `SerialMerged.Msg_NoDataToSave`。命令行占住 COM3 时在界面连接，弹出"连接失败: Access to the path 'COM3' is denied."，走的是出错回调在 UI 线程上的分支。
-- **四处修复里没有运行期证据的部分**：出错回调在线程池线程上触发的分支（服务层的 `SendAsync` 自己吞掉异常，当前只有订阅者抛异常才会走到那条路径）；合并日志非空时的保存对话框标题与成功提示（会弹出系统文件对话框，打扰用户），只做了"键存在且中英对称"的静态检查。
+  - 未读计数在串口接收线程上直接更新（核对上一项时发现，同属越线程发布，且"读—加一—写回"与 UI 线程的清零之间没有互斥）：接收线程只累加待发布计数，由页面 16ms 节拍在 UI 线程发布；`MarkRead()` 同时清空未发布部分，切到本会话瞬间迟到的记账直接丢弃（当前会话的未读没有意义）。`UnreadCount` 改为私有 setter。
+- **五处修复的验证**（同上环境与驱动方式，证据目录同上）：修复后重跑 9 个状态的采集，与修复前逐元素一致（0 行差异）。同一份 `SelectedSessionId=s03` 的 10 路存档，新构建恢复后选中第 3 路（COM3），切到 `dup3` 后正常关闭窗口，存档写回 `s09`；旧构建恢复后选中第 1 路，存档里的 `Id` 全部是新生成的。合并日志为空时点"保存数据"，新构建显示"没有可保存的合并日志。"，英文为 "No merged log to save."，旧构建显示裸键 `SerialMerged.Msg_NoDataToSave`。命令行占住 COM3 时在界面连接，弹出"连接失败: Access to the path 'COM3' is denied."，走的是出错回调在 UI 线程上的分支。未读计数：COM1↔COM2 互连，A（当前会话）定时发送时下拉里 COM2 项显示未读徽标（8）；切到 COM2 后徽标清空，它继续接收也不再出现（RX 涨到 31）。该场景的最后一步"切回 COM1 后徽标重新出现"没有采到：应用在此时被正常关闭（日志显示按序保存与释放），与前面"COM2 作为非当前会话出现徽标"是同一条路径。
+- **五处修复里没有运行期证据的部分**：出错回调在线程池线程上触发的分支（服务层的 `SendAsync` 自己吞掉异常，当前只有订阅者抛异常才会走到那条路径）；合并日志非空时的保存对话框标题与成功提示（会弹出系统文件对话框，打扰用户），只做了"键存在且中英对称"的静态检查。
+- **P1 服务层（界面不变）**：新增通用会话编队 `ISessionHub<T>` / `SessionHub<T>`（工厂委托创建实例，不经根容器解析服务接口，关闭会话后对象可回收；`ReleaseSession` 可重复调用，`Dispose` 幂等）；新增 `BindEndpoint`（TCP / UDP 的绑定地址解析与端点重叠判定，回退规则与两个服务现状一致）和冲突规则 `EndpointConflict`（TCP 只有服务端会话互斥；UDP 普通会话与任何会话互斥，组播会话之间放行）。`TcpServerService` / `UdpService` 改用它解析绑定地址，行为不变；两个服务接口继承 `IDisposable`。GUI 的 DI 移除两个服务的单例注册，改由两个 Hub 创建会话，页面 VM 从 Hub 取会话。CLI 的容器与命令不变。
+- **踢出客户端的事件类型修正**：`DisconnectClient(endpoint)` 改发带 `Endpoint` 的 `ClientDisconnected`，`Disconnected` 只表示本会话的链路停止。旧实现把踢出当成"服务端已停止"：状态胶囊变为未连接、客户端卡隐藏、"停止"按钮置灰，而监听仍在继续。
+- **P1 验证**（同上环境，证据目录同上）：新增烟测 `_tools/NetworkSessionSmokeTest`（`dotnet run --project FancyTool/_tools/NetworkSessionSmokeTest`，45 项全过），覆盖端点解析回退与 10 组重叠组合、TCP / UDP 规则的真值表、两个服务端会话同端口时系统 bind 拒绝第二个、同一 Hub 内服务端与客户端环回互发、踢出后监听仍在且能接受新客户端、回收后端口立即可被外部绑定、Hub 释放幂等、UDP 同端口双绑定绕过规则时确实成功、两个组播会话同端口都能启动。CLI：`tcp server` + `tcp client`、`udp bind` + `udp send` 环回通过。界面（后台 UIA，新旧构建同一组步骤）：TCP 页启动服务端、命令行客户端连入并出现在列表、选中后"断开选中客户端"——新构建仍为已连接、客户端卡保留、新客户端可再次连入；旧构建变为未连接且"停止"按钮被置灰（UIA 调用被拒）。UDP 页启动、停止正常。
+- **顺带发现（未修改）**：`UdpService` 给 socket 设了 `MulticastLoopback=false`，而 Windows 上接收端关闭环回后收不到本机发出的组播包（独立实验 `.qa/…/mcastloop.txt`：同一组播组同端口的三个接收端，只有设为 false 的那个收不到）。因此"同端口两个组播会话各收一份"只在数据来自其它主机时成立，本机自发时收不到；这是既有行为，是否允许环回需要产品决定。
 
 ## 2026-11-26（TCP / UDP 多会话设计文档）
 

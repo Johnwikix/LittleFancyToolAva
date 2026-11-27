@@ -29,6 +29,7 @@ public class ViewStatesRoot
 [JsonSerializable(typeof(Base64ViewState))]
 [JsonSerializable(typeof(SerialPortViewState))]
 [JsonSerializable(typeof(TcpServerViewState))]
+[JsonSerializable(typeof(TcpSessionViewState))]
 [JsonSerializable(typeof(UdpViewState))]
 [JsonSerializable(typeof(FileEncryptionViewState))]
 [JsonSerializable(typeof(KeyIvDto))]

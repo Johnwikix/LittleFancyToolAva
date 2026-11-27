@@ -4,7 +4,6 @@ using Microsoft.Extensions.Logging;
 using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
-using System.Net;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -68,23 +67,23 @@ namespace FancyToolAva.Services
                 _isServerMode = true;
                 _isStopping = false;
 
-                var ip = IPAddress.TryParse(address, out var parsed) ? parsed : IPAddress.Loopback;
+                var bind = BindEndpoint.ForTcp(address, port);
 
                 await Task.Run(() =>
                 {
                     ct.ThrowIfCancellationRequested();
-                    _listener = new TcpListener(ip, port);
+                    _listener = new TcpListener(bind.Address, bind.Port);
                     _listener.Start();
                     ct.ThrowIfCancellationRequested();
                 }, ct).ConfigureAwait(false);
 
                 _cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
 
-                _logger.LogInformation("TCP server started: {Address}:{Port}", ip, port);
-                var startedMsg = LocalizationRegistry.Get("ServiceStatus.Tcp_Started", ip, port);
+                _logger.LogInformation("TCP server started: {Address}:{Port}", bind.Address, bind.Port);
+                var startedMsg = LocalizationRegistry.Get("ServiceStatus.Tcp_Started", bind.Address, bind.Port);
                 StatusChanged?.Invoke(startedMsg);
                 ConnectionStateChanged?.Invoke(this, new ConnectionEventArgs(
-                    ConnectionEventType.Connected, startedMsg, endpoint: $"{ip}:{port}"));
+                    ConnectionEventType.Connected, startedMsg, endpoint: $"{bind.Address}:{bind.Port}"));
 
                 _ = AcceptClientsAsync(_cts.Token);
             }
@@ -256,8 +255,9 @@ namespace FancyToolAva.Services
                     _logger.LogInformation("TCP server disconnected client: {Endpoint}", endpoint);
                     var msg = LocalizationRegistry.Get("ServiceStatus.Tcp_ClientDisconnected", endpoint);
                     StatusChanged?.Invoke(msg);
+                    // 监听仍在继续，这只是下挂的一个客户端离开：与自然断开同一事件，页面不会把它当成"服务端已停止"。
                     ConnectionStateChanged?.Invoke(this, new ConnectionEventArgs(
-                        ConnectionEventType.Disconnected, msg, endpoint: endpoint));
+                        ConnectionEventType.ClientDisconnected, msg, endpoint: endpoint));
                 }
             }
             catch (Exception ex)

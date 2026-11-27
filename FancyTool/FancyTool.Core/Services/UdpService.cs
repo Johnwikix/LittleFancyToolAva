@@ -34,14 +34,14 @@ namespace FancyToolAva.Services
             {
                 Stop();
                 _cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-                var ip = IPAddress.TryParse(localAddress, out var parsed) ? parsed : IPAddress.Any;
+                var bind = BindEndpoint.ForUdp(localAddress, localPort);
 
                 await Task.Run(() =>
                 {
                     ct.ThrowIfCancellationRequested();
                     _udpClient = new UdpClient();
                     _udpClient.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
-                    _udpClient.Client.Bind(new IPEndPoint(ip, localPort));
+                    _udpClient.Client.Bind(new IPEndPoint(bind.Address, bind.Port));
                     ct.ThrowIfCancellationRequested();
 
                     if (!string.IsNullOrEmpty(multicastAddress) && IPAddress.TryParse(multicastAddress, out var multicastIp))

@@ -229,9 +229,9 @@ namespace FancyToolAva.ViewModels
 
         string IViewState.ViewName => "udpView";
 
-        public UdpViewModel(IUdpService udpService, UdpLinkTestService linkTestService, INotificationService notificationService, IViewStateService viewStateService, IFileDialogService fileDialogService, AppObserveModel app)
+        public UdpViewModel(ISessionHub<IUdpService> udpHub, UdpLinkTestService linkTestService, INotificationService notificationService, IViewStateService viewStateService, IFileDialogService fileDialogService, AppObserveModel app)
         {
-            _udpService = udpService;
+            _udpService = udpHub.CreateSession();
             _linkTestService = linkTestService;
             LinkTest = new LinkTestPresenter(linkTestService);
             _notificationService = notificationService;

@@ -3,7 +3,7 @@ using System.Collections.ObjectModel;
 
 namespace FancyToolAva.Services
 {
-    public interface ITcpServerService
+    public interface ITcpServerService : IDisposable
     {
         bool IsRunning { get; }
         ObservableCollection<string> ConnectedClients { get; }

@@ -23,6 +23,7 @@ namespace FancyToolAva.ViewModels
         private long _pendingRxCount;
         private long _pendingTxCount;
         private long _pendingUnread;
+        private string? _pendingStatusText;
         private bool _isCurrent;
 
         protected TerminalSessionViewModelBase(INotificationService notificationService)
@@ -199,7 +200,7 @@ namespace FancyToolAva.ViewModels
             OnPropertyChanged(nameof(StateText));
         }
 
-        /// <summary>由页面节拍在 UI 线程上调用：把累计的收发计数和未读一次性发布。</summary>
+        /// <summary>由页面节拍在 UI 线程上调用：把累计的收发计数、未读和最新一条状态文案一次性发布。</summary>
         internal void FlushCounters()
         {
             int tx = (int)Interlocked.Exchange(ref _pendingTxCount, 0);
@@ -213,6 +214,9 @@ namespace FancyToolAva.ViewModels
             {
                 UnreadCount = (int)Math.Min(UnreadCount + pendingUnread, MaxUnreadCount);
             }
+
+            string? status = Interlocked.Exchange(ref _pendingStatusText, null);
+            if (status is not null) StatusText = status;
         }
 
         internal void FlushLog() => Log.Flush();
@@ -265,10 +269,13 @@ namespace FancyToolAva.ViewModels
             }
         }
 
-        /// <summary>服务线程上产生的状态文案切回 UI 线程再发布。</summary>
+        /// <summary>
+        /// 服务线程上产生的状态文案只保留最新一条，由页面节拍在 UI 线程发布：
+        /// 开启帧间隔时服务层每帧触发一次，多路高速流下逐条投递会放大 UI 队列。
+        /// </summary>
         protected void PostStatusText(string status)
         {
-            Dispatcher.UIThread.Post(() => StatusText = status);
+            Interlocked.Exchange(ref _pendingStatusText, status);
         }
 
         protected void CancelPolling() => _pollCts?.Cancel();

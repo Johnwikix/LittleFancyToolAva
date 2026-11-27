@@ -2,7 +2,7 @@ using FancyToolAva.Models;
 
 namespace FancyToolAva.Services
 {
-    public interface IUdpService
+    public interface IUdpService : IDisposable
     {
         bool IsRunning { get; }
         event Action<byte[]>? BytesReceived;

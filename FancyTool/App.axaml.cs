@@ -247,8 +247,13 @@ namespace FancyToolAva
             services.AddSingleton<IFileDialogService, FileDialogService>();
             services.AddTransient<ISerialPortService, SerialPortSession>();
             services.AddSingleton<ISerialPortHub, SerialPortHub>();
-            services.AddSingleton<ITcpServerService, TcpServerService>();
-            services.AddSingleton<IUdpService, UdpService>();
+            // TCP / UDP 会话由 Hub 按需创建，不经根容器解析服务接口。
+            services.AddSingleton<ISessionHub<ITcpServerService>>(sp => new SessionHub<ITcpServerService>(
+                () => ActivatorUtilities.CreateInstance<TcpServerService>(sp),
+                sp.GetRequiredService<ILogger<SessionHub<ITcpServerService>>>()));
+            services.AddSingleton<ISessionHub<IUdpService>>(sp => new SessionHub<IUdpService>(
+                () => ActivatorUtilities.CreateInstance<UdpService>(sp),
+                sp.GetRequiredService<ILogger<SessionHub<IUdpService>>>()));
             services.AddSingleton<TcpLinkTestService>();
             services.AddSingleton<UdpLinkTestService>();
             services.AddSingleton<TerminalTicker>();
