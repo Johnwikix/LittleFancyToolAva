@@ -22,9 +22,9 @@
                                  Subtitle="{lan:I18n Udp.Subtitle}">
             <controls:ToolPageHeader.Actions>
                 <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                    <controls:StatusPill Status="{Binding ConnectionStatus}"
-                                         Text="{Binding ConnectionStatus, Converter={StaticResource StatusTextConverter}}"
-                                         Detail="{Binding StatusDetail}" />
+                    <controls:StatusPill Status="{Binding CurrentSession.ConnectionStatus}"
+                                         Text="{Binding CurrentSession.ConnectionStatus, Converter={StaticResource StatusTextConverter}}"
+                                         Detail="{Binding CurrentSession.StatusDetail}" />
                 </StackPanel>
             </controls:ToolPageHeader.Actions>
         </controls:ToolPageHeader>
@@ -53,53 +53,71 @@
                             IsVisible="{Binding FunctionIndex, Converter={StaticResource IntEq}, ConverterParameter=0}">
                         <StackPanel Classes="ToolCardContent" Spacing="4">
                             <TextBlock Classes="SectionHeader" Text="{lan:I18n Udp.Group_ConnectSettings}" />
-                            <Grid Classes="FormRow2" ColumnDefinitions="*,12,*">
+                            <StackPanel Classes="FormRow">
+                                <TextBlock Classes="FieldLabel" Text="{lan:I18n Udp.Label_Session}" />
+                                <ComboBox HorizontalAlignment="Stretch"
+                                          ItemTemplate="{StaticResource SessionChoiceItemTemplate}"
+                                          SelectionBoxItemTemplate="{StaticResource SessionChoiceBoxTemplate}"
+                                          ItemsSource="{Binding Choices}"
+                                          SelectedItem="{Binding SelectedChoice, Mode=TwoWay}" />
+                            </StackPanel>
+                            <!-- 模式、本地端点与组播地址决定绑定了什么：运行中冻结，否则下拉与头部胶囊会显示与实际 socket 不一致的端点。 -->
+                            <Grid Classes="FormRow2" ColumnDefinitions="*,12,*"
+                                  IsEnabled="{Binding CurrentSession.IsActive, Converter={StaticResource Inv}}"
+                                  ToolTip.Tip="{lan:I18n Udp.ToolTip_LockedWhileRunning}">
                                 <RadioButton Grid.Column="0"
                                              Content="{lan:I18n Udp.Mode_Normal}"
                                              GroupName="UdpMode"
-                                             IsChecked="{Binding ModeIndex, Mode=TwoWay, Converter={StaticResource IntEq}, ConverterParameter=0}" />
+                                             IsChecked="{Binding CurrentSession.ModeIndex, Mode=TwoWay, Converter={StaticResource IntEq}, ConverterParameter=0}" />
                                 <RadioButton Grid.Column="2"
                                              Content="{lan:I18n Udp.Mode_Multicast}"
                                              GroupName="UdpMode"
-                                             IsChecked="{Binding ModeIndex, Mode=TwoWay, Converter={StaticResource IntEq}, ConverterParameter=1}" />
+                                             IsChecked="{Binding CurrentSession.ModeIndex, Mode=TwoWay, Converter={StaticResource IntEq}, ConverterParameter=1}" />
                             </Grid>
-                            <Grid Classes="FormRow2" ColumnDefinitions="*,12,*">
+                            <Grid Classes="FormRow2" ColumnDefinitions="*,12,*"
+                                  IsEnabled="{Binding CurrentSession.IsActive, Converter={StaticResource Inv}}"
+                                  ToolTip.Tip="{lan:I18n Udp.ToolTip_LockedWhileRunning}">
                                 <StackPanel Grid.Column="0">
                                     <TextBlock Classes="FieldLabel" Text="{lan:I18n Udp.Label_LocalAddress}" />
-                                    <TextBox Text="{Binding LocalAddress, Mode=TwoWay}" />
+                                    <TextBox Text="{Binding CurrentSession.LocalAddress, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                 </StackPanel>
                                 <StackPanel Grid.Column="2">
                                     <TextBlock Classes="FieldLabel" Text="{lan:I18n Udp.Label_LocalPort}" />
-                                    <TextBox Text="{Binding LocalPort, Mode=TwoWay}" />
+                                    <TextBox Text="{Binding CurrentSession.LocalPort, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                 </StackPanel>
                             </Grid>
                             <Grid Classes="FormRow2" ColumnDefinitions="*,12,*"
-                                  IsVisible="{Binding ModeIndex, Converter={StaticResource IntEq}, ConverterParameter=0}">
+                                  IsVisible="{Binding CurrentSession.IsMulticast, Converter={StaticResource Inv}}">
                                 <StackPanel Grid.Column="0">
                                     <TextBlock Classes="FieldLabel" Text="{lan:I18n Udp.Label_RemoteAddress}" />
-                                    <TextBox Text="{Binding RemoteAddress, Mode=TwoWay}" />
+                                    <TextBox Text="{Binding CurrentSession.RemoteAddress, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                 </StackPanel>
                                 <StackPanel Grid.Column="2">
                                     <TextBlock Classes="FieldLabel" Text="{lan:I18n Udp.Label_RemotePort}" />
-                                    <TextBox Text="{Binding RemotePort, Mode=TwoWay}" />
+                                    <TextBox Text="{Binding CurrentSession.RemotePort, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                 </StackPanel>
                             </Grid>
                             <Grid Classes="FormRow2" ColumnDefinitions="*,12,*"
-                                  IsVisible="{Binding ModeIndex, Converter={StaticResource IntEq}, ConverterParameter=1}">
+                                  IsVisible="{Binding CurrentSession.IsMulticast}">
                                 <StackPanel Grid.Column="0">
                                     <TextBlock Classes="FieldLabel" Text="{lan:I18n Udp.Label_MulticastAddress}" />
-                                    <TextBox Text="{Binding MulticastAddress, Mode=TwoWay}" />
+                                    <TextBox Text="{Binding CurrentSession.MulticastAddress, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                             IsEnabled="{Binding CurrentSession.IsActive, Converter={StaticResource Inv}}"
+                                             ToolTip.Tip="{lan:I18n Udp.ToolTip_LockedWhileRunning}" />
                                 </StackPanel>
                                 <StackPanel Grid.Column="2">
                                     <TextBlock Classes="FieldLabel" Text="{lan:I18n Udp.Label_MulticastPort}" />
-                                    <TextBox Text="{Binding MulticastPort, Mode=TwoWay}" />
+                                    <TextBox Text="{Binding CurrentSession.MulticastPort, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                 </StackPanel>
                             </Grid>
                             <StackPanel Classes="ActionBar">
-                                <Button Command="{Binding StartCommand}" Classes="Primary" Content="{lan:I18n Common.Button_Start}"
-                                        IsEnabled="{Binding IsAnyActive, Converter={StaticResource Inv}}" />
-                                <Button Command="{Binding StopCommand}" Classes="Danger" Content="{lan:I18n Common.Button_Stop}"
-                                        IsEnabled="{Binding IsAnyActive}" />
+                                <Button Command="{Binding CurrentSession.StartCommand}" Classes="Primary" Content="{lan:I18n Common.Button_Start}"
+                                        IsEnabled="{Binding CurrentSession.IsActive, Converter={StaticResource Inv}}" />
+                                <Button Command="{Binding CurrentSession.StopCommand}" Classes="Danger" Content="{lan:I18n Common.Button_Stop}"
+                                        IsEnabled="{Binding CurrentSession.IsActive}" />
+                                <Button Command="{Binding CloseSessionCommand}"
+                                        IsEnabled="{Binding CanCloseSession}"
+                                        Content="{lan:I18n Udp.Button_CloseSession}" />
                             </StackPanel>
                         </StackPanel>
                     </Border>
@@ -122,11 +140,11 @@
                                   IsVisible="{Binding LinkRoleIndex, Converter={StaticResource IntEq}, ConverterParameter=0}">
                                 <StackPanel Grid.Column="0">
                                     <TextBlock Classes="FieldLabel" Text="{lan:I18n Udp.Label_LocalAddress}" />
-                                    <TextBox Text="{Binding LocalAddress, Mode=TwoWay}" />
+                                    <TextBox Text="{Binding LinkLocalAddress, Mode=TwoWay}" />
                                 </StackPanel>
                                 <StackPanel Grid.Column="2">
                                     <TextBlock Classes="FieldLabel" Text="{lan:I18n Udp.Label_LocalPort}" />
-                                    <TextBox Text="{Binding LocalPort, Mode=TwoWay}" />
+                                    <TextBox Text="{Binding LinkLocalPort, Mode=TwoWay}" />
                                 </StackPanel>
                             </Grid>
                             <TextBlock Classes="Caption"
@@ -136,11 +154,11 @@
                                   IsVisible="{Binding LinkRoleIndex, Converter={StaticResource IntEq}, ConverterParameter=1}">
                                 <StackPanel Grid.Column="0">
                                     <TextBlock Classes="FieldLabel" Text="{lan:I18n Udp.Label_RemoteAddress}" />
-                                    <TextBox Text="{Binding RemoteAddress, Mode=TwoWay}" />
+                                    <TextBox Text="{Binding LinkRemoteAddress, Mode=TwoWay}" />
                                 </StackPanel>
                                 <StackPanel Grid.Column="2">
                                     <TextBlock Classes="FieldLabel" Text="{lan:I18n Udp.Label_RemotePort}" />
-                                    <TextBox Text="{Binding RemotePort, Mode=TwoWay}" />
+                                    <TextBox Text="{Binding LinkRemotePort, Mode=TwoWay}" />
                                 </StackPanel>
                             </Grid>
                             <TextBlock Classes="Caption"
@@ -174,27 +192,27 @@
                             IsVisible="{Binding FunctionIndex, Converter={StaticResource IntEq}, ConverterParameter=0}">
                         <StackPanel Classes="ToolCardContent" Spacing="4">
                             <TextBlock Classes="SectionHeader" Text="{lan:I18n Udp.Group_Options}" />
-                            <CheckBox Content="{lan:I18n Udp.Option_HexSend}" IsChecked="{Binding IsHexSend, Mode=TwoWay}" />
-                            <CheckBox Content="{lan:I18n Udp.Option_HexDisplay}" IsChecked="{Binding IsHexDisplay, Mode=TwoWay}" />
+                            <CheckBox Content="{lan:I18n Udp.Option_HexSend}" IsChecked="{Binding CurrentSession.IsHexSend, Mode=TwoWay}" />
+                            <CheckBox Content="{lan:I18n Udp.Option_HexDisplay}" IsChecked="{Binding CurrentSession.IsHexDisplay, Mode=TwoWay}" />
                             <StackPanel Classes="FormRow">
                                 <TextBlock Classes="FieldLabel" Text="{lan:I18n Udp.Label_PollInterval}" />
-                                <NumericUpDown Minimum="1" Value="{Binding PollInterval, Mode=TwoWay}" />
+                                <NumericUpDown Minimum="1" Value="{Binding CurrentSession.PollInterval, Mode=TwoWay}" />
                             </StackPanel>
-                            <CheckBox Content="{lan:I18n Udp.Option_EnableSendCount}" IsChecked="{Binding EnableSendCount, Mode=TwoWay}" />
+                            <CheckBox Content="{lan:I18n Udp.Option_EnableSendCount}" IsChecked="{Binding CurrentSession.EnableSendCount, Mode=TwoWay}" />
                             <StackPanel Classes="FormRow"
-                                        IsVisible="{Binding EnableSendCount}">
+                                        IsVisible="{Binding CurrentSession.EnableSendCount}">
                                 <TextBlock Classes="FieldLabel" Text="{lan:I18n Udp.Label_SendCount}" />
                                 <NumericUpDown Minimum="1" Maximum="999999"
-                                               Value="{Binding SendCount, Mode=TwoWay}" />
+                                               Value="{Binding CurrentSession.SendCount, Mode=TwoWay}" />
                             </StackPanel>
                             <StackPanel Classes="ActionBar">
-                                <Button Command="{Binding StartPollingCommand}"
+                                <Button Command="{Binding CurrentSession.StartPollingCommand}"
                                         Content="{lan:I18n Udp.Button_TimedSend}"
-                                        IsEnabled="{Binding IsPolling, Converter={StaticResource Inv}}" />
-                                <Button Command="{Binding StopPollingCommand}"
+                                        IsEnabled="{Binding CurrentSession.IsPolling, Converter={StaticResource Inv}}" />
+                                <Button Command="{Binding CurrentSession.StopPollingCommand}"
                                         Classes="Danger"
                                         Content="{lan:I18n Common.Button_Stop}"
-                                        IsEnabled="{Binding IsPolling}" />
+                                        IsEnabled="{Binding CurrentSession.IsPolling}" />
                             </StackPanel>
                         </StackPanel>
                     </Border>
@@ -209,18 +227,24 @@
                         <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="16,12,16,8">
                             <TextBlock Classes="SectionHeader" Grid.Column="0" Text="{lan:I18n Udp.Group_Log}" />
                             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
-                                <Button Classes="Quiet" Command="{Binding ClearCommand}" Content="{lan:I18n Common.Button_Clear}" />
-                                <Button Classes="Quiet" Command="{Binding SaveDataCommand}" Content="{lan:I18n Udp.Button_SaveData}" />
+                                <ToggleButton Classes="Quiet" Content="{lan:I18n Udp.Button_MergedLog}" IsChecked="{Binding IsMergedLog, Mode=TwoWay}" />
+                                <Button Classes="Quiet" Command="{Binding ClearLogCommand}" Content="{lan:I18n Common.Button_Clear}" />
+                                <Button Classes="Quiet" Command="{Binding SaveLogCommand}" Content="{lan:I18n Udp.Button_SaveData}" />
                             </StackPanel>
                         </Grid>
-                        <controls:LogBufferView Grid.Row="1" Margin="12,0,12,0" Entries="{Binding Log.Entries}" />
+                        <controls:LogBufferView Grid.Row="1" Margin="12,0,12,0"
+                                                 IsVisible="{Binding IsMergedLog, Converter={StaticResource Inv}}"
+                                                 Entries="{Binding CurrentSession.Log.Entries}" />
+                        <controls:LogBufferView Grid.Row="1" Margin="12,0,12,0"
+                                                 IsVisible="{Binding IsMergedLog}"
+                                                 Entries="{Binding MergedLog.Entries}" />
                         <Border Grid.Row="2" Background="{DynamicResource SubtleFillColorTertiaryBrush}"
                                 Padding="16,6" Margin="12,0,12,12" CornerRadius="4">
                             <TextBlock Classes="Caption">
                                 <Run Text="{lan:I18n Udp.Label_BufferUsage}" />
-                                <Run Text="{Binding Log.Count}" />
+                                <Run Text="{Binding BufferUsageCount}" />
                                 <Run Text=" / " />
-                                <Run Text="{Binding Log.MaxLines}" />
+                                <Run Text="{Binding BufferUsageMax}" />
                                 <Run Text="{lan:I18n Udp.Label_BufferLines}" />
                             </TextBlock>
                         </Border>
@@ -292,13 +316,16 @@
                 <Border Grid.Row="2" Classes="ToolCard" Padding="0"
                         IsVisible="{Binding FunctionIndex, Converter={StaticResource IntEq}, ConverterParameter=0}">
                     <Grid RowDefinitions="Auto,*,Auto">
-                        <TextBlock Grid.Row="0" Classes="SectionHeader" Text="{lan:I18n Serial.Group_Send}" Margin="16,12,16,8" />
+                        <TextBlock Grid.Row="0" Classes="SectionHeader" Text="{lan:I18n Udp.Group_Send}" Margin="16,12,16,8" />
                         <TextBox Grid.Row="1"
                                  Classes="TerminalInput"
                                  Margin="16,0,16,8"
-                                 Text="{Binding SendText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                 Text="{Binding CurrentSession.SendText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                         <StackPanel Grid.Row="2" Classes="ActionBar" Margin="16,0,16,12">
-                            <Button Command="{Binding SendCommand}" Classes="Primary" Content="{lan:I18n Common.Button_Send}" />
+                            <Button Command="{Binding SendCommand}" Classes="Primary" Content="{lan:I18n Common.Button_Send}"
+                                    IsEnabled="{Binding CanSend}" />
+                            <CheckBox Content="{lan:I18n Session.Label_SendAllSessions}"
+                                      IsChecked="{Binding SendToAll, Mode=TwoWay}" />
                         </StackPanel>
                     </Grid>
                 </Border>
@@ -322,9 +349,10 @@
 
         <controls:TerminalStatusBar Grid.Row="2"
                                     Margin="0,10,0,0"
-                                    RxCount="{Binding RxCount}"
-                                    TxCount="{Binding TxCount}"
-                                    ElapsedText="{Binding ElapsedText}"
-                                    RightDetail="{Binding StatusText}" />
+                                    RxCount="{Binding CurrentSession.RxCount}"
+                                    TxCount="{Binding CurrentSession.TxCount}"
+                                    ElapsedText="{Binding CurrentSession.ElapsedText}"
+                                    MiddleDetail="{Binding AggregateText}"
+                                    RightDetail="{Binding CurrentSession.StatusText}" />
     </Grid>
 </UserControl>

@@ -113,12 +113,21 @@ namespace FancyToolAva.ViewModels
                     return;
                 }
 
-                var created = CreateSession(value.AddPayload);
-                SyncChoiceItems();
-                if (created is not null)
-                {
-                    SelectChoice(created, reassert: true);
-                }
+                // 这里正处在 ComboBox 选中变更的回调中：现在改下拉集合会让控件重入并记错上一次选中项，下一次选"新建"不再通知，推迟到回调之后。
+                Dispatcher.UIThread.Post(() => AddSessionFromChoice(value));
+            }
+        }
+
+        private void AddSessionFromChoice(SessionChoiceItem choice)
+        {
+            // 推迟期间已切到别的会话则放弃新建。
+            if (!ReferenceEquals(_selectedChoice, choice)) return;
+
+            var created = CreateSession(choice.AddPayload);
+            SyncChoiceItems();
+            if (created is not null)
+            {
+                SelectChoice(created, reassert: true);
             }
         }
 

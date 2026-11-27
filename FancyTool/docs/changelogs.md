@@ -1,5 +1,43 @@
 # 变更记录
 
+## 2026-11-27（修复：TCP / UDP 连续"新建会话"从第二次起无效）
+
+- **现象**：在下拉里选"新建会话"，第一路能建出来并自动选中；紧接着再选一次，收起框显示"新建会话"，但不创建会话，页面仍停在上一路（地址 / 端口输入框与聚合"运行中 0 / 2 会话"都不变），之后每次都无效；切到别的会话再切回来又能建一次。TCP、UDP 都如此。
+- **原因**：`TerminalPageViewModelBase.SelectedChoice` 的 setter 在 ComboBox 选中变更的绑定回写里同步新建会话，并把新会话的项插进 `Choices`。集合变更发生在回写中途，`SelectingItemsControl` 的选中变更处理被重入（Avalonia 12.1.1 `SelectionModel.cs`、`SelectingItemsControl.cs` 源码核对；运行日志也记录到插入期间控件把新会话的项又推给了 ViewModel，被 `_suppressChoice` 丢弃）。外层处理结束后，控件把"上一次选中项"记成了"新建会话"项。下一次再选它时控件认为选中项没变，不发 `SelectedItem` 变更，绑定不写回源，ViewModel 的 setter 根本没有被调用（第二次选择在日志里没有任何 setter 记录）。
+- **修复**：选中"新建"项时 setter 只记录选中项；创建会话、同步下拉集合与重新选中推迟到 `Dispatcher.UIThread.Post` 的回调（`AddSessionFromChoice`），同一帧内完成，界面不闪烁。回调开始时如果已经切到别的会话则放弃。串口页的"添加端口"走同一个 setter，一并受益。
+- **验证**（证据在 `.qa/tcp-udp-multi-session-2026-11-26/`）：
+  - 修复前（原始代码）：TCP 连续选 10 次"新建会话"只建出 1 路（`p3-probe-tcp.log`）；对照采集是"新建成功 → 再新建失败 → 切到会话 1、会话 2 → 新建成功 → 再新建失败"（`p3-probe3-tcp.log`）。
+  - 第一次只推迟"把新选中项写回控件"而没有推迟创建，问题依旧：TCP 连续 5 次、UDP 连续 3 次都只有第 1 次成功（`p3fix-add-tcp.log`、`p3fix-add-udp.log`）。
+  - 修复后：TCP 连续 4 次全部创建，端口 8081–8084 逐次 +1，聚合"运行中 0 / 2 … 0 / 5 会话"，应用日志 5 个服务实例，存档 5 路并选中最后一路，正常退出码 0（`p3diag2-add-tcp.log`，`p3diag2-tcp-diag.txt` 是该次的应用日志摘录）。该次构建带临时诊断日志，诊断代码之后已删除，最终构建 0 错误（`p3-fix-build.log`）。
+  - **UDP 修复后没有运行结果**：唯一一次运行在第一次新建之前应用就被正常关闭（退出码 0，日志是完整的保存与释放流程，当时没有自动化动作在执行）。UDP 与 TCP 共用同一个 setter 和修复，缺的只是运行确认。
+  - 鼠标点击与键盘选择没有实测（不模拟键鼠）。从源码看，它们与自动化选择走同一条 `SelectedIndex` 路径，受同一个缺陷影响，也应被同一处修复覆盖。
+- **后台界面采集已停用**：这次核查发现，最小化的测试实例在下拉展开时，弹出层是屏幕左上角一个 285×86 的可见窗口，而且采样时该实例的主窗口是前台窗口（`p3vis-tcp.log`）。这不符合"不影响使用 PC"的要求，此前两次"应用进程消失"很可能就是因此被关闭的。在找到不展开下拉、不抢焦点的验证方式之前，不再运行这类采集。
+- 构建：主程序 0 错误，8 条 `NU1900` 仍是还原阶段的网络警告。
+
+## 2026-11-27（P2 / P3：TCP 与 UDP 多会话；P2 界面验证未完成，P3 只做了编译与静态核对）
+
+- **P2 TCP 多会话**（`tcp-udp-multi-session-design.md` 第 2–6 节）：新增 `TcpSessionViewModel`（模式、地址、端口、帧间隔、`IsListening` / `IsConnected` / `IsActive`、已连接客户端与 `KickClient`、启动 / 停止 / 发送），`TcpServerViewModel` 改为派生 `TerminalPageViewModelBase<TcpSessionViewModel>`，只保留链路测试与页面级成员。`TcpServerViewState` 升 v2（`Sessions`、`SelectedSessionId`、`LinkAddress` / `LinkPort`），`Sessions` 为空即视为 v1，把旧的扁平字段转成单会话，旧端点同时作为链路测试端点。视图在连接卡顶部加会话行（"新建会话"固定在下拉末尾，默认复制当前会话、端口 +1），模式、地址、端口、选项、客户端卡、日志、发送全部指向 `CurrentSession.*`；运行中冻结模式与端点并加 ToolTip；链路测试页签改绑页面级的 `LinkAddress` / `LinkPort`。
+- **P2 带来的行为变化**：
+  - 运行中不能再改模式，`OnModeIndexChanged` 里"切模式即停止"的分支随之删除；`Modes` 集合、从未赋值的 `_cts`、UI 线程上的 `task.Wait(200)` 一并删除。
+  - 切到链路测试页签不再停止任何会话；点击"开始测试"时停止全部运行中的会话并提示数量；切回通信调试时停止在途测试（不变）。
+  - TCP 定时发送遵守所选客户端：与手动发送共用目标规则，目标在点击"定时发送"时确定；目标客户端断开或被踢出后定时发送停止并写一条日志。所选客户端离开时清空选择，避免服务端一直"只发给"一个已不存在的客户端。
+  - 状态文案合并上屏（设计第 7 节，P0 记录里留给 P2）：`PostStatusText` 只保留最新一条，由页面 16ms 节拍在 UI 线程发布，不再每条状态一次 `Dispatcher.Post`。串口页走的是同一条路径，但这次没有重跑串口的界面对比。
+  - 超时提示原来为警告、连接失败为错误，现在两者都经会话的出错回调弹出，显示为错误（与串口一致）；只有当前会话才弹。
+  - 日志上限随基类变为分级：当前会话 20000 行、其余各 5000 行、合并日志 20000 行（TCP 原为 100000）。
+- **P3 UDP 多会话**（与 P2 同构）：新增 `UdpSessionViewModel` 与 `UdpSessionViewState`，`UdpViewModel` 改为派生，`UdpViewState` 升 v2（页面级 `LinkLocalAddress` / `LinkLocalPort` / `LinkRemoteAddress` / `LinkRemotePort`，迁移时取旧会话的本地与远程端点）。运行中冻结模式、本地地址、本地端口、组播地址；远程地址 / 端口与组播端口可改。新建会话复制当前会话、本地端口 +1。冲突判定用 `EndpointConflict.Udp`：普通会话与任何运行中的会话互斥，组播会话之间放行。`FrameBreakInterval` 只留在存档模型里兼容旧文件，不进会话 VM。UDP 日志上限同样由 100000 变为分级。
+- **与设计的出入**：UDP 会话的显示名把发送目标并入名称（`0.0.0.0:8080 → 127.0.0.1:9090`、`0.0.0.0:8080 → 组播 239.0.0.1:8080`）。设计 3.1 设想名称只放本地端点、目标放在摘要行，但共享的下拉项模板没有摘要行（P0 已删掉无绑定的摘要属性），且同端口上的多个组播会话只看本地端点无法区分。会话显示名随输入更新并缓存，不在每次属性通知时格式化。
+- **i18n**：`Tcp` 新增 9 键（`Label_Session`、`Menu_AddSession`、`Button_CloseSession`、`Label_Aggregate`、`Msg_EndpointInUse`、`Msg_PollTargetGone`、`Button_MergedLog`、`ToolTip_LockedWhileRunning`、`Msg_LinkTestStoppedSessions`），`Udp` 新增同名的 8 键加 `Label_MulticastSummary`。删除无引用的 `Tcp.Button_Start`、`Tcp.Button_Stop`、`Tcp.Status_Ready`、`Udp.Button_Start`、`Udp.Button_Stop`。中英各 824 键。TCP 发送卡标题原来借用 `Serial.Group_Send`，改用 `Tcp.Group_Send` / `Udp.Group_Send`。
+- **验证**（同 P0 环境；证据在 `.qa/tcp-udp-multi-session-2026-11-26/`）：
+  - 构建：P2 的最后一次改动之后，主程序与 CLI 均 0 错误；各有 8 条 `NU1900`，是还原阶段连不上 NuGet 漏洞数据源的网络警告，不是编译器警告（`p3-build.log`、`p3-cli-build.log`）。
+  - i18n 静态核对（`tools/keycheck.py`）：中英各 824 键、结构对称（唯一不对称仍是既有的 `AppFatal.*` 死键）、无 BOM、全 CRLF；XAML 与代码引用的 578 个键在两侧都存在，例外是三个与本次无关的既有引用：`AudioTranscode.Picker_SelectOutputDir`、`ImageConvert.Msg_SrModelDownloading`、`ServiceStatus.Serial_CDSignal`，两侧都没有定义，运行时回退为键名本身。
+  - P2 界面（后台 UIA）只采到部分结果：运行中的服务端会话，模式单选与地址 / 端口被禁用，状态栏"运行中 1 / 1 会话"；链路测试页签下会话仍在运行，"开始测试"后会话被停止并提示"已停止 1 个运行中的会话以开始链路测试。"；合并日志的行带 `[服务器 127.0.0.1:8080]` 前缀；关闭运行中的会话后，命令行服务端立即绑定同一端口成功。另一次探索性采集里，"新建会话"得到"服务器 127.0.0.1:8081"并自动选中，状态栏"运行中 0 / 2 会话"，只有一个会话时"关闭会话"置灰。
+- **未完成与未查清**：
+  - 上面那轮完整场景作废：脚本把端口写进了错误的参数，服务端实际起在默认端口，后续步骤的前提都不成立。
+  - 用户取消了测试。P2 的其余界面场景（页内环回互发、未读徽标、定时发送定点与目标断开即停、冲突提示、重启恢复、英文界面）与 P3 的全部界面验证都没有执行。
+  - 作废的那一轮里，连续"新建会话"时应用进程消失，日志没有任何退出流程记录；应用日志里 7 次选择只出现 1 次服务实例创建。原因未查清：可能是崩溃，也可能是被外部结束；Windows 应用事件日志的查询没有返回结果，不能据此排除崩溃。
+  - 设计第 12 节的验收要点，P2 只覆盖了上面列出的几项，P3 一项都没有运行过。
+- 新增 `docs/adr/0024-terminal-multi-session-model.md`，把串口与 TCP / UDP 多会话的行为决策、验证范围与未验证项记在一处。
+
 ## 2026-11-27（P0：终端会话 / 页面公共基类抽取，串口取消会话上限；同日修复五处既有问题）
 
 - **公共基类抽取**（`tcp-udp-multi-session-design.md` 6.1 甲方案，P0）：新增会话级 `TerminalSessionViewModelBase`（日志、计数、未读、计时、状态文案、发送选项、定时发送循环）、页面级泛型 `TerminalPageViewModelBase<TSession>`（会话集合、当前会话、下拉项同步、关闭并选邻、合并日志、聚合文案、"全部会话"发送）、`SessionChoiceItem`（取代 `SerialChoiceItem`，后者删除）和单例节拍 `TerminalTicker`（16ms / 1s，`App.axaml.cs` 注册）。`SerialSessionViewModel` / `SerialPortViewModel` 改为派生，串口页布局不变。选择器两个 `DataTemplate` 提到 `CommonStyles.axaml`（`SessionChoiceItemTemplate`、`SessionChoiceBoxTemplate`），后续 TCP / UDP 共用。

@@ -1,35 +1,33 @@
-using System.Diagnostics;
-using System.Text;
-using Avalonia.Threading;
-using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Lang.Avalonia;
 using FancyToolAva.Models;
 using FancyToolAva.Models.ViewStates;
 using FancyToolAva.Services;
-using FancyToolAva.Utils;
-using Microsoft.Extensions.Logging;
 
 namespace FancyToolAva.ViewModels
 {
-    public partial class UdpViewModel : ViewModelBase, IViewState, IViewLifecycle
+    /// <summary>UDP 调试页面：会话集合之外只保留链路测试与页面级设置。</summary>
+    public partial class UdpViewModel : TerminalPageViewModelBase<UdpSessionViewModel>, IViewState, IViewLifecycle
     {
-        private readonly IUdpService _udpService;
+        private readonly ISessionHub<IUdpService> _hub;
         private readonly UdpLinkTestService _linkTestService;
-        private readonly INotificationService _notificationService;
         private readonly IViewStateService _viewStateService;
-        private readonly IFileDialogService _fileDialogService;
         private readonly AppObserveModel _app;
-        private CancellationTokenSource? _cts;
-        private CancellationTokenSource? _pollCts;
-        private Task? _pollTask;
-        private DispatcherTimer? _elapsedTimer;
-        private DispatcherTimer? _uiFlushTimer;
-        private DateTime? _startedAt;
-        private long _pendingRxCount;
-        private long _pendingTxCount;
 
-        public LogBuffer Log { get; } = new();
+        public UdpViewModel(ISessionHub<IUdpService> hub, UdpLinkTestService linkTestService,
+            INotificationService notificationService, IViewStateService viewStateService,
+            IFileDialogService fileDialogService, AppObserveModel app, TerminalTicker ticker)
+            : base(ticker, notificationService, fileDialogService)
+        {
+            _hub = hub;
+            _linkTestService = linkTestService;
+            _viewStateService = viewStateService;
+            _app = app;
+
+            LinkTest = new LinkTestPresenter(linkTestService);
+
+            InitializeDefaultSession();
+            _viewStateService.Register(this);
+        }
 
         /// <summary>链路测试（带宽 / 丢包率）独立模式的呈现状态。</summary>
         public LinkTestPresenter LinkTest { get; }
@@ -75,182 +73,34 @@ namespace FancyToolAva.ViewModels
             set => SetProperty(ref field, value);
         } = 10;
 
-        public int ModeIndex
-        {
-            get;
-            set
-            {
-                if (SetProperty(ref field, value))
-                {
-                    OnModeIndexChanged(value);
-                }
-            }
-        }
-
-        public string LocalAddress
+        // 链路测试用自己的端点，不跟随任何会话：切换会话不改变测试目标。
+        public string LinkLocalAddress
         {
             get;
             set => SetProperty(ref field, value);
         } = "0.0.0.0";
 
-        public string LocalPort
+        public string LinkLocalPort
         {
             get;
             set => SetProperty(ref field, value);
         } = "8080";
 
-        public string MulticastAddress
-        {
-            get;
-            set => SetProperty(ref field, value);
-        } = "239.0.0.1";
-
-        public string MulticastPort
-        {
-            get;
-            set => SetProperty(ref field, value);
-        } = "8080";
-
-        public string RemoteAddress
+        public string LinkRemoteAddress
         {
             get;
             set => SetProperty(ref field, value);
         } = "127.0.0.1";
 
-        public string RemotePort
+        public string LinkRemotePort
         {
             get;
             set => SetProperty(ref field, value);
         } = "9090";
 
-        public string SendText
-        {
-            get;
-            set => SetProperty(ref field, value);
-        } = string.Empty;
-
-        public string StatusText
-        {
-            get;
-            set => SetProperty(ref field, value);
-        } = "";
-
-        public bool IsHexSend
-        {
-            get;
-            set => SetProperty(ref field, value);
-        }
-
-        public bool IsHexDisplay
-        {
-            get;
-            set => SetProperty(ref field, value);
-        }
-
-        public bool IsRunning
-        {
-            get;
-            set
-            {
-                if (SetProperty(ref field, value))
-                {
-                    OnIsRunningChanged(value);
-                }
-            }
-        }
-
-        public bool IsAnyActive => IsRunning;
-
-        public ConnectionStatus ConnectionStatus
-        {
-            get;
-            set => SetProperty(ref field, value);
-        } = ConnectionStatus.Idle;
-
-        public int RxCount
-        {
-            get;
-            set => SetProperty(ref field, value);
-        }
-
-        public int TxCount
-        {
-            get;
-            set => SetProperty(ref field, value);
-        }
-
-        public string ElapsedText
-        {
-            get;
-            set => SetProperty(ref field, value);
-        } = "00:00:00";
-
-        public string StatusDetail
-        {
-            get;
-            set => SetProperty(ref field, value);
-        } = string.Empty;
-
-        public int FrameBreakInterval
-        {
-            get;
-            set
-            {
-                if (SetProperty(ref field, value))
-                {
-                    OnFrameBreakIntervalChanged(value);
-                }
-            }
-        } = 20;
-
-        public int PollInterval
-        {
-            get;
-            set => SetProperty(ref field, value);
-        } = 1000;
-
-        public bool IsPolling
-        {
-            get;
-            set => SetProperty(ref field, value);
-        }
-
-        public bool EnableSendCount
-        {
-            get;
-            set => SetProperty(ref field, value);
-        }
-
-        public int SendCount
-        {
-            get;
-            set => SetProperty(ref field, value);
-        } = 1;
+        public override string AggregateText => LocalizationRegistry.Get("Udp.Label_Aggregate", ActiveCount, TotalSessions);
 
         string IViewState.ViewName => "udpView";
-
-        public UdpViewModel(ISessionHub<IUdpService> udpHub, UdpLinkTestService linkTestService, INotificationService notificationService, IViewStateService viewStateService, IFileDialogService fileDialogService, AppObserveModel app)
-        {
-            _udpService = udpHub.CreateSession();
-            _linkTestService = linkTestService;
-            LinkTest = new LinkTestPresenter(linkTestService);
-            _notificationService = notificationService;
-            _viewStateService = viewStateService;
-            _fileDialogService = fileDialogService;
-            _app = app;
-            _udpService.BytesReceived += OnBytesReceived;
-            _udpService.DataSent += OnDataSent;
-            _udpService.StatusChanged += OnStatusChanged;
-            _udpService.ConnectionStateChanged += OnConnectionStateChanged;
-            _viewStateService.Register(this);
-
-            StatusText = LocalizationRegistry.Get("Udp.Status_Ready");
-
-            I18nManager.Instance.CultureChanged += (_, _) =>
-            {
-                StatusText = LocalizationRegistry.Get("Udp.Status_Ready");
-            };
-        }
 
         void IViewLifecycle.OnNavigatedTo() { }
 
@@ -258,21 +108,14 @@ namespace FancyToolAva.ViewModels
 
         object IViewState.CaptureState() => new UdpViewState
         {
-            ModeIndex = ModeIndex,
-            LocalAddress = LocalAddress,
-            LocalPort = LocalPort,
-            MulticastAddress = MulticastAddress,
-            MulticastPort = MulticastPort,
-            RemoteAddress = RemoteAddress,
-            RemotePort = RemotePort,
-            SendText = SendText,
-            IsHexSend = IsHexSend,
-            IsHexDisplay = IsHexDisplay,
-            FrameBreakInterval = FrameBreakInterval,
-            PollInterval = PollInterval,
-            EnableSendCount = EnableSendCount,
-            SendCount = SendCount,
+            SchemaVersion = 2,
+            Sessions = Sessions.Select(s => s.ToState()).ToList(),
+            SelectedSessionId = CurrentSession?.Id,
             FunctionIndex = FunctionIndex,
+            LinkLocalAddress = LinkLocalAddress,
+            LinkLocalPort = LinkLocalPort,
+            LinkRemoteAddress = LinkRemoteAddress,
+            LinkRemotePort = LinkRemotePort,
             LinkRoleIndex = LinkRoleIndex,
             LinkDurationSec = LinkDurationSec,
             LinkPacketSize = LinkPacketSize,
@@ -281,344 +124,148 @@ namespace FancyToolAva.ViewModels
 
         void IViewState.RestoreState(object state)
         {
-            if (state is UdpViewState s)
+            if (state is not UdpViewState saved) return;
+
+            LinkRoleIndex = saved.LinkRoleIndex;
+            LinkDurationSec = saved.LinkDurationSec;
+            LinkPacketSize = saved.LinkPacketSize;
+            LinkRateMbps = saved.LinkRateMbps;
+
+            var items = saved.Sessions;
+            if (items.Count == 0)
             {
-                ModeIndex = s.ModeIndex;
-                LocalAddress = s.LocalAddress;
-                LocalPort = s.LocalPort;
-                MulticastAddress = s.MulticastAddress;
-                MulticastPort = s.MulticastPort;
-                RemoteAddress = s.RemoteAddress;
-                RemotePort = s.RemotePort;
-                SendText = s.SendText;
-                IsHexSend = s.IsHexSend;
-                IsHexDisplay = s.IsHexDisplay;
-                FrameBreakInterval = s.FrameBreakInterval;
-                PollInterval = s.PollInterval;
-                EnableSendCount = s.EnableSendCount;
-                SendCount = s.SendCount;
-                LinkRoleIndex = s.LinkRoleIndex;
-                LinkDurationSec = s.LinkDurationSec;
-                LinkPacketSize = s.LinkPacketSize;
-                LinkRateMbps = s.LinkRateMbps;
-                FunctionIndex = s.FunctionIndex; // 最后切换功能，避免中途触发互斥停止
-            }
-        }
-
-        private void OnDataSent(byte[] bytes)
-        {
-            Interlocked.Increment(ref _pendingTxCount);
-            if (IsHexDisplay)
-            {
-                Log.Enqueue(LogKind.Tx, ToolMethod.ByteArrayToSpacedHexString(bytes));
-            }
-            else
-            {
-                Log.EnqueueLine(LogKind.Tx, Encoding.UTF8.GetString(bytes));
-            }
-        }
-
-        private void OnBytesReceived(byte[] bytes)
-        {
-            Interlocked.Increment(ref _pendingRxCount);
-
-            if (IsHexDisplay)
-            {
-                Log.Enqueue(LogKind.Rx, ToolMethod.ByteArrayToSpacedHexString(bytes));
-            }
-            else
-            {
-                Log.EnqueueLine(LogKind.Rx, Encoding.UTF8.GetString(bytes));
-            }
-        }
-
-        private void OnStatusChanged(string status)
-        {
-            Dispatcher.UIThread.Post(() => StatusText = status);
-        }
-
-        private void OnConnectionStateChanged(object? sender, ConnectionEventArgs e)
-        {
-            Dispatcher.UIThread.Post(() =>
-            {
-                switch (e.Type)
-                {
-                    case ConnectionEventType.Connected:
-                        IsRunning = true;
-                        Log.Append(LogKind.System, e.Message);
-                        break;
-                    case ConnectionEventType.Disconnected:
-                        IsRunning = false;
-                        IsPolling = false;
-                        _pollCts?.Cancel();
-                        Log.Append(LogKind.System, e.Message);
-                        break;
-                    case ConnectionEventType.Lost:
-                        IsRunning = false;
-                        IsPolling = false;
-                        _pollCts?.Cancel();
-                        Log.Append(LogKind.Error, e.Message);
-                        break;
-                    case ConnectionEventType.Error:
-                        ConnectionStatus = ConnectionStatus.Error;
-                        Log.Append(LogKind.Error, e.Message);
-                        break;
-                }
-            });
-        }
-
-        private void StartElapsedTimer()
-        {
-            StopElapsedTimer();
-            _startedAt = DateTime.Now;
-            _elapsedTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-            _elapsedTimer.Tick += (_, _) =>
-            {
-                if (_startedAt is { } start)
-                {
-                    ElapsedText = (DateTime.Now - start).ToString(@"hh\:mm\:ss");
-                }
-            };
-            _elapsedTimer.Start();
-        }
-
-        private void StopElapsedTimer()
-        {
-            _elapsedTimer?.Stop();
-            _elapsedTimer = null;
-            _startedAt = null;
-            ElapsedText = "00:00:00";
-        }
-
-        private void StartUiFlushTimer()
-        {
-            StopUiFlushTimer();
-            _uiFlushTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
-            _uiFlushTimer.Tick += (_, _) =>
-            {
-                int txDelta = (int)Interlocked.Exchange(ref _pendingTxCount, 0);
-                int rxDelta = (int)Interlocked.Exchange(ref _pendingRxCount, 0);
-                if (txDelta > 0) TxCount += txDelta;
-                if (rxDelta > 0) RxCount += rxDelta;
-            };
-            _uiFlushTimer.Start();
-        }
-
-        private void StopUiFlushTimer()
-        {
-            _uiFlushTimer?.Stop();
-            _uiFlushTimer = null;
-        }
-
-        private void OnIsRunningChanged(bool value)
-        {
-            OnPropertyChanged(nameof(IsAnyActive));
-            if (value)
-            {
-                ConnectionStatus = ConnectionStatus.Connected;
-                StatusDetail = $"{LocalAddress}:{LocalPort}";
-                StartElapsedTimer();
-                StartUiFlushTimer();
-            }
-            else
-            {
-                ConnectionStatus = ConnectionStatus.Idle;
-                StatusDetail = string.Empty;
-                StopElapsedTimer();
-                _pollCts?.Cancel();
-                var task = _pollTask;
-                if (task != null) { try { task.Wait(200); } catch { } }
-                _pollTask = null;
-                StopUiFlushTimer();
-            }
-        }
-
-        [RelayCommand]
-        private async Task Start()
-        {
-            if (!int.TryParse(LocalPort, out int localPort) || localPort < 1 || localPort > 65535)
-            {
-                _notificationService.ShowWarn(LocalizationRegistry.Get("Udp.Msg_InvalidLocalPort"));
-                return;
-            }
-
-            int timeoutSec = Math.Max(1, _app.Preferences.ConnectionTimeoutSec);
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSec));
-
-            try
-            {
-                ConnectionStatus = ConnectionStatus.Connecting;
-
-                string? multicastAddr = ModeIndex == 1 ? MulticastAddress : null;
-                int? multicastPort = ModeIndex == 1 && int.TryParse(MulticastPort, out int mp) ? mp : null;
-
-                if (ModeIndex == 1 && !string.IsNullOrEmpty(multicastAddr) && !System.Net.IPAddress.TryParse(multicastAddr, out _))
-                {
-                    _notificationService.ShowWarn(LocalizationRegistry.Get("Udp.Msg_InvalidMulticast"));
-                    ConnectionStatus = ConnectionStatus.Idle;
-                    return;
-                }
-
-                await _udpService.StartAsync(LocalAddress, localPort, multicastAddr, multicastPort, cts.Token);
-                IsRunning = true;
-
-                _cts?.Cancel();
-                _cts?.Dispose();
-                _cts = null;
-            }
-            catch (OperationCanceledException)
-            {
-                ConnectionStatus = ConnectionStatus.Idle;
-                IsRunning = false;
-                var timeoutMsg = LocalizationRegistry.Get("Udp.Msg_StartTimeout", timeoutSec);
-                Log.Append(LogKind.Warn, timeoutMsg);
-                _notificationService.ShowWarn(timeoutMsg);
-            }
-            catch (Exception ex)
-            {
-                ConnectionStatus = ConnectionStatus.Error;
-                IsRunning = false;
-                var failMsg = LocalizationRegistry.Get("Udp.Msg_StartFail", ex.Message);
-                Log.Append(LogKind.Error, failMsg);
-                _notificationService.ShowError(failMsg);
-            }
-        }
-
-        [RelayCommand]
-        private void Stop()
-        {
-            _pollCts?.Cancel();
-            _cts?.Cancel();
-            IsPolling = false;
-            _udpService.Stop();
-            IsRunning = false;
-        }
-
-        private void OnModeIndexChanged(int value)
-        {
-            if (!IsRunning) return;
-            _pollCts?.Cancel();
-            IsPolling = false;
-            _udpService.Stop();
-            IsRunning = false;
-        }
-
-        [RelayCommand]
-        private async Task Send()
-        {
-            if (string.IsNullOrEmpty(SendText)) return;
-            if (!IsRunning)
-            {
-                _notificationService.ShowWarn(LocalizationRegistry.Get("Udp.Msg_NotStarted"));
-                return;
-            }
-
-            string targetAddr = ModeIndex == 1 ? MulticastAddress : RemoteAddress;
-            int targetPort = ModeIndex == 1
-                ? (int.TryParse(MulticastPort, out int mp) ? mp : int.Parse(LocalPort))
-                : (int.TryParse(RemotePort, out int rp) ? rp : 9090);
-
-            try
-            {
-                await _udpService.SendAsync(SendText, IsHexSend, targetAddr, targetPort).ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                var errMsg = LocalizationRegistry.Get("Udp.Msg_SendFail", ex.Message);
-                Log.Enqueue(LogKind.Error, errMsg);
-                Dispatcher.UIThread.Post(() => _notificationService.ShowError(errMsg));
-            }
-        }
-
-        [RelayCommand]
-        private void Clear()
-        {
-            Log.Clear();
-            Interlocked.Exchange(ref _pendingRxCount, 0);
-            Interlocked.Exchange(ref _pendingTxCount, 0);
-            RxCount = 0;
-            TxCount = 0;
-        }
-
-        [RelayCommand]
-        private async Task SaveData()
-        {
-            await LogFileHelper.SaveAsync(Log, _fileDialogService, _notificationService, "Udp");
-        }
-
-        [RelayCommand]
-        private void StartPolling()
-        {
-            if (!IsRunning)
-            {
-                _notificationService.ShowWarn(LocalizationRegistry.Get("Udp.Msg_NotStarted"));
-                return;
-            }
-            if (IsPolling) return;
-
-            var localCts = new CancellationTokenSource();
-            _pollCts = localCts;
-            IsPolling = true;
-            string targetAddr = ModeIndex == 1 ? MulticastAddress : RemoteAddress;
-            int targetPort = ModeIndex == 1
-                ? (int.TryParse(MulticastPort, out int mp) ? mp : int.Parse(LocalPort))
-                : (int.TryParse(RemotePort, out int rp) ? rp : 9090);
-            string targetEncoding = Encoding.UTF8.WebName;
-            StartUiFlushTimer();
-
-            _pollTask = Task.Run(async () =>
-            {
-                int sentCount = 0;
-                long intervalTicks = Math.Max(1L, (long)(PollInterval * (Stopwatch.Frequency / 1000.0)));
-                long nextDue = Stopwatch.GetTimestamp() + intervalTicks;
-                try
-                {
-                    while (!localCts.Token.IsCancellationRequested)
+                // 旧版扁平存档：转成单会话。
+                items =
+                [
+                    new UdpSessionViewState
                     {
-                        if (!IsRunning) break;
-                        try
-                        {
-                            await _udpService.SendAsync(SendText, IsHexSend, targetAddr, targetPort).ConfigureAwait(false);
-                        }
-                        catch (OperationCanceledException) { throw; }
-                        catch (Exception ex)
-                        {
-                            Log.Enqueue(LogKind.Error, LocalizationRegistry.Get("Udp.Msg_TimedSendError", ex.Message));
-                        }
-                        if (EnableSendCount && ++sentCount >= SendCount) break;
-
-                        nextDue += intervalTicks;
-                        long remainingTicks = nextDue - Stopwatch.GetTimestamp();
-                        while (remainingTicks > 0)
-                        {
-                            if (localCts.Token.IsCancellationRequested) break;
-                            long remainingMs = remainingTicks * 1000 / Stopwatch.Frequency;
-                            if (remainingMs >= 1)
-                                await Task.Delay((int)remainingMs, localCts.Token).ConfigureAwait(false);
-                            else
-                                await Task.Yield();
-                            remainingTicks = nextDue - Stopwatch.GetTimestamp();
-                        }
+                        ModeIndex = saved.ModeIndex,
+                        LocalAddress = saved.LocalAddress,
+                        LocalPort = saved.LocalPort,
+                        MulticastAddress = saved.MulticastAddress,
+                        MulticastPort = saved.MulticastPort,
+                        RemoteAddress = saved.RemoteAddress,
+                        RemotePort = saved.RemotePort,
+                        SendText = saved.SendText,
+                        IsHexSend = saved.IsHexSend,
+                        IsHexDisplay = saved.IsHexDisplay,
+                        PollInterval = saved.PollInterval,
+                        EnableSendCount = saved.EnableSendCount,
+                        SendCount = saved.SendCount
                     }
-                }
-                catch (OperationCanceledException) { }
-                finally
-                {
-                    await Dispatcher.UIThread.InvokeAsync(() =>
-                    {
-                        if (ReferenceEquals(_pollCts, localCts))
-                        {
-                            IsPolling = false;
-                        }
-                    });
-                }
-            }, localCts.Token);
+                ];
+            }
+
+            // 旧存档没有链路测试端点：接收端取旧会话的本地端点，发送端取旧的远程端点。
+            LinkLocalAddress = OrSaved(saved.LinkLocalAddress, items[0].LocalAddress);
+            LinkLocalPort = OrSaved(saved.LinkLocalPort, items[0].LocalPort);
+            LinkRemoteAddress = OrSaved(saved.LinkRemoteAddress, items[0].RemoteAddress);
+            LinkRemotePort = OrSaved(saved.LinkRemotePort, items[0].RemotePort);
+
+            ReplaceSessions(items, saved.SelectedSessionId);
+            FunctionIndex = saved.FunctionIndex;
         }
 
-        [RelayCommand]
-        private void StopPolling()
+        private static string OrSaved(string saved, string fallback)
+            => string.IsNullOrWhiteSpace(saved) ? fallback : saved;
+
+        protected override void InitializeDefaultSession()
         {
-            _pollCts?.Cancel();
+            AddSession();
+            SyncChoiceItems();
+            SelectChoice(CurrentSession, reassert: true);
+        }
+
+        private UdpSessionViewModel AddSession(UdpSessionViewState? state = null, bool select = true)
+        {
+            var session = new UdpSessionViewModel(_hub.CreateSession(), _notificationService, _fileDialogService, _app)
+            {
+                EndpointConflictCheck = IsEndpointBlocked
+            };
+            if (state is not null)
+            {
+                session.ApplyState(state);
+            }
+
+            RegisterSession(session, select);
+            return session;
+        }
+
+        protected override UdpSessionViewModel? CreateSession(string? payload)
+        {
+            // 新会话复制当前会话、本地端口 +1：立即可启动，显示名通常不会与来源会话重名。
+            var source = CurrentSession;
+            if (source is null) return AddSession();
+            var state = source.ToState();
+            state.Id = string.Empty;
+            state.LocalPort = int.TryParse(source.LocalPort, out int port) && port < 65535 ? (port + 1).ToString() : source.LocalPort;
+            return AddSession(state);
+        }
+
+        private void ReplaceSessions(List<UdpSessionViewState> items, string? selectedId)
+        {
+            foreach (var session in Sessions.ToArray())
+            {
+                RemoveSession(session);
+            }
+            Sessions.Clear();
+
+            UdpSessionViewModel? selected = null;
+            foreach (var item in items)
+            {
+                var created = AddSession(item, select: false);
+                if (string.Equals(created.Id, selectedId, StringComparison.Ordinal))
+                {
+                    selected = created;
+                }
+            }
+
+            CurrentSession = selected ?? Sessions.FirstOrDefault();
+            SyncChoiceItems();
+            SelectChoice(CurrentSession, reassert: true);
+        }
+
+        protected override void RemoveSession(UdpSessionViewModel session)
+        {
+            DetachSession(session);
+            _hub.ReleaseSession(session.Service);
+            Sessions.Remove(session);
+        }
+
+        protected override void SyncAddItems()
+        {
+            if (!Choices.Any(c => c.IsAddItem))
+            {
+                Choices.Add(SessionChoiceItem.ForAdd("Udp.Menu_AddSession"));
+            }
+        }
+
+        /// <summary>
+        /// 普通会话与任何运行中的会话互斥（ReuseAddress 让同端口双绑定成功，投递归属不确定）；
+        /// 组播会话只与运行中的非组播会话互斥，同一端口上的多个组播会话各收一份，是合法用法。
+        /// </summary>
+        private bool IsEndpointBlocked(UdpSessionViewModel self, BindEndpoint candidate)
+        {
+            return EndpointConflict.Udp(candidate, self.IsMulticast, Sessions
+                .Where(s => !ReferenceEquals(s, self) && IsStartingOrRunning(s))
+                .Select(s => (BindEndpoint.ForUdp(s.LocalAddress, int.TryParse(s.LocalPort, out int port) ? port : 0), s.IsMulticast)));
+        }
+
+        private static bool IsStartingOrRunning(UdpSessionViewModel session)
+            => session.IsRunning || session.ConnectionStatus == ConnectionStatus.Connecting;
+
+        protected override Task SaveCurrentSessionLogAsync()
+        {
+            return CurrentSession is { } session ? session.SaveDataCommand.ExecuteAsync(null) : Task.CompletedTask;
+        }
+
+        private void OnFunctionIndexChanged(int value)
+        {
+            // 切到链路测试不再停止任何会话；切回通信调试时停止在途测试。
+            if (value != 1)
+            {
+                _ = _linkTestService.StopAsync();
+            }
         }
 
         [RelayCommand]
@@ -628,12 +275,11 @@ namespace FancyToolAva.ViewModels
             bool isSender = LinkRoleIndex == 1;
 
             // 发送端校验目标地址端口，接收端校验本地绑定端口
-            string portText = isSender ? RemotePort : LocalPort;
+            string portText = isSender ? LinkRemotePort : LinkLocalPort;
             if (!int.TryParse(portText, out int portNum) || portNum < 1 || portNum > 65535)
             {
-                _notificationService.ShowWarn(isSender
-                    ? LocalizationRegistry.Get("Udp.Msg_InvalidRemotePort")
-                    : LocalizationRegistry.Get("Udp.Msg_InvalidLocalPort"));
+                _notificationService.ShowWarn(LocalizationRegistry.Get(
+                    isSender ? "Udp.Msg_InvalidRemotePort" : "Udp.Msg_InvalidLocalPort"));
                 return;
             }
             if (LinkPacketSize < LinkTestUdpProtocol.MinPacketSize || LinkPacketSize > LinkTestUdpProtocol.MaxPacketSize)
@@ -645,8 +291,12 @@ namespace FancyToolAva.ViewModels
                 return;
             }
 
-            // 链路测试与通信调试不能同时占用同一端口：进入测试前先停通信
-            if (IsRunning) Stop();
+            // 调试流量会干扰带宽与丢包测量，开始测试时停止全部运行中的会话。
+            int stopped = StopAllSessions();
+            if (stopped > 0)
+            {
+                _notificationService.ShowInfo(LocalizationRegistry.Get("Udp.Msg_LinkTestStoppedSessions", stopped));
+            }
 
             LinkTest.Begin(isSender, LinkDurationSec, hasLossStats: true);
             var options = new LinkTestOptions
@@ -660,11 +310,11 @@ namespace FancyToolAva.ViewModels
             {
                 if (isSender)
                 {
-                    await _linkTestService.StartSenderAsync(RemoteAddress, portNum, options);
+                    await _linkTestService.StartSenderAsync(LinkRemoteAddress, portNum, options);
                 }
                 else
                 {
-                    await _linkTestService.StartReceiverAsync(LocalAddress, portNum);
+                    await _linkTestService.StartReceiverAsync(LinkLocalAddress, portNum);
                 }
             }
             catch (Exception ex)
@@ -675,29 +325,20 @@ namespace FancyToolAva.ViewModels
             }
         }
 
+        private int StopAllSessions()
+        {
+            var running = Sessions.Where(s => s.IsActive || s.ConnectionStatus == ConnectionStatus.Connecting).ToArray();
+            foreach (var session in running)
+            {
+                session.StopCommand.Execute(null);
+            }
+            return running.Length;
+        }
+
         [RelayCommand]
         private async Task StopLinkTest()
         {
             await _linkTestService.StopAsync();
-        }
-
-        private void OnFunctionIndexChanged(int value)
-        {
-            if (value == 1)
-            {
-                // 通信调试与链路测试共用端口配置，进入测试模式前停掉当前通信
-                if (IsRunning) Stop();
-            }
-            else
-            {
-                // 切回通信调试：停止在途测试
-                _ = _linkTestService.StopAsync();
-            }
-        }
-
-        private void OnFrameBreakIntervalChanged(int value)
-        {
-            _udpService.SetFrameBreakInterval(value);
         }
     }
 }
